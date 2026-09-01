@@ -40,7 +40,12 @@ compilar (a versão publicada é self-contained — quem só usa o
 build.bat
 ```
 
-Restaura dependências, roda os testes (`tests/Comunicador.Tests`,
+Para abrir o painel sem se preocupar em compilar antes, use
+`ABRIR_COMUNICADOR.bat` — ele compila automaticamente na primeira vez
+(se `dist\Comunicador.exe` ainda não existir) e depois só abre o
+programa.
+
+`build.bat` restaura dependências, roda os testes (`tests/Comunicador.Tests`,
 inclusive os que sobem `receptor.py` de verdade para testar a
 comunicação C# ↔ Python), compila em Release e publica uma versão
 self-contained single-file em `dist/Comunicador.exe`.
