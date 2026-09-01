@@ -17,21 +17,23 @@
                     <TextBlock Text="Painel de avisos" FontSize="11" Foreground="#8890A6" Margin="0,2,0,0" />
                 </StackPanel>
 
+                <!-- Foreground explicito: o estilo implicito de TextBlock pinta o texto
+                     de escuro e, sobre a barra escura, a navegacao some. -->
                 <StackPanel DockPanel.Dock="Top">
                     <Button Style="{StaticResource NavButton}" Command="{Binding NavegarCommand}" CommandParameter="computadores">
-                        <TextBlock Text="🖥  Computadores" />
+                        <TextBlock Text="🖥  Computadores" Foreground="{StaticResource TextOnDarkBrush}" FontSize="14" />
                     </Button>
                     <Button Style="{StaticResource NavButton}" Command="{Binding NavegarCommand}" CommandParameter="mensagens">
-                        <TextBlock Text="✉  Mensagens" />
+                        <TextBlock Text="✉  Mensagens" Foreground="{StaticResource TextOnDarkBrush}" FontSize="14" />
                     </Button>
                     <Button Style="{StaticResource NavButton}" Command="{Binding NavegarCommand}" CommandParameter="lembretes">
-                        <TextBlock Text="⏰  Lembretes" />
+                        <TextBlock Text="⏰  Lembretes" Foreground="{StaticResource TextOnDarkBrush}" FontSize="14" />
                     </Button>
                     <Button Style="{StaticResource NavButton}" Command="{Binding NavegarCommand}" CommandParameter="historico">
-                        <TextBlock Text="📜  Histórico" />
+                        <TextBlock Text="📜  Histórico" Foreground="{StaticResource TextOnDarkBrush}" FontSize="14" />
                     </Button>
                     <Button Style="{StaticResource NavButton}" Command="{Binding NavegarCommand}" CommandParameter="configuracoes">
-                        <TextBlock Text="⚙  Configurações" />
+                        <TextBlock Text="⚙  Configurações" Foreground="{StaticResource TextOnDarkBrush}" FontSize="14" />
                     </Button>
                 </StackPanel>
 

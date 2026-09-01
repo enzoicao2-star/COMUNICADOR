@@ -95,8 +95,10 @@ echo.
 echo [3/7] Preparando pasta de instalacao...
 rem Reinstalar por cima e normal: paramos um receptor antigo que ainda esteja
 rem rodando, senao ele segura a porta e o novo nao consegue subir.
+rem Filtra por processos python: sem isso o proprio powershell entra no
+rem resultado (a linha de comando dele contem 'receptor.py') e ele se mata.
 powershell -NoProfile -Command ^
-    "$p = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*receptor.py*' };" ^
+    "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'python*' -and $_.CommandLine -like '*receptor.py*' };" ^
     "if ($p) { $p | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue };" ^
     "  Write-Host '      Receptor anterior encerrado (a instalacao vai substitui-lo).' }"
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"

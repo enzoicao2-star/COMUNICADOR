@@ -19,8 +19,11 @@ set "TASK_NAME=Comunicador Receptor"
 set "INSTALL_ROOT=%LOCALAPPDATA%\Comunicador\Receptor"
 
 echo [1/5] Parando o receptor, se estiver rodando...
+rem Filtra por processos python: sem isso o proprio powershell entra no
+rem resultado (a linha de comando dele contem 'receptor.py') e ele se mata
+rem antes de terminar a desinstalacao.
 powershell -NoProfile -Command ^
-    "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*receptor.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+    "Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'python*' -and $_.CommandLine -like '*receptor.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
 
 echo.
 echo [2/5] Removendo a tarefa do Agendador de Tarefas do Windows...

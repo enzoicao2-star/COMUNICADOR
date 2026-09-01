@@ -34,6 +34,7 @@ from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
 REPLY_WAIT_SECONDS = 300
+PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
 
 
@@ -690,16 +691,45 @@ def main(argv=None) -> int:
     porta_painel = args.painel_porta or args.port
 
     def iniciar_conexoes_reversas():
-        hosts = list(args.painel) if args.painel else list(config.panel_hosts)
-        if not hosts:
-            logging.info("Nenhum painel conhecido; procurando na rede local...")
-            hosts = descobrir_paineis(porta_painel)
-            logging.info("Painéis encontrados: %s", hosts or "nenhum")
+        """Mantém conexão com os painéis, procurando de novo enquanto não achar.
 
-        for host in hosts:
-            conexao = ReverseConnection(config, ui, host, porta_painel)
-            conexao.start()
-            conexoes_reversas.append(conexao)
+        A varredura precisa repetir: é normal o painel ainda não estar aberto
+        quando o receptor sobe (ex.: logo após o login). Procurar só uma vez
+        deixaria o receptor invisível até alguém reiniciá-lo.
+        """
+        tentando = set()
+
+        while True:
+            # Descarta as conexões que já morreram para não acumular threads
+            # nem impedir uma nova tentativa para o mesmo endereço.
+            vivas = [c for c in conexoes_reversas if c.is_alive()]
+            conexoes_reversas[:] = vivas
+            tentando &= {c.host for c in vivas}
+
+            hosts = list(args.painel) if args.painel else list(config.panel_hosts)
+
+            # Sem nenhuma conexão viva, vale varrer a rede de novo: o painel
+            # pode ter aberto agora, ou mudado de IP desde a última vez.
+            if not vivas:
+                encontrados = descobrir_paineis(porta_painel)
+                if encontrados:
+                    logging.info("Painéis encontrados na rede: %s", encontrados)
+                for host in encontrados:
+                    if host not in hosts:
+                        hosts.append(host)
+
+            for host in hosts:
+                if host in tentando:
+                    continue
+                tentando.add(host)
+                conexao = ReverseConnection(config, ui, host, porta_painel)
+                conexao.start()
+                conexoes_reversas.append(conexao)
+
+            time.sleep(PANEL_RESCAN_SECONDS)
+
+    if args.painel:
+        logging.info("Painel informado explicitamente: %s", args.painel)
 
     # Em modo de teste so conectamos se o painel foi informado explicitamente,
     # para os testes automatizados poderem exercitar este caminho sem varrer a rede.
