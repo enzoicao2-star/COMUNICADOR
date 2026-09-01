@@ -130,16 +130,23 @@ if errorlevel 1 (
 echo       Tarefa "%TASK_NAME%" criada — visivel no Agendador de Tarefas do Windows,
 echo       inicia com o login do usuario atual, sem janela de console.
 
+echo       Marcando as redes fisicas como "Particular" ^(no perfil Publico o
+echo       Windows bloqueia a descoberta entre computadores; adaptadores
+echo       virtuais/VPN nao sao tocados^)...
+powershell -NoProfile -Command ^
+    "Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object Status -eq 'Up' | ForEach-Object { $p = Get-NetConnectionProfile -InterfaceIndex $_.ifIndex -ErrorAction SilentlyContinue; if ($p -and $p.NetworkCategory -eq 'Public') { try { Set-NetConnectionProfile -InterfaceIndex $_.ifIndex -NetworkCategory Private -ErrorAction Stop; Write-Host ('      ALTERADO: ' + $p.Name + ' Publica -> Particular') } catch {} } }"
+
 netsh advfirewall firewall delete rule name="Comunicador Receptor" >nul 2>nul
 netsh advfirewall firewall delete rule name="Comunicador Receptor (descoberta)" >nul 2>nul
-netsh advfirewall firewall add rule name="Comunicador Receptor" dir=in action=allow protocol=TCP localport=%PORT_TCP% profile=private,domain >nul
-netsh advfirewall firewall add rule name="Comunicador Receptor (descoberta)" dir=in action=allow protocol=UDP localport=%PORT_UDP% profile=private,domain >nul
+rem profile=any cobre Publico/Particular/Dominio — se a rede voltar a ser
+rem classificada como Publica, a regra continua valendo.
+netsh advfirewall firewall add rule name="Comunicador Receptor" dir=in action=allow protocol=TCP localport=%PORT_TCP% profile=any >nul
+netsh advfirewall firewall add rule name="Comunicador Receptor (descoberta)" dir=in action=allow protocol=UDP localport=%PORT_UDP% profile=any >nul
 if errorlevel 1 (
     echo       AVISO: nao foi possivel liberar as portas no Firewall automaticamente.
-    echo       Outros painéis podem nao conseguir encontrar este receptor pela rede.
+    echo       Outros paineis podem nao conseguir encontrar este receptor pela rede.
 ) else (
-    echo       Portas TCP %PORT_TCP% e UDP %PORT_UDP% liberadas no Firewall do Windows
-    echo       ^(redes privadas/domesticas^).
+    echo       Portas TCP %PORT_TCP% e UDP %PORT_UDP% liberadas no Firewall do Windows.
 )
 
 echo.

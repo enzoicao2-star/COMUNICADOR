@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Comunicador.Models;
 using Comunicador.Protocol;
@@ -53,8 +54,55 @@ public sealed class DiscoveryService : IDisposable
         discover.PanelId = _settings.PainelId;
         discover.SenderName = _settings.NomePainel;
         var payload = MessageValidator.Frame(discover);
-        var endpoint = new IPEndPoint(IPAddress.Broadcast, _settings.PortaDescobertaUdp);
-        await _client.SendAsync(payload, payload.Length, endpoint).ConfigureAwait(false);
+
+        // 255.255.255.255 sai por uma interface só (a da rota padrão), o que falha
+        // quando existe adaptador virtual/VPN roubando a rota. Mandamos também um
+        // broadcast dirigido por sub-rede em cada placa física ativa.
+        var destinos = new List<IPAddress> { IPAddress.Broadcast };
+        destinos.AddRange(EnderecosBroadcastPorInterface());
+
+        foreach (var destino in destinos)
+        {
+            try
+            {
+                var endpoint = new IPEndPoint(destino, _settings.PortaDescobertaUdp);
+                await _client.SendAsync(payload, payload.Length, endpoint).ConfigureAwait(false);
+            }
+            catch (SocketException)
+            {
+                // interface indisponível no momento; as outras seguem normalmente.
+            }
+        }
+    }
+
+    private static IEnumerable<IPAddress> EnderecosBroadcastPorInterface()
+    {
+        foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (nic.OperationalStatus != OperationalStatus.Up ||
+                nic.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+            {
+                continue;
+            }
+
+            foreach (var info in nic.GetIPProperties().UnicastAddresses)
+            {
+                if (info.Address.AddressFamily != AddressFamily.InterNetwork || info.IPv4Mask is null)
+                {
+                    continue;
+                }
+
+                var ip = info.Address.GetAddressBytes();
+                var mask = info.IPv4Mask.GetAddressBytes();
+                var broadcast = new byte[4];
+                for (var i = 0; i < 4; i++)
+                {
+                    broadcast[i] = (byte)(ip[i] | ~mask[i]);
+                }
+
+                yield return new IPAddress(broadcast);
+            }
+        }
     }
 
     private async Task BroadcastLoopAsync(CancellationToken ct)
