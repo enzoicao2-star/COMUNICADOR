@@ -130,11 +130,21 @@ if errorlevel 1 (
 echo       Tarefa "%TASK_NAME%" criada — visivel no Agendador de Tarefas do Windows,
 echo       inicia com o login do usuario atual, sem janela de console.
 
+echo       Salvando as configuracoes atuais de rede antes de alterar...
+powershell -NoProfile -Command ^
+    "$bk = Join-Path $env:LOCALAPPDATA 'Comunicador\backup_rede.csv';" ^
+    "if (Test-Path $bk) { Write-Host '      Backup anterior preservado (estado original ja guardado).' } else {" ^
+    "  New-Item -ItemType Directory -Force -Path (Split-Path $bk) | Out-Null;" ^
+    "  Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -notmatch 'Loopback' } | ForEach-Object {" ^
+    "    $p = Get-NetConnectionProfile -InterfaceIndex $_.ifIndex -ErrorAction SilentlyContinue;" ^
+    "    if ($p) { \"$($_.ifIndex),$($p.NetworkCategory)\" } } | Set-Content -Path $bk -Encoding UTF8;" ^
+    "  Write-Host ('      Backup salvo em: ' + $bk) }"
+
 echo       Marcando as redes fisicas como "Particular" ^(no perfil Publico o
 echo       Windows bloqueia a descoberta entre computadores; adaptadores
-echo       virtuais/VPN nao sao tocados^)...
+echo       virtuais/VPN/loopback nao sao tocados^)...
 powershell -NoProfile -Command ^
-    "Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object Status -eq 'Up' | ForEach-Object { $p = Get-NetConnectionProfile -InterfaceIndex $_.ifIndex -ErrorAction SilentlyContinue; if ($p -and $p.NetworkCategory -eq 'Public') { try { Set-NetConnectionProfile -InterfaceIndex $_.ifIndex -NetworkCategory Private -ErrorAction Stop; Write-Host ('      ALTERADO: ' + $p.Name + ' Publica -> Particular') } catch {} } }"
+    "Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -notmatch 'Loopback' } | ForEach-Object { $p = Get-NetConnectionProfile -InterfaceIndex $_.ifIndex -ErrorAction SilentlyContinue; if ($p -and $p.NetworkCategory -eq 'Public') { try { Set-NetConnectionProfile -InterfaceIndex $_.ifIndex -NetworkCategory Private -ErrorAction Stop; Write-Host ('      ALTERADO: ' + $p.Name + ' Publica -> Particular') } catch {} } }"
 
 netsh advfirewall firewall delete rule name="Comunicador Receptor" >nul 2>nul
 netsh advfirewall firewall delete rule name="Comunicador Receptor (descoberta)" >nul 2>nul

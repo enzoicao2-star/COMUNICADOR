@@ -25,9 +25,18 @@ echo   Comunicador - configurar rede
 echo ===============================================
 echo.
 
-echo [1/2] Verificando o perfil das redes...
+echo [1/2] Salvando o estado atual e verificando o perfil das redes...
 powershell -NoProfile -Command ^
-    "$fisicas = Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object Status -eq 'Up';" ^
+    "$bk = Join-Path $env:LOCALAPPDATA 'Comunicador\backup_rede.csv';" ^
+    "if (Test-Path $bk) { Write-Host '      Backup anterior preservado (estado original ja guardado).' } else {" ^
+    "  New-Item -ItemType Directory -Force -Path (Split-Path $bk) | Out-Null;" ^
+    "  Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -notmatch 'Loopback' } | ForEach-Object {" ^
+    "    $p = Get-NetConnectionProfile -InterfaceIndex $_.ifIndex -ErrorAction SilentlyContinue;" ^
+    "    if ($p) { \"$($_.ifIndex),$($p.NetworkCategory)\" } } | Set-Content -Path $bk -Encoding UTF8;" ^
+    "  Write-Host ('      Backup salvo em: ' + $bk) }"
+
+powershell -NoProfile -Command ^
+    "$fisicas = Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -notmatch 'Loopback' };" ^
     "if (-not $fisicas) { Write-Host '      Nenhuma placa de rede fisica ativa encontrada.'; exit 0 };" ^
     "foreach ($a in $fisicas) {" ^
     "  $perfil = Get-NetConnectionProfile -InterfaceIndex $a.ifIndex -ErrorAction SilentlyContinue;" ^
