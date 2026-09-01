@@ -57,5 +57,8 @@ echo ===============================================
 echo   Configuracoes revertidas.
 echo   O Windows voltou ao estado anterior a instalacao.
 echo ===============================================
-pause
+echo.
+echo Esta janela fecha sozinha em 5 segundos...
+rem ping em vez de timeout: timeout falha quando a entrada esta redirecionada.
+ping -n 6 127.0.0.1 >nul 2>nul
 exit /b 0

@@ -78,5 +78,8 @@ echo   configuracoes do Windows revertidas.
 echo.
 echo   O Python em si NAO foi removido da maquina.
 echo ===============================================
-pause
+echo.
+echo Esta janela fecha sozinha em 5 segundos...
+rem ping em vez de timeout: timeout falha quando a entrada esta redirecionada.
+ping -n 6 127.0.0.1 >nul 2>nul
 exit /b 0
