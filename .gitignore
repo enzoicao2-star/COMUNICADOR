@@ -1,0 +1,18 @@
+# .NET
+bin/
+obj/
+dist/
+*.user
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# editores / SO
+.vs/
+.vscode/
+*.swp
+Thumbs.db
+.DS_Store

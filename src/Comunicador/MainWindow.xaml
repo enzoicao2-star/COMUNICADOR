@@ -1,0 +1,47 @@
+<Window x:Class="Comunicador.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Comunicador" Height="720" Width="1120" MinHeight="560" MinWidth="880"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="{StaticResource SidebarBrush}">
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Top" Margin="20,24,20,28">
+                    <TextBlock Text="COMUNICADOR" FontSize="18" FontWeight="Bold"
+                               Foreground="{StaticResource TextOnDarkBrush}" />
+                    <TextBlock Text="Painel de avisos" FontSize="11" Foreground="#8890A6" Margin="0,2,0,0" />
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Top">
+                    <Button Style="{StaticResource NavButton}" Command="{Binding NavegarCommand}" CommandParameter="computadores">
+                        <TextBlock Text="🖥  Computadores" />
+                    </Button>
+                    <Button Style="{StaticResource NavButton}" Command="{Binding NavegarCommand}" CommandParameter="mensagens">
+                        <TextBlock Text="✉  Mensagens" />
+                    </Button>
+                    <Button Style="{StaticResource NavButton}" Command="{Binding NavegarCommand}" CommandParameter="lembretes">
+                        <TextBlock Text="⏰  Lembretes" />
+                    </Button>
+                    <Button Style="{StaticResource NavButton}" Command="{Binding NavegarCommand}" CommandParameter="historico">
+                        <TextBlock Text="📜  Histórico" />
+                    </Button>
+                    <Button Style="{StaticResource NavButton}" Command="{Binding NavegarCommand}" CommandParameter="configuracoes">
+                        <TextBlock Text="⚙  Configurações" />
+                    </Button>
+                </StackPanel>
+
+                <TextBlock DockPanel.Dock="Bottom" Text="Rede local apenas" FontSize="10"
+                           Foreground="#5B6377" Margin="20,0,20,16" />
+            </DockPanel>
+        </Border>
+
+        <Border Grid.Column="1" Background="{StaticResource BackgroundBrush}" Padding="28">
+            <ContentControl Content="{Binding SecaoAtual}" />
+        </Border>
+    </Grid>
+</Window>
