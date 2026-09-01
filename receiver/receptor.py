@@ -111,6 +111,33 @@ class Config:
         self.save()
         return token
 
+    @property
+    def panel_hosts(self) -> list:
+        """IPs de painéis para os quais este receptor disca (conexão reversa)."""
+        return self.data.setdefault("panel_hosts", [])
+
+    def remember_panel_host(self, host: str) -> None:
+        if host and host not in self.panel_hosts:
+            self.panel_hosts.append(host)
+            self.save()
+
+    def token_for_panel_host(self) -> Optional[str]:
+        """Token de qualquer painel já pareado, usado ao se registrar novamente."""
+        for p in self.paired_panels.values():
+            if p.get("token"):
+                return p["token"]
+        return None
+
+    def store_reverse_token(self, token: str, panel_name: str) -> None:
+        """Guarda o token emitido pelo painel durante o registro reverso."""
+        with self._lock:
+            self.paired_panels[f"reverso:{panel_name}"] = {
+                "token": token,
+                "panel_name": panel_name,
+                "paired_at": datetime.now(timezone.utc).isoformat(),
+            }
+        self.save()
+
 
 # --------------------------------------------------------------------------- notificações (UI)
 
@@ -388,6 +415,203 @@ class DiscoveryResponder(threading.Thread):
             pass
 
 
+# --------------------------------------------------------------------------- conexão reversa
+
+class ReverseConnection(threading.Thread):
+    """Disca do receptor PARA o painel e mantém a conexão aberta.
+
+    É o caminho que dispensa qualquer porta de entrada liberada nesta máquina:
+    quem inicia a conexão é o receptor, e firewall doméstico praticamente nunca
+    bloqueia conexões de saída. O painel manda as notificações de volta por
+    essa mesma conexão, e as respostas do usuário sobem por ela.
+    """
+
+    RECONNECT_SECONDS = 15
+
+    def __init__(self, config: Config, ui: "NotificationUi", host: str, port: int):
+        super().__init__(daemon=True)
+        self.config = config
+        self.ui = ui
+        self.host = host
+        self.port = port
+        self._running = True
+        self._sock: Optional[socket.socket] = None
+
+    def stop(self) -> None:
+        self._running = False
+        if self._sock is not None:
+            try:
+                self._sock.close()
+            except OSError:
+                pass
+
+    def run(self) -> None:
+        while self._running:
+            try:
+                self._sessao()
+            except (OSError, ProtocolError) as exc:
+                logging.debug("Conexão reversa com %s:%s caiu: %s", self.host, self.port, exc)
+            finally:
+                if self._sock is not None:
+                    try:
+                        self._sock.close()
+                    except OSError:
+                        pass
+                    self._sock = None
+
+            if not self._running:
+                return
+
+            for _ in range(self.RECONNECT_SECONDS):
+                if not self._running:
+                    return
+                time.sleep(1)
+
+    def _sessao(self) -> None:
+        self._sock = socket.create_connection((self.host, self.port), timeout=10)
+        self._sock.settimeout(None)
+
+        registro = protocolo.base_message(MessageType.REGISTER)
+        registro["computer_id"] = self.config.computer_id
+        registro["computer_name"] = self.config.computer_name
+        token = self.config.token_for_panel_host()
+        if token:
+            registro["token"] = token
+        self._sock.sendall(protocolo.frame(registro))
+
+        buffer = b""
+        resposta, buffer = self._ler(buffer)
+
+        # O host pode ser outro RECEPTOR (também escuta nesta porta) e não um
+        # painel: nesse caso ele responde UNKNOWN_TYPE. Desistimos dele de vez,
+        # em vez de ficar reconectando para sempre.
+        if resposta is not None and resposta.get("type") == MessageType.ERROR:
+            logging.info(
+                "%s:%s não é um painel (%s); parando de tentar.",
+                self.host, self.port, resposta.get("code"))
+            self._running = False
+            return
+
+        if resposta is None or resposta.get("type") != MessageType.REGISTER_ACK:
+            tipo = resposta.get("type") if resposta else "nenhuma"
+            logging.warning("Registro recusado por %s:%s (resposta: %s)", self.host, self.port, tipo)
+            return
+
+        if resposta.get("accepted") is not True:
+            logging.warning("Painel %s recusou o registro.", self.host)
+            self._running = False
+            return
+
+        self.config.store_reverse_token(resposta["token"], resposta.get("computer_name", self.host))
+        self.config.remember_panel_host(self.host)
+        logging.info("Registrado no painel %s:%s via conexão reversa.", self.host, self.port)
+
+        # A partir daqui a conexão fica aberta recebendo notificações do painel.
+        while self._running:
+            msg, buffer = self._ler(buffer)
+            if msg is None:
+                return
+            if msg.get("type") == MessageType.NOTIFICATION:
+                self._tratar_notificacao(msg)
+
+    def _tratar_notificacao(self, msg: dict) -> None:
+        allow_reply = msg.get("allow_reply", False)
+        notification_id = msg["id"]
+        result_queue: "queue.Queue[Optional[str]]" = queue.Queue()
+
+        self.ui.mostrar(
+            sender=msg.get("sender", "Painel"), title=msg.get("title", ""),
+            message=msg.get("message", ""), allow_reply=allow_reply,
+            on_result=lambda value: result_queue.put(value))
+
+        ack = protocolo.base_message(MessageType.ACK)
+        ack["in_reply_to"] = notification_id
+        ack["status"] = "shown"
+        self._enviar(ack)
+
+        if not allow_reply:
+            return
+
+        try:
+            reply_text = result_queue.get(timeout=REPLY_WAIT_SECONDS)
+        except queue.Empty:
+            return
+
+        if reply_text is None:
+            return
+
+        reply = protocolo.base_message(MessageType.REPLY)
+        reply["in_reply_to"] = notification_id
+        reply["computer_id"] = self.config.computer_id
+        reply["computer_name"] = self.config.computer_name
+        reply["reply_text"] = reply_text
+        self._enviar(reply)
+
+    def _enviar(self, mensagem: dict) -> None:
+        if self._sock is None:
+            return
+        try:
+            self._sock.sendall(protocolo.frame(mensagem))
+        except OSError:
+            pass
+
+    def _ler(self, buffer: bytes):
+        """Lê uma mensagem completa, devolvendo (mensagem, buffer_restante)."""
+        while b"\n" not in buffer:
+            if self._sock is None:
+                return None, buffer
+            chunk = self._sock.recv(4096)
+            if not chunk:
+                return None, buffer
+            buffer += chunk
+            protocolo.validate_size(len(buffer), is_udp=False)
+
+        linha, _, resto = buffer.partition(b"\n")
+        try:
+            msg = protocolo.parse(linha)
+            protocolo.validate(msg)
+            return msg, resto
+        except ProtocolError as exc:
+            logging.warning("Mensagem inválida do painel %s: %s", self.host, exc)
+            return None, resto
+
+
+def descobrir_paineis(port: int, timeout: float = 4.0) -> list:
+    """Procura painéis na LAN testando a porta conhecida do protocolo.
+
+    Usado quando o receptor ainda não sabe o IP de nenhum painel — evita
+    exigir configuração manual do endereço.
+    """
+    encontrados = []
+    redes = set()
+
+    for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+        ip = info[4][0]
+        if ip.startswith("127."):
+            continue
+        redes.add(".".join(ip.split(".")[:3]))
+
+    def testar(alvo: str) -> None:
+        try:
+            with socket.create_connection((alvo, port), timeout=timeout):
+                encontrados.append(alvo)
+        except OSError:
+            pass
+
+    threads = []
+    for rede in redes:
+        for ultimo in range(1, 255):
+            alvo = f"{rede}.{ultimo}"
+            t = threading.Thread(target=testar, args=(alvo,), daemon=True)
+            t.start()
+            threads.append(t)
+
+    for t in threads:
+        t.join(timeout=timeout + 1)
+
+    return encontrados
+
+
 # --------------------------------------------------------------------------- bandeja (opcional)
 
 def start_tray_icon(config: Config, on_exit) -> Optional[object]:
@@ -428,6 +652,16 @@ def parse_args(argv=None):
     parser.add_argument("--config-dir", type=str, default=None)
     parser.add_argument("--computer-name", type=str, default=None)
     parser.add_argument("--test-mode", action="store_true")
+    parser.add_argument(
+        "--painel", action="append", default=None, metavar="IP",
+        help="IP de um painel para conexao reversa (pode repetir). Se omitido, "
+             "o receptor procura paineis na rede automaticamente.")
+    parser.add_argument(
+        "--painel-porta", type=int, default=None,
+        help="Porta TCP em que o painel escuta (padrao: a mesma de --port).")
+    parser.add_argument(
+        "--sem-conexao-reversa", action="store_true",
+        help="Nao disca para paineis; so espera conexoes de entrada.")
     return parser.parse_args(argv)
 
 
@@ -449,7 +683,35 @@ def main(argv=None) -> int:
     discovery = DiscoveryResponder(("0.0.0.0", args.udp_port), config, tcp_server.server_address[1])
     discovery.start()
 
+    # Conexão reversa: o receptor disca para o painel e mantém a conexão aberta.
+    # Assim esta máquina não precisa de nenhuma porta de entrada liberada.
+    conexoes_reversas = []
+
+    porta_painel = args.painel_porta or args.port
+
+    def iniciar_conexoes_reversas():
+        hosts = list(args.painel) if args.painel else list(config.panel_hosts)
+        if not hosts:
+            logging.info("Nenhum painel conhecido; procurando na rede local...")
+            hosts = descobrir_paineis(porta_painel)
+            logging.info("Painéis encontrados: %s", hosts or "nenhum")
+
+        for host in hosts:
+            conexao = ReverseConnection(config, ui, host, porta_painel)
+            conexao.start()
+            conexoes_reversas.append(conexao)
+
+    # Em modo de teste so conectamos se o painel foi informado explicitamente,
+    # para os testes automatizados poderem exercitar este caminho sem varrer a rede.
+    reverso_habilitado = not args.sem_conexao_reversa and (not args.test_mode or args.painel)
+    if reverso_habilitado:
+        # em thread separada: a varredura da rede leva alguns segundos e o
+        # receptor ja deve estar respondendo enquanto isso.
+        threading.Thread(target=iniciar_conexoes_reversas, daemon=True).start()
+
     def shutdown():
+        for conexao in conexoes_reversas:
+            conexao.stop()
         discovery.stop()
         tcp_server.shutdown()
         tcp_server.server_close()

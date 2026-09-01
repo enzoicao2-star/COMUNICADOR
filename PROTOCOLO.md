@@ -179,6 +179,39 @@ Enviado depois que o usuário responde a uma notificação com
   "computer_name": "COMPUTADOR-1", "reply_text": "Recebido!" }
 ```
 
+### `register` (TCP, receptor → painel) — conexão reversa
+
+Quem abre a conexão aqui é o **receptor**, discando para o painel. Como
+conexões de saída praticamente nunca são bloqueadas por firewall
+doméstico, esse caminho dispensa qualquer porta de entrada liberada na
+máquina do receptor — só o painel precisa da porta aberta.
+
+```json
+{ "protocol_version": 1, "type": "register", "id": "...", "timestamp": "...",
+  "computer_id": "b0b1...", "computer_name": "COMPUTADOR-1", "token": "9f8b..." }
+```
+
+`token` é opcional: na primeira vez o receptor ainda não tem um, e o
+painel emite um no `register_ack`. Nas reconexões o receptor manda o
+token que já tem, e o painel o valida.
+
+### `register_ack` (TCP, painel → receptor)
+
+```json
+{ "protocol_version": 1, "type": "register_ack", "id": "...", "timestamp": "...",
+  "accepted": true, "token": "9f8b...",
+  "computer_id": "1a2b...", "computer_name": "PAINEL-PC" }
+```
+
+Depois do `register_ack` a conexão **permanece aberta**. O painel envia
+`notification` por ela sempre que precisar, e o receptor responde `ack`
+e `reply` pela mesma conexão. Se a conexão cair, o receptor reconecta
+sozinho a cada 15 segundos.
+
+Se o host contatado não for um painel (por exemplo, outro receptor, que
+escuta na mesma porta), ele responde `error` com `UNKNOWN_TYPE` — e o
+receptor para de tentar aquele endereço.
+
 ### `error` (qualquer direção)
 
 ```json
@@ -255,6 +288,27 @@ Duas garantias importantes:
   recebimento embutido inteiro (o painel só envia, não aparece mais na
   descoberta de ninguém). Também dá para bloquear um painel pareado
   específico individualmente, sem afetar os demais.
+
+## Quem disca para quem
+
+O Comunicador suporta os dois sentidos, e usa o que estiver disponível:
+
+| Caminho | Quem abre a conexão | Porta de entrada necessária |
+|---|---|---|
+| **Reverso** (preferido) | receptor → painel | só no **painel** |
+| Direto | painel → receptor | em **cada receptor** |
+
+O caminho reverso existe porque exigir porta aberta em cada máquina com
+receptor é a maior fonte de "o painel não encontra o computador". Com
+ele, você configura o firewall **uma vez**, na máquina do painel, e os
+receptores funcionam sem configuração nenhuma.
+
+Ao iniciar, o receptor procura painéis na rede (testando a porta TCP do
+protocolo em cada host da sub-rede), guarda os que encontrar em
+`panel_hosts` no seu `config.json` e mantém uma conexão aberta com cada
+um. O painel, ao enviar uma notificação, usa a conexão reversa se
+existir uma viva para aquele computador; se não houver, disca para o
+receptor como no caminho direto.
 
 ## Descoberta e pareamento
 

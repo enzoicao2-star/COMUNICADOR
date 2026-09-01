@@ -14,6 +14,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     private readonly LembreteSchedulerService _scheduler;
     private readonly HistoricoRepository _historicoRepositorio;
     private readonly EmbeddedReceptorServer _embeddedReceptorServer;
+    private readonly RegistroConexoesReversas _conexoesReversas;
 
     private object _secaoAtual;
 
@@ -44,23 +45,27 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var client = new ReceptorClient(Settings.PainelId, Settings.NomePainel);
         _discovery = new DiscoveryService(Settings);
         _historicoRepositorio = new HistoricoRepository(historicoStore);
+        _conexoesReversas = new RegistroConexoesReversas();
+        var enviador = new EnviadorNotificacoes(client, _conexoesReversas, Settings);
 
         Computadores = new ComputadoresViewModel(computadoresStore, _discovery, client, Settings);
         Historico = new HistoricoViewModel(_historicoRepositorio);
-        Mensagens = new MensagensViewModel(Computadores, client, _historicoRepositorio);
+        Mensagens = new MensagensViewModel(Computadores, enviador, _historicoRepositorio);
 
-        _statusMonitor = new StatusMonitorService(Computadores.Snapshot, client, Settings);
+        _statusMonitor = new StatusMonitorService(Computadores.Snapshot, enviador, Settings);
         _statusMonitor.StatusAtualizado += Computadores.AtualizarStatus;
 
         _scheduler = new LembreteSchedulerService(
             () => LembretesSnapshot(),
             id => Computadores.Computadores.FirstOrDefault(c => c.Id == id),
-            client);
+            enviador);
 
         Lembretes = new LembretesViewModel(lembretesStore, Computadores, _historicoRepositorio, _scheduler);
 
         var paineisPareados = new ObservableCollection<PainelPareado>(paineisPareadosStore.Load());
-        _embeddedReceptorServer = new EmbeddedReceptorServer(Settings, paineisPareados, paineisPareadosStore, _historicoRepositorio);
+        _embeddedReceptorServer = new EmbeddedReceptorServer(
+            Settings, paineisPareados, paineisPareadosStore, _historicoRepositorio, _conexoesReversas);
+        _embeddedReceptorServer.ReceptorRegistrado += Computadores.RegistrarViaConexaoReversa;
         Configuracoes = new ConfiguracoesViewModel(Settings, paineisPareados, paineisPareadosStore, _embeddedReceptorServer);
 
         _secaoAtual = Computadores;

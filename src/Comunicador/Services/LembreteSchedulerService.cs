@@ -11,7 +11,7 @@ public sealed class LembreteSchedulerService : IDisposable
 
     private readonly Func<IReadOnlyList<Lembrete>> _getLembretes;
     private readonly Func<string, Computador?> _resolveComputador;
-    private readonly ReceptorClient _client;
+    private readonly EnviadorNotificacoes _enviador;
     private CancellationTokenSource? _cts;
     private Task? _loopTask;
 
@@ -21,11 +21,11 @@ public sealed class LembreteSchedulerService : IDisposable
     public LembreteSchedulerService(
         Func<IReadOnlyList<Lembrete>> getLembretes,
         Func<string, Computador?> resolveComputador,
-        ReceptorClient client)
+        EnviadorNotificacoes enviador)
     {
         _getLembretes = getLembretes;
         _resolveComputador = resolveComputador;
-        _client = client;
+        _enviador = enviador;
     }
 
     public void Start()
@@ -79,9 +79,9 @@ public sealed class LembreteSchedulerService : IDisposable
                 continue;
             }
 
-            var result = await _client.SendNotificationAsync(
-                computador.EnderecoIp, computador.PortaTcp, computador.Token!,
-                lembrete.Titulo, lembrete.Mensagem, lembrete.PermitirResposta, ct).ConfigureAwait(false);
+            var result = await _enviador.EnviarAsync(
+                computador, lembrete.Titulo, lembrete.Mensagem, lembrete.PermitirResposta, ct)
+                .ConfigureAwait(false);
 
             NotificacaoEnviada?.Invoke(lembrete, computador, result);
         }

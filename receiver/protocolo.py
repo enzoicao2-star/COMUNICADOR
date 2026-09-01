@@ -36,12 +36,14 @@ class MessageType:
     ACK = "ack"
     REPLY = "reply"
     ERROR = "error"
+    REGISTER = "register"
+    REGISTER_ACK = "register_ack"
 
 
 ALL_TYPES = {
     MessageType.DISCOVER, MessageType.ANNOUNCE, MessageType.PAIR_REQUEST, MessageType.PAIR_RESPONSE,
     MessageType.PING, MessageType.PONG, MessageType.NOTIFICATION, MessageType.ACK, MessageType.REPLY,
-    MessageType.ERROR,
+    MessageType.ERROR, MessageType.REGISTER, MessageType.REGISTER_ACK,
 }
 
 
@@ -217,6 +219,17 @@ def validate(msg: dict) -> None:
     elif msg_type == MessageType.ERROR:
         _require_str(msg, "code", MAX_NAME_LENGTH)
         _require_str(msg, "message", MAX_MESSAGE_LENGTH)
+
+    elif msg_type == MessageType.REGISTER:
+        # conexao reversa: o receptor abre a conexao e se registra no painel.
+        # token e opcional — na primeira vez o receptor ainda nao tem um.
+        _require_str(msg, "computer_id", MAX_NAME_LENGTH)
+        _require_str(msg, "computer_name", MAX_NAME_LENGTH)
+
+    elif msg_type == MessageType.REGISTER_ACK:
+        accepted = _require_bool(msg, "accepted")
+        if accepted:
+            _require_str(msg, "token", MAX_NAME_LENGTH)
 
 
 def parse_and_validate(payload: bytes, is_udp: bool) -> dict:

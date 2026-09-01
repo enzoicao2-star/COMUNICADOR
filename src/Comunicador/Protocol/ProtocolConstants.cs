@@ -26,11 +26,13 @@ public static class ProtocolConstants
         public const string Ack = "ack";
         public const string Reply = "reply";
         public const string Error = "error";
+        public const string Register = "register";
+        public const string RegisterAck = "register_ack";
 
         public static readonly IReadOnlySet<string> All = new HashSet<string>
         {
             Discover, Announce, PairRequest, PairResponse, Ping, Pong,
-            Notification, Ack, Reply, Error,
+            Notification, Ack, Reply, Error, Register, RegisterAck,
         };
     }
 

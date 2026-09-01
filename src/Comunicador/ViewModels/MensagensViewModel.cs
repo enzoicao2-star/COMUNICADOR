@@ -9,7 +9,7 @@ namespace Comunicador.ViewModels;
 public sealed class MensagensViewModel : ViewModelBase
 {
     private readonly ComputadoresViewModel _computadores;
-    private readonly ReceptorClient _client;
+    private readonly EnviadorNotificacoes _enviador;
     private readonly HistoricoRepository _historico;
 
     private string _titulo = string.Empty;
@@ -46,10 +46,11 @@ public sealed class MensagensViewModel : ViewModelBase
     public ICommand EnviarCommand { get; }
     public ICommand AtualizarDestinatariosCommand { get; }
 
-    public MensagensViewModel(ComputadoresViewModel computadores, ReceptorClient client, HistoricoRepository historico)
+    public MensagensViewModel(
+        ComputadoresViewModel computadores, EnviadorNotificacoes enviador, HistoricoRepository historico)
     {
         _computadores = computadores;
-        _client = client;
+        _enviador = enviador;
         _historico = historico;
 
         EnviarCommand = new AsyncRelayCommand(EnviarAsync, PodeEnviar);
@@ -92,8 +93,8 @@ public sealed class MensagensViewModel : ViewModelBase
             };
             _historico.Adicionar(entry);
 
-            var resultado = await _client.SendNotificationAsync(
-                computador.EnderecoIp, computador.PortaTcp, computador.Token!, Titulo, Mensagem, PermitirResposta)
+            var resultado = await _enviador
+                .EnviarAsync(computador, Titulo, Mensagem, PermitirResposta)
                 .ConfigureAwait(true);
 
             _historico.AtualizarExistente(entry.Id, item => AplicarResultado(item, resultado, PermitirResposta));

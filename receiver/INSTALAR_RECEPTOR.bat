@@ -93,6 +93,12 @@ if not exist "!PYTHONW_EXE!" (
 
 echo.
 echo [3/7] Preparando pasta de instalacao...
+rem Reinstalar por cima e normal: paramos um receptor antigo que ainda esteja
+rem rodando, senao ele segura a porta e o novo nao consegue subir.
+powershell -NoProfile -Command ^
+    "$p = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*receptor.py*' };" ^
+    "if ($p) { $p | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue };" ^
+    "  Write-Host '      Receptor anterior encerrado (a instalacao vai substitui-lo).' }"
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
 
 echo.
@@ -218,10 +224,15 @@ if defined RECEPTOR_OK (
 if "%AUTOSTART_OK%"=="tarefa"      echo   Inicia sozinho a cada login ^(Agendador de Tarefas^).
 if "%AUTOSTART_OK%"=="inicializar" echo   Inicia sozinho a cada login ^(pasta Inicializar^).
 if not defined AUTOSTART_OK        echo   ATENCAO: NAO vai iniciar sozinho apos reiniciar o PC.
+echo.
+echo   Este receptor procura o painel na rede e abre a conexao ele mesmo,
+echo   entao aparece no painel sozinho, sem precisar de porta liberada aqui.
 if defined SEM_ADMIN (
     echo.
-    echo   Rodou SEM administrador: o Firewall nao foi liberado. Se o painel
-    echo   nao encontrar este PC, execute o instalador de novo e aceite o UAC.
+    echo   Rodou SEM administrador: o Firewall nao foi liberado nesta maquina.
+    echo   Isso costuma nao ser problema, porque quem abre a conexao e este
+    echo   receptor. Se ainda assim o painel nao encontrar este PC, rode o
+    echo   instalador de novo e aceite o UAC.
 )
 echo.
 echo   Para desinstalar, execute DESINSTALAR_RECEPTOR.bat

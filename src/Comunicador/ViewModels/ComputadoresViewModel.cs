@@ -82,6 +82,44 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
     public IReadOnlyList<Computador> Snapshot() => Computadores.ToList();
 
+    /// <summary>Um receptor abriu conexao para este painel e se registrou. Ele ja chega
+    /// pareado e online, sem precisar de descoberta nem de porta aberta no lado dele.</summary>
+    public void RegistrarViaConexaoReversa(ConexaoReversa conexao)
+    {
+        Services.UiDispatcher.Invoke(() =>
+        {
+            var existente = Computadores.FirstOrDefault(c => c.Id == conexao.ComputerId)
+                ?? Computadores.FirstOrDefault(c => !c.Pareado && c.EnderecoIp == conexao.EnderecoIp);
+
+            if (existente is null)
+            {
+                Computadores.Add(new Computador
+                {
+                    Id = conexao.ComputerId,
+                    Nome = conexao.ComputerName,
+                    EnderecoIp = conexao.EnderecoIp,
+                    PortaTcp = _settings.PortaTcp,
+                    Pareado = true,
+                    Status = StatusComputador.Online,
+                    UltimaVezVisto = DateTime.UtcNow,
+                });
+                StatusMensagem = $"{conexao.ComputerName} conectou-se e já está pronto para receber mensagens.";
+            }
+            else
+            {
+                existente.Id = conexao.ComputerId;
+                existente.Nome = conexao.ComputerName;
+                existente.EnderecoIp = conexao.EnderecoIp;
+                existente.Pareado = true;
+                existente.Status = StatusComputador.Online;
+                existente.UltimaVezVisto = DateTime.UtcNow;
+                StatusMensagem = $"{conexao.ComputerName} reconectou-se.";
+            }
+
+            Persist();
+        });
+    }
+
     public void AtualizarStatus(string computadorId, StatusComputador status)
     {
         Services.UiDispatcher.Invoke(() =>

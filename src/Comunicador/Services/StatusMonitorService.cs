@@ -7,17 +7,18 @@ namespace Comunicador.Services;
 public sealed class StatusMonitorService : IDisposable
 {
     private readonly Func<IReadOnlyList<Computador>> _getComputadores;
-    private readonly ReceptorClient _client;
+    private readonly EnviadorNotificacoes _enviador;
     private readonly AppSettings _settings;
     private CancellationTokenSource? _cts;
     private Task? _loopTask;
 
     public event Action<string, StatusComputador>? StatusAtualizado;
 
-    public StatusMonitorService(Func<IReadOnlyList<Computador>> getComputadores, ReceptorClient client, AppSettings settings)
+    public StatusMonitorService(
+        Func<IReadOnlyList<Computador>> getComputadores, EnviadorNotificacoes enviador, AppSettings settings)
     {
         _getComputadores = getComputadores;
-        _client = client;
+        _enviador = enviador;
         _settings = settings;
     }
 
@@ -59,8 +60,7 @@ public sealed class StatusMonitorService : IDisposable
 
     private async Task CheckOneAsync(Computador computador, CancellationToken ct)
     {
-        var online = await _client.PingAsync(computador.EnderecoIp, computador.PortaTcp, computador.Token!, ct)
-            .ConfigureAwait(false);
+        var online = await _enviador.EstaOnlineAsync(computador, ct).ConfigureAwait(false);
         StatusAtualizado?.Invoke(computador.Id, online ? StatusComputador.Online : StatusComputador.Offline);
     }
 

@@ -22,6 +22,10 @@ public sealed class EmbeddedReceptorServer : IDisposable
     private readonly ObservableCollection<PainelPareado> _paineisPareados;
     private readonly JsonStore<PainelPareado> _paineisPareadosStore;
     private readonly HistoricoRepository _historico;
+    private readonly RegistroConexoesReversas _conexoesReversas;
+
+    /// <summary>Disparado quando um receptor se registra abrindo conexao para este painel.</summary>
+    public event Action<ConexaoReversa>? ReceptorRegistrado;
 
     private TcpListener? _tcpListener;
     private UdpClient? _udpClient;
@@ -37,12 +41,14 @@ public sealed class EmbeddedReceptorServer : IDisposable
 
     public EmbeddedReceptorServer(
         AppSettings settings, ObservableCollection<PainelPareado> paineisPareados,
-        JsonStore<PainelPareado> paineisPareadosStore, HistoricoRepository historico)
+        JsonStore<PainelPareado> paineisPareadosStore, HistoricoRepository historico,
+        RegistroConexoesReversas conexoesReversas)
     {
         _settings = settings;
         _paineisPareados = paineisPareados;
         _paineisPareadosStore = paineisPareadosStore;
         _historico = historico;
+        _conexoesReversas = conexoesReversas;
     }
 
     public void AtualizarDisponibilidade()
@@ -147,9 +153,27 @@ public sealed class EmbeddedReceptorServer : IDisposable
 
     private async Task TratarConexaoAsync(TcpClient client, CancellationToken ct)
     {
-        using var clientDisposable = client;
-        await using var stream = client.GetStream();
+        // Uma conexao "register" e mantida viva no registro de conexoes reversas,
+        // entao nesse caso NAO liberamos o socket ao sair deste metodo.
+        var manterViva = false;
+        var stream = client.GetStream();
+        try
+        {
+            manterViva = await ProcessarConexaoAsync(client, stream, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (!manterViva)
+            {
+                stream.Dispose();
+                client.Dispose();
+            }
+        }
+    }
 
+    /// <summary>Retorna true quando a conexao deve permanecer aberta (registro reverso).</summary>
+    private async Task<bool> ProcessarConexaoAsync(TcpClient client, NetworkStream stream, CancellationToken ct)
+    {
         byte[]? payload;
         try
         {
@@ -161,36 +185,36 @@ public sealed class EmbeddedReceptorServer : IDisposable
                 stream,
                 ComunicadorMessage.Error(ProtocolConstants.ErrorCode.PayloadTooLarge, "Mensagem excede o tamanho máximo."),
                 ct).ConfigureAwait(false);
-            return;
+            return false;
         }
         catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
         {
-            return;
+            return false;
         }
 
         if (payload is null)
         {
-            return;
+            return false;
         }
 
         var sizeCheck = MessageValidator.ValidateSize(payload.Length, isUdp: false);
         if (!sizeCheck.IsValid)
         {
             await EnviarAsync(stream, ComunicadorMessage.Error(sizeCheck.Code!, sizeCheck.Message!), ct).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         if (!MessageValidator.TryParse(payload, out var msg, out var parseResult) || msg is null)
         {
             await EnviarAsync(stream, ComunicadorMessage.Error(parseResult.Code!, parseResult.Message!), ct).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         var structCheck = MessageValidator.Validate(msg);
         if (!structCheck.IsValid)
         {
             await EnviarAsync(stream, ComunicadorMessage.Error(structCheck.Code!, structCheck.Message!, msg.Id), ct).ConfigureAwait(false);
-            return;
+            return false;
         }
 
         switch (msg.Type)
@@ -204,6 +228,10 @@ public sealed class EmbeddedReceptorServer : IDisposable
             case ProtocolConstants.MessageType.Notification:
                 await TratarNotificationAsync(stream, msg, ct).ConfigureAwait(false);
                 break;
+            case ProtocolConstants.MessageType.Register:
+                // conexao reversa: NAO fecha o socket — ele fica vivo no registro
+                // para o painel enviar notificacoes de volta por ele.
+                return await TratarRegisterAsync(client, stream, msg, ct).ConfigureAwait(false);
             default:
                 await EnviarAsync(
                     stream,
@@ -211,6 +239,63 @@ public sealed class EmbeddedReceptorServer : IDisposable
                     ct).ConfigureAwait(false);
                 break;
         }
+
+        return false;
+    }
+
+    /// <summary>Aceita a conexao que o RECEPTOR abriu em direcao a este painel e a guarda
+    /// viva. E o caminho que dispensa qualquer porta de entrada aberta na maquina do
+    /// receptor — quem disca e ele. Retorna true para o socket nao ser fechado.</summary>
+    private async Task<bool> TratarRegisterAsync(
+        TcpClient client, NetworkStream stream, ComunicadorMessage msg, CancellationToken ct)
+    {
+        var computerId = msg.ComputerId!;
+        var computerName = msg.ComputerName!;
+
+        // Se ja existe pareamento para este computador, exige o token correto.
+        // Se e a primeira vez, o pareamento acontece aqui mesmo e um token e emitido.
+        PainelPareado? pareado = null;
+        UiDispatcher.Invoke(() => pareado = _paineisPareados.FirstOrDefault(p => p.PanelId == computerId));
+
+        if (pareado is not null && !string.IsNullOrEmpty(msg.Token) && msg.Token != pareado.Token)
+        {
+            await EnviarAsync(
+                stream,
+                ComunicadorMessage.Error(ProtocolConstants.ErrorCode.Unauthorized, "Token invalido para este computador.", msg.Id),
+                ct).ConfigureAwait(false);
+            return false;
+        }
+
+        var token = pareado?.Token ?? (Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N"));
+        if (pareado is null)
+        {
+            var novo = new PainelPareado
+            {
+                PanelId = computerId,
+                PanelName = computerName,
+                Token = token,
+                PareadoEm = DateTime.UtcNow,
+            };
+            UiDispatcher.Invoke(() =>
+            {
+                _paineisPareados.Add(novo);
+                _paineisPareadosStore.Save(_paineisPareados);
+            });
+        }
+
+        var resposta = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.RegisterAck);
+        resposta.Accepted = true;
+        resposta.Token = token;
+        resposta.ComputerId = _settings.PainelId;
+        resposta.ComputerName = _settings.NomePainel;
+        await EnviarAsync(stream, resposta, ct).ConfigureAwait(false);
+
+        var ip = (client.Client.RemoteEndPoint as System.Net.IPEndPoint)?.Address.ToString() ?? "?";
+        var conexao = new ConexaoReversa(client, stream, computerId, computerName, ip);
+        _conexoesReversas.Registrar(conexao);
+        ReceptorRegistrado?.Invoke(conexao);
+        Logger.Info($"Receptor '{computerName}' registrou-se via conexao reversa de {ip}.");
+        return true;
     }
 
     private async Task TratarPingAsync(NetworkStream stream, ComunicadorMessage msg, CancellationToken ct)

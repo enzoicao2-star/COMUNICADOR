@@ -108,6 +108,14 @@ public static class MessageValidator
             MessageType.Error => RequireString(msg.Code, "code", MaxNameLength)
                 ?? RequireString(msg.Message, "message", MaxMessageLength),
 
+            // conexao reversa: o receptor abre a conexao e se registra no painel.
+            // token e opcional — na primeira vez o receptor ainda nao tem um.
+            MessageType.Register => RequireString(msg.ComputerId, "computer_id", MaxNameLength)
+                ?? RequireString(msg.ComputerName, "computer_name", MaxNameLength),
+
+            MessageType.RegisterAck => RequireBool(msg.Accepted, "accepted")
+                ?? (msg.Accepted == true ? RequireString(msg.Token, "token", MaxNameLength) : null),
+
             _ => ValidationResult.Fail(ErrorCode.UnknownType, $"Tipo de mensagem desconhecido: '{msg.Type}'"),
         };
 
