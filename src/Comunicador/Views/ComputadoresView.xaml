@@ -12,11 +12,35 @@
                     VerticalAlignment="Center" Command="{Binding AtualizarAgoraCommand}" />
         </StackPanel>
 
+        <Border DockPanel.Dock="Top" Style="{StaticResource CardBorder}" Margin="0,0,0,16">
+            <StackPanel>
+                <TextBlock Text="Adicionar manualmente" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBlock Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,0,0,10">
+                    Se o computador não aparecer sozinho aqui, o motivo mais comum é o
+                    Firewall do Windows bloqueando a descoberta automática na rede.
+                    Digite o IP dele diretamente para conectar mesmo assim.
+                </TextBlock>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" Text="{Binding NovoIp, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Column="2" Text="{Binding NovaPorta, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Grid.Column="4" Style="{StaticResource BotaoPrimario}" Content="Adicionar"
+                            Command="{Binding AdicionarManualCommand}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
         <TextBlock DockPanel.Dock="Top" Text="{Binding StatusMensagem}" Style="{StaticResource Subtitulo}"
                     Margin="0,0,0,12" Visibility="{Binding StatusMensagem, Converter={StaticResource TextoParaVisibilidadeConverter}}" />
 
-        <TextBlock DockPanel.Dock="Top" Text="Nenhum computador encontrado ainda. Instale o receptor.py nas outras máquinas — ele aparecerá aqui automaticamente."
-                   TextWrapping="Wrap" Margin="0,40,0,0" HorizontalAlignment="Center">
+        <TextBlock DockPanel.Dock="Top" Text="Nenhum computador encontrado ainda. Instale o receptor.py nas outras máquinas — ele aparecerá aqui automaticamente, ou adicione pelo IP acima."
+                   TextWrapping="Wrap" Margin="0,20,0,0" HorizontalAlignment="Center">
             <TextBlock.Style>
                 <Style TargetType="TextBlock" BasedOn="{StaticResource Subtitulo}">
                     <Setter Property="Visibility" Value="Collapsed" />

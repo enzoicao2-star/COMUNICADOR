@@ -1,6 +1,18 @@
 @echo off
 setlocal enabledelayedexpansion
 
+rem Criar a tarefa no Agendador e liberar portas no Firewall exige administrador.
+rem Se este .bat nao estiver rodando elevado, pede UAC uma unica vez e continua
+rem na janela elevada (a original so passa a bola e fecha).
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Este instalador precisa de permissao de administrador para configurar o
+    echo Agendador de Tarefas e o Firewall do Windows. Uma janela vai pedir sua
+    echo confirmacao ^(UAC^)...
+    powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    exit /b
+)
+
 echo ===============================================
 echo   Comunicador Receptor - instalacao
 echo ===============================================
@@ -12,6 +24,8 @@ set "TASK_NAME=Comunicador Receptor"
 set "PYTHON_INSTALLER_URL=https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe"
 set "PYTHON_INSTALLER=%TEMP%\comunicador_python_installer.exe"
 set "PYTHON_EXE="
+set "PORT_TCP=57931"
+set "PORT_UDP=57932"
 
 echo [1/7] Verificando se o Python ja esta instalado...
 where python >nul 2>nul
@@ -37,8 +51,8 @@ if defined PYTHON_EXE (
         goto :erro
     )
 
-    echo       Instalando Python silenciosamente para o usuario atual...
-    "%PYTHON_INSTALLER%" /quiet InstallAllUsers=0 PrependPath=1 Include_launcher=0 Include_test=0
+    echo       Instalando Python silenciosamente para todos os usuarios...
+    "%PYTHON_INSTALLER%" /quiet InstallAllUsers=1 PrependPath=1 Include_launcher=0 Include_test=0
     if errorlevel 1 (
         echo ERRO: a instalacao do Python falhou.
         goto :erro
@@ -47,8 +61,13 @@ if defined PYTHON_EXE (
 
     echo       Verificando instalacao...
     set "PYTHON_EXE="
-    for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do (
+    for /d %%D in ("%ProgramFiles%\Python3*") do (
         if exist "%%D\python.exe" set "PYTHON_EXE=%%D\python.exe"
+    )
+    if not defined PYTHON_EXE (
+        for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do (
+            if exist "%%D\python.exe" set "PYTHON_EXE=%%D\python.exe"
+        )
     )
     if not defined PYTHON_EXE (
         echo ERRO: nao foi possivel localizar o Python apos a instalacao.
@@ -95,7 +114,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo [6/7] Configurando inicializacao automatica no Agendador de Tarefas...
+echo [6/7] Configurando inicializacao automatica e Firewall...
 schtasks /query /tn "%TASK_NAME%" >nul 2>nul
 if %errorlevel%==0 (
     echo       Tarefa existente encontrada, atualizando...
@@ -110,6 +129,18 @@ if errorlevel 1 (
 )
 echo       Tarefa "%TASK_NAME%" criada — visivel no Agendador de Tarefas do Windows,
 echo       inicia com o login do usuario atual, sem janela de console.
+
+netsh advfirewall firewall delete rule name="Comunicador Receptor" >nul 2>nul
+netsh advfirewall firewall delete rule name="Comunicador Receptor (descoberta)" >nul 2>nul
+netsh advfirewall firewall add rule name="Comunicador Receptor" dir=in action=allow protocol=TCP localport=%PORT_TCP% profile=private,domain >nul
+netsh advfirewall firewall add rule name="Comunicador Receptor (descoberta)" dir=in action=allow protocol=UDP localport=%PORT_UDP% profile=private,domain >nul
+if errorlevel 1 (
+    echo       AVISO: nao foi possivel liberar as portas no Firewall automaticamente.
+    echo       Outros painéis podem nao conseguir encontrar este receptor pela rede.
+) else (
+    echo       Portas TCP %PORT_TCP% e UDP %PORT_UDP% liberadas no Firewall do Windows
+    echo       ^(redes privadas/domesticas^).
+)
 
 echo.
 echo [7/7] Iniciando o receptor agora...
