@@ -115,6 +115,11 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         });
     }
 
+    /// <summary>Chamado pelo MainViewModel depois que o receptor embutido efetivamente
+    /// tenta iniciar (Start()/AtualizarDisponibilidade() são assíncronos em relação à
+    /// construção desta ViewModel), para o texto de status não ficar desatualizado.</summary>
+    public void AtualizarStatusReceptor() => StatusReceptorEmbutido = CalcularStatusReceptor();
+
     private void Salvar()
     {
         _settings.NomePainel = NomePainel;

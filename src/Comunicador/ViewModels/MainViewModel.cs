@@ -92,6 +92,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         _statusMonitor.Start();
         _scheduler.Start();
         _embeddedReceptorServer.AtualizarDisponibilidade();
+        Configuracoes.AtualizarStatusReceptor();
     }
 
     public void Dispose()
