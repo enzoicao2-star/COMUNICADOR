@@ -45,7 +45,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         _discovery = new DiscoveryService(Settings);
         _historicoRepositorio = new HistoricoRepository(historicoStore);
 
-        Computadores = new ComputadoresViewModel(computadoresStore, _discovery, client);
+        Computadores = new ComputadoresViewModel(computadoresStore, _discovery, client, Settings);
         Historico = new HistoricoViewModel(_historicoRepositorio);
         Mensagens = new MensagensViewModel(Computadores, client, _historicoRepositorio);
 

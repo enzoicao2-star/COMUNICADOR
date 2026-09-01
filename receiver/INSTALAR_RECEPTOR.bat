@@ -4,13 +4,21 @@ setlocal enabledelayedexpansion
 rem Criar a tarefa no Agendador e liberar portas no Firewall exige administrador.
 rem Se este .bat nao estiver rodando elevado, pede UAC uma unica vez e continua
 rem na janela elevada (a original so passa a bola e fecha).
+set "SEM_ADMIN="
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Este instalador precisa de permissao de administrador para configurar o
-    echo Agendador de Tarefas e o Firewall do Windows. Uma janela vai pedir sua
-    echo confirmacao ^(UAC^)...
-    powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
-    exit /b
+    echo Para configurar o Agendador de Tarefas e o Firewall, o Windows pede
+    echo permissao de administrador. Uma janela vai aparecer ^(UAC^)...
+    echo.
+    powershell -NoProfile -Command "try { Start-Process -FilePath '%~f0' -Verb RunAs -ErrorAction Stop; exit 0 } catch { exit 1 }"
+    if not errorlevel 1 exit /b
+    rem UAC recusado/indisponivel: seguimos assim mesmo. O receptor ainda e
+    rem instalado e iniciado; a inicializacao automatica usa a pasta Inicializar
+    rem (que nao precisa de admin) e o Firewall fica por conta do usuario.
+    echo AVISO: permissao de administrador nao concedida.
+    echo        A instalacao CONTINUA em modo limitado.
+    echo.
+    set "SEM_ADMIN=1"
 )
 
 echo ===============================================
@@ -121,14 +129,35 @@ if %errorlevel%==0 (
     schtasks /delete /tn "%TASK_NAME%" /f >nul 2>nul
 )
 
+set "AUTOSTART_OK="
 schtasks /create /tn "%TASK_NAME%" /sc onlogon /rl limited ^
-    /tr "\"!PYTHONW_EXE!\" \"%INSTALL_DIR%\receptor.py\"" /f
-if errorlevel 1 (
-    echo ERRO: falha ao criar a tarefa agendada.
-    goto :erro
+    /tr "\"!PYTHONW_EXE!\" \"%INSTALL_DIR%\receptor.py\"" /f >nul 2>nul
+if not errorlevel 1 (
+    set "AUTOSTART_OK=tarefa"
+    echo       Tarefa "%TASK_NAME%" criada — visivel no Agendador de Tarefas do
+    echo       Windows, inicia no login, sem janela de console.
+) else (
+    rem Sem admin o schtasks devolve "Acesso negado". Em vez de abortar a
+    rem instalacao inteira, caimos para a pasta Inicializar, que funciona
+    rem com permissao de usuario comum e tambem e visivel/removivel.
+    echo       Agendador de Tarefas indisponivel ^(sem permissao^).
+    echo       Usando a pasta Inicializar do Windows, que nao exige admin...
+    powershell -NoProfile -Command ^
+        "$s=(New-Object -ComObject WScript.Shell);" ^
+        "$lnk=$s.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Startup')) 'Comunicador Receptor.lnk'));" ^
+        "$lnk.TargetPath='!PYTHONW_EXE!';" ^
+        "$lnk.Arguments='\"%INSTALL_DIR%\receptor.py\"';" ^
+        "$lnk.WorkingDirectory='%INSTALL_DIR%';" ^
+        "$lnk.Description='Comunicador Receptor';" ^
+        "$lnk.Save()"
+    if not errorlevel 1 (
+        set "AUTOSTART_OK=inicializar"
+        echo       Atalho criado na pasta Inicializar ^(shell:startup^).
+    ) else (
+        echo       AVISO: nao foi possivel configurar a inicializacao automatica.
+        echo       O receptor sera iniciado agora, mas nao apos reiniciar o PC.
+    )
 )
-echo       Tarefa "%TASK_NAME%" criada — visivel no Agendador de Tarefas do Windows,
-echo       inicia com o login do usuario atual, sem janela de console.
 
 echo       Salvando as configuracoes atuais de rede antes de alterar...
 powershell -NoProfile -Command ^
@@ -161,13 +190,39 @@ if errorlevel 1 (
 
 echo.
 echo [7/7] Iniciando o receptor agora...
-schtasks /run /tn "%TASK_NAME%" >nul 2>nul
+rem Inicia direto pelo pythonw, sem depender do agendador — assim o receptor
+rem sobe mesmo que a tarefa nao tenha podido ser criada.
+start "" "!PYTHONW_EXE!" "%INSTALL_DIR%\receptor.py"
+
+rem Confirma que o receptor realmente ficou escutando na porta.
+ping -n 4 127.0.0.1 >nul 2>nul
+set "RECEPTOR_OK="
+powershell -NoProfile -Command ^
+    "try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', %PORT_TCP%); $c.Close(); exit 0 } catch { exit 1 }"
+if not errorlevel 1 (
+    set "RECEPTOR_OK=1"
+    echo       Receptor confirmado: escutando na porta %PORT_TCP%.
+) else (
+    echo       AVISO: o receptor nao respondeu na porta %PORT_TCP%.
+    echo       Verifique o log em: %LOCALAPPDATA%\Comunicador\Receptor\receptor.log
+)
 
 echo.
 echo ===============================================
-echo   Instalacao concluida com sucesso!
-echo   O Comunicador Receptor esta rodando em segundo plano
-echo   e vai iniciar automaticamente a cada login.
+if defined RECEPTOR_OK (
+    echo   Instalacao concluida com sucesso!
+    echo   O Comunicador Receptor esta rodando em segundo plano.
+) else (
+    echo   Instalacao concluida com AVISOS - veja acima.
+)
+if "%AUTOSTART_OK%"=="tarefa"      echo   Inicia sozinho a cada login ^(Agendador de Tarefas^).
+if "%AUTOSTART_OK%"=="inicializar" echo   Inicia sozinho a cada login ^(pasta Inicializar^).
+if not defined AUTOSTART_OK        echo   ATENCAO: NAO vai iniciar sozinho apos reiniciar o PC.
+if defined SEM_ADMIN (
+    echo.
+    echo   Rodou SEM administrador: o Firewall nao foi liberado. Se o painel
+    echo   nao encontrar este PC, execute o instalador de novo e aceite o UAC.
+)
 echo.
 echo   Para desinstalar, execute DESINSTALAR_RECEPTOR.bat
 echo ===============================================

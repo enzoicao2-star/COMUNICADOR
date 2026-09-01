@@ -12,6 +12,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private readonly JsonStore<Computador> _store;
     private readonly DiscoveryService _discovery;
     private readonly ReceptorClient _client;
+    private readonly AppSettings _settings;
     private string? _statusMensagem;
     private string _novoIp = string.Empty;
     private string _novaPorta = ProtocolConstants.TcpPort.ToString();
@@ -41,11 +42,14 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public ICommand AtualizarAgoraCommand { get; }
     public ICommand AdicionarManualCommand { get; }
 
-    public ComputadoresViewModel(JsonStore<Computador> store, DiscoveryService discovery, ReceptorClient client)
+    public ComputadoresViewModel(
+        JsonStore<Computador> store, DiscoveryService discovery, ReceptorClient client, AppSettings settings)
     {
         _store = store;
         _discovery = discovery;
         _client = client;
+        _settings = settings;
+        _novaPorta = settings.PortaTcp.ToString();
 
         foreach (var computador in _store.Load())
         {
@@ -71,7 +75,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
             }
         });
 
-        AtualizarAgoraCommand = new AsyncRelayCommand(() => _discovery.BroadcastOnceAsync());
+        AtualizarAgoraCommand = new AsyncRelayCommand(ProcurarAsync);
 
         AdicionarManualCommand = new RelayCommand(_ => AdicionarManual(), _ => PodeAdicionarManual());
     }
@@ -126,6 +130,55 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
             Persist();
         });
+    }
+
+    /// <summary>Faz o broadcast UDP e, em seguida, varre a rede na porta do receptor.
+    /// A varredura cobre o caso do broadcast nao passar (firewall, isolamento de AP),
+    /// que e a causa mais comum de "nao encontra o outro computador".</summary>
+    private async Task ProcurarAsync()
+    {
+        StatusMensagem = "Procurando na rede...";
+        await _discovery.BroadcastOnceAsync().ConfigureAwait(true);
+
+        var scanner = new LanScanner(_settings.PortaTcp);
+        var encontrados = await scanner.VarrerAsync().ConfigureAwait(true);
+
+        var novos = 0;
+        foreach (var ip in encontrados)
+        {
+            if (Computadores.Any(c => c.EnderecoIp == ip && c.PortaTcp == _settings.PortaTcp))
+            {
+                continue;
+            }
+
+            Computadores.Add(new Computador
+            {
+                Id = Guid.NewGuid().ToString(),
+                Nome = ip,
+                EnderecoIp = ip,
+                PortaTcp = _settings.PortaTcp,
+                Pareado = false,
+                Status = StatusComputador.Online,
+                UltimaVezVisto = DateTime.UtcNow,
+            });
+            novos++;
+        }
+
+        if (novos > 0)
+        {
+            Persist();
+            StatusMensagem = $"{novos} computador(es) encontrado(s) na varredura. Clique em \"Parear\".";
+        }
+        else if (encontrados.Count > 0)
+        {
+            StatusMensagem = "Nenhum computador novo — os encontrados já estão na lista.";
+        }
+        else
+        {
+            StatusMensagem =
+                $"Nenhum receptor encontrado na rede (porta {_settings.PortaTcp}). " +
+                "Confirme que o receptor está rodando no outro computador.";
+        }
     }
 
     private bool PodeAdicionarManual() =>
