@@ -17,6 +17,12 @@ public sealed class ConexaoReversa : IDisposable
     public string ComputerId { get; }
     public string ComputerName { get; }
     public string EnderecoIp { get; }
+
+    /// <summary>Token emitido para este receptor no registro. Precisa acompanhar a
+    /// conexao: sem ele a notificacao sai sem token e o receptor a rejeita na
+    /// validacao do protocolo.</summary>
+    public string Token { get; }
+
     public DateTime RegistradaEm { get; } = DateTime.UtcNow;
 
     public bool Conectada
@@ -34,13 +40,16 @@ public sealed class ConexaoReversa : IDisposable
         }
     }
 
-    public ConexaoReversa(TcpClient client, NetworkStream stream, string computerId, string computerName, string enderecoIp)
+    public ConexaoReversa(
+        TcpClient client, NetworkStream stream, string computerId, string computerName,
+        string enderecoIp, string token)
     {
         _client = client;
         _stream = stream;
         ComputerId = computerId;
         ComputerName = computerName;
         EnderecoIp = enderecoIp;
+        Token = token;
     }
 
     /// <summary>Envia a notificacao pela conexao ja aberta e aguarda ack e, se pedido,

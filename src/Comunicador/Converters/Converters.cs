@@ -84,6 +84,27 @@ public sealed class DirecaoHistoricoToTextoConverter : IValueConverter
         throw new NotSupportedException();
 }
 
+/// <summary>Marca o botao da secao aberta: devolve "ativo" quando a secao atual
+/// bate com o parametro, e o template pinta o realce e a barrinha lateral.</summary>
+public sealed class SecaoAtivaConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is string secao && secao == parameter as string ? "ativo" : "inativo";
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+public sealed class DirecaoParaIconeConverter : IValueConverter
+{
+    // glifos do Segoe MDL2 Assets: seta de envio / caixa de entrada
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is DirecaoHistorico.Recebida ? "" : "";
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
 public sealed class ContagemParaVisibilidadeConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>

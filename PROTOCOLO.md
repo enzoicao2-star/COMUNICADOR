@@ -155,6 +155,36 @@ suportado porque:
   "message": "Olá", "allow_reply": true }
 ```
 
+#### Botões de resposta rápida (`buttons`, opcional)
+
+A `notification` pode trazer até **4** botões, mostrados no aviso:
+
+```json
+{ "protocol_version": 1, "type": "notification", "id": "...", "timestamp": "...",
+  "token": "9f8b...", "sender": "PAINEL-PC", "title": "Nota fiscal disponível",
+  "message": "A nota do mês já está no portal.", "allow_reply": true,
+  "buttons": [
+    { "label": "Abrir portal", "url": "https://exemplo.com/portal" },
+    { "label": "Já vi, obrigado" }
+  ] }
+```
+
+- `label`: obrigatório, até 40 caracteres.
+- `url`: opcional, até 500 caracteres.
+
+Clicar num botão devolve o `label` como `reply_text`. Se o botão tiver
+`url`, o endereço também é aberto no **navegador padrão**.
+
+**Regra de segurança:** `url` só pode ser `http://` ou `https://`.
+Qualquer outro esquema (`file:`, `javascript:`, `ms-settings:`,
+`data:`, `ftp:`, caminhos UNC…) é recusado com
+`INVALID_FIELD_TYPE`. Isso é validado três vezes: por quem envia, por
+quem recebe ao validar a mensagem, e de novo no momento do clique —
+porque a URL chega pela rede e abrir endereço arbitrário seria
+exatamente o "executar coisa recebida pela rede" que o projeto evita.
+O link nunca abre sozinho: só com clique do usuário, e o botão mostra
+um ícone indicando que sai para o navegador.
+
 ### `ack` (TCP, receptor → painel)
 
 Confirma recebimento/exibição, correlacionando pelo `id` da

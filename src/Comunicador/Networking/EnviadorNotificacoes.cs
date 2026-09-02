@@ -24,17 +24,22 @@ public sealed class EnviadorNotificacoes
 
     public async Task<NotificationResult> EnviarAsync(
         Computador computador, string titulo, string mensagem, bool permitirResposta,
-        CancellationToken ct = default)
+        IReadOnlyList<BotaoResposta>? botoes = null, CancellationToken ct = default)
     {
+        var listaBotoes = botoes is { Count: > 0 } ? botoes.ToList() : null;
+
         var conexao = _conexoesReversas.Obter(computador.Id);
         if (conexao is not null)
         {
             var notificacao = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Notification);
-            notificacao.Token = computador.Token ?? string.Empty;
+            // o token da propria conexao e a fonte confiavel: o do Computador pode
+            // estar vazio se ele entrou na lista por outro caminho.
+            notificacao.Token = string.IsNullOrEmpty(conexao.Token) ? computador.Token ?? string.Empty : conexao.Token;
             notificacao.Sender = _settings.NomePainel;
             notificacao.Title = titulo;
             notificacao.Message = mensagem;
             notificacao.AllowReply = permitirResposta;
+            notificacao.Buttons = listaBotoes;
 
             var resultado = await conexao
                 .EnviarNotificacaoAsync(notificacao, permitirResposta, TimeoutResposta, ct)
@@ -51,7 +56,7 @@ public sealed class EnviadorNotificacoes
 
         return await _client.SendNotificationAsync(
             computador.EnderecoIp, computador.PortaTcp, computador.Token ?? string.Empty,
-            titulo, mensagem, permitirResposta, ct).ConfigureAwait(false);
+            titulo, mensagem, permitirResposta, listaBotoes, ct).ConfigureAwait(false);
     }
 
     /// <summary>Online se existe conexao reversa viva ou se o ping direto responde.</summary>

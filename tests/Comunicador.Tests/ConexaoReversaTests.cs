@@ -34,7 +34,7 @@ public class ConexaoReversaTests
         try
         {
             var conexao = new ConexaoReversa(
-                ladoPainel, ladoPainel.GetStream(), "pc-quarto", "PC-QUARTO", "127.0.0.1");
+                ladoPainel, ladoPainel.GetStream(), "pc-quarto", "PC-QUARTO", "127.0.0.1", "tok-teste");
 
             var notificacao = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Notification);
             notificacao.Token = "tok";
@@ -84,7 +84,7 @@ public class ConexaoReversaTests
         try
         {
             var conexao = new ConexaoReversa(
-                ladoPainel, ladoPainel.GetStream(), "pc-quarto", "PC-QUARTO", "127.0.0.1");
+                ladoPainel, ladoPainel.GetStream(), "pc-quarto", "PC-QUARTO", "127.0.0.1", "tok-teste");
 
             var notificacao = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Notification);
             notificacao.Token = "tok";
@@ -124,7 +124,7 @@ public class ConexaoReversaTests
         {
             var registro = new RegistroConexoesReversas();
             var conexao = new ConexaoReversa(
-                ladoPainel, ladoPainel.GetStream(), "pc-quarto", "PC-QUARTO", "127.0.0.1");
+                ladoPainel, ladoPainel.GetStream(), "pc-quarto", "PC-QUARTO", "127.0.0.1", "tok-teste");
 
             registro.Registrar(conexao);
             Assert.NotNull(registro.Obter("pc-quarto"));

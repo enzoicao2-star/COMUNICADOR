@@ -14,6 +14,10 @@ public static class ProtocolConstants
     public const int MaxMessageLength = 4000;
     public const int MaxNameLength = 100;
 
+    public const int MaxBotoes = 4;
+    public const int MaxBotaoLabelLength = 40;
+    public const int MaxBotaoUrlLength = 500;
+
     public static class MessageType
     {
         public const string Discover = "discover";

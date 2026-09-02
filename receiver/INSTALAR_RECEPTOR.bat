@@ -5,6 +5,29 @@ rem Criar a tarefa no Agendador e liberar portas no Firewall exige administrador
 rem Se este .bat nao estiver rodando elevado, pede UAC uma unica vez e continua
 rem na janela elevada (a original so passa a bola e fecha).
 set "SEM_ADMIN="
+
+rem Copia este .bat para o disco local antes de qualquer coisa.
+rem Motivo: rodando de uma unidade de rede mapeada (Z:) ou de um caminho UNC
+rem (\\servidor\pasta), a sessao ELEVADA nao enxerga esse caminho — ela e outra
+rem sessao de logon e nao herda os drives mapeados. A janela elevada abriria,
+rem nao acharia o arquivo e fecharia sem dizer nada.
+set "ORIGEM=%~f0"
+set "COPIA_LOCAL=%TEMP%\INSTALAR_RECEPTOR_Comunicador.bat"
+if /I not "%~d0"=="%SystemDrive%" (
+    if /I not "%ORIGEM:~0,2%"=="%SystemDrive%" (
+        echo Executando de uma unidade de rede ^(%~d0^). Copiando para o disco
+        echo local, porque o modo administrador nao enxerga unidades mapeadas...
+        copy /y "%~f0" "%COPIA_LOCAL%" >nul
+        if errorlevel 1 (
+            echo ERRO: nao foi possivel copiar o instalador para "%COPIA_LOCAL%".
+            goto :erro
+        )
+        echo.
+        start "" "%COPIA_LOCAL%"
+        exit /b 0
+    )
+)
+
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo Para configurar o Agendador de Tarefas e o Firewall, o Windows pede

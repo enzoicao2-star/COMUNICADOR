@@ -41,6 +41,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public ICommand RemoverCommand { get; }
     public ICommand AtualizarAgoraCommand { get; }
     public ICommand AdicionarManualCommand { get; }
+    public ICommand RenomearCommand { get; }
+    public ICommand ConfirmarRenomeCommand { get; }
 
     public ComputadoresViewModel(
         JsonStore<Computador> store, DiscoveryService discovery, ReceptorClient client, AppSettings settings)
@@ -78,6 +80,30 @@ public sealed class ComputadoresViewModel : ViewModelBase
         AtualizarAgoraCommand = new AsyncRelayCommand(ProcurarAsync);
 
         AdicionarManualCommand = new RelayCommand(_ => AdicionarManual(), _ => PodeAdicionarManual());
+
+        RenomearCommand = new RelayCommand(param =>
+        {
+            if (param is Computador computador)
+            {
+                // um de cada vez, para nao ficar varios cartoes em edicao
+                foreach (var outro in Computadores)
+                {
+                    outro.EmEdicao = false;
+                }
+
+                computador.EmEdicao = true;
+            }
+        });
+
+        ConfirmarRenomeCommand = new RelayCommand(param =>
+        {
+            if (param is Computador computador)
+            {
+                computador.EmEdicao = false;
+                Persist();
+                StatusMensagem = $"Renomeado para \"{computador.NomeExibicao}\".";
+            }
+        });
     }
 
     public IReadOnlyList<Computador> Snapshot() => Computadores.ToList();
@@ -100,6 +126,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
                     EnderecoIp = conexao.EnderecoIp,
                     PortaTcp = _settings.PortaTcp,
                     Pareado = true,
+                    // sem guardar o token a notificacao sai sem ele e o receptor a rejeita
+                    Token = conexao.Token,
                     Status = StatusComputador.Online,
                     UltimaVezVisto = DateTime.UtcNow,
                 });
@@ -111,6 +139,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 existente.Nome = conexao.ComputerName;
                 existente.EnderecoIp = conexao.EnderecoIp;
                 existente.Pareado = true;
+                existente.Token = conexao.Token;
                 existente.Status = StatusComputador.Online;
                 existente.UltimaVezVisto = DateTime.UtcNow;
                 StatusMensagem = $"{conexao.ComputerName} reconectou-se.";

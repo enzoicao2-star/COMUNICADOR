@@ -2,95 +2,140 @@
              x:Name="Raiz"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="380" />
-            <ColumnDefinition Width="24" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+    <DockPanel LastChildFill="True">
 
-        <DockPanel Grid.Column="0">
-            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,20">
-                <TextBlock Text="Lembretes" Style="{StaticResource TituloSecao}" Margin="0" />
-                <TextBlock Text="Agende um aviso para ser enviado automaticamente." Style="{StaticResource Subtitulo}" TextWrapping="Wrap" />
-            </StackPanel>
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,20">
+            <TextBlock Text="Lembretes" Style="{StaticResource TituloSecao}" />
+            <TextBlock Text="Agende um aviso para ser enviado automaticamente na hora certa." Style="{StaticResource Subtitulo}" />
+        </StackPanel>
 
-            <StackPanel DockPanel.Dock="Top">
-                <TextBlock Text="Título" Style="{StaticResource Subtitulo}" Margin="0,0,0,4" />
-                <TextBox Text="{Binding Titulo, UpdateSourceTrigger=PropertyChanged}" MaxLength="200" Margin="0,0,0,14" />
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="400" />
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-                <TextBlock Text="Mensagem" Style="{StaticResource Subtitulo}" Margin="0,0,0,4" />
-                <TextBox Text="{Binding Mensagem, UpdateSourceTrigger=PropertyChanged}" MaxLength="4000"
-                         Height="80" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
-                         Margin="0,0,0,14" />
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                <Border Style="{StaticResource CardBorder}" Padding="20" VerticalAlignment="Top">
+                    <StackPanel>
+                        <TextBlock Text="Novo lembrete" Style="{StaticResource TituloCard}" Margin="0,0,0,14" />
 
-                <Grid Margin="0,0,0,14">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="90" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="Data" Style="{StaticResource Subtitulo}" Margin="0,0,0,4" />
-                        <DatePicker SelectedDate="{Binding DataSelecionada}" />
+                        <TextBlock Text="Título" Style="{StaticResource RotuloCampo}" />
+                        <TextBox Text="{Binding Titulo, UpdateSourceTrigger=PropertyChanged}" MaxLength="200" Margin="0,0,0,16" />
+
+                        <TextBlock Text="Mensagem" Style="{StaticResource RotuloCampo}" />
+                        <TextBox Text="{Binding Mensagem, UpdateSourceTrigger=PropertyChanged}" MaxLength="4000"
+                                 Height="90" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+                                 VerticalContentAlignment="Top" Padding="11,8" Margin="0,0,0,16" />
+
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="104" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Data" Style="{StaticResource RotuloCampo}" />
+                                <DatePicker SelectedDate="{Binding DataSelecionada}" Height="32" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Hora" Style="{StaticResource RotuloCampo}" />
+                                <TextBox Text="{Binding HoraTexto, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Background="#F7F7F7" CornerRadius="4" Padding="12,10" Margin="0,0,0,16">
+                            <CheckBox IsChecked="{Binding PermitirResposta}" Margin="0">
+                                <TextBlock Text="Permitir que a pessoa responda" />
+                            </CheckBox>
+                        </Border>
+
+                        <TextBlock Text="Enviar para" Style="{StaticResource RotuloCampo}" />
+                        <ItemsControl ItemsSource="{Binding Destinatarios}" Margin="0,0,0,18">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding Selecionado}" Content="{Binding Computador.NomeExibicao}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <StackPanel Orientation="Horizontal">
+                            <Button Style="{StaticResource BotaoPrimario}" Content="Criar lembrete" Command="{Binding CriarCommand}" />
+                            <TextBlock Text="{Binding StatusOperacao}" Style="{StaticResource Subtitulo}"
+                                       VerticalAlignment="Center" Margin="14,0,0,0" />
+                        </StackPanel>
                     </StackPanel>
-                    <StackPanel Grid.Column="2">
-                        <TextBlock Text="Hora (HH:mm)" Style="{StaticResource Subtitulo}" Margin="0,0,0,4" />
-                        <TextBox Text="{Binding HoraTexto, UpdateSourceTrigger=PropertyChanged}" />
-                    </StackPanel>
-                </Grid>
-
-                <CheckBox Content="Permitir resposta do computador" IsChecked="{Binding PermitirResposta}" Margin="0,0,0,14" />
-
-                <TextBlock Text="Enviar para" Style="{StaticResource Subtitulo}" Margin="0,0,0,6" />
-                <ItemsControl ItemsSource="{Binding Destinatarios}" Margin="0,0,0,16">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <CheckBox Content="{Binding Computador.Nome}" IsChecked="{Binding Selecionado}" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <StackPanel Orientation="Horizontal">
-                    <Button Style="{StaticResource BotaoPrimario}" Content="Criar lembrete" Command="{Binding CriarCommand}" />
-                    <TextBlock Text="{Binding StatusOperacao}" Style="{StaticResource Subtitulo}"
-                               VerticalAlignment="Center" Margin="14,0,0,0" />
-                </StackPanel>
-            </StackPanel>
-        </DockPanel>
-
-        <DockPanel Grid.Column="2">
-            <TextBlock DockPanel.Dock="Top" Text="Agendados" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,12" />
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding Lembretes}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Style="{StaticResource CardBorder}" Margin="0,0,0,10">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{Binding Titulo}" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding Mensagem}" Style="{StaticResource Subtitulo}"
-                                                   TextWrapping="Wrap" Margin="0,2,0,4" />
-                                        <TextBlock Style="{StaticResource Subtitulo}">
-                                            <Run Text="{Binding DataHora, StringFormat={}{0:dd/MM/yyyy HH:mm}, Mode=OneWay}" />
-                                            <Run Text="  •  " />
-                                            <Run Text="{Binding Enviado, Mode=OneWay, StringFormat={}{0}}" />
-                                        </TextBlock>
-                                    </StackPanel>
-                                    <Button Grid.Column="1" Style="{StaticResource BotaoSecundario}" Content="Remover"
-                                            VerticalAlignment="Top"
-                                            Command="{Binding ElementName=Raiz, Path=DataContext.RemoverCommand}"
-                                            CommandParameter="{Binding}" />
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                </Border>
             </ScrollViewer>
-        </DockPanel>
-    </Grid>
+
+            <DockPanel Grid.Column="2">
+                <TextBlock DockPanel.Dock="Top" Text="Agendados" Style="{StaticResource TituloCard}" Margin="0,0,0,12" />
+
+                <StackPanel DockPanel.Dock="Top" Margin="0,40,0,0" HorizontalAlignment="Center">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Lembretes.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <TextBlock Text="&#xE823;" FontFamily="Segoe MDL2 Assets" FontSize="36"
+                               Foreground="{StaticResource UnknownBrush}" HorizontalAlignment="Center" />
+                    <TextBlock Text="Nenhum lembrete agendado" FontSize="15" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" Margin="0,10,0,0" />
+                </StackPanel>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Lembretes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource CardListaBorder}" Margin="0,0,0,8" Padding="16,14">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" Text="&#xE823;" FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="16" Margin="0,2,14,0" VerticalAlignment="Top"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding Titulo}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding Mensagem}" Style="{StaticResource Subtitulo}" Margin="0,2,0,6" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <Border Style="{StaticResource SeloBorder}" Padding="8,2"
+                                                        Background="#EFF6FC" BorderBrush="#CCE4F7" BorderThickness="1">
+                                                    <TextBlock FontSize="12" Foreground="{StaticResource AccentBrush}"
+                                                               Text="{Binding DataHora, StringFormat={}{0:dd/MM/yyyy HH:mm}, Mode=OneWay}" />
+                                                </Border>
+                                                <Border Style="{StaticResource SeloBorder}" Padding="8,2" Margin="6,0,0,0"
+                                                        Background="#F0F0F0"
+                                                        Visibility="{Binding Enviado, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock Text="Já enviado" FontSize="12"
+                                                               Foreground="{StaticResource TextSecondaryBrush}" />
+                                                </Border>
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <Button Grid.Column="2" Style="{StaticResource BotaoSecundario}" Padding="10,0"
+                                                VerticalAlignment="Top" ToolTip="Remover lembrete"
+                                                Command="{Binding ElementName=Raiz, Path=DataContext.RemoverCommand}"
+                                                CommandParameter="{Binding}">
+                                            <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14" />
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+        </Grid>
+    </DockPanel>
 </UserControl>

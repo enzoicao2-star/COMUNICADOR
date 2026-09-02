@@ -291,7 +291,7 @@ public sealed class EmbeddedReceptorServer : IDisposable
         await EnviarAsync(stream, resposta, ct).ConfigureAwait(false);
 
         var ip = (client.Client.RemoteEndPoint as System.Net.IPEndPoint)?.Address.ToString() ?? "?";
-        var conexao = new ConexaoReversa(client, stream, computerId, computerName, ip);
+        var conexao = new ConexaoReversa(client, stream, computerId, computerName, ip, token);
         _conexoesReversas.Registrar(conexao);
         ReceptorRegistrado?.Invoke(conexao);
         Logger.Info($"Receptor '{computerName}' registrou-se via conexao reversa de {ip}.");
@@ -371,7 +371,8 @@ public sealed class EmbeddedReceptorServer : IDisposable
         };
         _historico.Adicionar(entry);
 
-        var mostrarTask = NotificacaoRecebidaWindow.MostrarAsync(msg.Sender!, msg.Title!, msg.Message!, allowReply);
+        var mostrarTask = NotificacaoRecebidaWindow.MostrarAsync(
+            msg.Sender!, msg.Title!, msg.Message!, allowReply, msg.Buttons);
 
         var ack = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ack);
         ack.InReplyTo = msg.Id;

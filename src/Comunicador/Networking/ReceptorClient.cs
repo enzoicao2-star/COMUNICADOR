@@ -70,7 +70,7 @@ public sealed class ReceptorClient
 
     public async Task<NotificationResult> SendNotificationAsync(
         string ipAddress, int tcpPort, string token, string title, string message, bool allowReply,
-        CancellationToken ct = default)
+        List<BotaoResposta>? botoes = null, CancellationToken ct = default)
     {
         try
         {
@@ -83,6 +83,7 @@ public sealed class ReceptorClient
             notification.Title = title;
             notification.Message = message;
             notification.AllowReply = allowReply;
+            notification.Buttons = botoes is { Count: > 0 } ? botoes : null;
             await TcpFraming.WriteMessageAsync(stream, notification, ct).ConfigureAwait(false);
 
             var ack = await ReadValidatedAsync(stream, ct).ConfigureAwait(false);
@@ -120,8 +121,11 @@ public sealed class ReceptorClient
                 return new NotificationResult(true, shown, false, null, null);
             }
         }
-        catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException)
+        catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException
+            or ReceptorComunicacaoException or ObjectDisposedException)
         {
+            // falha de envio vira resultado, nunca excecao: senao sobe para o
+            // dispatcher e o usuario leva uma caixa de erro no lugar do aviso.
             return new NotificationResult(false, false, false, null, ex.Message);
         }
     }

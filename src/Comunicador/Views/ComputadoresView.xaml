@@ -3,29 +3,36 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <DockPanel LastChildFill="True">
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,16">
+
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,20">
             <StackPanel>
-                <TextBlock Text="Computadores" Style="{StaticResource TituloSecao}" Margin="0" />
-                <TextBlock Text="Receptores descobertos automaticamente na rede local." Style="{StaticResource Subtitulo}" />
+                <TextBlock Text="Computadores" Style="{StaticResource TituloSecao}" />
+                <TextBlock Text="Máquinas que podem receber seus avisos nesta rede." Style="{StaticResource Subtitulo}" />
             </StackPanel>
-            <Button Style="{StaticResource BotaoSecundario}" Content="Procurar agora" Margin="24,0,0,0"
-                    VerticalAlignment="Center" Command="{Binding AtualizarAgoraCommand}" />
-        </StackPanel>
+            <Button Style="{StaticResource BotaoSecundario}" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                    Command="{Binding AtualizarAgoraCommand}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="14" VerticalAlignment="Center" />
+                    <TextBlock Text="Procurar agora" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+        </Grid>
 
         <Border DockPanel.Dock="Top" Style="{StaticResource CardBorder}" Margin="0,0,0,16">
             <StackPanel>
-                <TextBlock Text="Adicionar manualmente" FontWeight="SemiBold" Margin="0,0,0,4" />
-                <TextBlock Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,0,0,10">
-                    Se o computador não aparecer sozinho aqui, o motivo mais comum é o
-                    Firewall do Windows bloqueando a descoberta automática na rede.
-                    Digite o IP dele diretamente para conectar mesmo assim.
-                </TextBlock>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                    <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                               Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="Adicionar manualmente" Style="{StaticResource TituloCard}" Margin="8,0,0,0" />
+                </StackPanel>
+                <TextBlock Style="{StaticResource Subtitulo}" Margin="0,0,0,12"
+                           Text="Se a máquina não aparecer sozinha, digite o IP dela para conectar mesmo assim." />
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="90" />
-                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="96" />
+                        <ColumnDefinition Width="10" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBox Grid.Column="0" Text="{Binding NovoIp, UpdateSourceTrigger=PropertyChanged}" />
@@ -36,13 +43,20 @@
             </StackPanel>
         </Border>
 
-        <TextBlock DockPanel.Dock="Top" Text="{Binding StatusMensagem}" Style="{StaticResource Subtitulo}"
-                    Margin="0,0,0,12" Visibility="{Binding StatusMensagem, Converter={StaticResource TextoParaVisibilidadeConverter}}" />
+        <Border DockPanel.Dock="Top" Margin="0,0,0,12" CornerRadius="4" Padding="12,8"
+                Background="#EFF6FC" BorderBrush="#CCE4F7" BorderThickness="1"
+                Visibility="{Binding StatusMensagem, Converter={StaticResource TextoParaVisibilidadeConverter}}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                           Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding StatusMensagem}" Margin="8,0,0,0" VerticalAlignment="Center"
+                           FontSize="13" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
 
-        <TextBlock DockPanel.Dock="Top" Text="Nenhum computador encontrado ainda. Instale o receptor.py nas outras máquinas — ele aparecerá aqui automaticamente, ou adicione pelo IP acima."
-                   TextWrapping="Wrap" Margin="0,20,0,0" HorizontalAlignment="Center">
-            <TextBlock.Style>
-                <Style TargetType="TextBlock" BasedOn="{StaticResource Subtitulo}">
+        <StackPanel DockPanel.Dock="Top" Margin="0,48,0,0" HorizontalAlignment="Center">
+            <StackPanel.Style>
+                <Style TargetType="StackPanel">
                     <Setter Property="Visibility" Value="Collapsed" />
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding Computadores.Count}" Value="0">
@@ -50,50 +64,96 @@
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
-            </TextBlock.Style>
-        </TextBlock>
+            </StackPanel.Style>
+            <TextBlock Text="&#xE977;" FontFamily="Segoe MDL2 Assets" FontSize="40"
+                       Foreground="{StaticResource UnknownBrush}" HorizontalAlignment="Center" />
+            <TextBlock Text="Nenhum computador ainda" FontSize="16" FontWeight="SemiBold"
+                       HorizontalAlignment="Center" Margin="0,12,0,4" />
+            <TextBlock Style="{StaticResource Subtitulo}" HorizontalAlignment="Center" MaxWidth="380"
+                       TextAlignment="Center"
+                       Text="Instale o receptor nas outras máquinas — elas aparecem aqui sozinhas assim que conectarem." />
+        </StackPanel>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <ItemsControl ItemsSource="{Binding Computadores}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Style="{StaticResource CardBorder}" Margin="0,0,0,10">
+                        <Border Style="{StaticResource CardListaBorder}" Margin="0,0,0,8" Padding="16,14">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <Ellipse Grid.Column="0" Width="10" Height="10" Margin="0,0,14,0"
-                                         Fill="{Binding Status, Converter={StaticResource StatusComputadorToBrushConverter}}"
-                                         VerticalAlignment="Center" />
+                                <Border Grid.Column="0" Width="40" Height="40" CornerRadius="20" Margin="0,0,14,0"
+                                        Background="#F0F0F0" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE977;" FontFamily="Segoe MDL2 Assets" FontSize="18"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextSecondaryBrush}" />
+                                </Border>
 
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding Nome}" FontWeight="SemiBold" FontSize="14" />
-                                    <TextBlock Style="{StaticResource Subtitulo}">
-                                        <Run Text="{Binding EnderecoIp, Mode=OneWay}" />
-                                        <Run Text=":" />
-                                        <Run Text="{Binding PortaTcp, Mode=OneWay}" />
-                                        <Run Text="  •  " />
-                                        <Run Text="{Binding Status, Converter={StaticResource StatusComputadorToTextoConverter}, Mode=OneWay}" />
-                                    </TextBlock>
+                                    <!-- modo leitura -->
+                                    <StackPanel Orientation="Horizontal">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding EmEdicao}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Text="{Binding NomeExibicao}" FontSize="15" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Nome, StringFormat=({0})}" Style="{StaticResource Subtitulo}"
+                                                   Margin="8,0,0,0" VerticalAlignment="Center"
+                                                   Visibility="{Binding TemApelido, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    </StackPanel>
+
+                                    <!-- modo edicao do apelido -->
+                                    <Grid Visibility="{Binding EmEdicao, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" MaxLength="60"
+                                                 Text="{Binding Apelido, UpdateSourceTrigger=PropertyChanged}" />
+                                        <Button Grid.Column="2" Style="{StaticResource BotaoPrimario}" Content="Salvar"
+                                                Command="{Binding ElementName=Raiz, Path=DataContext.ConfirmarRenomeCommand}"
+                                                CommandParameter="{Binding}" />
+                                    </Grid>
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                                 Fill="{Binding Status, Converter={StaticResource StatusComputadorToBrushConverter}}" />
+                                        <TextBlock Style="{StaticResource Subtitulo}" Margin="7,0,0,0" VerticalAlignment="Center">
+                                            <Run Text="{Binding Status, Converter={StaticResource StatusComputadorToTextoConverter}, Mode=OneWay}" />
+                                            <Run Text="  ·  " Foreground="#B0B0B0" />
+                                            <Run Text="{Binding EnderecoIp, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </StackPanel>
                                 </StackPanel>
 
-                                <Button Grid.Column="2" Style="{StaticResource BotaoSecundario}" Margin="0,0,10,0"
-                                        Content="{Binding Pareado, Converter={StaticResource PareadoToTextoConverter}}"
-                                        Command="{Binding ElementName=Raiz, Path=DataContext.PairearCommand}"
-                                        CommandParameter="{Binding}" />
-
-                                <Button Grid.Column="3" Style="{StaticResource BotaoSecundario}" Content="Remover"
-                                        Command="{Binding ElementName=Raiz, Path=DataContext.RemoverCommand}"
-                                        CommandParameter="{Binding}" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Style="{StaticResource BotaoSecundario}" Margin="0,0,8,0" Padding="10,0"
+                                            ToolTip="Renomear esta máquina"
+                                            Command="{Binding ElementName=Raiz, Path=DataContext.RenomearCommand}"
+                                            CommandParameter="{Binding}">
+                                        <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14" />
+                                    </Button>
+                                    <Button Style="{StaticResource BotaoSecundario}" Margin="0,0,8,0"
+                                            Content="{Binding Pareado, Converter={StaticResource PareadoToTextoConverter}}"
+                                            Command="{Binding ElementName=Raiz, Path=DataContext.PairearCommand}"
+                                            CommandParameter="{Binding}" />
+                                    <Button Style="{StaticResource BotaoSecundario}" Padding="10,0" ToolTip="Remover da lista"
+                                            Command="{Binding ElementName=Raiz, Path=DataContext.RemoverCommand}"
+                                            CommandParameter="{Binding}">
+                                        <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14" />
+                                    </Button>
+                                </StackPanel>
                             </Grid>
                         </Border>
                     </DataTemplate>

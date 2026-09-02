@@ -31,6 +31,15 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         set => SetField(ref _secaoAtual, value);
     }
 
+    private string _secaoAtiva = "computadores";
+
+    /// <summary>Chave da secao aberta, usada pela barra lateral para realcar o item.</summary>
+    public string SecaoAtiva
+    {
+        get => _secaoAtiva;
+        private set => SetField(ref _secaoAtiva, value);
+    }
+
     public ICommand NavegarCommand { get; }
 
     public MainViewModel()
@@ -81,6 +90,11 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
                 "configuracoes" => Configuracoes,
                 _ => SecaoAtual,
             };
+
+            if (param is string chave)
+            {
+                SecaoAtiva = chave;
+            }
         });
     }
 

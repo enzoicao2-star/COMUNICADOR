@@ -95,7 +95,8 @@ public static class MessageValidator
                 ?? RequireString(msg.Sender, "sender", MaxNameLength)
                 ?? RequireString(msg.Title, "title", MaxTitleLength)
                 ?? RequireString(msg.Message, "message", MaxMessageLength)
-                ?? RequireBool(msg.AllowReply, "allow_reply"),
+                ?? RequireBool(msg.AllowReply, "allow_reply")
+                ?? ValidarBotoes(msg.Buttons),
 
             MessageType.Ack => RequireUuid(msg.InReplyTo, "in_reply_to")
                 ?? RequireString(msg.Status, "status", MaxNameLength),
@@ -126,6 +127,54 @@ public static class MessageValidator
     {
         var json = JsonSerializer.Serialize(message, JsonOptions);
         return Encoding.UTF8.GetBytes(json + "\n");
+    }
+
+    /// <summary>Botões são opcionais, mas quando vêm precisam ser sãos: quantidade,
+    /// rótulo e — o mais importante — só http/https no link, porque isso chega pela rede.</summary>
+    private static ValidationResult? ValidarBotoes(List<BotaoResposta>? botoes)
+    {
+        if (botoes is null || botoes.Count == 0)
+        {
+            return null;
+        }
+
+        if (botoes.Count > MaxBotoes)
+        {
+            return ValidationResult.Fail(ErrorCode.FieldTooLong, $"São permitidos no máximo {MaxBotoes} botões.");
+        }
+
+        foreach (var botao in botoes)
+        {
+            if (string.IsNullOrWhiteSpace(botao.Label))
+            {
+                return ValidationResult.Fail(ErrorCode.MissingField, "Campo obrigatório ausente: buttons[].label");
+            }
+
+            if (botao.Label.Length > MaxBotaoLabelLength)
+            {
+                return ValidationResult.Fail(
+                    ErrorCode.FieldTooLong, $"Rótulo de botão excede {MaxBotaoLabelLength} caracteres.");
+            }
+
+            if (string.IsNullOrWhiteSpace(botao.Url))
+            {
+                continue;
+            }
+
+            if (botao.Url.Length > MaxBotaoUrlLength)
+            {
+                return ValidationResult.Fail(
+                    ErrorCode.FieldTooLong, $"URL de botão excede {MaxBotaoUrlLength} caracteres.");
+            }
+
+            if (!BotaoResposta.UrlPermitida(botao.Url))
+            {
+                return ValidationResult.Fail(
+                    ErrorCode.InvalidFieldType, "URL de botão precisa ser http:// ou https://.");
+            }
+        }
+
+        return null;
     }
 
     private static ValidationResult? RequireString(string? value, string name, int maxLen)

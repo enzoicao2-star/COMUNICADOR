@@ -25,6 +25,7 @@ import sys
 import threading
 import time
 import uuid
+import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -157,13 +158,13 @@ class NotificationUi:
             self._root.withdraw()
             self._root.after(100, self._poll)
 
-    def mostrar(self, sender: str, title: str, message: str, allow_reply: bool, on_result):
+    def mostrar(self, sender: str, title: str, message: str, allow_reply: bool, on_result, buttons=None):
         """Agenda a exibição de um aviso. `on_result(reply_text_or_None)` é chamado
-        quando o usuário responde, fecha a janela, ou (se allow_reply) o tempo esgota."""
+        quando o usuário responde, clica num botão, fecha a janela, ou o tempo esgota."""
         if self.test_mode:
             on_result("Recebido automaticamente (modo de teste)." if allow_reply else None)
             return
-        self._pending.put((sender, title, message, allow_reply, on_result))
+        self._pending.put((sender, title, message, allow_reply, on_result, buttons or []))
 
     def _poll(self):
         try:
@@ -174,7 +175,7 @@ class NotificationUi:
             pass
         self._root.after(100, self._poll)
 
-    def _exibir_janela(self, sender, title, message, allow_reply, on_result):
+    def _exibir_janela(self, sender, title, message, allow_reply, on_result, buttons=None):
         tk = self._tk
         win = tk.Toplevel(self._root)
         win.title(APP_NAME)
@@ -199,6 +200,25 @@ class NotificationUi:
             anchor="w", padx=14, pady=(2, 6))
         tk.Label(win, text=message, font=("Segoe UI", 10), wraplength=330, justify="left").pack(
             anchor="w", padx=14)
+
+        # Botões de resposta rápida enviados junto com o aviso. Se o botão tiver
+        # link, além de responder ele abre o endereço no navegador padrão — e a
+        # URL é revalidada aqui, porque veio pela rede.
+        for botao in (buttons or []):
+            rotulo = botao.get("label", "")
+            url = botao.get("url")
+            texto = f"{rotulo}  ↗" if url else rotulo
+
+            def ao_clicar(rot=rotulo, endereco=url):
+                if endereco:
+                    if protocolo.url_permitida(endereco):
+                        webbrowser.open(endereco)
+                    else:
+                        logging.warning("Link recusado no botão '%s': só http/https.", rot)
+                finish(rot)
+
+            tk.Button(win, text=texto, font=("Segoe UI", 10), command=ao_clicar).pack(
+                fill="x", padx=14, pady=(6, 0))
 
         if allow_reply:
             entry = tk.Entry(win, font=("Segoe UI", 10))
@@ -318,7 +338,8 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
 
         server.ui.mostrar(
             sender=msg["sender"], title=msg["title"], message=msg["message"],
-            allow_reply=allow_reply, on_result=lambda value: result_queue.put(value))
+            allow_reply=allow_reply, on_result=lambda value: result_queue.put(value),
+            buttons=msg.get("buttons"))
 
         ack = protocolo.base_message(MessageType.ACK)
         ack["in_reply_to"] = notification_id
@@ -523,7 +544,8 @@ class ReverseConnection(threading.Thread):
         self.ui.mostrar(
             sender=msg.get("sender", "Painel"), title=msg.get("title", ""),
             message=msg.get("message", ""), allow_reply=allow_reply,
-            on_result=lambda value: result_queue.put(value))
+            on_result=lambda value: result_queue.put(value),
+            buttons=msg.get("buttons"))
 
         ack = protocolo.base_message(MessageType.ACK)
         ack["in_reply_to"] = notification_id

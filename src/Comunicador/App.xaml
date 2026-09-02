@@ -13,6 +13,8 @@
             <conv:StatusComputadorToBrushConverter x:Key="StatusComputadorToBrushConverter" />
             <conv:StatusComputadorToTextoConverter x:Key="StatusComputadorToTextoConverter" />
             <conv:DirecaoHistoricoToTextoConverter x:Key="DirecaoHistoricoToTextoConverter" />
+            <conv:DirecaoParaIconeConverter x:Key="DirecaoParaIconeConverter" />
+            <conv:SecaoAtivaConverter x:Key="SecaoAtivaConverter" />
             <conv:PareadoToTextoConverter x:Key="PareadoToTextoConverter" />
             <conv:StatusEnvioToTextoConverter x:Key="StatusEnvioToTextoConverter" />
             <conv:StatusEnvioToBrushConverter x:Key="StatusEnvioToBrushConverter" />

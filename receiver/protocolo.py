@@ -24,6 +24,14 @@ MAX_TITLE_LENGTH = 200
 MAX_MESSAGE_LENGTH = 4000
 MAX_NAME_LENGTH = 100
 
+MAX_BOTOES = 4
+MAX_BOTAO_LABEL_LENGTH = 40
+MAX_BOTAO_URL_LENGTH = 500
+
+# Só http/https nos botões com link. Bloquear os demais esquemas é o que impede
+# uma mensagem vinda da rede de disparar file:, javascript:, ms-* etc.
+ESQUEMAS_URL_PERMITIDOS = ("http://", "https://")
+
 
 class MessageType:
     DISCOVER = "discover"
@@ -144,6 +152,42 @@ def _require_int(obj: dict, name: str) -> int:
     return value
 
 
+def url_permitida(url) -> bool:
+    """Aceita apenas http/https. Vale para qualquer URL que chegue pela rede."""
+    return isinstance(url, str) and url.lower().startswith(ESQUEMAS_URL_PERMITIDOS)
+
+
+def _validar_botoes(msg: dict) -> None:
+    botoes = msg.get("buttons")
+    if botoes is None:
+        return
+
+    if not isinstance(botoes, list):
+        raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Campo 'buttons' precisa ser uma lista.")
+
+    if len(botoes) > MAX_BOTOES:
+        raise ProtocolError(ErrorCode.FIELD_TOO_LONG, f"São permitidos no máximo {MAX_BOTOES} botões.")
+
+    for botao in botoes:
+        if not isinstance(botao, dict):
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Cada item de 'buttons' precisa ser um objeto.")
+
+        label = botao.get("label")
+        if not isinstance(label, str) or not label.strip():
+            raise ProtocolError(ErrorCode.MISSING_FIELD, "Campo obrigatório ausente: buttons[].label")
+        if len(label) > MAX_BOTAO_LABEL_LENGTH:
+            raise ProtocolError(
+                ErrorCode.FIELD_TOO_LONG, f"Rótulo de botão excede {MAX_BOTAO_LABEL_LENGTH} caracteres.")
+
+        url = botao.get("url")
+        if url is None or url == "":
+            continue
+        if not isinstance(url, str) or len(url) > MAX_BOTAO_URL_LENGTH:
+            raise ProtocolError(ErrorCode.FIELD_TOO_LONG, f"URL de botão excede {MAX_BOTAO_URL_LENGTH} caracteres.")
+        if not url_permitida(url):
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "URL de botão precisa ser http:// ou https://.")
+
+
 def _require_uuid(obj: dict, name: str) -> str:
     value = _require_str(obj, name, MAX_NAME_LENGTH)
     if not is_valid_uuid(value):
@@ -205,6 +249,7 @@ def validate(msg: dict) -> None:
         _require_str(msg, "title", MAX_TITLE_LENGTH)
         _require_str(msg, "message", MAX_MESSAGE_LENGTH)
         _require_bool(msg, "allow_reply")
+        _validar_botoes(msg)
 
     elif msg_type == MessageType.ACK:
         _require_uuid(msg, "in_reply_to")

@@ -2,94 +2,139 @@
              x:Name="Raiz"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel MaxWidth="520" HorizontalAlignment="Left">
-            <StackPanel Margin="0,0,0,20">
-                <TextBlock Text="Configurações" Style="{StaticResource TituloSecao}" Margin="0" />
-                <TextBlock Text="Ajustes de rede e comportamento do painel." Style="{StaticResource Subtitulo}" />
-            </StackPanel>
+    <DockPanel LastChildFill="True">
 
-            <TextBlock Text="Nome deste painel" Style="{StaticResource Subtitulo}" Margin="0,0,0,4" />
-            <TextBox Text="{Binding NomePainel, UpdateSourceTrigger=PropertyChanged}" MaxLength="100" Margin="0,0,0,14" />
-
-            <Grid Margin="0,0,0,14">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="16" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="Porta TCP" Style="{StaticResource Subtitulo}" Margin="0,0,0,4" />
-                    <TextBox Text="{Binding PortaTcp, UpdateSourceTrigger=PropertyChanged}" />
-                </StackPanel>
-                <StackPanel Grid.Column="2">
-                    <TextBlock Text="Porta UDP (descoberta)" Style="{StaticResource Subtitulo}" Margin="0,0,0,4" />
-                    <TextBox Text="{Binding PortaUdp, UpdateSourceTrigger=PropertyChanged}" />
-                </StackPanel>
-            </Grid>
-
-            <Grid Margin="0,0,0,14">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="16" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="Intervalo de descoberta (s)" Style="{StaticResource Subtitulo}" Margin="0,0,0,4" />
-                    <TextBox Text="{Binding IntervaloDescobertaSegundos, UpdateSourceTrigger=PropertyChanged}" />
-                </StackPanel>
-                <StackPanel Grid.Column="2">
-                    <TextBlock Text="Intervalo de ping (s)" Style="{StaticResource Subtitulo}" Margin="0,0,0,4" />
-                    <TextBox Text="{Binding IntervaloPingSegundos, UpdateSourceTrigger=PropertyChanged}" />
-                </StackPanel>
-            </Grid>
-
-            <CheckBox Content="Iniciar o Comunicador junto com o Windows" IsChecked="{Binding IniciarComWindows}" Margin="0,0,0,14" />
-
-            <Border Style="{StaticResource CardBorder}" Margin="0,0,0,20">
-                <StackPanel>
-                    <TextBlock Text="Receber mensagens" FontWeight="SemiBold" Margin="0,0,0,4" />
-                    <TextBlock Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,0,0,10">
-                        Este computador pode receber avisos de outros painéis Comunicador sem precisar
-                        instalar o receptor.py aqui — ele funciona como seu próprio receptor. Desligue
-                        abaixo para bloquear mensagens recebidas de qualquer outro painel.
-                    </TextBlock>
-                    <CheckBox Content="Aceitar mensagens de outros painéis" IsChecked="{Binding AceitarMensagensDeOutrosPaineis}" Margin="0,0,0,8" />
-                    <TextBlock Text="{Binding StatusReceptorEmbutido}" Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,0,0,10" />
-
-                    <TextBlock Text="Painéis pareados que podem enviar mensagens para cá:" Style="{StaticResource Subtitulo}"
-                               Margin="0,0,0,6" />
-
-                    <ItemsControl ItemsSource="{Binding PaineisPareados}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,4">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding PanelName}" VerticalAlignment="Center" />
-                                    <Button Grid.Column="1" Style="{StaticResource BotaoSecundario}" Content="Bloquear este painel"
-                                            Command="{Binding ElementName=Raiz, Path=DataContext.RemoverPainelPareadoCommand}"
-                                            CommandParameter="{Binding}" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
-
-            <TextBlock Style="{StaticResource Subtitulo}" Margin="0,0,0,20" TextWrapping="Wrap">
-                <Run Text="Identificador deste painel (usado para múltiplos painéis na mesma rede):" />
-                <LineBreak />
-                <Run Text="{Binding PainelId, Mode=OneWay}" FontFamily="Consolas" />
-            </TextBlock>
-
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
-                <Button Style="{StaticResource BotaoPrimario}" Content="Salvar" Command="{Binding SalvarCommand}" />
-                <TextBlock Text="{Binding StatusOperacao}" Style="{StaticResource Subtitulo}"
-                           VerticalAlignment="Center" Margin="14,0,0,0" TextWrapping="Wrap" />
-            </StackPanel>
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,20">
+            <TextBlock Text="Configurações" Style="{StaticResource TituloSecao}" />
+            <TextBlock Text="Ajustes de rede, inicialização e privacidade." Style="{StaticResource Subtitulo}" />
         </StackPanel>
-    </ScrollViewer>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel MaxWidth="620" HorizontalAlignment="Left">
+
+                <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Identificação" Style="{StaticResource TituloCard}" />
+                        <TextBlock Style="{StaticResource Subtitulo}" Margin="0,0,0,14"
+                                   Text="Nome com que este painel aparece nos avisos que você envia." />
+                        <TextBlock Text="Nome deste painel" Style="{StaticResource RotuloCampo}" />
+                        <TextBox Text="{Binding NomePainel, UpdateSourceTrigger=PropertyChanged}" MaxLength="100" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Receber mensagens" Style="{StaticResource TituloCard}" />
+                        <TextBlock Style="{StaticResource Subtitulo}" Margin="0,0,0,14"
+                                   Text="Este computador recebe avisos de outros painéis sem precisar do receptor.py aqui. Desligue para bloquear tudo que vem de fora." />
+
+                        <CheckBox IsChecked="{Binding AceitarMensagensDeOutrosPaineis}" Margin="0,0,0,10">
+                            <TextBlock Text="Aceitar mensagens de outros painéis" />
+                        </CheckBox>
+
+                        <Border CornerRadius="4" Padding="12,10" Background="#F7F7F7" Margin="0,0,0,14">
+                            <TextBlock Text="{Binding StatusReceptorEmbutido}" Style="{StaticResource Subtitulo}" FontSize="12" />
+                        </Border>
+
+                        <TextBlock Text="Painéis autorizados a enviar para cá" Style="{StaticResource RotuloCampo}" />
+                        <ItemsControl ItemsSource="{Binding PaineisPareados}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="&#xE77B;" FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding PanelName}" VerticalAlignment="Center" />
+                                        <Button Grid.Column="2" Style="{StaticResource BotaoSecundario}" Content="Bloquear"
+                                                Command="{Binding ElementName=Raiz, Path=DataContext.RemoverPainelPareadoCommand}"
+                                                CommandParameter="{Binding}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock FontSize="12" Text="Nenhum painel pareado ainda.">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource Subtitulo}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding PaineisPareados.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Inicialização" Style="{StaticResource TituloCard}" Margin="0,0,0,10" />
+                        <CheckBox IsChecked="{Binding IniciarComWindows}">
+                            <TextBlock Text="Abrir o Comunicador junto com o Windows" />
+                        </CheckBox>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Rede" Style="{StaticResource TituloCard}" />
+                        <TextBlock Style="{StaticResource Subtitulo}" Margin="0,0,0,14"
+                                   Text="Só mude se souber o que está fazendo. Alterar portas exige reiniciar o programa." />
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Porta TCP" Style="{StaticResource RotuloCampo}" />
+                                <TextBox Text="{Binding PortaTcp, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Porta UDP (descoberta)" Style="{StaticResource RotuloCampo}" />
+                                <TextBox Text="{Binding PortaUdp, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Intervalo de descoberta (s)" Style="{StaticResource RotuloCampo}" />
+                                <TextBox Text="{Binding IntervaloDescobertaSegundos, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Intervalo de verificação (s)" Style="{StaticResource RotuloCampo}" />
+                                <TextBox Text="{Binding IntervaloPingSegundos, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Sobre" Style="{StaticResource TituloCard}" Margin="0,0,0,8" />
+                        <TextBlock Style="{StaticResource Subtitulo}" FontSize="12"
+                                   Text="Identificador deste painel (usado quando há vários painéis na rede):" />
+                        <TextBlock Text="{Binding PainelId, Mode=OneWay}" FontFamily="Consolas" FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
+                    <Button Style="{StaticResource BotaoPrimario}" Content="Salvar" Command="{Binding SalvarCommand}" Padding="28,0" />
+                    <TextBlock Text="{Binding StatusOperacao}" Style="{StaticResource Subtitulo}"
+                               VerticalAlignment="Center" Margin="14,0,0,0" MaxWidth="380" />
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
 </UserControl>

@@ -67,6 +67,10 @@ public sealed class ComunicadorMessage
     [JsonPropertyName("code")]
     public string? Code { get; set; }
 
+    /// <summary>Botões de resposta rápida do aviso (opcional).</summary>
+    [JsonPropertyName("buttons")]
+    public List<BotaoResposta>? Buttons { get; set; }
+
     public static ComunicadorMessage CreateBase(string type) => new()
     {
         Type = type,

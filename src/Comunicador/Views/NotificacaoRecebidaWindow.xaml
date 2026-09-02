@@ -1,24 +1,166 @@
 <Window x:Class="Comunicador.Views.NotificacaoRecebidaWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Comunicador" Width="340" Height="220"
+        Title="Comunicador" Width="380" SizeToContent="Height"
         Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize"
-        WindowStyle="ToolWindow" Background="{StaticResource SurfaceBrush}">
-    <StackPanel Margin="16">
-        <TextBlock x:Name="DeSenderText" Style="{StaticResource Subtitulo}" />
-        <TextBlock x:Name="TituloText" FontSize="14" FontWeight="Bold" TextWrapping="Wrap" Margin="0,4,0,6" />
-        <TextBlock x:Name="MensagemText" FontSize="12" TextWrapping="Wrap" />
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent">
 
-        <StackPanel x:Name="RespostaPanel" Visibility="Collapsed" Margin="0,16,0,0">
-            <TextBox x:Name="RespostaBox" KeyDown="RespostaBox_KeyDown" />
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                <Button Style="{StaticResource BotaoSecundario}" Content="Fechar" Click="Fechar_Click" Margin="0,0,8,0" />
-                <Button Style="{StaticResource BotaoPrimario}" Content="Responder" Click="Responder_Click" />
+    <!-- Cartao no formato das notificacoes do Windows 11: cantos arredondados,
+         fundo escuro, nome do app no topo, acoes embaixo. Nao imita a marca do
+         Windows nem se passa por um componente do sistema — e a janela do
+         proprio Comunicador, identificada como tal. -->
+    <Border Margin="16" CornerRadius="8" Background="#2C2C2C" BorderBrush="#3D3D3D" BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.45" Color="#000000" />
+        </Border.Effect>
+
+        <Grid Margin="16,12,12,14">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- cabecalho: nome do app + fechar -->
+            <Grid Grid.Row="0" Margin="0,0,0,8">
+                <!-- Cabecalho mostra quem enviou, nao o nome do app. A janela continua
+                     identificada como Comunicador no Title (alt-tab / barra de tarefas). -->
+                <StackPanel Orientation="Horizontal">
+                    <Border Width="16" Height="16" CornerRadius="3" Background="#0067C0" VerticalAlignment="Center" />
+                    <TextBlock x:Name="DeSenderText" FontSize="12" Foreground="#C5C5C5" Margin="8,0,0,0"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+                <Button x:Name="FecharX" Click="Fechar_Click" HorizontalAlignment="Right" VerticalAlignment="Top"
+                        Width="28" Height="24" Cursor="Hand" ToolTip="Fechar">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="Transparent" CornerRadius="4">
+                                <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                           Foreground="#C5C5C5" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#3D3D3D" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+            </Grid>
+
+            <TextBlock x:Name="TituloText" Grid.Row="1" FontSize="14" FontWeight="SemiBold" Foreground="#FFFFFF"
+                       TextWrapping="Wrap" Margin="0,0,8,4" />
+
+            <TextBlock x:Name="MensagemText" Grid.Row="2" FontSize="13" Foreground="#E0E0E0"
+                       TextWrapping="Wrap" Margin="0,0,8,0" MaxHeight="180" />
+
+            <!-- botoes de resposta rapida enviados junto com o aviso -->
+            <ItemsControl x:Name="BotoesPanel" Grid.Row="3" Visibility="Collapsed" Margin="0,14,0,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Click="BotaoResposta_Click" Tag="{Binding}" Height="32" Cursor="Hand"
+                                Margin="0,0,0,6" HorizontalContentAlignment="Stretch" Foreground="White" FontSize="13">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bd" Background="#3B3B3B" CornerRadius="4"
+                                            BorderBrush="#4D4D4D" BorderThickness="1">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="#484848" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Label}" Foreground="White" FontSize="13" VerticalAlignment="Center" />
+                                <!-- deixa claro que este botao sai para o navegador -->
+                                <TextBlock Text="&#xE71B;" FontFamily="Segoe MDL2 Assets" FontSize="11" Margin="6,0,0,0"
+                                           Foreground="#9BD4FF" VerticalAlignment="Center"
+                                           Visibility="{Binding TemLink, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            </StackPanel>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <StackPanel x:Name="RespostaPanel" Grid.Row="4" Visibility="Collapsed" Margin="0,14,0,0">
+                <TextBox x:Name="RespostaBox" KeyDown="RespostaBox_KeyDown" MinHeight="32"
+                         Background="#3B3B3B" Foreground="White" CaretBrush="White" BorderThickness="1"
+                         BorderBrush="#4D4D4D" Padding="10,0" VerticalContentAlignment="Center"
+                         FontSize="13">
+                    <TextBox.Template>
+                        <ControlTemplate TargetType="TextBox">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4"
+                                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1">
+                                <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#4CC2FF" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </TextBox.Template>
+                </TextBox>
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Content="Responder" Click="Responder_Click" Height="32" Cursor="Hand" Foreground="White" FontSize="13">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="#0067C0" CornerRadius="4">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="#1975C5" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                    <Button Grid.Column="2" Content="Dispensar" Click="Fechar_Click" Height="32" Cursor="Hand" Foreground="White" FontSize="13">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="#3B3B3B" CornerRadius="4" BorderBrush="#4D4D4D" BorderThickness="1">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="#484848" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                </Grid>
             </StackPanel>
-        </StackPanel>
 
-        <StackPanel x:Name="OkPanel" Visibility="Collapsed" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-            <Button Style="{StaticResource BotaoPrimario}" Content="OK" Click="Fechar_Click" />
-        </StackPanel>
-    </StackPanel>
+            <StackPanel x:Name="OkPanel" Grid.Row="5" Visibility="Collapsed" Margin="0,14,0,0">
+                <Button Content="OK" Click="Fechar_Click" Height="32" Cursor="Hand" HorizontalAlignment="Stretch" Foreground="White" FontSize="13">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="#3B3B3B" CornerRadius="4" BorderBrush="#4D4D4D" BorderThickness="1">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#484848" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Border>
 </Window>

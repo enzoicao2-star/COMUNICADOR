@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Comunicador.Models;
 using Comunicador.Networking;
+using Comunicador.Protocol;
 using Comunicador.Services;
 
 namespace Comunicador.ViewModels;
@@ -18,6 +19,27 @@ public sealed class MensagensViewModel : ViewModelBase
     private string? _statusOperacao;
 
     public ObservableCollection<ComputadorSelecionavel> Destinatarios { get; } = new();
+
+    /// <summary>Botões de resposta rápida que vão junto com o aviso.</summary>
+    public ObservableCollection<BotaoRespostaEditavel> Botoes { get; } = new();
+
+    private string _novoBotaoRotulo = string.Empty;
+    private string _novoBotaoUrl = string.Empty;
+
+    public string NovoBotaoRotulo
+    {
+        get => _novoBotaoRotulo;
+        set => SetField(ref _novoBotaoRotulo, value);
+    }
+
+    public string NovoBotaoUrl
+    {
+        get => _novoBotaoUrl;
+        set => SetField(ref _novoBotaoUrl, value);
+    }
+
+    public ICommand AdicionarBotaoCommand { get; }
+    public ICommand RemoverBotaoCommand { get; }
 
     public string Titulo
     {
@@ -56,6 +78,15 @@ public sealed class MensagensViewModel : ViewModelBase
         EnviarCommand = new AsyncRelayCommand(EnviarAsync, PodeEnviar);
         AtualizarDestinatariosCommand = new RelayCommand(_ => AtualizarDestinatarios());
 
+        AdicionarBotaoCommand = new RelayCommand(_ => AdicionarBotao(), _ => PodeAdicionarBotao());
+        RemoverBotaoCommand = new RelayCommand(param =>
+        {
+            if (param is BotaoRespostaEditavel botao)
+            {
+                Botoes.Remove(botao);
+            }
+        });
+
         _computadores.Computadores.CollectionChanged += (_, _) => AtualizarDestinatarios();
         AtualizarDestinatarios();
     }
@@ -70,6 +101,29 @@ public sealed class MensagensViewModel : ViewModelBase
         }
     }
 
+    private bool PodeAdicionarBotao()
+    {
+        if (string.IsNullOrWhiteSpace(NovoBotaoRotulo) || Botoes.Count >= ProtocolConstants.MaxBotoes)
+        {
+            return false;
+        }
+
+        // URL é opcional, mas se preenchida precisa ser http/https
+        return string.IsNullOrWhiteSpace(NovoBotaoUrl) || BotaoResposta.UrlPermitida(NovoBotaoUrl.Trim());
+    }
+
+    private void AdicionarBotao()
+    {
+        Botoes.Add(new BotaoRespostaEditavel
+        {
+            Rotulo = NovoBotaoRotulo.Trim(),
+            Url = string.IsNullOrWhiteSpace(NovoBotaoUrl) ? null : NovoBotaoUrl.Trim(),
+        });
+
+        NovoBotaoRotulo = string.Empty;
+        NovoBotaoUrl = string.Empty;
+    }
+
     private bool PodeEnviar() =>
         !string.IsNullOrWhiteSpace(Titulo)
         && !string.IsNullOrWhiteSpace(Mensagem)
@@ -78,6 +132,7 @@ public sealed class MensagensViewModel : ViewModelBase
     private async Task EnviarAsync()
     {
         var selecionados = Destinatarios.Where(d => d.Selecionado).ToList();
+        var botoesProtocolo = Botoes.Select(b => b.ParaProtocolo()).ToList();
         StatusOperacao = $"Enviando para {selecionados.Count} computador(es)...";
 
         foreach (var destino in selecionados)
@@ -94,7 +149,7 @@ public sealed class MensagensViewModel : ViewModelBase
             _historico.Adicionar(entry);
 
             var resultado = await _enviador
-                .EnviarAsync(computador, Titulo, Mensagem, PermitirResposta)
+                .EnviarAsync(computador, Titulo, Mensagem, PermitirResposta, botoesProtocolo)
                 .ConfigureAwait(true);
 
             _historico.AtualizarExistente(entry.Id, item => AplicarResultado(item, resultado, PermitirResposta));
