@@ -39,7 +39,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     public IReadOnlyList<string> Temas { get; } = ["Escuro", "Claro"];
     public IReadOnlyList<string> Paletas { get; } = ["Azul", "Violeta", "Verde", "Coral"];
     public IReadOnlyList<string> Fundos { get; } =
-        ["Sem fundo", "Topográfico", "Caminhos flutuantes", "Vórtice", "Ondas luminosas", "Constelação", "Grade fluida"];
+        ["Sem fundo", "Topográfico", "Caminhos flutuantes", "Vórtice", "Ondas luminosas", "Constelação", "Grade fluida", "Partículas fluidas"];
 
     public string NomeNovaPaleta
     {

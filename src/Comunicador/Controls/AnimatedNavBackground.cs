@@ -108,22 +108,26 @@ public sealed class AnimatedNavBackground : FrameworkElement
         const double barTop = 27;
         var bottom = Math.Max(barTop + 2, ActualHeight - 1);
         var radius = Math.Min((bottom - barTop) / 2, 24);
-        var shoulder = Math.Min(62, itemWidth * .48);
-        var inner = Math.Min(33, itemWidth * .28);
+        // O ombro precisa começar depois do raio da ponta. Se ultrapassar esse
+        // limite no primeiro/último item, a geometria se cruza e cria a pequena
+        // ponta solta que aparecia ao lado da esfera.
+        var roomToEdge = Math.Min(center - radius, ActualWidth - radius - center);
+        var shoulder = Math.Max(18, Math.Min(Math.Min(34, itemWidth * .31), roomToEdge - 1));
+        var inner = Math.Min(22, shoulder * .64);
 
         var geometry = new StreamGeometry();
         using (var context = geometry.Open())
         {
             context.BeginFigure(new Point(radius, barTop), true, true);
-            context.LineTo(new Point(Math.Max(0, center - shoulder), barTop), true, false);
+            context.LineTo(new Point(center - shoulder, barTop), true, false);
             context.BezierTo(
-                new Point(center - inner - 12, barTop),
+                new Point(center - inner - 9, barTop),
                 new Point(center - inner, 0),
                 new Point(center, 0), true, false);
             context.BezierTo(
                 new Point(center + inner, 0),
-                new Point(center + inner + 12, barTop),
-                new Point(Math.Min(ActualWidth, center + shoulder), barTop), true, false);
+                new Point(center + inner + 9, barTop),
+                new Point(center + shoulder, barTop), true, false);
             context.LineTo(new Point(ActualWidth - radius, barTop), true, false);
             context.ArcTo(new Point(ActualWidth, barTop + radius), new Size(radius, radius), 0, false,
                 SweepDirection.Clockwise, true, false);

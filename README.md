@@ -1,4 +1,4 @@
-# Comunicador 2.2.1
+# Comunicador 2.2.2
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
@@ -35,7 +35,7 @@ possuem controles de permissão separados.
 ## Recursos principais
 
 - Interface WPF responsiva com moldura própria, temas claro/escuro,
-  paletas predefinidas ou criadas pelo usuário e sete opções de fundo.
+  paletas predefinidas ou criadas pelo usuário e oito opções de fundo animado.
 - Navegação superior por ícones, transições e configurações salvas automaticamente.
 - Ping médio em tempo real com indicador verde, amarelo, vermelho ou sem conexão.
 - Avisos comuns, alertas centrais e imagens por monitor, com tamanho e tempo configuráveis.
@@ -54,10 +54,13 @@ compilar (a versão publicada é self-contained — quem só usa o
 build.bat
 ```
 
-Para abrir o painel sem se preocupar em compilar antes, use
-`ABRIR_COMUNICADOR.bat` — ele compila automaticamente na primeira vez
-(se `dist\Comunicador.exe` ainda não existir) e depois só abre o
-programa.
+Para abrir o painel, use `ABRIR_COMUNICADOR.bat`. A cada inicialização
+ele consulta a versão publicada no GitHub; quando há uma mais nova,
+baixa o executável self-contained, valida versão e SHA-256 e só então
+substitui a cópia instalada. Sem internet, abre normalmente a última
+versão válida. Dentro do repositório ele também recompila quando a
+fonte local é mais nova; em outro computador o BAT funciona sozinho e
+instala o painel em `%LOCALAPPDATA%\Comunicador\Painel`.
 
 `build.bat` gera o ícone, restaura dependências, roda os testes Python
 e C# (inclusive integração real C# ↔ Python), compila em Release e

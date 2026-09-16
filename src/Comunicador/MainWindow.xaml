@@ -21,21 +21,19 @@
         <SolidColorBrush x:Key="PingHighBrush" Color="#E34747" />
 
         <Style x:Key="ChromeButton" TargetType="Button">
-            <Setter Property="Width" Value="32" />
+            <Setter Property="Width" Value="42" />
             <Setter Property="Height" Value="32" />
-            <Setter Property="Margin" Value="3,0,0,0" />
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
-            <Setter Property="FontSize" Value="11" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="ChromeSurface" Background="{TemplateBinding Background}"
-                                CornerRadius="16">
+                                CornerRadius="6">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -56,7 +54,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="ChromeSurface" Background="{TemplateBinding Background}"
-                                CornerRadius="16">
+                                CornerRadius="6">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -84,26 +82,30 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type controls:HoverNavButton}">
                         <Grid Background="Transparent">
-                            <Border x:Name="HoverPill" Height="34" Margin="10,0" CornerRadius="17"
+                            <Border x:Name="HoverPill" Height="34" Margin="10,34,10,0" CornerRadius="17"
                                     Background="{DynamicResource SidebarHoverBrush}" Opacity="0"
-                                    VerticalAlignment="Bottom" />
-                            <TextBlock x:Name="IconText" Text="{TemplateBinding Icon}"
-                                       FontFamily="Segoe MDL2 Assets" FontSize="20"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,41,0,0">
-                                <TextBlock.RenderTransform>
+                                    VerticalAlignment="Top" />
+                            <Grid x:Name="IconHost" Width="72" Height="38"
+                                  HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,32,0,0"
+                                  RenderTransformOrigin="0.5,0.5">
+                                <Grid.RenderTransform>
                                     <TransformGroup>
                                         <ScaleTransform x:Name="IconScale" ScaleX="1" ScaleY="1" />
                                         <RotateTransform x:Name="IconRotate" Angle="0" />
                                         <TranslateTransform x:Name="IconMove" Y="0" />
                                     </TransformGroup>
-                                </TextBlock.RenderTransform>
-                            </TextBlock>
-                            <TextBlock x:Name="LabelText" Text="{TemplateBinding Label}" Opacity="0"
-                                       FontSize="12" FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="4,43,4,0"
-                                       TextTrimming="CharacterEllipsis" />
+                                </Grid.RenderTransform>
+                                <TextBlock x:Name="IconText" Text="{TemplateBinding Icon}"
+                                           FontFamily="Segoe MDL2 Assets" FontSize="20"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           TextAlignment="Center" />
+                                <TextBlock x:Name="LabelText" Text="{TemplateBinding Label}" Opacity="0"
+                                           FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </Grid>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -116,7 +118,7 @@
                                     <BeginStoryboard>
                                         <Storyboard>
                                             <DoubleAnimation Storyboard.TargetName="IconMove" Storyboard.TargetProperty="Y"
-                                                             To="-23" Duration="0:0:0.34">
+                                                             To="-25" Duration="0:0:0.34">
                                                 <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut" /></DoubleAnimation.EasingFunction>
                                             </DoubleAnimation>
                                             <DoubleAnimation Storyboard.TargetName="IconScale" Storyboard.TargetProperty="ScaleX" From="0.84" To="1" Duration="0:0:0.32" />
@@ -164,7 +166,6 @@
                                     <Condition Property="Tag" Value="ativo" />
                                     <Condition Property="IsLabelVisible" Value="True" />
                                 </MultiTrigger.Conditions>
-                                <Setter TargetName="LabelText" Property="Margin" Value="4,17,4,0" />
                                 <Setter TargetName="LabelText" Property="Foreground" Value="White" />
                             </MultiTrigger>
                             <Trigger Property="IsPressed" Value="True">
@@ -223,12 +224,25 @@
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                                 Margin="0,3,10,0" VerticalAlignment="Top"
                                 shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                        <Button Style="{StaticResource ChromeButton}" Content="&#xE921;" Click="OnMinimizeClick"
-                                automation:AutomationProperties.Name="Minimizar" />
-                        <Button x:Name="MaximizeButton" Style="{StaticResource ChromeButton}" Content="&#xE922;"
-                                Click="OnMaximizeRestoreClick" automation:AutomationProperties.Name="Maximizar ou restaurar" />
-                        <Button Style="{StaticResource ChromeCloseButton}" Content="&#xE8BB;" Click="OnCloseClick"
-                                automation:AutomationProperties.Name="Fechar" />
+                        <Button Style="{StaticResource ChromeButton}" Click="OnMinimizeClick"
+                                automation:AutomationProperties.Name="Minimizar">
+                            <Path Data="M 1.5,7.5 L 12.5,7.5" Width="14" Height="14"
+                                  Stretch="None" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1.35" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                        </Button>
+                        <Button x:Name="MaximizeButton" Style="{StaticResource ChromeButton}"
+                                Click="OnMaximizeRestoreClick" automation:AutomationProperties.Name="Maximizar ou restaurar">
+                            <Path x:Name="MaximizeIcon" Data="M 2,2 L 12,2 L 12,12 L 2,12 Z"
+                                  Width="14" Height="14" Stretch="None"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1.25" StrokeLineJoin="Round" />
+                        </Button>
+                        <Button Style="{StaticResource ChromeCloseButton}" Click="OnCloseClick"
+                                automation:AutomationProperties.Name="Fechar">
+                            <Path Data="M 2,2 L 12,12 M 12,2 L 2,12" Width="14" Height="14"
+                                  Stretch="None" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1.35" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                        </Button>
                     </StackPanel>
                 </Grid>
 

@@ -1,41 +1,91 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 
 set "ROOT=%~dp0"
 set "COMUNICADOR_ROOT=%~dp0"
-set "VERSAO_ESPERADA=2.2.1.0"
+set "VERSAO_ESPERADA=2.2.2.0"
+set "REPO_RAW=https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main"
 cd /d "%ROOT%"
 
-set "PRECISA_COMPILAR=0"
-if not exist "dist\Comunicador.exe" set "PRECISA_COMPILAR=1"
-
-if exist "dist\Comunicador.exe" (
-    for /f %%I in ('powershell -NoProfile -ExecutionPolicy Bypass -Command "$r=$env:COMUNICADOR_ROOT; $exe=Join-Path $r 'dist\Comunicador.exe'; $pastas=@((Join-Path $r 'src\Comunicador'),(Join-Path $r 'receiver'),(Join-Path $r 'tests'),(Join-Path $r 'tools'),(Join-Path $r 'assets')); $maisNovo=(Get-ChildItem -Path $pastas -Recurse -File -Include *.cs,*.xaml,*.csproj,*.py,*.bat,*.ps1,*.svg ^| Sort-Object LastWriteTimeUtc -Descending ^| Select-Object -First 1).LastWriteTimeUtc; $versao=(Get-Item -LiteralPath $exe).VersionInfo.FileVersion; if($versao -ne $env:VERSAO_ESPERADA -or $maisNovo -gt (Get-Item -LiteralPath $exe).LastWriteTimeUtc){'1'}else{'0'}"') do set "PRECISA_COMPILAR=%%I"
+rem Dentro do repositorio usamos dist. Se este BAT estiver sozinho em outro PC,
+rem o painel fica numa pasta local permanente e nao exige SDK do .NET.
+if exist "%ROOT%build.bat" (
+    set "PAINEL_EXE=%ROOT%dist\Comunicador.exe"
+) else (
+    set "PAINEL_EXE=%LOCALAPPDATA%\Comunicador\Painel\Comunicador.exe"
 )
 
-if "%PRECISA_COMPILAR%"=="1" (
-    echo Foi encontrada uma versao nova do Comunicador 2.2.1.
-    echo Compilando e publicando antes de abrir...
-    echo.
-    call build.bat
-    if errorlevel 1 (
-        echo.
-        echo Nao foi possivel compilar o Comunicador. Veja os erros acima.
-        pause
-        exit /b 1
+echo Verificando o Comunicador...
+
+rem Em uma copia de desenvolvimento, recompila apenas se a fonte local mudou ou
+rem se o executavel e mais antigo que a versao desta copia. Um EXE mais novo,
+rem baixado do GitHub, nunca e rebaixado por este teste.
+if exist "%ROOT%build.bat" (
+    set "PRECISA_COMPILAR=0"
+    if not exist "!PAINEL_EXE!" set "PRECISA_COMPILAR=1"
+    if exist "!PAINEL_EXE!" (
+        for /f "delims=" %%I in ('powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+            "$r=$env:COMUNICADOR_ROOT; $exe=$env:PAINEL_EXE; $expected=[version]$env:VERSAO_ESPERADA;" ^
+            "$pastas=@((Join-Path $r 'src\Comunicador'),(Join-Path $r 'receiver'),(Join-Path $r 'tests'),(Join-Path $r 'tools'),(Join-Path $r 'assets'));" ^
+            "$novo=(Get-ChildItem -Path $pastas -Recurse -File -Include *.cs,*.xaml,*.csproj,*.py,*.bat,*.ps1,*.svg -ErrorAction SilentlyContinue | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc;" ^
+            "$item=Get-Item -LiteralPath $exe; try{$atual=[version]$item.VersionInfo.FileVersion}catch{$atual=[version]'0.0.0.0'};" ^
+            "if($atual -lt $expected -or $novo -gt $item.LastWriteTimeUtc){'1'}else{'0'}"') do set "PRECISA_COMPILAR=%%I"
+    )
+    if "!PRECISA_COMPILAR!"=="1" (
+        echo A fonte local mudou. Compilando a versao 2.2.2...
+        call "%ROOT%build.bat"
+        if errorlevel 1 (
+            echo.
+            echo Nao foi possivel compilar a copia local. Tentando a versao publicada...
+        )
     )
 )
 
-rem Na primeira execucao configura rede e Firewall (pede UAC uma vez).
-rem Depois disso a regra ja existe e o painel abre direto, sem prompt.
+rem Baixa sempre o atualizador mais recente. Se a internet estiver indisponivel,
+rem usa a copia que veio com o repositorio e abre o EXE instalado normalmente.
+set "UPDATER=%TEMP%\Comunicador-Atualizar-Painel.ps1"
+set "UPDATER_NOVO=%TEMP%\Comunicador-Atualizar-Painel.download.ps1"
+del /q "!UPDATER_NOVO!" >nul 2>nul
+if exist "%ROOT%tools\Atualizar-Comunicador.ps1" copy /y "%ROOT%tools\Atualizar-Comunicador.ps1" "!UPDATER!" >nul
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$ProgressPreference='SilentlyContinue'; try {" ^
+    "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;" ^
+    "Invoke-WebRequest -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} -Uri ('%REPO_RAW%/tools/Atualizar-Comunicador.ps1?t=' + [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()) -OutFile $env:UPDATER_NOVO -ErrorAction Stop" ^
+    "} catch { exit 1 }"
+if not errorlevel 1 move /y "!UPDATER_NOVO!" "!UPDATER!" >nul
+
+if exist "!UPDATER!" (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATER!" -ExecutablePath "!PAINEL_EXE!"
+    if errorlevel 1 (
+        echo AVISO: a verificacao online falhou.
+        if not exist "!PAINEL_EXE!" goto :sem_executavel
+        echo Abrindo a copia instalada.
+    )
+) else (
+    echo AVISO: nao foi possivel carregar o atualizador online.
+    if not exist "!PAINEL_EXE!" goto :sem_executavel
+)
+
+if not exist "!PAINEL_EXE!" goto :sem_executavel
+
+rem Na primeira execucao configura rede e Firewall quando o auxiliar esta junto.
 netsh advfirewall firewall show rule name="Comunicador" >nul 2>nul
-if %errorlevel% neq 0 (
+if errorlevel 1 if exist "%ROOT%LIBERAR_FIREWALL.bat" (
     echo Configurando a rede para o Comunicador funcionar entre computadores...
-    echo Uma janela do Windows vai pedir sua confirmacao ^(UAC^) — isso acontece
-    echo so nesta primeira vez.
-    echo.
     call "%ROOT%LIBERAR_FIREWALL.bat"
 )
 
-start "" "dist\Comunicador.exe"
+if /I "%~1"=="--verificar" (
+    echo Verificacao concluida sem abrir a janela.
+    exit /b 0
+)
+
+start "" "!PAINEL_EXE!"
 exit /b 0
+
+:sem_executavel
+echo.
+echo ERRO: nao existe uma copia local do Comunicador e nao foi possivel baixar
+echo       a versao publicada no GitHub. Verifique a internet e tente novamente.
+pause
+exit /b 1

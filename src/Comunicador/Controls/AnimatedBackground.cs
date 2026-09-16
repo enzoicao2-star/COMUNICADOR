@@ -11,7 +11,10 @@ public sealed class AnimatedBackground : FrameworkElement
     private readonly DateTime _started = DateTime.UtcNow;
     private readonly List<Particle> _particles = new();
     private readonly List<Star> _stars = new();
+    private readonly List<FlowParticle> _fluidParticles = new();
+    private readonly Random _fluidRandom = new(731942);
     private TimeSpan _lastFrame;
+    private double _lastFluidTime = -1;
 
     public static readonly DependencyProperty ModeProperty = DependencyProperty.Register(
         nameof(Mode), typeof(string), typeof(AnimatedBackground),
@@ -33,6 +36,7 @@ public sealed class AnimatedBackground : FrameworkElement
         ClipToBounds = true;
         SeedVortex(2800, 3);
         SeedStars(92);
+        SeedFluidParticles(2000);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
@@ -77,6 +81,7 @@ public sealed class AnimatedBackground : FrameworkElement
             case "Ondas luminosas": DrawLuminousWaves(dc, time, opacity); break;
             case "Constelação": DrawConstellation(dc, time, opacity); break;
             case "Grade fluida": DrawFluidGrid(dc, time, opacity); break;
+            case "Partículas fluidas": DrawFluidParticles(dc, time, opacity); break;
         }
     }
 
@@ -274,6 +279,68 @@ public sealed class AnimatedBackground : FrameworkElement
         }
     }
 
+    /// <summary>
+    /// Campo de partículas guiado pelo mesmo Perlin 3D do componente de referência.
+    /// As linhas curtas preservam visualmente o rastro translúcido do canvas web sem
+    /// acumular quadros antigos sobre os controles do WPF.
+    /// </summary>
+    private void DrawFluidParticles(DrawingContext dc, double time, double opacity)
+    {
+        var dt = _lastFluidTime < 0 || time <= _lastFluidTime
+            ? 1d / 60
+            : Math.Clamp(time - _lastFluidTime, 1d / 240, .08);
+        if (ReduceMotion) dt = 0;
+        _lastFluidTime = time;
+
+        var color = ThemeColor("TextPrimaryBrush", Colors.White);
+        var brushes = new Brush[10];
+        var pens = new Pen[10];
+        for (var i = 0; i < brushes.Length; i++)
+        {
+            // O original atinge 0,15 de alfa e cruza suavemente por dez níveis.
+            brushes[i] = new SolidColorBrush(color) { Opacity = opacity * .15 * (i + 1) / brushes.Length };
+            brushes[i].Freeze();
+            pens[i] = new Pen(brushes[i], .72) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+            pens[i].Freeze();
+        }
+
+        foreach (var particle in _fluidParticles)
+        {
+            particle.Life += dt * 60;
+            if (particle.Life > particle.MaxLife)
+            {
+                ResetFluidParticle(particle);
+            }
+
+            var oldX = particle.X * ActualWidth;
+            var oldY = particle.Y * ActualHeight;
+            var noise = PerlinNoise(
+                particle.X * ActualWidth * .003,
+                particle.Y * ActualHeight * .003,
+                time * .1);
+            var angle = noise * Math.PI * 4;
+            const double speed = 120; // 2 px por quadro no componente a 60 fps.
+            particle.VelocityX = Math.Cos(angle) * speed;
+            particle.VelocityY = Math.Sin(angle) * speed;
+            if (ActualWidth > 0) particle.X += particle.VelocityX * dt / ActualWidth;
+            if (ActualHeight > 0) particle.Y += particle.VelocityY * dt / ActualHeight;
+
+            var wrapped = false;
+            if (particle.X < 0) { particle.X += 1; wrapped = true; }
+            else if (particle.X > 1) { particle.X -= 1; wrapped = true; }
+            if (particle.Y < 0) { particle.Y += 1; wrapped = true; }
+            else if (particle.Y > 1) { particle.Y -= 1; wrapped = true; }
+
+            var progress = Math.Clamp(particle.Life / particle.MaxLife, 0, 1);
+            var fade = Math.Sin(progress * Math.PI);
+            var brushIndex = Math.Clamp((int)Math.Round(fade * (brushes.Length - 1)), 0, brushes.Length - 1);
+            var x = particle.X * ActualWidth;
+            var y = particle.Y * ActualHeight;
+            if (!wrapped && dt > 0) dc.DrawLine(pens[brushIndex], new Point(oldX, oldY), new Point(x, y));
+            dc.DrawEllipse(brushes[brushIndex], null, new Point(x, y), particle.Size, particle.Size);
+        }
+    }
+
     private void SeedVortex(int count, int arms)
     {
         var random = new Random(424242);
@@ -298,6 +365,92 @@ public sealed class AnimatedBackground : FrameworkElement
             _stars.Add(new(random.NextDouble(), random.NextDouble(), random.NextDouble() * Math.PI * 2));
     }
 
+    private void SeedFluidParticles(int count)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            var particle = new FlowParticle();
+            ResetFluidParticle(particle, randomLife: true);
+            _fluidParticles.Add(particle);
+        }
+    }
+
+    private void ResetFluidParticle(FlowParticle particle, bool randomLife = false)
+    {
+        particle.X = _fluidRandom.NextDouble();
+        particle.Y = _fluidRandom.NextDouble();
+        particle.Size = .5 + _fluidRandom.NextDouble() * 1.5;
+        particle.MaxLife = 100 + _fluidRandom.NextDouble() * 50;
+        particle.Life = randomLife ? _fluidRandom.NextDouble() * particle.MaxLife : 0;
+        particle.VelocityX = particle.VelocityY = 0;
+    }
+
+    private static readonly int[] NoisePermutation =
+    [
+        151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,
+        37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,
+        57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,
+        166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,
+        102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,
+        116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,
+        126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,
+        152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,
+        113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,
+        241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,
+        121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,
+        215,61,156,180,
+    ];
+
+    private static readonly int[] NoiseTable = BuildNoiseTable();
+
+    private static int[] BuildNoiseTable()
+    {
+        var table = new int[512];
+        for (var i = 0; i < 256; i++) table[i] = table[256 + i] = NoisePermutation[i];
+        return table;
+    }
+
+    private static double PerlinNoise(double x, double y, double z)
+    {
+        var floorX = Math.Floor(x);
+        var floorY = Math.Floor(y);
+        var floorZ = Math.Floor(z);
+        var ix = (int)floorX & 255;
+        var iy = (int)floorY & 255;
+        var iz = (int)floorZ & 255;
+        x -= floorX;
+        y -= floorY;
+        z -= floorZ;
+
+        var u = Fade(x);
+        var v = Fade(y);
+        var w = Fade(z);
+        var a = NoiseTable[ix] + iy;
+        var aa = NoiseTable[a] + iz;
+        var ab = NoiseTable[a + 1] + iz;
+        var b = NoiseTable[ix + 1] + iy;
+        var ba = NoiseTable[b] + iz;
+        var bb = NoiseTable[b + 1] + iz;
+
+        return Lerp(w,
+            Lerp(v,
+                Lerp(u, Grad(NoiseTable[aa], x, y, z), Grad(NoiseTable[ba], x - 1, y, z)),
+                Lerp(u, Grad(NoiseTable[ab], x, y - 1, z), Grad(NoiseTable[bb], x - 1, y - 1, z))),
+            Lerp(v,
+                Lerp(u, Grad(NoiseTable[aa + 1], x, y, z - 1), Grad(NoiseTable[ba + 1], x - 1, y, z - 1)),
+                Lerp(u, Grad(NoiseTable[ab + 1], x, y - 1, z - 1), Grad(NoiseTable[bb + 1], x - 1, y - 1, z - 1))));
+    }
+
+    private static double Fade(double t) => t * t * t * (t * (t * 6 - 15) + 10);
+    private static double Lerp(double t, double a, double b) => a + t * (b - a);
+    private static double Grad(int hash, double x, double y, double z)
+    {
+        var h = hash & 15;
+        var u = h < 8 ? x : y;
+        var v = h < 4 ? y : h is 12 or 14 ? x : z;
+        return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
+    }
+
     private static Pen FrozenPen(string key, double opacity, double width)
     {
         var pen = new Pen(ThemeBrush(key, opacity), width);
@@ -317,4 +470,14 @@ public sealed class AnimatedBackground : FrameworkElement
 
     private readonly record struct Particle(double X, double Y, double Z, double Radius);
     private readonly record struct Star(double X, double Y, double Phase);
+    private sealed class FlowParticle
+    {
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Size { get; set; }
+        public double VelocityX { get; set; }
+        public double VelocityY { get; set; }
+        public double Life { get; set; }
+        public double MaxLife { get; set; }
+    }
 }

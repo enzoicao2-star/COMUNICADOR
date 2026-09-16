@@ -156,9 +156,11 @@ public partial class MainWindow : Window
 
     private void AtualizarMoldura()
     {
-        if (WindowFrame is null || MaximizeButton is null) return;
+        if (WindowFrame is null || MaximizeButton is null || MaximizeIcon is null) return;
         var maximizada = WindowState == WindowState.Maximized;
         WindowFrame.CornerRadius = maximizada ? new CornerRadius(0) : new CornerRadius(13);
-        MaximizeButton.Content = maximizada ? "\uE923" : "\uE922";
+        MaximizeIcon.Data = Geometry.Parse(maximizada
+            ? "M 4,1.5 L 12.5,1.5 L 12.5,10 L 10,10 M 1.5,4 L 10,4 L 10,12.5 L 1.5,12.5 Z"
+            : "M 2,2 L 12,2 L 12,12 L 2,12 Z");
     }
 }

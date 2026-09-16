@@ -1,0 +1,252 @@
+<UserControl x:Class="Comunicador.Controls.ColorPickerPopover"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+             Loaded="OnLoaded">
+    <UserControl.Resources>
+        <Style x:Key="ColorSwatchButton" TargetType="Button">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform><ScaleTransform x:Name="SwatchScale" /></Grid.RenderTransform>
+                            <Border x:Name="Ring" CornerRadius="7" BorderBrush="Transparent" BorderThickness="2" />
+                            <Border Margin="3" CornerRadius="4" Background="{TemplateBinding Background}" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="{DynamicResource TextPrimaryBrush}" />
+                                <Trigger.EnterActions><BeginStoryboard><Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="SwatchScale" Storyboard.TargetProperty="ScaleX" To="1.12" Duration="0:0:0.12" />
+                                    <DoubleAnimation Storyboard.TargetName="SwatchScale" Storyboard.TargetProperty="ScaleY" To="1.12" Duration="0:0:0.12" />
+                                </Storyboard></BeginStoryboard></Trigger.EnterActions>
+                                <Trigger.ExitActions><BeginStoryboard><Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="SwatchScale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.16" />
+                                    <DoubleAnimation Storyboard.TargetName="SwatchScale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.16" />
+                                </Storyboard></BeginStoryboard></Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ContrastBadge" TargetType="Border">
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="7,3" />
+            <Setter Property="Margin" Value="5,0,0,0" />
+            <Setter Property="Background" Value="#20E34747" />
+            <Setter Property="BorderBrush" Value="#55E34747" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Button x:Name="TriggerButton" Height="32" Padding="0" Cursor="Hand"
+                Background="Transparent" BorderThickness="0" FocusVisualStyle="{x:Null}"
+                Click="OnTriggerClick">
+            <Button.Template>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="TriggerBorder" Background="{DynamicResource SurfaceAltBrush}"
+                            BorderBrush="{DynamicResource ControlBorderBrush}" BorderThickness="1"
+                            CornerRadius="7" Padding="9,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="18" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                            </Grid.ColumnDefinitions>
+                            <Ellipse x:Name="TriggerSwatch" Width="16" Height="16"
+                                     VerticalAlignment="Center" HorizontalAlignment="Left" />
+                            <TextBlock x:Name="HexDisplay" Grid.Column="1" Margin="8,0,5,0"
+                                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" FontSize="13" />
+                            <Path Grid.Column="2" Data="M 1,3 L 5,7 L 9,3"
+                                  Stroke="{DynamicResource TextSecondaryBrush}" StrokeThickness="1.4"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="TriggerBorder" Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
+                            <Setter TargetName="TriggerBorder" Property="Background" Value="{DynamicResource SidebarHoverBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Button.Template>
+        </Button>
+
+        <Popup x:Name="PickerPopup" PlacementTarget="{Binding ElementName=TriggerButton}"
+               Placement="Bottom" VerticalOffset="6" StaysOpen="False"
+               AllowsTransparency="True" PopupAnimation="None" Opened="OnPopupOpened">
+            <Border x:Name="PopupCard" Width="350" Padding="16" CornerRadius="12"
+                    Background="{DynamicResource SurfaceAltBrush}"
+                    BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1"
+                    RenderTransformOrigin="0.5,0">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="28" ShadowDepth="8" Opacity="0.34" Color="#000000" />
+                </Border.Effect>
+                <Border.RenderTransform><ScaleTransform x:Name="PopupScale" ScaleX="1" ScaleY="1" /></Border.RenderTransform>
+                <StackPanel>
+                    <Grid x:Name="SaturationSurface" Height="158" ClipToBounds="True"
+                          Cursor="Cross" Background="Transparent"
+                          MouseLeftButtonDown="OnSaturationMouseDown"
+                          MouseMove="OnSaturationMouseMove"
+                          MouseLeftButtonUp="OnSaturationMouseUp"
+                          SizeChanged="OnPickerSurfaceSizeChanged">
+                        <Border x:Name="SaturationHueLayer" CornerRadius="6" />
+                        <Rectangle RadiusX="6" RadiusY="6">
+                            <Rectangle.Fill>
+                                <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                    <GradientStop Color="White" Offset="0" />
+                                    <GradientStop Color="#00FFFFFF" Offset="1" />
+                                </LinearGradientBrush>
+                            </Rectangle.Fill>
+                        </Rectangle>
+                        <Rectangle RadiusX="6" RadiusY="6">
+                            <Rectangle.Fill>
+                                <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                    <GradientStop Color="#00000000" Offset="0" />
+                                    <GradientStop Color="Black" Offset="1" />
+                                </LinearGradientBrush>
+                            </Rectangle.Fill>
+                        </Rectangle>
+                        <Canvas IsHitTestVisible="False">
+                            <Ellipse x:Name="SaturationPointer" Width="16" Height="16"
+                                     Fill="#18000000" Stroke="White" StrokeThickness="2">
+                                <Ellipse.Effect><DropShadowEffect BlurRadius="5" ShadowDepth="1" Opacity="0.55" /></Ellipse.Effect>
+                            </Ellipse>
+                        </Canvas>
+                    </Grid>
+
+                    <Grid x:Name="HueSurface" Height="18" Margin="0,9,0,11" Cursor="Hand"
+                          MouseLeftButtonDown="OnHueMouseDown" MouseMove="OnHueMouseMove"
+                          MouseLeftButtonUp="OnHueMouseUp" SizeChanged="OnPickerSurfaceSizeChanged">
+                        <Border CornerRadius="5" Margin="0,2">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                    <GradientStop Color="#FFFF0000" Offset="0" />
+                                    <GradientStop Color="#FFFFFF00" Offset="0.1667" />
+                                    <GradientStop Color="#FF00FF00" Offset="0.3333" />
+                                    <GradientStop Color="#FF00FFFF" Offset="0.5" />
+                                    <GradientStop Color="#FF0000FF" Offset="0.6667" />
+                                    <GradientStop Color="#FFFF00FF" Offset="0.8333" />
+                                    <GradientStop Color="#FFFF0000" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <Canvas IsHitTestVisible="False">
+                            <Ellipse x:Name="HuePointer" Width="18" Height="18" Fill="White"
+                                     Stroke="#66000000" StrokeThickness="1.2">
+                                <Ellipse.Effect><DropShadowEffect BlurRadius="5" ShadowDepth="1" Opacity="0.42" /></Ellipse.Effect>
+                            </Ellipse>
+                        </Canvas>
+                    </Grid>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="82" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="ModeSelector" SelectedIndex="0" SelectionChanged="OnModeChanged"
+                                  automation:AutomationProperties.Name="Formato da cor">
+                            <ComboBoxItem Content="HEX" Tag="HEX" />
+                            <ComboBoxItem Content="HSL" Tag="HSL" />
+                            <ComboBoxItem Content="RGB" Tag="RGB" />
+                        </ComboBox>
+
+                        <Grid Grid.Column="2">
+                            <Grid x:Name="HexPanel">
+                                <TextBox x:Name="HexInput" MaxLength="7" TextChanged="OnHexTextChanged"
+                                         automation:AutomationProperties.Name="Cor hexadecimal" />
+                            </Grid>
+                            <Grid x:Name="HslPanel" Visibility="Collapsed">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="HueInput" Grid.Column="0" Margin="0,0,3,0" TextAlignment="Center"
+                                         ToolTip="Matiz (0–360)" TextChanged="OnHslTextChanged" />
+                                <TextBox x:Name="SaturationInput" Grid.Column="1" Margin="3,0" TextAlignment="Center"
+                                         ToolTip="Saturação (0–100)" TextChanged="OnHslTextChanged" />
+                                <TextBox x:Name="LightnessInput" Grid.Column="2" Margin="3,0,0,0" TextAlignment="Center"
+                                         ToolTip="Luminosidade (0–100)" TextChanged="OnHslTextChanged" />
+                            </Grid>
+                            <Grid x:Name="RgbPanel" Visibility="Collapsed">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="RedInput" Grid.Column="0" Margin="0,0,3,0" TextAlignment="Center"
+                                         ToolTip="Vermelho (0–255)" TextChanged="OnRgbTextChanged" />
+                                <TextBox x:Name="GreenInput" Grid.Column="1" Margin="3,0" TextAlignment="Center"
+                                         ToolTip="Verde (0–255)" TextChanged="OnRgbTextChanged" />
+                                <TextBox x:Name="BlueInput" Grid.Column="2" Margin="3,0,0,0" TextAlignment="Center"
+                                         ToolTip="Azul (0–255)" TextChanged="OnRgbTextChanged" />
+                            </Grid>
+                        </Grid>
+                    </Grid>
+
+                    <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,12,0,11" />
+                    <WrapPanel>
+                        <Button Style="{StaticResource ColorSwatchButton}" Background="#F8371A" Tag="#F8371A" Click="OnSwatchClick" ToolTip="#F8371A" />
+                        <Button Style="{StaticResource ColorSwatchButton}" Background="#F97C1B" Tag="#F97C1B" Click="OnSwatchClick" ToolTip="#F97C1B" />
+                        <Button Style="{StaticResource ColorSwatchButton}" Background="#FAC81C" Tag="#FAC81C" Click="OnSwatchClick" ToolTip="#FAC81C" />
+                        <Button Style="{StaticResource ColorSwatchButton}" Background="#3FD0B6" Tag="#3FD0B6" Click="OnSwatchClick" ToolTip="#3FD0B6" />
+                        <Button Style="{StaticResource ColorSwatchButton}" Background="#2CADF6" Tag="#2CADF6" Click="OnSwatchClick" ToolTip="#2CADF6" />
+                        <Button Style="{StaticResource ColorSwatchButton}" Background="#6462FC" Tag="#6462FC" Click="OnSwatchClick" ToolTip="#6462FC" />
+                    </WrapPanel>
+
+                    <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,11,0,11" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="44" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="ContrastSwatch" Width="42" Height="42" CornerRadius="7">
+                            <TextBlock x:Name="ContrastLetter" Text="A" FontSize="17" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Taxa de contraste" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <Grid Margin="0,5,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="43" />
+                                    <ColumnDefinition Width="40" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Claro" FontSize="12" VerticalAlignment="Center" />
+                                <TextBlock x:Name="LightRatioText" Grid.Column="1" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Border x:Name="LightAaBadge" Style="{StaticResource ContrastBadge}"><TextBlock x:Name="LightAaText" FontSize="10" FontWeight="SemiBold" /></Border>
+                                    <Border x:Name="LightAaaBadge" Style="{StaticResource ContrastBadge}"><TextBlock x:Name="LightAaaText" FontSize="10" FontWeight="SemiBold" /></Border>
+                                </StackPanel>
+                            </Grid>
+                            <Grid Margin="0,5,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="43" />
+                                    <ColumnDefinition Width="40" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Escuro" FontSize="12" VerticalAlignment="Center" />
+                                <TextBlock x:Name="DarkRatioText" Grid.Column="1" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Border x:Name="DarkAaBadge" Style="{StaticResource ContrastBadge}"><TextBlock x:Name="DarkAaText" FontSize="10" FontWeight="SemiBold" /></Border>
+                                    <Border x:Name="DarkAaaBadge" Style="{StaticResource ContrastBadge}"><TextBlock x:Name="DarkAaaText" FontSize="10" FontWeight="SemiBold" /></Border>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

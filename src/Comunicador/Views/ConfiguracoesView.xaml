@@ -213,12 +213,8 @@
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Text="Cor" Style="{StaticResource RotuloCampo}" />
-                                    <Grid>
-                                        <TextBox Text="{Binding CorNovaPaleta, UpdateSourceTrigger=PropertyChanged}"
-                                                 MaxLength="20" Padding="34,0,8,0" />
-                                        <Ellipse Width="16" Height="16" HorizontalAlignment="Left" Margin="10,0,0,0"
-                                                 Fill="{Binding CorNovaPaletaVisual}" IsHitTestVisible="False" />
-                                    </Grid>
+                                    <controls:ColorPickerPopover
+                                        SelectedColor="{Binding CorNovaPaleta, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
                             </Grid>
                             <Button Content="Salvar como predefinição" Style="{StaticResource BotaoPrimario}"
@@ -287,6 +283,10 @@
                                 <Button Height="94" Style="{StaticResource ChoiceCardButton}" Command="{Binding SelecionarFundoCommand}"
                                         CommandParameter="Grade fluida" Tag="{Binding FundoPainel, ConverterParameter=Grade fluida, Converter={StaticResource SecaoAtivaConverter}}">
                                     <Grid Background="{DynamicResource BackgroundBrush}"><controls:AnimatedBackground Mode="Grade fluida" Intensity="100" ReduceMotion="True" /><Border Background="#66000000" VerticalAlignment="Bottom" Height="28" /><TextBlock Text="Grade fluida" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,6" /></Grid>
+                                </Button>
+                                <Button Height="94" Style="{StaticResource ChoiceCardButton}" Command="{Binding SelecionarFundoCommand}"
+                                        CommandParameter="Partículas fluidas" Tag="{Binding FundoPainel, ConverterParameter=Partículas fluidas, Converter={StaticResource SecaoAtivaConverter}}">
+                                    <Grid Background="{DynamicResource BackgroundBrush}"><controls:AnimatedBackground Mode="Partículas fluidas" Intensity="100" ReduceMotion="True" /><Border Background="#66000000" VerticalAlignment="Bottom" Height="28" /><TextBlock Text="Partículas fluidas" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,6" /></Grid>
                                 </Button>
                             </UniformGrid>
                             <Border Margin="4,6,4,3" Padding="11,8" CornerRadius="8"
