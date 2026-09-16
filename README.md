@@ -60,7 +60,8 @@ baixa o executável self-contained, valida versão e SHA-256 e só então
 substitui a cópia instalada. Sem internet, abre normalmente a última
 versão válida. Dentro do repositório ele também recompila quando a
 fonte local é mais nova; em outro computador o BAT funciona sozinho e
-instala o painel em `%LOCALAPPDATA%\Comunicador\Painel`.
+instala o painel em `%LOCALAPPDATA%\Comunicador\Painel`, além de baixar o
+auxiliar que libera as portas na primeira execução.
 
 `build.bat` gera o ícone, restaura dependências, roda os testes Python
 e C# (inclusive integração real C# ↔ Python), compila em Release e

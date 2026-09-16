@@ -68,16 +68,30 @@ if exist "!UPDATER!" (
 
 if not exist "!PAINEL_EXE!" goto :sem_executavel
 
-rem Na primeira execucao configura rede e Firewall quando o auxiliar esta junto.
-netsh advfirewall firewall show rule name="Comunicador" >nul 2>nul
-if errorlevel 1 if exist "%ROOT%LIBERAR_FIREWALL.bat" (
-    echo Configurando a rede para o Comunicador funcionar entre computadores...
-    call "%ROOT%LIBERAR_FIREWALL.bat"
-)
-
 if /I "%~1"=="--verificar" (
     echo Verificacao concluida sem abrir a janela.
     exit /b 0
+)
+
+rem Na primeira execucao configura rede e Firewall. Quando o BAT esta sozinho em
+rem outro computador, baixa tambem o auxiliar mais recente antes de pedir o UAC.
+netsh advfirewall firewall show rule name="Comunicador" >nul 2>nul
+if errorlevel 1 (
+    set "FIREWALL_HELPER=%ROOT%LIBERAR_FIREWALL.bat"
+    if not exist "!FIREWALL_HELPER!" (
+        set "FIREWALL_HELPER=%LOCALAPPDATA%\Comunicador\Painel\LIBERAR_FIREWALL.bat"
+        powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+            "$ProgressPreference='SilentlyContinue'; try {" ^
+            "$dest=$env:FIREWALL_HELPER; New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null;" ^
+            "Invoke-WebRequest -UseBasicParsing -Uri ('%REPO_RAW%/LIBERAR_FIREWALL.bat?t=' + [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()) -OutFile $dest -ErrorAction Stop" ^
+            "} catch { exit 1 }"
+    )
+    if exist "!FIREWALL_HELPER!" (
+        echo Configurando a rede para o Comunicador funcionar entre computadores...
+        call "!FIREWALL_HELPER!"
+    ) else (
+        echo AVISO: nao foi possivel baixar o auxiliar do Firewall.
+    )
 )
 
 start "" "!PAINEL_EXE!"
