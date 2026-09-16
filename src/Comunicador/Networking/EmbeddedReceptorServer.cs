@@ -12,8 +12,7 @@ namespace Comunicador.Networking;
 
 /// <summary>Faz este Comunicador agir como seu próprio receptor: aceita pareamento,
 /// ping e notificações de outros painéis pela rede, sem precisar do receptor.py
-/// nesta máquina. Pode ser desligado a qualquer momento via
-/// AppSettings.AceitarMensagensDeOutrosPaineis (bloqueia toda mensagem recebida).</summary>
+/// nesta máquina. As preferências do usuário filtram o conteúdo antes da exibição.</summary>
 public sealed class EmbeddedReceptorServer : IDisposable
 {
     private static readonly TimeSpan ReplyWait = TimeSpan.FromMinutes(5);
@@ -22,6 +21,7 @@ public sealed class EmbeddedReceptorServer : IDisposable
     private readonly ObservableCollection<PainelPareado> _paineisPareados;
     private readonly JsonStore<PainelPareado> _paineisPareadosStore;
     private readonly HistoricoRepository _historico;
+    private readonly LogRepository _logs;
     private readonly RegistroConexoesReversas _conexoesReversas;
 
     /// <summary>Disparado quando um receptor se registra abrindo conexao para este painel.</summary>
@@ -42,24 +42,22 @@ public sealed class EmbeddedReceptorServer : IDisposable
     public EmbeddedReceptorServer(
         AppSettings settings, ObservableCollection<PainelPareado> paineisPareados,
         JsonStore<PainelPareado> paineisPareadosStore, HistoricoRepository historico,
+        LogRepository logs,
         RegistroConexoesReversas conexoesReversas)
     {
         _settings = settings;
         _paineisPareados = paineisPareados;
         _paineisPareadosStore = paineisPareadosStore;
         _historico = historico;
+        _logs = logs;
         _conexoesReversas = conexoesReversas;
     }
 
     public void AtualizarDisponibilidade()
     {
-        if (_settings.AceitarMensagensDeOutrosPaineis && !Ativo)
+        if (!Ativo)
         {
             Start();
-        }
-        else if (!_settings.AceitarMensagensDeOutrosPaineis && Ativo)
-        {
-            Stop();
         }
     }
 
@@ -232,6 +230,17 @@ public sealed class EmbeddedReceptorServer : IDisposable
                 // conexao reversa: NAO fecha o socket — ele fica vivo no registro
                 // para o painel enviar notificacoes de volta por ele.
                 return await TratarRegisterAsync(client, stream, msg, ct).ConfigureAwait(false);
+            case ProtocolConstants.MessageType.SyncRequest:
+                await TratarSyncAsync(stream, msg, ct).ConfigureAwait(false);
+                break;
+            case ProtocolConstants.MessageType.UpdateRequest:
+                await EnviarAsync(
+                    stream,
+                    ComunicadorMessage.Error(
+                        ProtocolConstants.ErrorCode.ContentBlocked,
+                        "O receptor incorporado é atualizado junto com Comunicador.exe.", msg.Id),
+                    ct).ConfigureAwait(false);
+                break;
             default:
                 await EnviarAsync(
                     stream,
@@ -288,10 +297,15 @@ public sealed class EmbeddedReceptorServer : IDisposable
         resposta.Token = token;
         resposta.ComputerId = _settings.PainelId;
         resposta.ComputerName = _settings.NomePainel;
+        resposta.HasPanel = true;
+        resposta.Monitors = MonitorInfo.ListarLocais();
+        resposta.ReceiverVersion = ProtocolConstants.CurrentReceiverVersion;
         await EnviarAsync(stream, resposta, ct).ConfigureAwait(false);
 
         var ip = (client.Client.RemoteEndPoint as System.Net.IPEndPoint)?.Address.ToString() ?? "?";
-        var conexao = new ConexaoReversa(client, stream, computerId, computerName, ip, token);
+        var conexao = new ConexaoReversa(
+            client, stream, computerId, computerName, ip, token,
+            msg.HasPanel ?? false, msg.Monitors, msg.ReceiverVersion);
         _conexoesReversas.Registrar(conexao);
         ReceptorRegistrado?.Invoke(conexao);
         Logger.Info($"Receptor '{computerName}' registrou-se via conexao reversa de {ip}.");
@@ -312,6 +326,9 @@ public sealed class EmbeddedReceptorServer : IDisposable
         var pong = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Pong);
         pong.ComputerId = _settings.PainelId;
         pong.ComputerName = _settings.NomePainel;
+        pong.HasPanel = true;
+        pong.Monitors = MonitorInfo.ListarLocais();
+        pong.ReceiverVersion = ProtocolConstants.CurrentReceiverVersion;
         pong.Status = "online";
         await EnviarAsync(stream, pong, ct).ConfigureAwait(false);
     }
@@ -345,6 +362,9 @@ public sealed class EmbeddedReceptorServer : IDisposable
         response.Accepted = true;
         response.ComputerId = _settings.PainelId;
         response.ComputerName = _settings.NomePainel;
+        response.HasPanel = true;
+        response.Monitors = MonitorInfo.ListarLocais();
+        response.ReceiverVersion = ProtocolConstants.CurrentReceiverVersion;
         response.Token = token;
         await EnviarAsync(stream, response, ct).ConfigureAwait(false);
     }
@@ -360,6 +380,31 @@ public sealed class EmbeddedReceptorServer : IDisposable
             return;
         }
 
+        if (!_settings.AceitarMensagensDeOutrosPaineis)
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.ContentBlocked,
+                "Este painel bloqueou o recebimento de mensagens.", msg.Id), ct).ConfigureAwait(false);
+            return;
+        }
+
+        if ((msg.Image is not null || msg.ScreenImages is { Count: > 0 })
+            && !_settings.AceitarImagensDeOutrosPaineis)
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.ContentBlocked,
+                "Este painel bloqueou o recebimento de imagens.", msg.Id), ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (msg.Buttons?.Any(b => b.TemLink) == true && !_settings.AceitarBotoesComLinks)
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.ContentBlocked,
+                "Este painel bloqueou mensagens com botões de link.", msg.Id), ct).ConfigureAwait(false);
+            return;
+        }
+
         var allowReply = msg.AllowReply == true;
         var entry = new HistoricoEntry
         {
@@ -372,7 +417,9 @@ public sealed class EmbeddedReceptorServer : IDisposable
         _historico.Adicionar(entry);
 
         var mostrarTask = NotificacaoRecebidaWindow.MostrarAsync(
-            msg.Sender!, msg.Title!, msg.Message!, allowReply, msg.Buttons);
+            msg.Sender!, msg.Title!, msg.Message!, allowReply, msg.Buttons,
+            msg.DisplayMode, msg.Image, msg.ScreenImages, msg.ImageDurationSeconds,
+            msg.AllowManualClose, msg.Appearance);
 
         var ack = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ack);
         ack.InReplyTo = msg.Id;
@@ -413,6 +460,36 @@ public sealed class EmbeddedReceptorServer : IDisposable
         reply.ComputerName = _settings.NomePainel;
         reply.ReplyText = resposta;
         await EnviarAsync(stream, reply, ct).ConfigureAwait(false);
+    }
+
+    private async Task TratarSyncAsync(NetworkStream stream, ComunicadorMessage msg, CancellationToken ct)
+    {
+        if (!TokenValido(msg.Token))
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.Unauthorized,
+                "Token inválido ou painel não pareado.", msg.Id), ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (msg.HistoryEntries is { Count: > 0 })
+        {
+            _historico.Mesclar(msg.HistoryEntries.Select(i => i.ToModel()));
+        }
+        if (msg.LogEntries is { Count: > 0 })
+        {
+            _logs.Mesclar(msg.LogEntries.Select(i => i.ToModel()));
+        }
+
+        var response = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.SyncResponse);
+        response.InReplyTo = msg.Id;
+        response.HistoryEntries = msg.IncludeHistory == true
+            ? _historico.Snapshot(ProtocolConstants.MaxSyncEntries).Select(i => i.ToSync()).ToList()
+            : [];
+        response.LogEntries = msg.IncludeLogs == true
+            ? _logs.Snapshot(ProtocolConstants.MaxSyncEntries).Select(i => i.ToSync()).ToList()
+            : [];
+        await EnviarAsync(stream, response, ct).ConfigureAwait(false);
     }
 
     private bool TokenValido(string? token)
@@ -467,6 +544,9 @@ public sealed class EmbeddedReceptorServer : IDisposable
             var announce = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Announce);
             announce.ComputerId = _settings.PainelId;
             announce.ComputerName = _settings.NomePainel;
+            announce.HasPanel = true;
+            announce.Monitors = MonitorInfo.ListarLocais();
+            announce.ReceiverVersion = ProtocolConstants.CurrentReceiverVersion;
             announce.TcpPort = _settings.PortaTcp;
             announce.Paired = pareadoComEsse;
 

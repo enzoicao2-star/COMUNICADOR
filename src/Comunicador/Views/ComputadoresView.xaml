@@ -22,7 +22,7 @@
             <StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                     <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" FontSize="14"
-                               Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+                               Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
                     <TextBlock Text="Adicionar manualmente" Style="{StaticResource TituloCard}" Margin="8,0,0,0" />
                 </StackPanel>
                 <TextBlock Style="{StaticResource Subtitulo}" Margin="0,0,0,12"
@@ -44,11 +44,11 @@
         </Border>
 
         <Border DockPanel.Dock="Top" Margin="0,0,0,12" CornerRadius="4" Padding="12,8"
-                Background="#EFF6FC" BorderBrush="#CCE4F7" BorderThickness="1"
+                Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                 Visibility="{Binding StatusMensagem, Converter={StaticResource TextoParaVisibilidadeConverter}}">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="14"
-                           Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+                           Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
                 <TextBlock Text="{Binding StatusMensagem}" Margin="8,0,0,0" VerticalAlignment="Center"
                            FontSize="13" TextWrapping="Wrap" />
             </StackPanel>
@@ -78,7 +78,17 @@
             <ItemsControl ItemsSource="{Binding Computadores}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Style="{StaticResource CardListaBorder}" Margin="0,0,0,8" Padding="16,14">
+                        <Border Margin="0,0,0,8" Padding="16,14">
+                            <Border.Style>
+                                <Style TargetType="Border" BasedOn="{StaticResource CardListaBorder}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding TemPainel}" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -87,10 +97,20 @@
                                 </Grid.ColumnDefinitions>
 
                                 <Border Grid.Column="0" Width="40" Height="40" CornerRadius="20" Margin="0,0,14,0"
-                                        Background="#F0F0F0" VerticalAlignment="Center">
+                                        VerticalAlignment="Center">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#F0F0F0" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TemPainel}" Value="True">
+                                                <Setter Property="Background" Value="{DynamicResource SidebarSelectedBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <TextBlock Text="&#xE977;" FontFamily="Segoe MDL2 Assets" FontSize="18"
                                                HorizontalAlignment="Center" VerticalAlignment="Center"
-                                               Foreground="{StaticResource TextSecondaryBrush}" />
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
                                 </Border>
 
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -110,6 +130,10 @@
                                         <TextBlock Text="{Binding Nome, StringFormat=({0})}" Style="{StaticResource Subtitulo}"
                                                    Margin="8,0,0,0" VerticalAlignment="Center"
                                                    Visibility="{Binding TemApelido, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        <Border Margin="9,0,0,0" Padding="7,2" CornerRadius="8" Background="{DynamicResource AccentBrush}"
+                                                Visibility="{Binding TemPainel, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <TextBlock Text="PAINEL" Foreground="White" FontSize="10" FontWeight="SemiBold" />
+                                        </Border>
                                     </StackPanel>
 
                                     <!-- modo edicao do apelido -->
@@ -131,13 +155,37 @@
                                                  Fill="{Binding Status, Converter={StaticResource StatusComputadorToBrushConverter}}" />
                                         <TextBlock Style="{StaticResource Subtitulo}" Margin="7,0,0,0" VerticalAlignment="Center">
                                             <Run Text="{Binding Status, Converter={StaticResource StatusComputadorToTextoConverter}, Mode=OneWay}" />
-                                            <Run Text="  ·  " Foreground="#B0B0B0" />
+                                            <Run Text="  ·  " Foreground="{DynamicResource TextSecondaryBrush}" />
                                             <Run Text="{Binding EnderecoIp, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <TextBlock Text="{Binding StatusVersaoReceptor}" FontSize="11" FontWeight="SemiBold">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="#A15C00" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ReceptorAtualizado}" Value="True">
+                                                            <Setter Property="Foreground" Value="#107C10" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Style="{StaticResource Subtitulo}" FontSize="11" Margin="8,0,0,0">
+                                            <Run Text="·  " />
+                                            <Run Text="{Binding Monitores.Count, Mode=OneWay}" />
+                                            <Run Text=" monitor(es)" />
                                         </TextBlock>
                                     </StackPanel>
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Style="{StaticResource BotaoPrimario}" Margin="0,0,8,0"
+                                            Content="Atualizar receptor"
+                                            Visibility="{Binding PodeAtualizarReceptor, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                            Command="{Binding ElementName=Raiz, Path=DataContext.AtualizarReceptorCommand}"
+                                            CommandParameter="{Binding}" />
                                     <Button Style="{StaticResource BotaoSecundario}" Margin="0,0,8,0" Padding="10,0"
                                             ToolTip="Renomear esta máquina"
                                             Command="{Binding ElementName=Raiz, Path=DataContext.RenomearCommand}"

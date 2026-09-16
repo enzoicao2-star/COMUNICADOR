@@ -1,9 +1,10 @@
-# Comunicador
+# Comunicador 2.2.0
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
-responder. Veja [PROTOCOLO.md](PROTOCOLO.md) para o protocolo TCP/JSON
-completo.
+responder. Também envia avisos centrais, botões com links HTTP/HTTPS e
+imagens para monitores específicos. Veja [PROTOCOLO.md](PROTOCOLO.md)
+para o protocolo TCP/JSON completo.
 
 ```
 COMUNICADOR
@@ -28,7 +29,20 @@ derrubar quem já está rodando. Detalhes em
 
 Dá para bloquear o recebimento a qualquer momento em
 Configurações → *"Aceitar mensagens de outros painéis"*, ou bloquear
-um painel pareado específico.
+um painel pareado específico. Mensagens, imagens e botões com links
+possuem controles de permissão separados.
+
+## Recursos principais
+
+- Interface WPF responsiva com moldura própria, temas claro/escuro,
+  paletas predefinidas ou criadas pelo usuário e sete opções de fundo.
+- Navegação superior por ícones, transições e configurações salvas automaticamente.
+- Ping médio em tempo real com indicador verde, amarelo, vermelho ou sem conexão.
+- Avisos comuns, alertas centrais e imagens por monitor, com tamanho e tempo configuráveis.
+- Identificação visual de computadores que também executam o painel.
+- Histórico e logs sincronizados entre painéis, com exportação para TXT.
+- Versão do receptor visível no painel e atualização remota autenticada.
+- TCP + JSON independente de linguagem, conexão reversa e descoberta UDP/LAN.
 
 ## Painel (Comunicador.exe)
 
@@ -45,10 +59,14 @@ Para abrir o painel sem se preocupar em compilar antes, use
 (se `dist\Comunicador.exe` ainda não existir) e depois só abre o
 programa.
 
-`build.bat` restaura dependências, roda os testes (`tests/Comunicador.Tests`,
-inclusive os que sobem `receptor.py` de verdade para testar a
-comunicação C# ↔ Python), compila em Release e publica uma versão
-self-contained single-file em `dist/Comunicador.exe`.
+`build.bat` gera o ícone, restaura dependências, roda os testes Python
+e C# (inclusive integração real C# ↔ Python), compila em Release e
+publica uma versão self-contained single-file em
+`dist/Comunicador.exe`.
+
+Para validar, criar o commit, sincronizar e enviar ao GitHub em uma
+etapa, execute `SUBIR_GITHUB.bat`. Uma mensagem de commit opcional pode
+ser passada como argumento.
 
 Para rodar em modo desenvolvimento sem publicar:
 
@@ -63,14 +81,16 @@ completo), baixe e execute `receiver/INSTALAR_RECEPTOR.bat` — ele
 verifica/instala o Python automaticamente, baixa `receptor.py`,
 instala as dependências e configura a tarefa **"Comunicador
 Receptor"** no Agendador de Tarefas do Windows para iniciar com o
-login do usuário (via `pythonw.exe`, sem janela de console). Para
-remover tudo, use `receiver/DESINSTALAR_RECEPTOR.bat`.
+login do usuário (via `pythonw.exe`, sem janela de console). O arquivo
+sempre baixa e valida a versão 2.2.0 publicada no GitHub antes de
+substituir uma instalação existente. Ao concluir com sucesso, fecha
+sozinho. Para remover tudo, use `receiver/DESINSTALAR_RECEPTOR.bat`.
 
 Rodar os testes do receptor localmente:
 
 ```bash
-pip install -r receiver/tests/requirements-test.txt
-pytest receiver/tests
+python -m pip install -r receiver/requirements-dev.txt
+python -m pytest receiver/tests -q
 ```
 
 ## Estrutura
@@ -79,6 +99,8 @@ pytest receiver/tests
 P5/
 ├── PROTOCOLO.md
 ├── build.bat
+├── ABRIR_COMUNICADOR.bat
+├── SUBIR_GITHUB.bat
 ├── Comunicador.slnx
 ├── src/Comunicador/          painel C#/.NET (WPF)
 ├── tests/Comunicador.Tests/  testes C# (unitários + integração com receptor.py)

@@ -129,6 +129,9 @@ public sealed class LembretesViewModel : ViewModelBase
         {
             entry.Status = StatusEnvio.Erro;
             entry.ErroDetalhe = resultado.ErrorMessage;
+            Logger.Error(
+                $"Falha ao enviar o lembrete '{lembrete.Titulo}' para {computador.NomeExibicao}.",
+                "lembrete", resultado.ErrorMessage);
         }
         else if (resultado.GotReply)
         {

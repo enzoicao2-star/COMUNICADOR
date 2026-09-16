@@ -1,11 +1,21 @@
 @echo off
 setlocal
 
-set ROOT=%~dp0
+set "ROOT=%~dp0"
+set "COMUNICADOR_ROOT=%~dp0"
+set "VERSAO_ESPERADA=2.2.0.0"
 cd /d "%ROOT%"
 
-if not exist "dist\Comunicador.exe" (
-    echo O Comunicador ainda nao foi compilado. Compilando agora...
+set "PRECISA_COMPILAR=0"
+if not exist "dist\Comunicador.exe" set "PRECISA_COMPILAR=1"
+
+if exist "dist\Comunicador.exe" (
+    for /f %%I in ('powershell -NoProfile -ExecutionPolicy Bypass -Command "$r=$env:COMUNICADOR_ROOT; $exe=Join-Path $r 'dist\Comunicador.exe'; $pastas=@((Join-Path $r 'src\Comunicador'),(Join-Path $r 'receiver'),(Join-Path $r 'tests'),(Join-Path $r 'tools'),(Join-Path $r 'assets')); $maisNovo=(Get-ChildItem -Path $pastas -Recurse -File -Include *.cs,*.xaml,*.csproj,*.py,*.bat,*.ps1,*.svg ^| Sort-Object LastWriteTimeUtc -Descending ^| Select-Object -First 1).LastWriteTimeUtc; $versao=(Get-Item -LiteralPath $exe).VersionInfo.FileVersion; if($versao -ne $env:VERSAO_ESPERADA -or $maisNovo -gt (Get-Item -LiteralPath $exe).LastWriteTimeUtc){'1'}else{'0'}"') do set "PRECISA_COMPILAR=%%I"
+)
+
+if "%PRECISA_COMPILAR%"=="1" (
+    echo Foi encontrada uma versao nova do Comunicador 2.2.0.
+    echo Compilando e publicando antes de abrir...
     echo.
     call build.bat
     if errorlevel 1 (

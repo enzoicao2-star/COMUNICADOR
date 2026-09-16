@@ -15,10 +15,13 @@ Uso em teste automatizado (sem GUI, respostas simuladas):
 from __future__ import annotations
 
 import argparse
+import base64
+import io
 import json
 import logging
 import os
 import queue
+import re
 import socket
 import socketserver
 import sys
@@ -34,9 +37,178 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
+RECEIVER_VERSION = "2.2.0"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
+
+
+def obter_monitores() -> list[dict]:
+    """Coleta a topologia de monitores com APIs normais do Windows.
+
+    O índice retornado também é usado para posicionar imagens recebidas. Em caso
+    de falha, devolve o monitor principal para o painel continuar utilizável.
+    """
+    if os.name != "nt":
+        return []
+
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class MonitorInfoEx(ctypes.Structure):
+            _fields_ = [
+                ("cbSize", wintypes.DWORD),
+                ("rcMonitor", wintypes.RECT),
+                ("rcWork", wintypes.RECT),
+                ("dwFlags", wintypes.DWORD),
+                ("szDevice", wintypes.WCHAR * 32),
+            ]
+
+        encontrados = []
+        callback_type = ctypes.WINFUNCTYPE(
+            wintypes.BOOL, wintypes.HANDLE, wintypes.HDC,
+            ctypes.POINTER(wintypes.RECT), wintypes.LPARAM)
+
+        def callback(handle, _hdc, _rect, _data):
+            info = MonitorInfoEx()
+            info.cbSize = ctypes.sizeof(MonitorInfoEx)
+            if ctypes.windll.user32.GetMonitorInfoW(handle, ctypes.byref(info)):
+                rect = info.rcMonitor
+                encontrados.append({
+                    "index": len(encontrados),
+                    "name": info.szDevice or f"Monitor {len(encontrados) + 1}",
+                    "width": rect.right - rect.left,
+                    "height": rect.bottom - rect.top,
+                    "x": rect.left,
+                    "y": rect.top,
+                    "primary": bool(info.dwFlags & 1),
+                })
+            return True
+
+        callback_ref = callback_type(callback)
+        ctypes.windll.user32.EnumDisplayMonitors(None, None, callback_ref, 0)
+        if encontrados:
+            return encontrados[:protocolo.MAX_MONITORS]
+    except Exception as exc:
+        logging.warning("Não foi possível coletar os monitores: %s", exc)
+
+    return [{
+        "index": 0,
+        "name": "Monitor principal",
+        "width": 0,
+        "height": 0,
+        "x": 0,
+        "y": 0,
+        "primary": True,
+    }]
+
+
+def aplicar_atualizacao_oficial(msg: dict, test_mode: bool = False) -> str:
+    """Valida sintaxe e substitui apenas receptor.py/protocolo.py no diretório atual.
+
+    O pacote já passou pela validação de nome, tamanho e SHA-256 do protocolo.
+    Mantemos cópias .bak e restauramos tudo se qualquer substituição falhar.
+    """
+    destino = Path(__file__).resolve().parent
+    conteudos: dict[str, bytes] = {}
+    for arquivo in msg["update_files"]:
+        nome = arquivo["name"]
+        dados = base64.b64decode(arquivo["content_base64"], validate=True)
+        texto = dados.decode("utf-8", errors="strict")
+        compile(texto, nome, "exec")
+        conteudos[nome] = dados
+
+    versao = msg["target_version"]
+    if test_mode:
+        logging.info("Atualização %s validada em modo de teste.", versao)
+        return versao
+
+    temporarios: dict[str, Path] = {}
+    backups: dict[str, Path] = {}
+    substituidos: list[str] = []
+    try:
+        for nome, dados in conteudos.items():
+            temporario = destino / f".{nome}.update.tmp"
+            with temporario.open("wb") as stream:
+                stream.write(dados)
+                stream.flush()
+                os.fsync(stream.fileno())
+            temporarios[nome] = temporario
+
+        for nome in ("protocolo.py", "receptor.py"):
+            atual = destino / nome
+            backup = destino / f"{nome}.bak"
+            if atual.exists():
+                backup.write_bytes(atual.read_bytes())
+                backups[nome] = backup
+            os.replace(temporarios[nome], atual)
+            substituidos.append(nome)
+
+        logging.info("Receptor atualizado para %s; reinício agendado.", versao)
+        return versao
+    except Exception:
+        for nome in reversed(substituidos):
+            backup = backups.get(nome)
+            if backup is not None and backup.exists():
+                os.replace(backup, destino / nome)
+        raise
+    finally:
+        for temporario in temporarios.values():
+            try:
+                temporario.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+def agendar_reinicio() -> None:
+    """Reinicia o mesmo receptor depois de a confirmação chegar ao painel."""
+    def reiniciar():
+        time.sleep(1.0)
+        script = str(Path(__file__).resolve())
+        os.execv(sys.executable, [sys.executable, script, *sys.argv[1:]])
+
+    threading.Thread(target=reiniciar, daemon=True, name="reinicio-atualizacao").start()
+
+
+def coletar_logs_receptor(config: "Config", limite: int = protocolo.MAX_SYNC_ENTRIES) -> list[dict]:
+    """Converte avisos/erros do arquivo local em registros deduplicáveis pelo painel."""
+    caminho = config.directory / "receptor.log"
+    try:
+        linhas = caminho.read_text(encoding="utf-8", errors="replace").splitlines()[-5000:]
+    except OSError:
+        return []
+
+    registros = []
+    padrao = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),?\d* \[(WARNING|ERROR|CRITICAL)\] (.*)$")
+    atual = None
+    for linha in linhas:
+        correspondencia = padrao.match(linha)
+        if not correspondencia:
+            if atual is not None and len(atual["details"]) < protocolo.MAX_LOG_DETAIL_LENGTH:
+                atual["details"] = (atual["details"] + "\n" + linha)[:protocolo.MAX_LOG_DETAIL_LENGTH]
+            continue
+        data_texto, nivel_python, mensagem = correspondencia.groups()
+        try:
+            data = datetime.strptime(data_texto, "%Y-%m-%d %H:%M:%S").astimezone(timezone.utc)
+            timestamp = data.isoformat().replace("+00:00", "Z")
+        except ValueError:
+            timestamp = protocolo.now_iso()
+        identificador = str(uuid.uuid5(
+            uuid.NAMESPACE_URL, f"comunicador:{config.computer_id}:{linha}"))
+        atual = {
+            "id": identificador,
+            "timestamp": timestamp,
+            "level": "erro" if nivel_python in {"ERROR", "CRITICAL"} else "aviso",
+            "origin_type": "receiver",
+            "origin_id": config.computer_id,
+            "origin_name": config.computer_name,
+            "category": "receptor",
+            "message": mensagem[:protocolo.MAX_MESSAGE_LENGTH],
+            "details": linha[:protocolo.MAX_LOG_DETAIL_LENGTH],
+        }
+        registros.append(atual)
+    return list(reversed(registros[-limite:]))
 
 
 # --------------------------------------------------------------------------- config
@@ -158,30 +330,113 @@ class NotificationUi:
             self._root.withdraw()
             self._root.after(100, self._poll)
 
-    def mostrar(self, sender: str, title: str, message: str, allow_reply: bool, on_result, buttons=None):
+    def mostrar(
+            self, sender: str, title: str, message: str, allow_reply: bool, on_result,
+            buttons=None, display_mode="toast", image=None, screen_images=None,
+            image_duration_seconds=None, allow_manual_close=None, appearance=None):
         """Agenda a exibição de um aviso. `on_result(reply_text_or_None)` é chamado
         quando o usuário responde, clica num botão, fecha a janela, ou o tempo esgota."""
         if self.test_mode:
             on_result("Recebido automaticamente (modo de teste)." if allow_reply else None)
             return
-        self._pending.put((sender, title, message, allow_reply, on_result, buttons or []))
+        self._pending.put((
+            sender, title, message, allow_reply, on_result, buttons or [], display_mode,
+            image, screen_images or [], image_duration_seconds, allow_manual_close,
+            appearance or {}))
 
     def _poll(self):
         try:
             while True:
                 item = self._pending.get_nowait()
-                self._exibir_janela(*item)
+                try:
+                    self._exibir_janela(*item)
+                except Exception:
+                    logging.exception("Falha isolada ao montar uma janela de notificação.")
+                    try:
+                        item[4](None)
+                    except Exception:
+                        logging.exception("Falha ao devolver o resultado da notificação.")
         except queue.Empty:
             pass
         self._root.after(100, self._poll)
 
-    def _exibir_janela(self, sender, title, message, allow_reply, on_result, buttons=None):
+    @staticmethod
+    def _aparencia(appearance):
+        return {
+            "accent_color": appearance.get("accent_color", "#0067C0"),
+            "font_scale_percent": appearance.get("font_scale_percent", 100),
+            "play_sound": appearance.get("play_sound", True),
+            "sound_type": appearance.get("sound_type", "information"),
+            "toast_duration_seconds": appearance.get("toast_duration_seconds", NO_REPLY_AUTO_CLOSE_SECONDS),
+            "toast_position": appearance.get("toast_position", "bottom_right"),
+        }
+
+    @staticmethod
+    def _tocar_som(tipo="information"):
+        if os.name != "nt":
+            return
+        try:
+            import winsound
+            codigo = {
+                "warning": winsound.MB_ICONEXCLAMATION,
+                "error": winsound.MB_ICONHAND,
+            }.get(tipo, winsound.MB_ICONASTERISK)
+            winsound.MessageBeep(codigo)
+        except Exception:
+            logging.debug("Som da notificação não pôde ser reproduzido.")
+
+    @staticmethod
+    def _monitor_por_indice(indice):
+        monitores = obter_monitores()
+        return next((m for m in monitores if m["index"] == indice), None) \
+            or next((m for m in monitores if m["primary"]), None) \
+            or (monitores[0] if monitores else {
+                "index": 0, "width": 1280, "height": 720, "x": 0, "y": 0, "primary": True})
+
+    @staticmethod
+    def _foto_tk(imagem_obj, largura_maxima, altura_maxima):
+        from PIL import Image, ImageTk
+
+        dados = base64.b64decode(imagem_obj["data_base64"], validate=True)
+        with Image.open(io.BytesIO(dados)) as original:
+            imagem = original.copy()
+        filtro = getattr(Image, "Resampling", Image).LANCZOS
+        imagem.thumbnail((max(1, int(largura_maxima)), max(1, int(altura_maxima))), filtro)
+        return ImageTk.PhotoImage(imagem)
+
+    def _exibir_janela(
+            self, sender, title, message, allow_reply, on_result, buttons=None,
+            display_mode="toast", image=None, screen_images=None,
+            image_duration_seconds=None, allow_manual_close=None, appearance=None):
+        if display_mode == protocolo.DISPLAY_MODE_CENTER_IMAGE:
+            self._exibir_imagens_monitores(
+                sender, title, message, allow_reply, on_result, buttons or [], image,
+                screen_images or [], image_duration_seconds or 15,
+                allow_manual_close is not False, appearance or {})
+            return
+        if display_mode == protocolo.DISPLAY_MODE_CENTER_ALERT:
+            self._exibir_alerta_obrigatorio(sender, title, message, on_result, appearance or {})
+            return
+
+        self._exibir_toast(sender, title, message, allow_reply, on_result, buttons or [], appearance or {})
+
+    def _nova_janela(self):
         tk = self._tk
         win = tk.Toplevel(self._root)
         win.title(APP_NAME)
         win.attributes("-topmost", True)
         win.resizable(False, False)
-        win.geometry("360x220+80+80")
+        win.overrideredirect(True)
+        win.configure(bg="#2C2C2C")
+        return win
+
+    def _exibir_toast(self, sender, title, message, allow_reply, on_result, buttons, appearance):
+        tk = self._tk
+        visual = self._aparencia(appearance)
+        escala = visual["font_scale_percent"] / 100.0
+        win = self._nova_janela()
+        corpo = tk.Frame(win, bg="#2C2C2C", highlightbackground="#484848", highlightthickness=1)
+        corpo.pack(fill="both", expand=True)
 
         result_holder = {"done": False}
 
@@ -195,10 +450,19 @@ class NotificationUi:
                 pass
             on_result(value)
 
-        tk.Label(win, text=f"De: {sender}", font=("Segoe UI", 9), fg="#6B7280").pack(anchor="w", padx=14, pady=(14, 0))
-        tk.Label(win, text=title, font=("Segoe UI", 12, "bold"), wraplength=330, justify="left").pack(
+        cabecalho = tk.Frame(corpo, bg="#2C2C2C")
+        cabecalho.pack(fill="x", padx=14, pady=(12, 4))
+        tk.Label(cabecalho, text="■", font=("Segoe UI", 9), fg=visual["accent_color"], bg="#2C2C2C").pack(side="left")
+        tk.Label(cabecalho, text="  Comunicador", font=("Segoe UI", 9),
+                 fg="#C8C8C8", bg="#2C2C2C").pack(side="left")
+        tk.Button(cabecalho, text="×", command=lambda: finish(None), bd=0, relief="flat",
+                  bg="#2C2C2C", activebackground="#454545", fg="#DDDDDD",
+                  activeforeground="white", font=("Segoe UI", 12)).pack(side="right")
+        tk.Label(corpo, text=title, font=("Segoe UI", max(10, round(14 * escala)), "bold"),
+                 wraplength=350, justify="left", fg="white", bg="#2C2C2C").pack(
             anchor="w", padx=14, pady=(2, 6))
-        tk.Label(win, text=message, font=("Segoe UI", 10), wraplength=330, justify="left").pack(
+        tk.Label(corpo, text=message, font=("Segoe UI", max(9, round(12 * escala))),
+                 wraplength=350, justify="left", fg="#E2E2E2", bg="#2C2C2C").pack(
             anchor="w", padx=14)
 
         # Botões de resposta rápida enviados junto com o aviso. Se o botão tiver
@@ -217,24 +481,200 @@ class NotificationUi:
                         logging.warning("Link recusado no botão '%s': só http/https.", rot)
                 finish(rot)
 
-            tk.Button(win, text=texto, font=("Segoe UI", 10), command=ao_clicar).pack(
+            tk.Button(corpo, text=texto, font=("Segoe UI", max(9, round(10 * escala))), command=ao_clicar,
+                      bg="#3B3B3B", activebackground="#4A4A4A", fg="white", activeforeground="white",
+                      relief="flat", bd=0).pack(
                 fill="x", padx=14, pady=(6, 0))
 
         if allow_reply:
-            entry = tk.Entry(win, font=("Segoe UI", 10))
+            entry = tk.Entry(corpo, font=("Segoe UI", max(9, round(10 * escala))), bg="#3B3B3B",
+                             fg="white", insertbackground="white", relief="flat")
             entry.pack(fill="x", padx=14, pady=(12, 6))
             entry.focus_set()
 
-            btns = tk.Frame(win)
+            btns = tk.Frame(corpo, bg="#2C2C2C")
             btns.pack(pady=6)
-            tk.Button(btns, text="Responder", width=12, command=lambda: finish(entry.get())).pack(side="left", padx=4)
-            tk.Button(btns, text="Fechar", width=12, command=lambda: finish(None)).pack(side="left", padx=4)
+            tk.Button(btns, text="Responder", width=12, command=lambda: finish(entry.get()),
+                      bg=visual["accent_color"], fg="white", relief="flat").pack(side="left", padx=4)
+            tk.Button(btns, text="Fechar", width=12, command=lambda: finish(None),
+                      bg="#3B3B3B", fg="white", relief="flat").pack(side="left", padx=4)
             entry.bind("<Return>", lambda _e: finish(entry.get()))
         else:
-            tk.Button(win, text="OK", width=12, command=lambda: finish(None)).pack(pady=14)
-            win.after(NO_REPLY_AUTO_CLOSE_SECONDS * 1000, lambda: finish(None))
+            tk.Button(corpo, text="OK", width=12, command=lambda: finish(None),
+                      bg="#3B3B3B", fg="white", relief="flat").pack(pady=14)
+            win.after(visual["toast_duration_seconds"] * 1000, lambda: finish(None))
 
         win.protocol("WM_DELETE_WINDOW", lambda: finish(None))
+        win.update_idletasks()
+        largura = max(380, win.winfo_reqwidth())
+        altura = win.winfo_reqheight()
+        tela_largura = win.winfo_screenwidth()
+        tela_altura = win.winfo_screenheight()
+        x = tela_largura - largura - 18
+        y = 18 if visual["toast_position"] == "top_right" else tela_altura - altura - 58
+        win.geometry(f"{largura}x{altura}+{x}+{y}")
+        if visual["play_sound"]:
+            self._tocar_som(visual["sound_type"])
+
+    def _exibir_imagens_monitores(
+            self, sender, title, message, allow_reply, on_result, buttons, image,
+            screen_images, duration, manual_close, appearance):
+        tk = self._tk
+        visual = self._aparencia(appearance)
+        escala = visual["font_scale_percent"] / 100.0
+        itens = list(screen_images)
+        if not itens and image is not None:
+            principal = self._monitor_por_indice(0)
+            itens = [{"monitor_index": principal["index"], "width_percent": 70, "image": image}]
+
+        grupos = {}
+        for item in itens:
+            grupos.setdefault(item.get("monitor_index", 0), []).append(item)
+
+        janelas = []
+        finalizado = {"done": False}
+
+        def finish(value):
+            if finalizado["done"]:
+                return
+            finalizado["done"] = True
+            for janela in list(janelas):
+                try:
+                    janela.destroy()
+                except tk.TclError:
+                    pass
+            on_result(value)
+
+        for indice, imagens in grupos.items():
+            monitor = self._monitor_por_indice(indice)
+            win = self._nova_janela()
+            janelas.append(win)
+            corpo = tk.Frame(win, bg="#202020", highlightbackground="#555555", highlightthickness=1)
+            corpo.pack(fill="both", expand=True)
+
+            cabecalho = tk.Frame(corpo, bg="#202020")
+            cabecalho.pack(fill="x", padx=14, pady=(10, 3))
+            tk.Label(cabecalho, text="Comunicador", bg="#202020", fg="#C8C8C8",
+                     font=("Segoe UI", 9)).pack(side="left")
+            if manual_close:
+                tk.Button(cabecalho, text="×", command=lambda: finish(None), bd=0, relief="flat",
+                          bg="#202020", activebackground="#454545", fg="white").pack(side="right")
+            tk.Label(corpo, text=title, bg="#202020", fg="white",
+                     font=("Segoe UI", max(11, round(16 * escala)), "bold"),
+                     wraplength=max(300, monitor["width"] - 100)).pack(padx=14, pady=(2, 3))
+            tk.Label(corpo, text=message, bg="#202020", fg="#E1E1E1",
+                     font=("Segoe UI", max(9, round(12 * escala))),
+                     wraplength=max(300, monitor["width"] - 100)).pack(padx=14, pady=(0, 9))
+
+            quadro = tk.Frame(corpo, bg="#101010")
+            quadro.pack(padx=12, pady=(0, 9))
+            referencias = []
+            colunas = 1 if len(imagens) == 1 else 2
+            for posicao, item in enumerate(imagens):
+                max_largura = min(
+                    monitor["width"] * item.get("width_percent", 70) / 100,
+                    (monitor["width"] - 100) / colunas)
+                max_altura = max(140, (monitor["height"] * 0.62) / max(1, (len(imagens) + 1) // 2))
+                foto = self._foto_tk(item["image"], max_largura, max_altura)
+                referencias.append(foto)
+                tk.Label(quadro, image=foto, bg="#101010").grid(
+                    row=posicao // colunas, column=posicao % colunas, padx=5, pady=5)
+            win._image_refs = referencias  # mantém PhotoImage viva
+
+            if manual_close:
+                for botao in buttons:
+                    rotulo = botao.get("label", "")
+                    url = botao.get("url")
+
+                    def ao_clicar(rot=rotulo, endereco=url):
+                        if endereco and protocolo.url_permitida(endereco):
+                            webbrowser.open(endereco)
+                        finish(rot)
+
+                    tk.Button(corpo, text=rotulo, command=ao_clicar, bg="#3B3B3B", fg="white",
+                              relief="flat").pack(fill="x", padx=14, pady=(2, 4))
+
+                if allow_reply:
+                    entry = tk.Entry(corpo, bg="#3B3B3B", fg="white", insertbackground="white", relief="flat")
+                    entry.pack(fill="x", padx=14, pady=(7, 4))
+                    tk.Button(corpo, text="Responder", command=lambda e=entry: finish(e.get()),
+                              bg=visual["accent_color"], fg="white", relief="flat").pack(
+                        fill="x", padx=14, pady=(2, 10))
+                else:
+                    tk.Button(corpo, text="OK", command=lambda: finish(None), bg="#3B3B3B",
+                              fg="white", relief="flat").pack(fill="x", padx=14, pady=(2, 10))
+
+            win.protocol("WM_DELETE_WINDOW", lambda: finish(None) if manual_close else None)
+            win.update_idletasks()
+            largura = min(max(win.winfo_reqwidth(), 360), max(360, monitor["width"] - 30))
+            altura = min(win.winfo_reqheight(), max(260, monitor["height"] - 60))
+            x = monitor["x"] + (monitor["width"] - largura) // 2
+            y = monitor["y"] + (monitor["height"] - altura) // 2
+            win.geometry(f"{largura}x{altura}{x:+d}{y:+d}")
+
+        if not janelas:
+            on_result(None)
+            return
+        self._root.after(max(3, int(duration)) * 1000, lambda: finish(None))
+        if visual["play_sound"]:
+            self._tocar_som(visual["sound_type"])
+
+    def _exibir_alerta_obrigatorio(self, sender, title, message, on_result, appearance):
+        tk = self._tk
+        visual = self._aparencia(appearance)
+        escala = visual["font_scale_percent"] / 100.0
+        monitor = self._monitor_por_indice(0)
+        win = self._nova_janela()
+        win.configure(bg="#111111")
+        win.geometry(
+            f"{max(640, monitor['width'])}x{max(480, monitor['height'])}"
+            f"{monitor['x']:+d}{monitor['y']:+d}")
+
+        finalizado = {"done": False}
+
+        def finish():
+            if finalizado["done"]:
+                return
+            finalizado["done"] = True
+            try:
+                win.grab_release()
+            except tk.TclError:
+                pass
+            win.destroy()
+            on_result(None)
+
+        cartao = tk.Frame(win, bg="#2C2C2C", highlightbackground=visual["accent_color"],
+                          highlightthickness=2, padx=28, pady=24)
+        cartao.place(relx=0.5, rely=0.5, anchor="center", width=min(620, monitor["width"] - 60))
+        tk.Label(cartao, text="Comunicador", bg="#2C2C2C", fg="#C8C8C8",
+                 font=("Segoe UI", 10)).pack(anchor="w")
+        tk.Label(cartao, text=title, bg="#2C2C2C", fg="white",
+                 font=("Segoe UI", max(14, round(22 * escala)), "bold"),
+                 wraplength=540, justify="left").pack(anchor="w", pady=(14, 8))
+        tk.Label(cartao, text=message, bg="#2C2C2C", fg="#EEEEEE",
+                 font=("Segoe UI", max(10, round(14 * escala))),
+                 wraplength=540, justify="left").pack(anchor="w")
+        tk.Button(cartao, text="OK", command=finish, bg=visual["accent_color"], fg="white",
+                  activeforeground="white", relief="flat", font=("Segoe UI", 11, "bold"),
+                  height=2).pack(fill="x", pady=(22, 0))
+
+        def clique(event):
+            atual = event.widget
+            while atual is not None:
+                if atual == cartao:
+                    return
+                atual = getattr(atual, "master", None)
+            self._tocar_som("warning")
+
+        win.bind("<Button-1>", clique, add="+")
+        win.protocol("WM_DELETE_WINDOW", lambda: self._tocar_som("warning"))
+        try:
+            win.grab_set_global()
+        except tk.TclError:
+            win.grab_set()
+        win.focus_force()
+        if visual["play_sound"]:
+            self._tocar_som(visual["sound_type"])
 
     def run_forever(self):
         if self._root is not None:
@@ -284,12 +724,27 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
                 self._handle_pair_request(msg, server)
             elif msg_type == MessageType.NOTIFICATION:
                 self._handle_notification(msg, server)
+            elif msg_type == MessageType.UPDATE_REQUEST:
+                self._handle_update_request(msg, server)
+            elif msg_type == MessageType.SYNC_REQUEST:
+                self._handle_sync_request(msg, server)
             else:
                 raise ProtocolError(
                     ErrorCode.UNKNOWN_TYPE, f"Tipo não esperado nesta conexão: '{msg_type}'")
         except ProtocolError as exc:
             logging.warning("Erro de protocolo (%s): %s", self.client_address, exc)
             self._safe_send(protocolo.make_error(exc.code, exc.message, in_reply_to=msg.get("id")))
+        except Exception:
+            # Uma mensagem defeituosa jamais deve encerrar o servidor receptor.
+            # Os detalhes completos ficam no log; a rede recebe apenas um erro
+            # genérico, sem expor caminhos ou dados internos da máquina.
+            logging.exception(
+                "Falha isolada ao processar %s de %s (id=%s).",
+                msg_type, self.client_address, msg.get("id"))
+            self._safe_send(protocolo.make_error(
+                ErrorCode.INTERNAL_ERROR,
+                "O receptor não conseguiu processar esta solicitação.",
+                in_reply_to=msg.get("id")))
 
     def _read_message(self, buffer: bytes) -> Optional[bytes]:
         sock = self.request
@@ -311,6 +766,9 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         pong = protocolo.base_message(MessageType.PONG)
         pong["computer_id"] = server.config.computer_id
         pong["computer_name"] = server.config.computer_name
+        pong["has_panel"] = False
+        pong["monitors"] = obter_monitores()
+        pong["receiver_version"] = RECEIVER_VERSION
         pong["status"] = "online"
         self._safe_send(pong)
 
@@ -324,6 +782,9 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         response["accepted"] = True
         response["computer_id"] = server.config.computer_id
         response["computer_name"] = server.config.computer_name
+        response["has_panel"] = False
+        response["monitors"] = obter_monitores()
+        response["receiver_version"] = RECEIVER_VERSION
         response["token"] = token
         self._safe_send(response)
 
@@ -339,7 +800,10 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         server.ui.mostrar(
             sender=msg["sender"], title=msg["title"], message=msg["message"],
             allow_reply=allow_reply, on_result=lambda value: result_queue.put(value),
-            buttons=msg.get("buttons"))
+            buttons=msg.get("buttons"), display_mode=msg.get("display_mode", "toast"),
+            image=msg.get("image"), screen_images=msg.get("screen_images"),
+            image_duration_seconds=msg.get("image_duration_seconds"),
+            allow_manual_close=msg.get("allow_manual_close"), appearance=msg.get("appearance"))
 
         ack = protocolo.base_message(MessageType.ACK)
         ack["in_reply_to"] = notification_id
@@ -363,6 +827,38 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         reply["computer_name"] = server.config.computer_name
         reply["reply_text"] = reply_text
         self._safe_send(reply)
+
+    def _handle_update_request(self, msg: dict, server: "ReceptorTcpServer") -> None:
+        if not server.config.token_is_valid(msg["token"]):
+            raise ProtocolError(ErrorCode.UNAUTHORIZED, "Token inválido ou painel não pareado.")
+
+        resposta = protocolo.base_message(MessageType.UPDATE_STATUS)
+        resposta["in_reply_to"] = msg["id"]
+        resposta["receiver_version"] = RECEIVER_VERSION
+        try:
+            nova_versao = aplicar_atualizacao_oficial(msg, server.ui.test_mode)
+            resposta["success"] = True
+            resposta["status"] = "updated"
+            resposta["receiver_version"] = nova_versao
+            resposta["message"] = "Atualização instalada; o receptor vai reiniciar."
+            self._safe_send(resposta)
+            if not server.ui.test_mode:
+                agendar_reinicio()
+        except Exception as exc:
+            logging.exception("Falha ao aplicar atualização oficial do receptor.")
+            resposta["success"] = False
+            resposta["status"] = "failed"
+            resposta["message"] = f"Falha ao aplicar atualização: {exc}"
+            self._safe_send(resposta)
+
+    def _handle_sync_request(self, msg: dict, server: "ReceptorTcpServer") -> None:
+        if not server.config.token_is_valid(msg["token"]):
+            raise ProtocolError(ErrorCode.UNAUTHORIZED, "Token inválido ou painel não pareado.")
+        resposta = protocolo.base_message(MessageType.SYNC_RESPONSE)
+        resposta["in_reply_to"] = msg["id"]
+        resposta["history_entries"] = []
+        resposta["log_entries"] = coletar_logs_receptor(server.config) if msg["include_logs"] else []
+        self._safe_send(resposta)
 
     def _safe_send(self, message: dict) -> None:
         try:
@@ -421,6 +917,9 @@ class DiscoveryResponder(threading.Thread):
             announce = protocolo.base_message(MessageType.ANNOUNCE)
             announce["computer_id"] = self.config.computer_id
             announce["computer_name"] = self.config.computer_name
+            announce["has_panel"] = False
+            announce["monitors"] = obter_monitores()
+            announce["receiver_version"] = RECEIVER_VERSION
             announce["tcp_port"] = self.tcp_port
             announce["paired"] = self.config.is_paired_with(msg["panel_id"])
 
@@ -458,6 +957,7 @@ class ReverseConnection(threading.Thread):
         self.port = port
         self._running = True
         self._sock: Optional[socket.socket] = None
+        self._send_lock = threading.Lock()
 
     def stop(self) -> None:
         self._running = False
@@ -473,6 +973,8 @@ class ReverseConnection(threading.Thread):
                 self._sessao()
             except (OSError, ProtocolError) as exc:
                 logging.debug("Conexão reversa com %s:%s caiu: %s", self.host, self.port, exc)
+            except Exception:
+                logging.exception("Falha isolada na conexão reversa com %s:%s.", self.host, self.port)
             finally:
                 if self._sock is not None:
                     try:
@@ -496,6 +998,9 @@ class ReverseConnection(threading.Thread):
         registro = protocolo.base_message(MessageType.REGISTER)
         registro["computer_id"] = self.config.computer_id
         registro["computer_name"] = self.config.computer_name
+        registro["has_panel"] = False
+        registro["monitors"] = obter_monitores()
+        registro["receiver_version"] = RECEIVER_VERSION
         token = self.config.token_for_panel_host()
         if token:
             registro["token"] = token
@@ -534,7 +1039,42 @@ class ReverseConnection(threading.Thread):
             if msg is None:
                 return
             if msg.get("type") == MessageType.NOTIFICATION:
-                self._tratar_notificacao(msg)
+                threading.Thread(
+                    target=self._tratar_notificacao_segura, args=(msg,), daemon=True,
+                    name=f"aviso-{msg.get('id', '')[:8]}").start()
+            elif msg.get("type") == MessageType.UPDATE_REQUEST:
+                threading.Thread(
+                    target=self._tratar_atualizacao_segura, args=(msg,), daemon=True,
+                    name=f"atualizacao-{msg.get('id', '')[:8]}").start()
+            elif msg.get("type") == MessageType.SYNC_REQUEST:
+                self._tratar_sync(msg)
+            elif msg.get("type") == MessageType.PING:
+                self._tratar_ping(msg)
+            else:
+                self._enviar(protocolo.make_error(
+                    ErrorCode.UNKNOWN_TYPE,
+                    f"Tipo não esperado na conexão reversa: '{msg.get('type')}'",
+                    in_reply_to=msg.get("id")))
+
+    def _tratar_ping(self, msg: dict) -> None:
+        if not self.config.token_is_valid(msg["token"]):
+            self._enviar(protocolo.make_error(
+                ErrorCode.UNAUTHORIZED, "Token inválido ou painel não pareado.", msg["id"]))
+            return
+        pong = protocolo.base_message(MessageType.PONG)
+        pong["computer_id"] = self.config.computer_id
+        pong["computer_name"] = self.config.computer_name
+        pong["has_panel"] = False
+        pong["monitors"] = obter_monitores()
+        pong["receiver_version"] = RECEIVER_VERSION
+        pong["status"] = "online"
+        self._enviar(pong)
+
+    def _tratar_notificacao_segura(self, msg: dict) -> None:
+        try:
+            self._tratar_notificacao(msg)
+        except Exception:
+            logging.exception("Falha isolada ao tratar notificação reversa %s.", msg.get("id"))
 
     def _tratar_notificacao(self, msg: dict) -> None:
         allow_reply = msg.get("allow_reply", False)
@@ -545,7 +1085,10 @@ class ReverseConnection(threading.Thread):
             sender=msg.get("sender", "Painel"), title=msg.get("title", ""),
             message=msg.get("message", ""), allow_reply=allow_reply,
             on_result=lambda value: result_queue.put(value),
-            buttons=msg.get("buttons"))
+            buttons=msg.get("buttons"), display_mode=msg.get("display_mode", "toast"),
+            image=msg.get("image"), screen_images=msg.get("screen_images"),
+            image_duration_seconds=msg.get("image_duration_seconds"),
+            allow_manual_close=msg.get("allow_manual_close"), appearance=msg.get("appearance"))
 
         ack = protocolo.base_message(MessageType.ACK)
         ack["in_reply_to"] = notification_id
@@ -570,11 +1113,46 @@ class ReverseConnection(threading.Thread):
         reply["reply_text"] = reply_text
         self._enviar(reply)
 
+    def _tratar_atualizacao_segura(self, msg: dict) -> None:
+        resposta = protocolo.base_message(MessageType.UPDATE_STATUS)
+        resposta["in_reply_to"] = msg["id"]
+        resposta["receiver_version"] = RECEIVER_VERSION
+        try:
+            if not self.config.token_is_valid(msg["token"]):
+                raise ProtocolError(ErrorCode.UNAUTHORIZED, "Token inválido ou painel não pareado.")
+            nova_versao = aplicar_atualizacao_oficial(msg, self.ui.test_mode)
+            resposta["success"] = True
+            resposta["status"] = "updated"
+            resposta["receiver_version"] = nova_versao
+            resposta["message"] = "Atualização instalada; o receptor vai reiniciar."
+            self._enviar(resposta)
+            if not self.ui.test_mode:
+                agendar_reinicio()
+        except Exception as exc:
+            logging.exception("Falha ao aplicar atualização recebida pela conexão reversa.")
+            resposta["success"] = False
+            resposta["status"] = "failed"
+            resposta["message"] = f"Falha ao aplicar atualização: {exc}"
+            self._enviar(resposta)
+
+    def _tratar_sync(self, msg: dict) -> None:
+        if not self.config.token_is_valid(msg["token"]):
+            self._enviar(protocolo.make_error(
+                ErrorCode.UNAUTHORIZED, "Token inválido ou painel não pareado.", msg["id"]))
+            return
+        resposta = protocolo.base_message(MessageType.SYNC_RESPONSE)
+        resposta["in_reply_to"] = msg["id"]
+        resposta["history_entries"] = []
+        resposta["log_entries"] = coletar_logs_receptor(self.config) if msg["include_logs"] else []
+        self._enviar(resposta)
+
     def _enviar(self, mensagem: dict) -> None:
         if self._sock is None:
             return
         try:
-            self._sock.sendall(protocolo.frame(mensagem))
+            with self._send_lock:
+                if self._sock is not None:
+                    self._sock.sendall(protocolo.frame(mensagem))
         except OSError:
             pass
 
@@ -662,6 +1240,7 @@ def start_tray_icon(config: Config, on_exit) -> Optional[object]:
 # --------------------------------------------------------------------------- main
 
 def setup_logging(config_dir: Path, test_mode: bool) -> None:
+    config_dir.mkdir(parents=True, exist_ok=True)
     handlers = [logging.FileHandler(config_dir / "receptor.log", encoding="utf-8")]
     if test_mode:
         handlers.append(logging.StreamHandler(sys.stdout))
@@ -670,6 +1249,7 @@ def setup_logging(config_dir: Path, test_mode: bool) -> None:
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Comunicador Receptor")
+    parser.add_argument("--version", action="version", version=RECEIVER_VERSION)
     parser.add_argument("--port", type=int, default=protocolo.TCP_PORT)
     parser.add_argument("--udp-port", type=int, default=protocolo.UDP_DISCOVERY_PORT)
     parser.add_argument("--config-dir", type=str, default=None)
@@ -699,7 +1279,16 @@ def main(argv=None) -> int:
         config.save()
 
     ui = NotificationUi(test_mode=args.test_mode)
-    tcp_server = ReceptorTcpServer(("0.0.0.0", args.port), config, ui)
+    try:
+        tcp_server = ReceptorTcpServer(("0.0.0.0", args.port), config, ui)
+    except OSError as exc:
+        # Um painel aberto nesta mesma máquina já pode estar usando a porta
+        # principal. O receptor continua útil pela conexão reversa e, por isso,
+        # ocupa uma porta livre em vez de encerrar ou disputar a porta.
+        logging.warning(
+            "Porta TCP %s ocupada (%s). Receptor continuará em uma porta automática.",
+            args.port, exc)
+        tcp_server = ReceptorTcpServer(("0.0.0.0", 0), config, ui)
     tcp_thread = threading.Thread(target=tcp_server.serve_forever, daemon=True)
     tcp_thread.start()
 

@@ -48,6 +48,7 @@ class PainelFake:
         self.registro = None
         self.ack = None
         self.reply = None
+        self.pong = None
         self.erro = None
         self._thread = threading.Thread(target=self._rodar, daemon=True)
 
@@ -85,6 +86,11 @@ class PainelFake:
             ack["computer_id"] = str(uuid.uuid4())
             ack["computer_name"] = "PAINEL-FAKE"
             conn.sendall(protocolo.frame(ack))
+
+            ping = protocolo.base_message(MessageType.PING)
+            ping["token"] = token
+            conn.sendall(protocolo.frame(ping))
+            self.pong, buffer = _ler(conn, buffer)
 
             notif = protocolo.base_message(MessageType.NOTIFICATION)
             notif["token"] = token
@@ -155,6 +161,14 @@ def test_notificacao_chega_pela_conexao_reversa_e_recebe_ack(painel_e_receptor):
     assert painel.erro is None, painel.erro
     assert painel.ack is not None
     assert painel.ack["status"] == "shown"
+
+
+def test_ping_responde_pong_pela_conexao_reversa(painel_e_receptor):
+    painel = painel_e_receptor()
+    assert painel.erro is None, painel.erro
+    assert painel.pong is not None
+    assert painel.pong["type"] == MessageType.PONG
+    assert painel.pong["status"] == "online"
 
 
 def test_resposta_do_usuario_sobe_pela_conexao_reversa(painel_e_receptor):

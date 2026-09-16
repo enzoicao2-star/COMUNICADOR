@@ -9,9 +9,10 @@ set "INSTALL_DIR=%BASE%\app"
 set "PORT_TCP=57931"
 set "PORT_UDP=57932"
 set "TASK_NAME=Comunicador Receptor"
+set "EXPECTED_VERSION=2.2.0"
 
 echo ===============================================
-echo   Comunicador Receptor - diagnostico
+echo   Comunicador Receptor %EXPECTED_VERSION% - diagnostico
 echo ===============================================
 echo.
 echo Computador: %COMPUTERNAME%
@@ -32,7 +33,7 @@ if %errorlevel%==0 (
 )
 echo.
 
-echo [2] ARQUIVOS DO RECEPTOR
+echo [2] ARQUIVOS E VERSAO DO RECEPTOR
 if exist "%INSTALL_DIR%\receptor.py" (
     echo     receptor.py  OK
 ) else (
@@ -42,6 +43,14 @@ if exist "%INSTALL_DIR%\protocolo.py" (
     echo     protocolo.py OK
 ) else (
     echo     protocolo.py FALTANDO  ^<-- receptor nao consegue nem iniciar
+)
+if exist "%INSTALL_DIR%\receptor.py" (
+    findstr /L /C:"RECEIVER_VERSION = " "%INSTALL_DIR%\receptor.py" | findstr /L /C:"%EXPECTED_VERSION%" >nul
+    if not errorlevel 1 (
+        echo     Versao:       %EXPECTED_VERSION% ^(ATUALIZADA^)
+    ) else (
+        echo     Versao:       ANTIGA - execute INSTALAR_RECEPTOR.bat novamente
+    )
 )
 echo.
 
@@ -55,6 +64,8 @@ echo [4] ESCUTANDO NA PORTA %PORT_TCP%?
 powershell -NoProfile -Command ^
     "try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', %PORT_TCP%); $c.Close();" ^
     "  Write-Host '    SIM - porta %PORT_TCP% respondendo' } catch { Write-Host '    NAO - nada escutando na porta %PORT_TCP%' }"
+echo     Se o painel estiver aberto neste PC, o receptor pode usar outra porta
+echo     automaticamente e continuar conectado pela conexao reversa.
 echo.
 
 echo [5] INICIALIZACAO AUTOMATICA

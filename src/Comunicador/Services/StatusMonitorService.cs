@@ -12,7 +12,7 @@ public sealed class StatusMonitorService : IDisposable
     private CancellationTokenSource? _cts;
     private Task? _loopTask;
 
-    public event Action<string, StatusComputador>? StatusAtualizado;
+    public event Action<string, StatusComputador, double?>? StatusAtualizado;
 
     public StatusMonitorService(
         Func<IReadOnlyList<Computador>> getComputadores, EnviadorNotificacoes enviador, AppSettings settings)
@@ -60,8 +60,11 @@ public sealed class StatusMonitorService : IDisposable
 
     private async Task CheckOneAsync(Computador computador, CancellationToken ct)
     {
-        var online = await _enviador.EstaOnlineAsync(computador, ct).ConfigureAwait(false);
-        StatusAtualizado?.Invoke(computador.Id, online ? StatusComputador.Online : StatusComputador.Offline);
+        var resultado = await _enviador.MedirStatusAsync(computador, ct).ConfigureAwait(false);
+        StatusAtualizado?.Invoke(
+            computador.Id,
+            resultado.Online ? StatusComputador.Online : StatusComputador.Offline,
+            resultado.PingMs);
     }
 
     public void Dispose() => Stop();

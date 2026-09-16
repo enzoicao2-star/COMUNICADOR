@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.CompilerServices;
 using Comunicador.Protocol;
 
 namespace Comunicador.Networking;
@@ -7,6 +8,14 @@ public static class TcpFraming
 {
     public const byte Delimiter = (byte)'\n';
 
+    private sealed class ReaderState
+    {
+        public byte[] Pending { get; set; } = Array.Empty<byte>();
+        public SemaphoreSlim Gate { get; } = new(1, 1);
+    }
+
+    private static readonly ConditionalWeakTable<Stream, ReaderState> ReaderStates = new();
+
     /// <summary>
     /// Reads a single newline-delimited message from the stream. Returns null on clean EOF
     /// before any byte is read. Throws <see cref="InvalidOperationException"/> if the message
@@ -14,28 +23,57 @@ public static class TcpFraming
     /// </summary>
     public static async Task<byte[]?> ReadMessageAsync(Stream stream, CancellationToken ct = default)
     {
-        using var buffer = new MemoryStream();
-        var singleByte = new byte[1];
-
-        while (true)
+        var state = ReaderStates.GetOrCreateValue(stream);
+        await state.Gate.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
-            var read = await stream.ReadAsync(singleByte.AsMemory(0, 1), ct).ConfigureAwait(false);
-            if (read == 0)
+            using var mensagem = new MemoryStream();
+
+            if (state.Pending.Length > 0)
             {
-                return buffer.Length == 0 ? null : buffer.ToArray();
+                var delimitador = Array.IndexOf(state.Pending, Delimiter);
+                if (delimitador >= 0)
+                {
+                    mensagem.Write(state.Pending, 0, delimitador);
+                    state.Pending = state.Pending[(delimitador + 1)..];
+                    return mensagem.ToArray();
+                }
+
+                mensagem.Write(state.Pending);
+                state.Pending = Array.Empty<byte>();
             }
 
-            if (singleByte[0] == Delimiter)
+            var bloco = new byte[64 * 1024];
+            while (true)
             {
-                return buffer.ToArray();
-            }
+                var read = await stream.ReadAsync(bloco.AsMemory(), ct).ConfigureAwait(false);
+                if (read == 0)
+                {
+                    return mensagem.Length == 0 ? null : mensagem.ToArray();
+                }
 
-            buffer.WriteByte(singleByte[0]);
+                var delimitador = Array.IndexOf(bloco, Delimiter, 0, read);
+                var quantidadeMensagem = delimitador >= 0 ? delimitador : read;
+                mensagem.Write(bloco, 0, quantidadeMensagem);
 
-            if (buffer.Length > ProtocolConstants.MaxTcpMessageBytes)
-            {
-                throw new InvalidOperationException("Mensagem excede o tamanho máximo permitido.");
+                if (mensagem.Length > ProtocolConstants.MaxTcpMessageBytes)
+                {
+                    throw new InvalidOperationException("Mensagem excede o tamanho máximo permitido.");
+                }
+
+                if (delimitador >= 0)
+                {
+                    var restantes = read - delimitador - 1;
+                    state.Pending = restantes > 0
+                        ? bloco.AsSpan(delimitador + 1, restantes).ToArray()
+                        : Array.Empty<byte>();
+                    return mensagem.ToArray();
+                }
             }
+        }
+        finally
+        {
+            state.Gate.Release();
         }
     }
 

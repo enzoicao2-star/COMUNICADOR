@@ -9,8 +9,21 @@
     <AssemblyName>Comunicador</AssemblyName>
     <RootNamespace>Comunicador</RootNamespace>
     <Platforms>x64</Platforms>
-    <Version>1.0.0</Version>
+    <Version>2.2.0</Version>
+    <AssemblyVersion>2.2.0.0</AssemblyVersion>
+    <FileVersion>2.2.0.0</FileVersion>
     <Product>Comunicador</Product>
+    <ApplicationIcon>Assets\Comunicador.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\Comunicador.ico" />
+    <EmbeddedResource Include="..\..\receiver\receptor.py"
+                      Link="ReceiverResources\receptor.py"
+                      LogicalName="Comunicador.Receiver.receptor.py" />
+    <EmbeddedResource Include="..\..\receiver\protocolo.py"
+                      Link="ReceiverResources\protocolo.py"
+                      LogicalName="Comunicador.Receiver.protocolo.py" />
+  </ItemGroup>
 
 </Project>

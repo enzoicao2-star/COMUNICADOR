@@ -21,7 +21,7 @@ set "PORT_TCP=57931"
 set "PORT_UDP=57932"
 
 echo ===============================================
-echo   Comunicador - configurar rede
+echo   Comunicador 2.2.0 - configurar rede
 echo ===============================================
 echo.
 

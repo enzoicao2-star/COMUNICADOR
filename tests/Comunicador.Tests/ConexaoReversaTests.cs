@@ -117,6 +117,76 @@ public class ConexaoReversaTests
     }
 
     [Fact]
+    public async Task AtualizacaoViaConexaoReversa_RecebeStatus()
+    {
+        var (ladoPainel, ladoReceptor, listener) = await ParConectadoAsync();
+        try
+        {
+            var conexao = new ConexaoReversa(
+                ladoPainel, ladoPainel.GetStream(), "pc-quarto", "PC-QUARTO", "127.0.0.1", "tok-teste");
+            var request = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.UpdateRequest);
+            request.Token = "tok-teste";
+            request.TargetVersion = ProtocolConstants.CurrentReceiverVersion;
+            request.UpdateFiles = Services.ReceiverUpdatePackage.Create();
+
+            var envio = conexao.SolicitarAtualizacaoAsync(request, default);
+            var streamReceptor = ladoReceptor.GetStream();
+            var payload = await TcpFraming.ReadMessageAsync(streamReceptor);
+            MessageValidator.TryParse(payload!, out var recebida, out _);
+
+            var status = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.UpdateStatus);
+            status.InReplyTo = recebida!.Id;
+            status.Success = true;
+            status.Status = "updated";
+            status.ReceiverVersion = ProtocolConstants.CurrentReceiverVersion;
+            await TcpFraming.WriteMessageAsync(streamReceptor, status);
+
+            var resultado = await envio;
+            Assert.True(resultado.Success);
+            Assert.Equal("updated", resultado.Status);
+        }
+        finally
+        {
+            ladoReceptor.Dispose();
+            ladoPainel.Dispose();
+            listener.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task PingViaConexaoReversa_MedeIdaEVolta()
+    {
+        var (ladoPainel, ladoReceptor, listener) = await ParConectadoAsync();
+        try
+        {
+            var conexao = new ConexaoReversa(
+                ladoPainel, ladoPainel.GetStream(), "pc-quarto", "PC-QUARTO", "127.0.0.1", "tok-teste");
+            var medicao = conexao.MedirPingAsync(default);
+            var streamReceptor = ladoReceptor.GetStream();
+            var payload = await TcpFraming.ReadMessageAsync(streamReceptor);
+            MessageValidator.TryParse(payload!, out var ping, out _);
+            Assert.Equal(ProtocolConstants.MessageType.Ping, ping!.Type);
+            Assert.Equal("tok-teste", ping.Token);
+
+            var pong = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Pong);
+            pong.ComputerId = "pc-quarto";
+            pong.ComputerName = "PC-QUARTO";
+            pong.Status = "online";
+            await TcpFraming.WriteMessageAsync(streamReceptor, pong);
+
+            var latencia = await medicao;
+            Assert.NotNull(latencia);
+            Assert.True(latencia >= 0);
+        }
+        finally
+        {
+            ladoReceptor.Dispose();
+            ladoPainel.Dispose();
+            listener.Stop();
+        }
+    }
+
+    [Fact]
     public async Task RegistroConexoes_GuardaERemoveConexao()
     {
         var (ladoPainel, ladoReceptor, listener) = await ParConectadoAsync();

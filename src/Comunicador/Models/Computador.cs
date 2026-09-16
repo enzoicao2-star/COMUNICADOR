@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Comunicador.Protocol;
 
 namespace Comunicador.Models;
 
@@ -21,6 +22,11 @@ public sealed class Computador : ObservableModel
     private StatusComputador _status = StatusComputador.Desconhecido;
     private DateTime _ultimaVezVisto = DateTime.UtcNow;
     private bool _emEdicao;
+    private bool _temPainel;
+    private List<MonitorInfo> _monitores = new();
+    private string? _versaoReceptor;
+    private bool _atualizandoReceptor;
+    private double? _pingMs;
 
     public string Id { get => _id; set => SetField(ref _id, value); }
 
@@ -62,9 +68,78 @@ public sealed class Computador : ObservableModel
     [JsonIgnore]
     public bool EmEdicao { get => _emEdicao; set => SetField(ref _emEdicao, value); }
 
+    /// <summary>Distingue o Comunicador completo de uma instalação somente receptora.</summary>
+    public bool TemPainel
+    {
+        get => _temPainel;
+        set
+        {
+            if (SetField(ref _temPainel, value))
+            {
+                OnPropertyChanged(nameof(PodeAtualizarReceptor));
+            }
+        }
+    }
+    public List<MonitorInfo> Monitores { get => _monitores; set => SetField(ref _monitores, value ?? new()); }
+
+    public string? VersaoReceptor
+    {
+        get => _versaoReceptor;
+        set
+        {
+            if (SetField(ref _versaoReceptor, value))
+            {
+                OnPropertyChanged(nameof(ReceptorAtualizado));
+                OnPropertyChanged(nameof(StatusVersaoReceptor));
+                OnPropertyChanged(nameof(PodeAtualizarReceptor));
+            }
+        }
+    }
+
+    [JsonIgnore]
+    public bool AtualizandoReceptor
+    {
+        get => _atualizandoReceptor;
+        set
+        {
+            if (SetField(ref _atualizandoReceptor, value))
+            {
+                OnPropertyChanged(nameof(StatusVersaoReceptor));
+                OnPropertyChanged(nameof(PodeAtualizarReceptor));
+            }
+        }
+    }
+
+    [JsonIgnore]
+    public bool ReceptorAtualizado => VersaoReceptor == ProtocolConstants.CurrentReceiverVersion;
+
+    [JsonIgnore]
+    public string StatusVersaoReceptor => AtualizandoReceptor
+        ? "Atualizando receptor..."
+        : ReceptorAtualizado
+        ? $"Receptor {VersaoReceptor} atualizado"
+        : string.IsNullOrWhiteSpace(VersaoReceptor)
+            ? "Receptor antigo — atualização necessária"
+            : $"Receptor {VersaoReceptor} — atualização necessária";
+
+    [JsonIgnore]
+    public bool PodeAtualizarReceptor => !TemPainel && !ReceptorAtualizado && !AtualizandoReceptor && Pareado;
+
     public string EnderecoIp { get => _enderecoIp; set => SetField(ref _enderecoIp, value); }
     public int PortaTcp { get => _portaTcp; set => SetField(ref _portaTcp, value); }
-    public bool Pareado { get => _pareado; set => SetField(ref _pareado, value); }
+    [JsonIgnore]
+    public double? PingMs { get => _pingMs; set => SetField(ref _pingMs, value); }
+    public bool Pareado
+    {
+        get => _pareado;
+        set
+        {
+            if (SetField(ref _pareado, value))
+            {
+                OnPropertyChanged(nameof(PodeAtualizarReceptor));
+            }
+        }
+    }
     public string? Token { get => _token; set => SetField(ref _token, value); }
     public StatusComputador Status { get => _status; set => SetField(ref _status, value); }
     public DateTime UltimaVezVisto { get => _ultimaVezVisto; set => SetField(ref _ultimaVezVisto, value); }

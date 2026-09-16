@@ -45,7 +45,7 @@
                             </StackPanel>
                         </Grid>
 
-                        <Border Background="#F7F7F7" CornerRadius="4" Padding="12,10" Margin="0,0,0,16">
+                        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="12,10" Margin="0,0,0,16">
                             <CheckBox IsChecked="{Binding PermitirResposta}" Margin="0">
                                 <TextBlock Text="Permitir que a pessoa responda" />
                             </CheckBox>
@@ -103,22 +103,22 @@
 
                                         <TextBlock Grid.Column="0" Text="&#xE823;" FontFamily="Segoe MDL2 Assets"
                                                    FontSize="16" Margin="0,2,14,0" VerticalAlignment="Top"
-                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
 
                                         <StackPanel Grid.Column="1">
                                             <TextBlock Text="{Binding Titulo}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
                                             <TextBlock Text="{Binding Mensagem}" Style="{StaticResource Subtitulo}" Margin="0,2,0,6" />
                                             <StackPanel Orientation="Horizontal">
                                                 <Border Style="{StaticResource SeloBorder}" Padding="8,2"
-                                                        Background="#EFF6FC" BorderBrush="#CCE4F7" BorderThickness="1">
-                                                    <TextBlock FontSize="12" Foreground="{StaticResource AccentBrush}"
+                                                        Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                                                    <TextBlock FontSize="12" Foreground="{DynamicResource AccentBrush}"
                                                                Text="{Binding DataHora, StringFormat={}{0:dd/MM/yyyy HH:mm}, Mode=OneWay}" />
                                                 </Border>
                                                 <Border Style="{StaticResource SeloBorder}" Padding="8,2" Margin="6,0,0,0"
-                                                        Background="#F0F0F0"
+                                                        Background="{DynamicResource SidebarHoverBrush}"
                                                         Visibility="{Binding Enviado, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                     <TextBlock Text="Já enviado" FontSize="12"
-                                                               Foreground="{StaticResource TextSecondaryBrush}" />
+                                                               Foreground="{DynamicResource TextSecondaryBrush}" />
                                                 </Border>
                                             </StackPanel>
                                         </StackPanel>

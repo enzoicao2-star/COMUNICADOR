@@ -3,15 +3,18 @@ using System.Windows.Input;
 using Comunicador.Models;
 using Comunicador.Networking;
 using Comunicador.Protocol;
+using Comunicador.Services;
 using Comunicador.Storage;
 
 namespace Comunicador.ViewModels;
 
 public sealed class ComputadoresViewModel : ViewModelBase
 {
+    public event Action<double?>? PingMedioAtualizado;
     private readonly JsonStore<Computador> _store;
     private readonly DiscoveryService _discovery;
     private readonly ReceptorClient _client;
+    private readonly AtualizadorReceptor _atualizador;
     private readonly AppSettings _settings;
     private string? _statusMensagem;
     private string _novoIp = string.Empty;
@@ -43,18 +46,25 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public ICommand AdicionarManualCommand { get; }
     public ICommand RenomearCommand { get; }
     public ICommand ConfirmarRenomeCommand { get; }
+    public ICommand AtualizarReceptorCommand { get; }
 
     public ComputadoresViewModel(
-        JsonStore<Computador> store, DiscoveryService discovery, ReceptorClient client, AppSettings settings)
+        JsonStore<Computador> store, DiscoveryService discovery, ReceptorClient client,
+        AtualizadorReceptor atualizador, AppSettings settings)
     {
         _store = store;
         _discovery = discovery;
         _client = client;
+        _atualizador = atualizador;
         _settings = settings;
         _novaPorta = settings.PortaTcp.ToString();
 
         foreach (var computador in _store.Load())
         {
+            if (computador.Monitores.Count == 0)
+            {
+                computador.Monitores = MonitoresOuPadrao(null);
+            }
             Computadores.Add(computador);
         }
 
@@ -78,6 +88,14 @@ public sealed class ComputadoresViewModel : ViewModelBase
         });
 
         AtualizarAgoraCommand = new AsyncRelayCommand(ProcurarAsync);
+
+        AtualizarReceptorCommand = new AsyncRelayCommand(async param =>
+        {
+            if (param is Computador computador)
+            {
+                await AtualizarReceptorAsync(computador).ConfigureAwait(true);
+            }
+        }, param => param is Computador { PodeAtualizarReceptor: true });
 
         AdicionarManualCommand = new RelayCommand(_ => AdicionarManual(), _ => PodeAdicionarManual());
 
@@ -128,6 +146,9 @@ public sealed class ComputadoresViewModel : ViewModelBase
                     Pareado = true,
                     // sem guardar o token a notificacao sai sem ele e o receptor a rejeita
                     Token = conexao.Token,
+                    TemPainel = conexao.HasPanel,
+                    Monitores = MonitoresOuPadrao(conexao.Monitors),
+                    VersaoReceptor = conexao.ReceiverVersion,
                     Status = StatusComputador.Online,
                     UltimaVezVisto = DateTime.UtcNow,
                 });
@@ -140,6 +161,9 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 existente.EnderecoIp = conexao.EnderecoIp;
                 existente.Pareado = true;
                 existente.Token = conexao.Token;
+                existente.TemPainel = conexao.HasPanel;
+                existente.Monitores = MonitoresOuPadrao(conexao.Monitors);
+                existente.VersaoReceptor = conexao.ReceiverVersion;
                 existente.Status = StatusComputador.Online;
                 existente.UltimaVezVisto = DateTime.UtcNow;
                 StatusMensagem = $"{conexao.ComputerName} reconectou-se.";
@@ -149,7 +173,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         });
     }
 
-    public void AtualizarStatus(string computadorId, StatusComputador status)
+    public void AtualizarStatus(string computadorId, StatusComputador status, double? pingMs)
     {
         Services.UiDispatcher.Invoke(() =>
         {
@@ -157,8 +181,20 @@ public sealed class ComputadoresViewModel : ViewModelBase
             if (computador is not null)
             {
                 computador.Status = status;
+                computador.PingMs = status == StatusComputador.Online ? pingMs : null;
                 computador.UltimaVezVisto = DateTime.UtcNow;
             }
+
+            var online = Computadores
+                .Where(c => c.Pareado && c.Status == StatusComputador.Online)
+                .ToList();
+            var pings = online
+                .Where(c => c.PingMs.HasValue)
+                .Select(c => c.PingMs!.Value)
+                .ToList();
+            PingMedioAtualizado?.Invoke(pings.Count > 0
+                ? pings.Average()
+                : online.Count > 0 ? double.NaN : null);
         });
     }
 
@@ -180,6 +216,9 @@ public sealed class ComputadoresViewModel : ViewModelBase
                     EnderecoIp = info.IpAddress,
                     PortaTcp = info.TcpPort,
                     Pareado = info.Paired,
+                    TemPainel = info.HasPanel,
+                    Monitores = MonitoresOuPadrao(info.Monitors),
+                    VersaoReceptor = info.ReceiverVersion,
                     Status = StatusComputador.Online,
                     UltimaVezVisto = DateTime.UtcNow,
                 });
@@ -191,6 +230,9 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 existente.EnderecoIp = info.IpAddress;
                 existente.PortaTcp = info.TcpPort;
                 existente.Nome = info.ComputerName;
+                existente.TemPainel = info.HasPanel;
+                existente.Monitores = MonitoresOuPadrao(info.Monitors);
+                existente.VersaoReceptor = info.ReceiverVersion;
                 existente.Status = StatusComputador.Online;
                 existente.UltimaVezVisto = DateTime.UtcNow;
             }
@@ -290,6 +332,9 @@ public sealed class ComputadoresViewModel : ViewModelBase
             computador.Token = resultado.Token;
             computador.Pareado = true;
             computador.Nome = resultado.ComputerName;
+            computador.TemPainel = resultado.HasPanel;
+            computador.Monitores = MonitoresOuPadrao(resultado.Monitors);
+            computador.VersaoReceptor = resultado.ReceiverVersion;
             computador.Status = StatusComputador.Online;
             Persist();
             StatusMensagem = $"Pareado com {computador.Nome}.";
@@ -302,5 +347,49 @@ public sealed class ComputadoresViewModel : ViewModelBase
         }
     }
 
+    private async Task AtualizarReceptorAsync(Computador computador)
+    {
+        computador.AtualizandoReceptor = true;
+        StatusMensagem = $"Enviando a atualização oficial para {computador.NomeExibicao}...";
+        try
+        {
+            var resultado = await _atualizador.AtualizarAsync(computador).ConfigureAwait(true);
+            if (resultado.Success)
+            {
+                computador.VersaoReceptor = string.IsNullOrWhiteSpace(resultado.ReceiverVersion)
+                    ? ProtocolConstants.CurrentReceiverVersion
+                    : resultado.ReceiverVersion;
+                Persist();
+                StatusMensagem = $"{computador.NomeExibicao} foi atualizado. O receptor vai reconectar automaticamente.";
+                Logger.Info(
+                    $"Receptor de {computador.NomeExibicao} atualizado para {computador.VersaoReceptor}.",
+                    "atualizacao");
+            }
+            else
+            {
+                var detalhe = string.IsNullOrWhiteSpace(resultado.Message)
+                    ? resultado.Status
+                    : resultado.Message;
+                StatusMensagem = $"Não foi possível atualizar {computador.NomeExibicao}: {detalhe}. "
+                    + "Se ele usa uma versão antiga, execute o instalador uma última vez nessa máquina.";
+                Logger.Error(
+                    $"Falha ao atualizar o receptor de {computador.NomeExibicao}.",
+                    "atualizacao", detalhe);
+            }
+        }
+        finally
+        {
+            computador.AtualizandoReceptor = false;
+        }
+    }
+
     private void Persist() => _store.Save(Computadores);
+
+    private static List<MonitorInfo> MonitoresOuPadrao(IReadOnlyList<MonitorInfo>? monitores) =>
+        monitores is { Count: > 0 }
+            ? monitores.ToList()
+            : new List<MonitorInfo>
+            {
+                new() { Index = 0, Name = "Monitor principal", Primary = true },
+            };
 }

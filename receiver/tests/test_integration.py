@@ -2,6 +2,8 @@
 sem GUI) como subprocesso e conversam com ele por sockets TCP crus, exercitando
 o protocolo exatamente como o painel C# faria."""
 
+import base64
+import hashlib
 import json
 import socket
 import subprocess
@@ -138,6 +140,48 @@ def test_notificacao_sem_permitir_resposta(receptor):
     notif["allow_reply"] = False
     response = send_and_receive(receptor["port"], notif)
     assert response["type"] == MessageType.ACK
+
+
+def test_atualizacao_oficial_em_modo_teste(receptor):
+    token = pair(receptor["port"])
+    pedido = protocolo.base_message(MessageType.UPDATE_REQUEST)
+    pedido["token"] = token
+    pedido["target_version"] = "2.2.0"
+    pedido["update_files"] = []
+    for nome in ("receptor.py", "protocolo.py"):
+        dados = (RECEPTOR_PATH.parent / nome).read_bytes()
+        pedido["update_files"].append({
+            "name": nome,
+            "content_base64": base64.b64encode(dados).decode("ascii"),
+            "sha256": hashlib.sha256(dados).hexdigest(),
+        })
+
+    response = send_and_receive(receptor["port"], pedido)
+    assert response["type"] == MessageType.UPDATE_STATUS
+    assert response["success"] is True
+    assert response["status"] == "updated"
+    assert response["receiver_version"] == "2.2.0"
+
+
+def test_painel_coleta_logs_sem_mostrar_janela(receptor):
+    token = pair(receptor["port"])
+
+    ping_invalido = protocolo.base_message(MessageType.PING)
+    ping_invalido["token"] = "token-errado"
+    erro = send_and_receive(receptor["port"], ping_invalido)
+    assert erro["type"] == MessageType.ERROR
+
+    pedido = protocolo.base_message(MessageType.SYNC_REQUEST)
+    pedido["token"] = token
+    pedido["include_history"] = False
+    pedido["include_logs"] = True
+    pedido["history_entries"] = []
+    pedido["log_entries"] = []
+    response = send_and_receive(receptor["port"], pedido)
+
+    assert response["type"] == MessageType.SYNC_RESPONSE
+    assert response["history_entries"] == []
+    assert any(item["origin_type"] == "receiver" for item in response["log_entries"])
 
 
 def test_json_invalido(receptor):

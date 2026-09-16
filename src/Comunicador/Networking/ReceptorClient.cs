@@ -42,7 +42,9 @@ public sealed class ReceptorClient
             throw new ReceptorComunicacaoException("Pareamento recusado pelo receptor.");
         }
 
-        return new PairResult(true, response.ComputerId!, response.ComputerName!, response.Token!);
+        return new PairResult(
+            true, response.ComputerId!, response.ComputerName!, response.Token!,
+            response.HasPanel ?? false, response.Monitors, response.ReceiverVersion);
     }
 
     public async Task<bool> PingAsync(string ipAddress, int tcpPort, string token, CancellationToken ct = default)
@@ -70,7 +72,14 @@ public sealed class ReceptorClient
 
     public async Task<NotificationResult> SendNotificationAsync(
         string ipAddress, int tcpPort, string token, string title, string message, bool allowReply,
-        List<BotaoResposta>? botoes = null, CancellationToken ct = default)
+        List<BotaoResposta>? botoes = null,
+        string modoExibicao = ProtocolConstants.DisplayMode.Toast,
+        ConteudoImagem? imagem = null,
+        List<ImagemMonitor>? imagensPorMonitor = null,
+        int? duracaoImagemSegundos = null,
+        bool? permitirFecharManualmente = null,
+        AparenciaNotificacao? aparencia = null,
+        CancellationToken ct = default)
     {
         try
         {
@@ -84,6 +93,24 @@ public sealed class ReceptorClient
             notification.Message = message;
             notification.AllowReply = allowReply;
             notification.Buttons = botoes is { Count: > 0 } ? botoes : null;
+            notification.DisplayMode = modoExibicao;
+            notification.Image = imagem;
+            notification.ScreenImages = imagensPorMonitor;
+            notification.ImageDurationSeconds = duracaoImagemSegundos;
+            notification.AllowManualClose = permitirFecharManualmente;
+            notification.Appearance = aparencia;
+            var validacao = MessageValidator.Validate(notification);
+            if (!validacao.IsValid)
+            {
+                return new NotificationResult(
+                    false, false, false, null, $"{validacao.Code}: {validacao.Message}");
+            }
+            var tamanho = MessageValidator.ValidateSize(
+                MessageValidator.Frame(notification).Length, isUdp: false);
+            if (!tamanho.IsValid)
+            {
+                return new NotificationResult(false, false, false, null, tamanho.Message);
+            }
             await TcpFraming.WriteMessageAsync(stream, notification, ct).ConfigureAwait(false);
 
             var ack = await ReadValidatedAsync(stream, ct).ConfigureAwait(false);
@@ -127,6 +154,82 @@ public sealed class ReceptorClient
             // falha de envio vira resultado, nunca excecao: senao sobe para o
             // dispatcher e o usuario leva uma caixa de erro no lugar do aviso.
             return new NotificationResult(false, false, false, null, ex.Message);
+        }
+    }
+
+    public async Task<ReceiverUpdateResult> UpdateReceiverAsync(
+        string ipAddress, int tcpPort, string token, IReadOnlyList<ArquivoAtualizacao> arquivos,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(45));
+            using var client = await ConnectAsync(ipAddress, tcpPort, ConnectTimeout, cts.Token).ConfigureAwait(false);
+            await using var stream = client.GetStream();
+
+            var request = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.UpdateRequest);
+            request.Token = token;
+            request.TargetVersion = ProtocolConstants.CurrentReceiverVersion;
+            request.UpdateFiles = arquivos.ToList();
+
+            var validation = MessageValidator.Validate(request);
+            if (!validation.IsValid)
+            {
+                return new(false, "invalid_package", string.Empty, validation.Message);
+            }
+
+            await TcpFraming.WriteMessageAsync(stream, request, cts.Token).ConfigureAwait(false);
+            var response = await ReadValidatedAsync(stream, cts.Token).ConfigureAwait(false);
+            if (response.Type == ProtocolConstants.MessageType.Error)
+            {
+                return new(false, "rejected", string.Empty, response.Message);
+            }
+
+            if (response.Type != ProtocolConstants.MessageType.UpdateStatus)
+            {
+                return new(false, "unexpected_response", string.Empty,
+                    $"Resposta inesperada: '{response.Type}'.");
+            }
+
+            return new(
+                response.Success == true,
+                response.Status ?? "unknown",
+                response.ReceiverVersion ?? string.Empty,
+                response.Message);
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException
+            or ReceptorComunicacaoException or ObjectDisposedException)
+        {
+            return new(false, "communication_error", string.Empty, ex.Message);
+        }
+    }
+
+    public async Task<SyncResult> SyncAsync(
+        string ipAddress, int tcpPort, ComunicadorMessage request, CancellationToken ct = default)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(30));
+            using var client = await ConnectAsync(ipAddress, tcpPort, ConnectTimeout, cts.Token).ConfigureAwait(false);
+            await using var stream = client.GetStream();
+            await TcpFraming.WriteMessageAsync(stream, request, cts.Token).ConfigureAwait(false);
+            var response = await ReadValidatedAsync(stream, cts.Token).ConfigureAwait(false);
+            if (response.Type == ProtocolConstants.MessageType.Error)
+            {
+                return new(false, [], [], response.Message);
+            }
+            if (response.Type != ProtocolConstants.MessageType.SyncResponse)
+            {
+                return new(false, [], [], $"Resposta inesperada: '{response.Type}'.");
+            }
+            return new(true, response.HistoryEntries ?? [], response.LogEntries ?? [], null);
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException
+            or ReceptorComunicacaoException or ObjectDisposedException)
+        {
+            return new(false, [], [], ex.Message);
         }
     }
 

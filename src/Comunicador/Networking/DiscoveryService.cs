@@ -187,7 +187,8 @@ public sealed class DiscoveryService : IDisposable
         }
 
         ReceptorDescoberto?.Invoke(new AnnounceInfo(
-            msg.ComputerId!, msg.ComputerName!, remote.Address.ToString(), msg.TcpPort!.Value, msg.Paired ?? false));
+            msg.ComputerId!, msg.ComputerName!, remote.Address.ToString(), msg.TcpPort!.Value,
+            msg.Paired ?? false, msg.HasPanel ?? false, msg.Monitors, msg.ReceiverVersion));
     }
 
     public void Dispose() => Stop();

@@ -11,6 +11,7 @@ public static class AppPaths
     public static string PaineisPareadosFile => Path.Combine(RootDir, "paineis_pareados.json");
     public static string LembretesFile => Path.Combine(RootDir, "lembretes.json");
     public static string HistoricoFile => Path.Combine(RootDir, "historico.json");
+    public static string LogsFile => Path.Combine(RootDir, "logs.json");
     public static string ConfiguracoesFile => Path.Combine(RootDir, "config.json");
     public static string LogFile => Path.Combine(RootDir, "comunicador.log");
 

@@ -80,7 +80,8 @@ public sealed class LembreteSchedulerService : IDisposable
             }
 
             var result = await _enviador.EnviarAsync(
-                computador, lembrete.Titulo, lembrete.Mensagem, lembrete.PermitirResposta, botoes: null, ct)
+                computador, lembrete.Titulo, lembrete.Mensagem, lembrete.PermitirResposta,
+                botoes: null, ct: ct)
                 .ConfigureAwait(false);
 
             NotificacaoEnviada?.Invoke(lembrete, computador, result);

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Comunicador.Models;
 using Comunicador.Networking;
 using Comunicador.Services;
@@ -12,6 +13,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     private readonly AppSettings _settings;
     private readonly EmbeddedReceptorServer _embeddedReceptorServer;
     private readonly JsonStore<PainelPareado> _paineisPareadosStore;
+    private readonly DispatcherTimer _autoSaveTimer;
 
     private string _nomePainel;
     private int _portaTcp;
@@ -20,50 +22,165 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     private int _intervaloPing;
     private bool _iniciarComWindows;
     private bool _aceitarMensagensDeOutrosPaineis;
+    private bool _aceitarImagensDeOutrosPaineis;
+    private bool _aceitarBotoesComLinks;
+    private string _tema;
+    private string _paleta;
+    private string _fundoPainel;
+    private bool _reduzirMovimento;
+    private string _nomeNovaPaleta = "Minha cor";
+    private string _corNovaPaleta = "#4C8DFF";
+    private string _corNovaPaletaVisual = "#4C8DFF";
+    private string _secaoConfiguracoes = "personalizacao";
     private string? _statusOperacao;
 
     public ObservableCollection<PainelPareado> PaineisPareados { get; }
+    public ObservableCollection<PaletaPersonalizada> PaletasPersonalizadas { get; }
+    public IReadOnlyList<string> Temas { get; } = ["Escuro", "Claro"];
+    public IReadOnlyList<string> Paletas { get; } = ["Azul", "Violeta", "Verde", "Coral"];
+    public IReadOnlyList<string> Fundos { get; } =
+        ["Sem fundo", "Topográfico", "Caminhos flutuantes", "Vórtice", "Ondas luminosas", "Constelação", "Grade fluida"];
+
+    public string NomeNovaPaleta
+    {
+        get => _nomeNovaPaleta;
+        set => SetField(ref _nomeNovaPaleta, value);
+    }
+
+    public string CorNovaPaleta
+    {
+        get => _corNovaPaleta;
+        set
+        {
+            if (!SetField(ref _corNovaPaleta, value)) return;
+            if (ThemeService.TryNormalizeColor(value, out var normalized))
+            {
+                _corNovaPaletaVisual = normalized;
+                OnPropertyChanged(nameof(CorNovaPaletaVisual));
+            }
+        }
+    }
+
+    public string CorNovaPaletaVisual => _corNovaPaletaVisual;
 
     public string NomePainel
     {
         get => _nomePainel;
-        set => SetField(ref _nomePainel, value);
+        set { if (SetField(ref _nomePainel, value)) AgendarSalvamento(); }
     }
 
     public int PortaTcp
     {
         get => _portaTcp;
-        set => SetField(ref _portaTcp, value);
+        set { if (SetField(ref _portaTcp, value)) AgendarSalvamento(); }
     }
 
     public int PortaUdp
     {
         get => _portaUdp;
-        set => SetField(ref _portaUdp, value);
+        set { if (SetField(ref _portaUdp, value)) AgendarSalvamento(); }
     }
 
     public int IntervaloDescobertaSegundos
     {
         get => _intervaloDescoberta;
-        set => SetField(ref _intervaloDescoberta, value);
+        set { if (SetField(ref _intervaloDescoberta, value)) AgendarSalvamento(); }
     }
 
     public int IntervaloPingSegundos
     {
         get => _intervaloPing;
-        set => SetField(ref _intervaloPing, value);
+        set { if (SetField(ref _intervaloPing, value)) AgendarSalvamento(); }
     }
 
     public bool IniciarComWindows
     {
         get => _iniciarComWindows;
-        set => SetField(ref _iniciarComWindows, value);
+        set { if (SetField(ref _iniciarComWindows, value)) AgendarSalvamento(); }
     }
 
     public bool AceitarMensagensDeOutrosPaineis
     {
         get => _aceitarMensagensDeOutrosPaineis;
-        set => SetField(ref _aceitarMensagensDeOutrosPaineis, value);
+        set { if (SetField(ref _aceitarMensagensDeOutrosPaineis, value)) AgendarSalvamento(); }
+    }
+
+    public bool AceitarImagensDeOutrosPaineis
+    {
+        get => _aceitarImagensDeOutrosPaineis;
+        set { if (SetField(ref _aceitarImagensDeOutrosPaineis, value)) AgendarSalvamento(); }
+    }
+
+    public bool AceitarBotoesComLinks
+    {
+        get => _aceitarBotoesComLinks;
+        set { if (SetField(ref _aceitarBotoesComLinks, value)) AgendarSalvamento(); }
+    }
+
+    public string Tema
+    {
+        get => _tema;
+        set
+        {
+            if (SetField(ref _tema, value))
+            {
+                _settings.Tema = value;
+                ThemeService.Apply(_settings);
+                AgendarSalvamento();
+            }
+        }
+    }
+
+    public string Paleta
+    {
+        get => _paleta;
+        set
+        {
+            if (SetField(ref _paleta, value))
+            {
+                _settings.Paleta = value;
+                AtualizarSelecaoPaletas();
+                ThemeService.Apply(_settings);
+                AgendarSalvamento();
+            }
+        }
+    }
+
+    public string FundoPainel
+    {
+        get => _fundoPainel;
+        set
+        {
+            if (SetField(ref _fundoPainel, value))
+            {
+                _settings.FundoPainel = value;
+                OnPropertyChanged(nameof(ExibirFundoAnimado));
+                AgendarSalvamento();
+            }
+        }
+    }
+
+    public double IntensidadeFundo => 100;
+
+    public bool ReduzirMovimento
+    {
+        get => _reduzirMovimento;
+        set
+        {
+            if (SetField(ref _reduzirMovimento, value))
+            {
+                _settings.ReduzirMovimento = value;
+                AgendarSalvamento();
+            }
+        }
+    }
+
+    public bool ExibirFundoAnimado => FundoPainel != "Sem fundo";
+
+    public string SecaoConfiguracoes
+    {
+        get => _secaoConfiguracoes;
+        private set => SetField(ref _secaoConfiguracoes, value);
     }
 
     private string? _statusReceptorEmbutido;
@@ -83,6 +200,12 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     public string PainelId => _settings.PainelId;
 
     public ICommand SalvarCommand { get; }
+    public ICommand SelecionarTemaCommand { get; }
+    public ICommand SelecionarPaletaCommand { get; }
+    public ICommand SelecionarFundoCommand { get; }
+    public ICommand SalvarPaletaPersonalizadaCommand { get; }
+    public ICommand RemoverPaletaPersonalizadaCommand { get; }
+    public ICommand NavegarConfiguracaoCommand { get; }
     public ICommand RemoverPainelPareadoCommand { get; }
 
     public ConfiguracoesViewModel(
@@ -93,6 +216,8 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         _embeddedReceptorServer = embeddedReceptorServer;
         _paineisPareadosStore = paineisPareadosStore;
         PaineisPareados = paineisPareados;
+        PaletasPersonalizadas = new ObservableCollection<PaletaPersonalizada>(
+            settings.PaletasPersonalizadas ?? new List<PaletaPersonalizada>());
 
         _nomePainel = settings.NomePainel;
         _portaTcp = settings.PortaTcp;
@@ -101,9 +226,55 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         _intervaloPing = settings.IntervaloPingSegundos;
         _iniciarComWindows = StartupManager.EstaHabilitado();
         _aceitarMensagensDeOutrosPaineis = settings.AceitarMensagensDeOutrosPaineis;
+        _aceitarImagensDeOutrosPaineis = settings.AceitarImagensDeOutrosPaineis;
+        _aceitarBotoesComLinks = settings.AceitarBotoesComLinks;
+        _tema = settings.Tema;
+        _paleta = settings.Paleta;
+        _fundoPainel = settings.FundoPainel;
+        settings.IntensidadeFundo = 100;
+        _reduzirMovimento = settings.ReduzirMovimento;
         _statusReceptorEmbutido = CalcularStatusReceptor();
+        AtualizarSelecaoPaletas();
 
-        SalvarCommand = new RelayCommand(_ => Salvar());
+        _autoSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
+        _autoSaveTimer.Tick += (_, _) =>
+        {
+            _autoSaveTimer.Stop();
+            Salvar(automatico: true);
+        };
+
+        SalvarCommand = new RelayCommand(_ => Salvar(automatico: false));
+        SelecionarTemaCommand = new RelayCommand(param =>
+        {
+            if (param is string tema && Temas.Contains(tema)) Tema = tema;
+        });
+        SelecionarPaletaCommand = new RelayCommand(param =>
+        {
+            if (param is string paleta && (Paletas.Contains(paleta)
+                || PaletasPersonalizadas.Any(p => p.Id == paleta))) Paleta = paleta;
+        });
+        SalvarPaletaPersonalizadaCommand = new RelayCommand(_ => SalvarPaletaPersonalizada());
+        RemoverPaletaPersonalizadaCommand = new RelayCommand(param =>
+        {
+            if (param is not PaletaPersonalizada paleta) return;
+            PaletasPersonalizadas.Remove(paleta);
+            if (Paleta == paleta.Id) Paleta = "Azul";
+            SincronizarPaletasNasConfiguracoes();
+            AgendarSalvamento();
+            StatusOperacao = $"Predefinição '{paleta.Nome}' removida.";
+        });
+        SelecionarFundoCommand = new RelayCommand(param =>
+        {
+            if (param is string fundo && Fundos.Contains(fundo)) FundoPainel = fundo;
+        });
+        NavegarConfiguracaoCommand = new RelayCommand(param =>
+        {
+            if (param is string secao
+                && secao is "personalizacao" or "recebimento" or "geral")
+            {
+                SecaoConfiguracoes = secao;
+            }
+        });
         RemoverPainelPareadoCommand = new RelayCommand(param =>
         {
             if (param is PainelPareado pareado)
@@ -120,25 +291,88 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     /// construção desta ViewModel), para o texto de status não ficar desatualizado.</summary>
     public void AtualizarStatusReceptor() => StatusReceptorEmbutido = CalcularStatusReceptor();
 
-    private void Salvar()
+    private void AgendarSalvamento()
     {
-        _settings.NomePainel = NomePainel;
+        _autoSaveTimer.Stop();
+        _autoSaveTimer.Start();
+        StatusOperacao = "Salvando automaticamente…";
+    }
+
+    private void Salvar(bool automatico)
+    {
+        if (string.IsNullOrWhiteSpace(NomePainel)
+            || PortaTcp is <= 0 or > 65535
+            || PortaUdp is <= 0 or > 65535
+            || IntervaloDescobertaSegundos is < 3 or > 3600
+            || IntervaloPingSegundos is < 3 or > 3600)
+        {
+            StatusOperacao = "Há um valor inválido; esta alteração ainda não foi salva.";
+            return;
+        }
+
+        var inicializacaoMudou = _settings.IniciarComWindows != IniciarComWindows;
+        _settings.NomePainel = NomePainel.Trim();
         _settings.PortaTcp = PortaTcp;
         _settings.PortaDescobertaUdp = PortaUdp;
         _settings.IntervaloDescobertaSegundos = IntervaloDescobertaSegundos;
         _settings.IntervaloPingSegundos = IntervaloPingSegundos;
         _settings.IniciarComWindows = IniciarComWindows;
         _settings.AceitarMensagensDeOutrosPaineis = AceitarMensagensDeOutrosPaineis;
+        _settings.AceitarImagensDeOutrosPaineis = AceitarImagensDeOutrosPaineis;
+        _settings.AceitarBotoesComLinks = AceitarBotoesComLinks;
+        _settings.Tema = Tema;
+        _settings.Paleta = Paleta;
+        SincronizarPaletasNasConfiguracoes();
+        _settings.FundoPainel = FundoPainel;
+        _settings.IntensidadeFundo = 100;
+        _settings.ReduzirMovimento = ReduzirMovimento;
         SettingsStore.Save(_settings);
-        StartupManager.Aplicar(IniciarComWindows);
+        if (inicializacaoMudou) StartupManager.Aplicar(IniciarComWindows);
         _embeddedReceptorServer.AtualizarDisponibilidade();
         StatusReceptorEmbutido = CalcularStatusReceptor();
 
-        StatusOperacao = "Configurações salvas. Reinicie o Comunicador para aplicar mudanças de porta.";
+        StatusOperacao = automatico
+            ? "Salvo automaticamente neste painel."
+            : "Configurações salvas neste painel.";
     }
 
     private string CalcularStatusReceptor() =>
         _embeddedReceptorServer.Ativo
-            ? "Ativo — este computador também recebe mensagens de outros painéis, sem precisar do receptor.py."
-            : _embeddedReceptorServer.UltimoErro ?? "Desativado (bloqueado aqui nas configurações).";
+            ? AceitarMensagensDeOutrosPaineis
+                ? "Ativo — este computador aparece como painel e pode receber mensagens."
+                : "Ativo e visível como painel — mensagens recebidas estão bloqueadas."
+            : _embeddedReceptorServer.UltimoErro ?? "Receptor embutido indisponível.";
+
+    private void SalvarPaletaPersonalizada()
+    {
+        if (PaletasPersonalizadas.Count >= 24)
+        {
+            StatusOperacao = "Limite de 24 predefinições personalizadas atingido.";
+            return;
+        }
+        if (!ThemeService.TryNormalizeColor(CorNovaPaleta, out var cor))
+        {
+            StatusOperacao = "Cor inválida. Use, por exemplo, #4C8DFF.";
+            return;
+        }
+
+        var nome = string.IsNullOrWhiteSpace(NomeNovaPaleta)
+            ? $"Cor {PaletasPersonalizadas.Count + 1}"
+            : NomeNovaPaleta.Trim();
+        if (nome.Length > 40) nome = nome[..40];
+        var paleta = new PaletaPersonalizada { Nome = nome, Cor = cor };
+        PaletasPersonalizadas.Add(paleta);
+        SincronizarPaletasNasConfiguracoes();
+        Paleta = paleta.Id;
+        NomeNovaPaleta = "Minha cor";
+        StatusOperacao = $"Predefinição '{nome}' salva neste painel.";
+    }
+
+    private void AtualizarSelecaoPaletas()
+    {
+        foreach (var item in PaletasPersonalizadas) item.Selecionada = item.Id == _paleta;
+    }
+
+    private void SincronizarPaletasNasConfiguracoes() =>
+        _settings.PaletasPersonalizadas = PaletasPersonalizadas.ToList();
 }

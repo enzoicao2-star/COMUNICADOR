@@ -34,6 +34,9 @@
             <DataTemplate DataType="{x:Type vm:HistoricoViewModel}">
                 <views:HistoricoView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:LogsViewModel}">
+                <views:LogsView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:ConfiguracoesViewModel}">
                 <views:ConfiguracoesView />
             </DataTemplate>

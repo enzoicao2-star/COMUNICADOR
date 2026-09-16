@@ -32,11 +32,14 @@ delimitador.
 
 ## Limites de tamanho
 
-- Mensagem TCP completa (bytes UTF-8, incluindo o `\n`): **65 536 bytes** no máximo.
+- Mensagem TCP completa (bytes UTF-8, incluindo o `\n`): **24 MiB** no máximo.
 - Datagrama UDP de descoberta: **2048 bytes** no máximo.
 - `title`: até 200 caracteres.
 - `message` / `reply_text`: até 4000 caracteres.
 - `sender` / `panel_name` / `computer_name`: até 100 caracteres.
+- Uma imagem: até **4 MiB**; todas as imagens de uma mensagem: até **16 MiB**.
+- Até 12 monitores e 12 imagens por notificação.
+- Sincronização: até 500 registros de histórico e 500 registros de log por resposta.
 
 Qualquer mensagem fora desses limites é rejeitada com `error`
 (`code = "PAYLOAD_TOO_LARGE"` ou `"FIELD_TOO_LONG"`) e a conexão é
@@ -130,10 +133,9 @@ suportado porque:
 - O servidor TCP do receptor aceita **conexões concorrentes**: vários
   painéis podem enviar notificações ao mesmo tempo sem se
   bloquearem.
-- Do lado do painel nada muda: cada instalação do `Comunicador` tem
-  seu próprio `%AppData%\Comunicador`, sua própria lista de
-  computadores pareados e seu próprio histórico — painéis não
-  compartilham estado entre si.
+- Cada painel mantém suas preferências visuais e sua lista de
+  computadores em `%AppData%\Comunicador`. Histórico e logs são
+  sincronizados entre painéis pareados, com deduplicação por `id`.
 
 ### `ping` / `pong` (TCP, checagem de status)
 
@@ -147,6 +149,10 @@ suportado porque:
   "computer_id": "b0b1...", "computer_name": "COMPUTADOR-1", "status": "online" }
 ```
 
+O painel mede localmente o tempo entre `ping` e `pong` para calcular a
+latência média mostrada na interface. Receptores 2.2.0 ou mais novos
+também respondem a esse fluxo pela conexão reversa já aberta.
+
 ### `notification` (TCP, painel → receptor)
 
 ```json
@@ -154,6 +160,25 @@ suportado porque:
   "token": "9f8b...", "sender": "PAINEL-PC", "title": "Aviso",
   "message": "Olá", "allow_reply": true }
 ```
+
+O campo opcional `display_mode` define a apresentação:
+
+- `toast`: aviso comum em um canto da tela;
+- `center_image`: uma ou mais imagens no centro dos monitores escolhidos;
+- `center_alert`: aviso modal central que exige confirmação.
+
+Para imagem central, `screen_images` contém objetos com
+`monitor_index`, `width_percent` (10–100) e `image`. A imagem é
+transportada no próprio JSON por `{ name, mime_type, data_base64 }`;
+são aceitos PNG, JPEG, GIF e BMP após validação do MIME, Base64,
+tamanho e assinatura real do arquivo. `image_duration_seconds`
+(3–3600) controla o fechamento automático e `allow_manual_close`
+define se o usuário pode fechar antes.
+
+`appearance` pode definir `accent_color`, `font_scale_percent`
+(80–160), `play_sound`, `sound_type`, `toast_duration_seconds`
+(5–300) e `toast_position`. Essas escolhas alteram somente o aviso e
+não mudam configurações do computador receptor.
 
 #### Botões de resposta rápida (`buttons`, opcional)
 
@@ -218,7 +243,10 @@ máquina do receptor — só o painel precisa da porta aberta.
 
 ```json
 { "protocol_version": 1, "type": "register", "id": "...", "timestamp": "...",
-  "computer_id": "b0b1...", "computer_name": "COMPUTADOR-1", "token": "9f8b..." }
+  "computer_id": "b0b1...", "computer_name": "COMPUTADOR-1", "token": "9f8b...",
+  "receiver_version": "2.2.0", "has_panel": false,
+  "monitors": [{ "index": 0, "name": "DISPLAY1", "width": 1920,
+    "height": 1080, "x": 0, "y": 0, "primary": true }] }
 ```
 
 `token` é opcional: na primeira vez o receptor ainda não tem um, e o
@@ -241,6 +269,23 @@ sozinho a cada 15 segundos.
 Se o host contatado não for um painel (por exemplo, outro receptor, que
 escuta na mesma porta), ele responde `error` com `UNKNOWN_TYPE` — e o
 receptor para de tentar aquele endereço.
+
+### Atualização do receptor (`update_request` / `update_status`)
+
+Um painel pode atualizar um receptor compatível já pareado. O pedido
+leva somente os arquivos oficiais `receptor.py` e `protocolo.py`, em
+Base64, com versão alvo e SHA-256. O receptor valida autenticação,
+nomes permitidos, limites, hash e sintaxe Python antes de trocar os
+arquivos. A substituição é feita por um processo auxiliar local e o
+receptor retorna `update_status` com `success`, `status` e
+`receiver_version`. Não há execução de comandos arbitrários.
+
+### Sincronização (`sync_request` / `sync_response`)
+
+Painéis pareados podem pedir histórico e logs com `sync_request`.
+`sync_response` devolve `history_entries` e `log_entries`; cada item
+tem um UUID estável para deduplicação. O receptor envia apenas seus
+registros de log e não mostra essa coleta na tela.
 
 ### `error` (qualquer direção)
 

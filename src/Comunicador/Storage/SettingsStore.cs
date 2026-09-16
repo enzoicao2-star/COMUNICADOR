@@ -9,6 +9,7 @@ namespace Comunicador.Storage;
 public static class SettingsStore
 {
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
+    private static readonly object Gate = new();
 
     public static AppSettings Load()
     {
@@ -23,7 +24,15 @@ public static class SettingsStore
         try
         {
             var json = File.ReadAllText(AppPaths.ConfiguracoesFile);
-            return JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings();
+            var settings = JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings();
+            if (settings.VersaoConfiguracao < 2)
+            {
+                settings.VersaoConfiguracao = 2;
+                settings.IntervaloPingSegundos = 5;
+                settings.IntensidadeFundo = 100;
+                Save(settings);
+            }
+            return settings;
         }
         catch (JsonException)
         {
@@ -35,8 +44,13 @@ public static class SettingsStore
 
     public static void Save(AppSettings settings)
     {
-        AppPaths.EnsureCreated();
-        var json = JsonSerializer.Serialize(settings, Options);
-        File.WriteAllText(AppPaths.ConfiguracoesFile, json);
+        lock (Gate)
+        {
+            AppPaths.EnsureCreated();
+            var json = JsonSerializer.Serialize(settings, Options);
+            var temporario = AppPaths.ConfiguracoesFile + ".tmp";
+            File.WriteAllText(temporario, json);
+            File.Move(temporario, AppPaths.ConfiguracoesFile, overwrite: true);
+        }
     }
 }

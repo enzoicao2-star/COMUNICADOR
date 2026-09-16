@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.IO;
 using Comunicador.Networking;
+using Comunicador.Protocol;
+using Comunicador.Services;
 using Xunit;
 
 namespace Comunicador.Tests;
@@ -251,6 +253,63 @@ public class PythonReceptorIntegrationTests : IClassFixture<PythonReceptorFixtur
 
         Assert.True(resultado.Delivered);
         Assert.False(resultado.GotReply);
+    }
+
+    [Fact]
+    public async Task NotificacaoComBotaoDeLink_ChegaAoReceptorPython()
+    {
+        var client = NovoCliente();
+        var par = await client.PairAsync("127.0.0.1", _tcpPort);
+
+        var resultado = await client.SendNotificationAsync(
+            "127.0.0.1", _tcpPort, par.Token, "Portal", "Abra pelo botão",
+            allowReply: false,
+            botoes: new List<BotaoResposta>
+            {
+                new() { Label = "Abrir portal", Url = "https://exemplo.com" },
+            });
+
+        Assert.True(resultado.Delivered);
+        Assert.True(resultado.WasShown);
+    }
+
+    [Fact]
+    public async Task ImagemCentral_ChegaAoReceptorPython()
+    {
+        var client = NovoCliente();
+        var par = await client.PairAsync("127.0.0.1", _tcpPort);
+        var imagem = new ConteudoImagem
+        {
+            Name = "pixel.png",
+            MimeType = "image/png",
+            DataBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        };
+
+        var resultado = await client.SendNotificationAsync(
+            "127.0.0.1", _tcpPort, par.Token, "Imagem", "Teste visual",
+            allowReply: false,
+            modoExibicao: ProtocolConstants.DisplayMode.CenterImage,
+            imagem: imagem,
+            duracaoImagemSegundos: 5,
+            permitirFecharManualmente: true,
+            aparencia: new AparenciaNotificacao());
+
+        Assert.True(resultado.Delivered);
+        Assert.True(resultado.WasShown);
+    }
+
+    [Fact]
+    public async Task AtualizacaoOficial_CSharpParaPython_EValidada()
+    {
+        var client = NovoCliente();
+        var par = await client.PairAsync("127.0.0.1", _tcpPort);
+
+        var resultado = await client.UpdateReceiverAsync(
+            "127.0.0.1", _tcpPort, par.Token, ReceiverUpdatePackage.Create());
+
+        Assert.True(resultado.Success, resultado.Message);
+        Assert.Equal("updated", resultado.Status);
+        Assert.Equal(ProtocolConstants.CurrentReceiverVersion, resultado.ReceiverVersion);
     }
 
     [Fact]

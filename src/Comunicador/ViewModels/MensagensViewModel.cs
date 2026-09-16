@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows.Input;
 using Comunicador.Models;
 using Comunicador.Networking;
 using Comunicador.Protocol;
 using Comunicador.Services;
+using Microsoft.Win32;
 
 namespace Comunicador.ViewModels;
 
@@ -16,9 +18,24 @@ public sealed class MensagensViewModel : ViewModelBase
     private string _titulo = string.Empty;
     private string _mensagem = string.Empty;
     private bool _permitirResposta = true;
+    private bool _exibirImagemCentral;
+    private bool _exibirAvisoObrigatorio;
+    private double _tempoImagemSegundos = 15;
+    private bool _permitirFecharImagem = true;
+    private bool _tocarSom = true;
+    private string _tipoSom = ProtocolConstants.SoundType.Information;
+    private string _posicaoAviso = ProtocolConstants.ToastPosition.BottomRight;
+    private string _corDestaque = "#0067C0";
+    private double _escalaTexto = 100;
+    private double _tempoAvisoSegundos = 20;
+    private string? _caminhoImagem;
+    private string? _nomeImagem;
+    private string? _mimeImagem;
+    private byte[]? _dadosImagem;
     private string? _statusOperacao;
 
     public ObservableCollection<ComputadorSelecionavel> Destinatarios { get; } = new();
+    public ObservableCollection<DestinoMonitor> MonitoresDestino { get; } = new();
 
     /// <summary>Botões de resposta rápida que vão junto com o aviso.</summary>
     public ObservableCollection<BotaoRespostaEditavel> Botoes { get; } = new();
@@ -59,6 +76,99 @@ public sealed class MensagensViewModel : ViewModelBase
         set => SetField(ref _permitirResposta, value);
     }
 
+    public bool ExibirImagemCentral
+    {
+        get => _exibirImagemCentral;
+        set
+        {
+            if (SetField(ref _exibirImagemCentral, value))
+            {
+                if (value && _exibirAvisoObrigatorio)
+                {
+                    _exibirAvisoObrigatorio = false;
+                    OnPropertyChanged(nameof(ExibirAvisoObrigatorio));
+                }
+                OnPropertyChanged(nameof(DescricaoFormato));
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+    }
+
+    public string? CaminhoImagem
+    {
+        get => _caminhoImagem;
+        private set => SetField(ref _caminhoImagem, value);
+    }
+
+    public string? NomeImagem
+    {
+        get => _nomeImagem;
+        private set => SetField(ref _nomeImagem, value);
+    }
+
+    public bool TemImagem => _dadosImagem is { Length: > 0 };
+
+    public string DescricaoFormato => ExibirImagemCentral
+        ? "A imagem abrirá no centro da tela dos computadores escolhidos."
+        : ExibirAvisoObrigatorio
+            ? "O computador ficará coberto pelo aviso até a pessoa clicar em OK."
+        : "O aviso aparecerá no canto inferior direito, no estilo do Windows.";
+
+    public bool ExibirAvisoObrigatorio
+    {
+        get => _exibirAvisoObrigatorio;
+        set
+        {
+            if (SetField(ref _exibirAvisoObrigatorio, value))
+            {
+                if (value && _exibirImagemCentral)
+                {
+                    _exibirImagemCentral = false;
+                    OnPropertyChanged(nameof(ExibirImagemCentral));
+                }
+                OnPropertyChanged(nameof(DescricaoFormato));
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+    }
+
+    public double TempoImagemSegundos
+    {
+        get => _tempoImagemSegundos;
+        set => SetField(ref _tempoImagemSegundos, Math.Round(Math.Clamp(
+            value, ProtocolConstants.MinImageDurationSeconds, 300)));
+    }
+
+    public bool PermitirFecharImagem
+    {
+        get => _permitirFecharImagem;
+        set => SetField(ref _permitirFecharImagem, value);
+    }
+
+    public bool TocarSom { get => _tocarSom; set => SetField(ref _tocarSom, value); }
+    public string TipoSom { get => _tipoSom; set => SetField(ref _tipoSom, value); }
+    public string PosicaoAviso { get => _posicaoAviso; set => SetField(ref _posicaoAviso, value); }
+
+    public string CorDestaque
+    {
+        get => _corDestaque;
+        set => SetField(ref _corDestaque, value);
+    }
+
+    public double EscalaTexto
+    {
+        get => _escalaTexto;
+        set => SetField(ref _escalaTexto, Math.Round(Math.Clamp(
+            value, ProtocolConstants.MinFontScalePercent, ProtocolConstants.MaxFontScalePercent)));
+    }
+
+    public double TempoAvisoSegundos
+    {
+        get => _tempoAvisoSegundos;
+        set => SetField(ref _tempoAvisoSegundos, Math.Round(Math.Clamp(
+            value, ProtocolConstants.MinToastDurationSeconds, ProtocolConstants.MaxToastDurationSeconds)));
+    }
+
     public string? StatusOperacao
     {
         get => _statusOperacao;
@@ -67,6 +177,10 @@ public sealed class MensagensViewModel : ViewModelBase
 
     public ICommand EnviarCommand { get; }
     public ICommand AtualizarDestinatariosCommand { get; }
+    public ICommand SelecionarImagemCommand { get; }
+    public ICommand RemoverImagemCommand { get; }
+    public ICommand AdicionarImagemMonitorCommand { get; }
+    public ICommand RemoverImagemMonitorCommand { get; }
 
     public MensagensViewModel(
         ComputadoresViewModel computadores, EnviadorNotificacoes enviador, HistoricoRepository historico)
@@ -77,6 +191,29 @@ public sealed class MensagensViewModel : ViewModelBase
 
         EnviarCommand = new AsyncRelayCommand(EnviarAsync, PodeEnviar);
         AtualizarDestinatariosCommand = new RelayCommand(_ => AtualizarDestinatarios());
+        SelecionarImagemCommand = new RelayCommand(_ => SelecionarImagem());
+        RemoverImagemCommand = new RelayCommand(_ => RemoverImagem(), _ => TemImagem);
+        AdicionarImagemMonitorCommand = new RelayCommand(param =>
+        {
+            if (param is DestinoMonitor destino)
+            {
+                AdicionarImagensAoMonitor(destino);
+            }
+        });
+        RemoverImagemMonitorCommand = new RelayCommand(param =>
+        {
+            if (param is ImagemMonitorEditavel imagem)
+            {
+                foreach (var destino in MonitoresDestino)
+                {
+                    if (destino.Imagens.Remove(imagem))
+                    {
+                        break;
+                    }
+                }
+                CommandManager.InvalidateRequerySuggested();
+            }
+        });
 
         AdicionarBotaoCommand = new RelayCommand(_ => AdicionarBotao(), _ => PodeAdicionarBotao());
         RemoverBotaoCommand = new RelayCommand(param =>
@@ -98,6 +235,34 @@ public sealed class MensagensViewModel : ViewModelBase
         foreach (var computador in _computadores.Computadores.Where(c => c.Pareado))
         {
             Destinatarios.Add(new ComputadorSelecionavel(computador) { Selecionado = idsSelecionados.Contains(computador.Id) });
+        }
+
+        AtualizarMonitoresDestino();
+    }
+
+    private void AtualizarMonitoresDestino()
+    {
+        var imagensExistentes = MonitoresDestino.ToDictionary(d => d.Chave, d => d.Imagens.ToList());
+        MonitoresDestino.Clear();
+
+        foreach (var computador in _computadores.Computadores.Where(c => c.Pareado))
+        {
+            var monitores = computador.Monitores.Count > 0
+                ? computador.Monitores
+                : new List<MonitorInfo> { new() { Index = 0, Name = "Monitor principal", Primary = true } };
+
+            foreach (var monitor in monitores.OrderBy(m => m.Index))
+            {
+                var destino = new DestinoMonitor { Computador = computador, Monitor = monitor };
+                if (imagensExistentes.TryGetValue(destino.Chave, out var imagens))
+                {
+                    foreach (var imagem in imagens)
+                    {
+                        destino.Imagens.Add(imagem);
+                    }
+                }
+                MonitoresDestino.Add(destino);
+            }
         }
     }
 
@@ -127,17 +292,205 @@ public sealed class MensagensViewModel : ViewModelBase
     private bool PodeEnviar() =>
         !string.IsNullOrWhiteSpace(Titulo)
         && !string.IsNullOrWhiteSpace(Mensagem)
+        && (!ExibirImagemCentral || TemImagem || DestinatariosComImagemEspecifica())
         && Destinatarios.Any(d => d.Selecionado);
+
+    private bool DestinatariosComImagemEspecifica()
+    {
+        var selecionados = Destinatarios.Where(d => d.Selecionado).Select(d => d.Computador.Id).ToList();
+        return selecionados.Count > 0
+            && selecionados.All(id => MonitoresDestino.Any(m => m.Computador.Id == id && m.Imagens.Count > 0));
+    }
+
+    private void AdicionarImagensAoMonitor(DestinoMonitor destino)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = $"Escolher imagens para {destino.Titulo}",
+            Filter = "Imagens permitidas|*.png;*.jpg;*.jpeg;*.gif;*.bmp|PNG|*.png|JPEG|*.jpg;*.jpeg|GIF|*.gif|Bitmap|*.bmp",
+            CheckFileExists = true,
+            Multiselect = true,
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        foreach (var caminho in dialog.FileNames)
+        {
+            try
+            {
+                var arquivo = new FileInfo(caminho);
+                if (arquivo.Length <= 0 || arquivo.Length > ProtocolConstants.MaxImageBytes)
+                {
+                    StatusOperacao = $"{arquivo.Name}: cada imagem pode ter no máximo 4 MB.";
+                    continue;
+                }
+
+                var mime = MimePelaExtensao(caminho);
+                var dados = File.ReadAllBytes(caminho);
+                if (!ConteudoImagem.MimePermitido(mime) || !ConteudoImagem.AssinaturaCorresponde(mime, dados))
+                {
+                    StatusOperacao = $"{arquivo.Name}: formato inválido.";
+                    continue;
+                }
+
+                var totalDoComputador = MonitoresDestino
+                    .Where(m => m.Computador.Id == destino.Computador.Id)
+                    .SelectMany(m => m.Imagens)
+                    .Sum(i => (long)i.Dados.Length);
+                var quantidadeDoComputador = MonitoresDestino
+                    .Where(m => m.Computador.Id == destino.Computador.Id)
+                    .Sum(m => m.Imagens.Count);
+                if (quantidadeDoComputador >= ProtocolConstants.MaxScreenImages
+                    || totalDoComputador + dados.Length > ProtocolConstants.MaxTotalImageBytes)
+                {
+                    StatusOperacao = "Limite por computador: 12 imagens e 16 MB no total.";
+                    break;
+                }
+
+                destino.Imagens.Add(new ImagemMonitorEditavel
+                {
+                    Caminho = caminho,
+                    Nome = arquivo.Name,
+                    MimeType = mime,
+                    Dados = dados,
+                });
+                StatusOperacao = $"{arquivo.Name} adicionada ao {destino.Titulo}.";
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                StatusOperacao = $"Não foi possível abrir a imagem: {ex.Message}";
+            }
+        }
+
+        ExibirImagemCentral = true;
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private static string MimePelaExtensao(string caminho) => Path.GetExtension(caminho).ToLowerInvariant() switch
+    {
+        ".png" => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".gif" => "image/gif",
+        ".bmp" => "image/bmp",
+        _ => string.Empty,
+    };
+
+    private List<ImagemMonitor> CriarImagensPorMonitor(string computadorId) => MonitoresDestino
+        .Where(m => m.Computador.Id == computadorId)
+        .SelectMany(m => m.Imagens.Select(i => i.ParaProtocolo(m.Monitor.Index)))
+        .ToList();
+
+    private void SelecionarImagem()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Escolher imagem para o aviso",
+            Filter = "Imagens permitidas|*.png;*.jpg;*.jpeg;*.gif;*.bmp|PNG|*.png|JPEG|*.jpg;*.jpeg|GIF|*.gif|Bitmap|*.bmp",
+            CheckFileExists = true,
+            Multiselect = false,
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var arquivo = new FileInfo(dialog.FileName);
+            if (arquivo.Length <= 0 || arquivo.Length > ProtocolConstants.MaxImageBytes)
+            {
+                StatusOperacao = "A imagem precisa ter no máximo 4 MB.";
+                return;
+            }
+
+            var mime = MimePelaExtensao(dialog.FileName);
+            var dados = File.ReadAllBytes(dialog.FileName);
+            if (!ConteudoImagem.MimePermitido(mime) || !ConteudoImagem.AssinaturaCorresponde(mime, dados))
+            {
+                StatusOperacao = "Arquivo inválido. Escolha uma imagem PNG, JPEG, GIF ou BMP.";
+                return;
+            }
+
+            _dadosImagem = dados;
+            _mimeImagem = mime;
+            CaminhoImagem = dialog.FileName;
+            NomeImagem = arquivo.Name;
+            ExibirImagemCentral = true;
+            StatusOperacao = $"Imagem selecionada: {arquivo.Name} ({arquivo.Length / 1024d:0.#} KB).";
+            OnPropertyChanged(nameof(TemImagem));
+            CommandManager.InvalidateRequerySuggested();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            StatusOperacao = $"Não foi possível abrir a imagem: {ex.Message}";
+        }
+    }
+
+    private void RemoverImagem()
+    {
+        _dadosImagem = null;
+        _mimeImagem = null;
+        CaminhoImagem = null;
+        NomeImagem = null;
+        ExibirImagemCentral = false;
+        OnPropertyChanged(nameof(TemImagem));
+        StatusOperacao = "Imagem removida.";
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private ConteudoImagem? CriarConteudoImagem()
+    {
+        if (!ExibirImagemCentral || _dadosImagem is not { Length: > 0 } || _mimeImagem is null || NomeImagem is null)
+        {
+            return null;
+        }
+
+        return new ConteudoImagem
+        {
+            Name = NomeImagem,
+            MimeType = _mimeImagem,
+            DataBase64 = Convert.ToBase64String(_dadosImagem),
+        };
+    }
 
     private async Task EnviarAsync()
     {
         var selecionados = Destinatarios.Where(d => d.Selecionado).ToList();
-        var botoesProtocolo = Botoes.Select(b => b.ParaProtocolo()).ToList();
+        var modoExibicao = ExibirImagemCentral
+            ? ProtocolConstants.DisplayMode.CenterImage
+            : ExibirAvisoObrigatorio
+                ? ProtocolConstants.DisplayMode.CenterAlert
+                : ProtocolConstants.DisplayMode.Toast;
+        var permiteInteracao = !ExibirAvisoObrigatorio && (!ExibirImagemCentral || PermitirFecharImagem);
+        var botoesProtocolo = permiteInteracao
+            ? Botoes.Select(b => b.ParaProtocolo()).ToList()
+            : new List<BotaoResposta>();
+        var imagem = CriarConteudoImagem();
+        var duracaoImagem = ExibirImagemCentral ? (int)TempoImagemSegundos : (int?)null;
+        var permitirFechar = ExibirImagemCentral ? PermitirFecharImagem : (bool?)null;
+        var permitirRespostaEfetiva = PermitirResposta && permiteInteracao;
+        var aparencia = new AparenciaNotificacao
+        {
+            AccentColor = CorDestaque.Trim(),
+            FontScalePercent = (int)EscalaTexto,
+            PlaySound = TocarSom,
+            SoundType = TipoSom,
+            ToastDurationSeconds = (int)TempoAvisoSegundos,
+            ToastPosition = PosicaoAviso,
+        };
         StatusOperacao = $"Enviando para {selecionados.Count} computador(es)...";
+
+        var enviados = 0;
+        var erros = new List<string>();
 
         foreach (var destino in selecionados)
         {
             var computador = destino.Computador;
+            var imagensPorMonitor = CriarImagensPorMonitor(computador.Id);
+            var imagemParaEsteComputador = imagensPorMonitor.Count > 0 ? null : imagem;
             var entry = new HistoricoEntry
             {
                 ComputadorId = computador.Id,
@@ -149,13 +502,36 @@ public sealed class MensagensViewModel : ViewModelBase
             _historico.Adicionar(entry);
 
             var resultado = await _enviador
-                .EnviarAsync(computador, Titulo, Mensagem, PermitirResposta, botoesProtocolo)
+                .EnviarAsync(
+                    computador, Titulo, Mensagem, permitirRespostaEfetiva, botoesProtocolo,
+                    modoExibicao: modoExibicao,
+                    imagem: imagemParaEsteComputador,
+                    imagensPorMonitor: imagensPorMonitor,
+                    duracaoImagemSegundos: duracaoImagem,
+                    permitirFecharManualmente: permitirFechar,
+                    aparencia: aparencia)
                 .ConfigureAwait(true);
 
-            _historico.AtualizarExistente(entry.Id, item => AplicarResultado(item, resultado, PermitirResposta));
+            _historico.AtualizarExistente(
+                entry.Id, item => AplicarResultado(item, resultado, permitirRespostaEfetiva));
+            if (resultado.Delivered)
+            {
+                enviados++;
+            }
+            else
+            {
+                var detalhe = resultado.ErrorMessage ?? "falha sem detalhe";
+                erros.Add($"{computador.Nome}: {detalhe}");
+                Logger.Error(
+                    $"Falha ao enviar mensagem para {computador.NomeExibicao} ({computador.EnderecoIp}:{computador.PortaTcp}).",
+                    "envio",
+                    $"Título: {Titulo} | Modo: {modoExibicao} | Erro: {detalhe}");
+            }
         }
 
-        StatusOperacao = "Envio concluído.";
+        StatusOperacao = erros.Count == 0
+            ? $"Mensagem exibida em {enviados} computador(es)."
+            : $"Exibida em {enviados}; falhou em {erros.Count}. {string.Join(" | ", erros)}";
         Titulo = string.Empty;
         Mensagem = string.Empty;
     }

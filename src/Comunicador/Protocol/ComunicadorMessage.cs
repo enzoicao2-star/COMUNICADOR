@@ -28,6 +28,38 @@ public sealed class ComunicadorMessage
     [JsonPropertyName("computer_name")]
     public string? ComputerName { get; set; }
 
+    /// <summary>Verdadeiro quando a máquina executa o painel completo e recebe
+    /// mensagens pelo receptor embutido.</summary>
+    [JsonPropertyName("has_panel")]
+    public bool? HasPanel { get; set; }
+
+    [JsonPropertyName("monitors")]
+    public List<MonitorInfo>? Monitors { get; set; }
+
+    [JsonPropertyName("receiver_version")]
+    public string? ReceiverVersion { get; set; }
+
+    [JsonPropertyName("target_version")]
+    public string? TargetVersion { get; set; }
+
+    [JsonPropertyName("update_files")]
+    public List<ArquivoAtualizacao>? UpdateFiles { get; set; }
+
+    [JsonPropertyName("success")]
+    public bool? Success { get; set; }
+
+    [JsonPropertyName("include_history")]
+    public bool? IncludeHistory { get; set; }
+
+    [JsonPropertyName("include_logs")]
+    public bool? IncludeLogs { get; set; }
+
+    [JsonPropertyName("history_entries")]
+    public List<HistoricoSincronizado>? HistoryEntries { get; set; }
+
+    [JsonPropertyName("log_entries")]
+    public List<RegistroLogSincronizado>? LogEntries { get; set; }
+
     [JsonPropertyName("tcp_port")]
     public int? TcpPort { get; set; }
 
@@ -57,6 +89,26 @@ public sealed class ComunicadorMessage
 
     [JsonPropertyName("allow_reply")]
     public bool? AllowReply { get; set; }
+
+    /// <summary>"toast" (padrão) ou "center_image".</summary>
+    [JsonPropertyName("display_mode")]
+    public string? DisplayMode { get; set; }
+
+    /// <summary>Imagem embutida no JSON. Nunca contém caminho ou URL executável.</summary>
+    [JsonPropertyName("image")]
+    public ConteudoImagem? Image { get; set; }
+
+    [JsonPropertyName("screen_images")]
+    public List<ImagemMonitor>? ScreenImages { get; set; }
+
+    [JsonPropertyName("image_duration_seconds")]
+    public int? ImageDurationSeconds { get; set; }
+
+    [JsonPropertyName("allow_manual_close")]
+    public bool? AllowManualClose { get; set; }
+
+    [JsonPropertyName("appearance")]
+    public AparenciaNotificacao? Appearance { get; set; }
 
     [JsonPropertyName("in_reply_to")]
     public string? InReplyTo { get; set; }

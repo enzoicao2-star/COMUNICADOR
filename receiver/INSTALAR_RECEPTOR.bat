@@ -1,5 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
+set "RECEIVER_VERSION=2.2.0"
 
 rem Criar a tarefa no Agendador e liberar portas no Firewall exige administrador.
 rem Se este .bat nao estiver rodando elevado, pede UAC uma unica vez e continua
@@ -45,12 +46,15 @@ if %errorlevel% neq 0 (
 )
 
 echo ===============================================
-echo   Comunicador Receptor - instalacao
+echo   Comunicador Receptor %RECEIVER_VERSION% - instalacao
 echo ===============================================
 echo.
 
 set "REPO_RAW=https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/receiver"
-set "INSTALL_DIR=%LOCALAPPDATA%\Comunicador\Receptor\app"
+set "INSTALL_ROOT=%LOCALAPPDATA%\Comunicador\Receptor"
+set "INSTALL_DIR=%INSTALL_ROOT%\app"
+set "DOWNLOAD_DIR=%TEMP%\Comunicador-Receptor-%RECEIVER_VERSION%"
+set "COMUNICADOR_RECEPTOR_SCRIPT=%LOCALAPPDATA%\Comunicador\Receptor\app\receptor.py"
 set "TASK_NAME=Comunicador Receptor"
 set "PYTHON_INSTALLER_URL=https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe"
 set "PYTHON_INSTALLER=%TEMP%\comunicador_python_installer.exe"
@@ -58,7 +62,7 @@ set "PYTHON_EXE="
 set "PORT_TCP=57931"
 set "PORT_UDP=57932"
 
-echo [1/7] Verificando se o Python ja esta instalado...
+echo [1/8] Verificando se o Python ja esta instalado...
 where python >nul 2>nul
 if %errorlevel%==0 (
     python -c "print(1)" >"%TEMP%\comunicador_pycheck.txt" 2>nul
@@ -75,15 +79,20 @@ if defined PYTHON_EXE (
 ) else (
     echo       Python nao encontrado nesta maquina.
     echo.
-    echo [2/7] Baixando o instalador oficial do Python ^(python.org^)...
+    echo [2/8] Baixando o instalador oficial do Python ^(python.org^)...
     curl -fsSL -o "%PYTHON_INSTALLER%" "%PYTHON_INSTALLER_URL%"
     if errorlevel 1 (
         echo ERRO: falha ao baixar o instalador do Python. Verifique sua conexao com a internet.
         goto :erro
     )
 
-    echo       Instalando Python silenciosamente para todos os usuarios...
-    "%PYTHON_INSTALLER%" /quiet InstallAllUsers=1 PrependPath=1 Include_launcher=0 Include_test=0
+    if defined SEM_ADMIN (
+        echo       Instalando Python silenciosamente para este usuario...
+        "%PYTHON_INSTALLER%" /quiet InstallAllUsers=0 PrependPath=1 Include_launcher=0 Include_test=0
+    ) else (
+        echo       Instalando Python silenciosamente para todos os usuarios...
+        "%PYTHON_INSTALLER%" /quiet InstallAllUsers=1 PrependPath=1 Include_launcher=0 Include_test=0
+    )
     if errorlevel 1 (
         echo ERRO: a instalacao do Python falhou.
         goto :erro
@@ -115,36 +124,73 @@ if not exist "!PYTHONW_EXE!" (
 )
 
 echo.
-echo [3/7] Preparando pasta de instalacao...
-rem Reinstalar por cima e normal: paramos um receptor antigo que ainda esteja
-rem rodando, senao ele segura a porta e o novo nao consegue subir.
-rem Filtra por processos python: sem isso o proprio powershell entra no
-rem resultado (a linha de comando dele contem 'receptor.py') e ele se mata.
-powershell -NoProfile -Command ^
-    "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'python*' -and $_.CommandLine -like '*receptor.py*' };" ^
-    "if ($p) { $p | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue };" ^
-    "  Write-Host '      Receptor anterior encerrado (a instalacao vai substitui-lo).' }"
+echo [3/8] Preparando a atualizacao segura...
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
+if exist "%DOWNLOAD_DIR%" rmdir /s /q "%DOWNLOAD_DIR%"
+mkdir "%DOWNLOAD_DIR%"
+if errorlevel 1 (
+    echo ERRO: nao foi possivel criar a pasta temporaria de download.
+    goto :erro
+)
 
 echo.
-echo [4/7] Baixando receptor.py, protocolo.py e requirements.txt...
-curl -fsSL -o "%INSTALL_DIR%\receptor.py" "%REPO_RAW%/receptor.py"
+echo [4/8] Baixando e validando o receptor %RECEIVER_VERSION%...
+curl -fsSL -o "%DOWNLOAD_DIR%\receptor.py" "%REPO_RAW%/receptor.py?v=%RECEIVER_VERSION%"
 if errorlevel 1 goto :erro_download
-curl -fsSL -o "%INSTALL_DIR%\protocolo.py" "%REPO_RAW%/protocolo.py"
+curl -fsSL -o "%DOWNLOAD_DIR%\protocolo.py" "%REPO_RAW%/protocolo.py?v=%RECEIVER_VERSION%"
 if errorlevel 1 goto :erro_download
-curl -fsSL -o "%INSTALL_DIR%\requirements.txt" "%REPO_RAW%/requirements.txt"
+curl -fsSL -o "%DOWNLOAD_DIR%\requirements.txt" "%REPO_RAW%/requirements.txt?v=%RECEIVER_VERSION%"
 if errorlevel 1 goto :erro_download
+curl -fsSL -o "%DOWNLOAD_DIR%\DIAGNOSTICO.bat" "%REPO_RAW%/DIAGNOSTICO.bat?v=%RECEIVER_VERSION%"
+if errorlevel 1 goto :erro_download
+curl -fsSL -o "%DOWNLOAD_DIR%\DESINSTALAR_RECEPTOR.bat" "%REPO_RAW%/DESINSTALAR_RECEPTOR.bat?v=%RECEIVER_VERSION%"
+if errorlevel 1 goto :erro_download
+
+"!PYTHON_EXE!" -m py_compile "%DOWNLOAD_DIR%\protocolo.py" "%DOWNLOAD_DIR%\receptor.py"
+if errorlevel 1 (
+    echo ERRO: os arquivos baixados nao passaram na validacao do Python.
+    goto :erro_download
+)
+findstr /L /C:"RECEIVER_VERSION = " "%DOWNLOAD_DIR%\receptor.py" | findstr /L /C:"%RECEIVER_VERSION%" >nul
+if errorlevel 1 (
+    echo ERRO: o GitHub ainda nao entregou a versao %RECEIVER_VERSION% esperada.
+    echo        Aguarde alguns segundos e execute o instalador novamente.
+    goto :erro_download
+)
+
+rem So encerramos a versao anterior depois de baixar e validar a nova.
+powershell -NoProfile -Command ^
+    "$target=$env:COMUNICADOR_RECEPTOR_SCRIPT;" ^
+    "$p=Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'python*' -and $_.CommandLine -like ('*'+$target+'*') };" ^
+    "if($p){$p | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue };" ^
+    "Write-Host '      Receptor anterior encerrado; instalando a nova versao.'}"
+
+copy /y "%DOWNLOAD_DIR%\receptor.py" "%INSTALL_DIR%\receptor.py" >nul
+if errorlevel 1 goto :erro_copia
+copy /y "%DOWNLOAD_DIR%\protocolo.py" "%INSTALL_DIR%\protocolo.py" >nul
+if errorlevel 1 goto :erro_copia
+copy /y "%DOWNLOAD_DIR%\requirements.txt" "%INSTALL_DIR%\requirements.txt" >nul
+if errorlevel 1 goto :erro_copia
+copy /y "%DOWNLOAD_DIR%\DIAGNOSTICO.bat" "%INSTALL_ROOT%\DIAGNOSTICO.bat" >nul
+if errorlevel 1 goto :erro_copia
+copy /y "%DOWNLOAD_DIR%\DESINSTALAR_RECEPTOR.bat" "%INSTALL_ROOT%\DESINSTALAR_RECEPTOR.bat" >nul
+if errorlevel 1 goto :erro_copia
+rmdir /s /q "%DOWNLOAD_DIR%" >nul 2>nul
 goto :download_ok
 
 :erro_download
 echo ERRO: falha ao baixar os arquivos do receptor. Verifique sua conexao com a internet.
 goto :erro
 
+:erro_copia
+echo ERRO: falha ao substituir os arquivos do receptor.
+goto :erro
+
 :download_ok
-echo       Arquivos salvos em: %INSTALL_DIR%
+echo       Receptor %RECEIVER_VERSION% validado e salvo em: %INSTALL_DIR%
 
 echo.
-echo [5/7] Instalando dependencias Python ^(pystray, Pillow^)...
+echo [5/8] Instalando dependencias Python ^(pystray, Pillow^)...
 "!PYTHON_EXE!" -m pip install --user --quiet --upgrade pip
 "!PYTHON_EXE!" -m pip install --user --quiet -r "%INSTALL_DIR%\requirements.txt"
 if errorlevel 1 (
@@ -153,7 +199,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo [6/7] Configurando inicializacao automatica e Firewall...
+echo [6/8] Configurando inicializacao automatica e Firewall...
 schtasks /query /tn "%TASK_NAME%" >nul 2>nul
 if %errorlevel%==0 (
     echo       Tarefa existente encontrada, atualizando...
@@ -220,29 +266,38 @@ if errorlevel 1 (
 )
 
 echo.
-echo [7/7] Iniciando o receptor agora...
+echo [7/8] Iniciando o receptor %RECEIVER_VERSION% agora...
 rem Inicia direto pelo pythonw, sem depender do agendador — assim o receptor
 rem sobe mesmo que a tarefa nao tenha podido ser criada.
 start "" "!PYTHONW_EXE!" "%INSTALL_DIR%\receptor.py"
 
-rem Confirma que o receptor realmente ficou escutando na porta.
 ping -n 4 127.0.0.1 >nul 2>nul
+
+echo.
+echo [8/8] Confirmando processo, versao e inicializacao automatica...
 set "RECEPTOR_OK="
 powershell -NoProfile -Command ^
-    "try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', %PORT_TCP%); $c.Close(); exit 0 } catch { exit 1 }"
+    "$target=$env:COMUNICADOR_RECEPTOR_SCRIPT;" ^
+    "$p=Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'python*' -and $_.CommandLine -like ('*'+$target+'*') };" ^
+    "if($p){exit 0}else{exit 1}"
 if not errorlevel 1 (
     set "RECEPTOR_OK=1"
-    echo       Receptor confirmado: escutando na porta %PORT_TCP%.
+    echo       Processo do receptor %RECEIVER_VERSION% confirmado.
 ) else (
-    echo       AVISO: o receptor nao respondeu na porta %PORT_TCP%.
+    echo       ERRO: o receptor encerrou logo depois de iniciar.
     echo       Verifique o log em: %LOCALAPPDATA%\Comunicador\Receptor\receptor.log
+    goto :erro
+)
+if not defined AUTOSTART_OK (
+    echo       ERRO: a inicializacao automatica nao foi configurada.
+    goto :erro
 )
 
 echo.
 echo ===============================================
 if defined RECEPTOR_OK (
     echo   Instalacao concluida com sucesso!
-    echo   O Comunicador Receptor esta rodando em segundo plano.
+    echo   O Comunicador Receptor %RECEIVER_VERSION% esta rodando em segundo plano.
 ) else (
     echo   Instalacao concluida com AVISOS - veja acima.
 )
@@ -260,7 +315,8 @@ if defined SEM_ADMIN (
     echo   instalador de novo e aceite o UAC.
 )
 echo.
-echo   Para desinstalar, execute DESINSTALAR_RECEPTOR.bat
+echo   Diagnostico e desinstalacao ficam em:
+echo   %INSTALL_ROOT%
 echo ===============================================
 echo.
 rem Deu tudo certo: fecha sozinho. So em caso de erro a janela fica
@@ -271,6 +327,7 @@ ping -n 6 127.0.0.1 >nul 2>nul
 exit /b 0
 
 :erro
+if exist "%DOWNLOAD_DIR%" rmdir /s /q "%DOWNLOAD_DIR%" >nul 2>nul
 echo.
 echo ===============================================
 echo   Instalacao FALHOU. Veja os erros acima.

@@ -18,7 +18,7 @@ if %errorlevel% neq 0 (
 )
 
 echo ===============================================
-echo   Comunicador - reverter configuracoes
+echo   Comunicador 2.2.0 - reverter configuracoes
 echo ===============================================
 echo.
 

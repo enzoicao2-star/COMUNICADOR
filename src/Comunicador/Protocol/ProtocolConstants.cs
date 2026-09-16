@@ -3,11 +3,20 @@ namespace Comunicador.Protocol;
 public static class ProtocolConstants
 {
     public const int Version = 1;
+    public const string CurrentReceiverVersion = "2.2.0";
+    public const string MinimumManagedReceiverVersion = "2.1.0";
+
+    public static bool SupportsRemoteManagement(string? receiverVersion) =>
+        System.Version.TryParse(receiverVersion, out var installed)
+        && System.Version.TryParse(MinimumManagedReceiverVersion, out var minimum)
+        && installed >= minimum;
 
     public const int TcpPort = 57931;
     public const int UdpDiscoveryPort = 57932;
 
-    public const int MaxTcpMessageBytes = 65536;
+    // Uma imagem de 4 MiB vira aproximadamente 5,4 MiB em Base64. O limite do
+    // quadro inclui esse crescimento e ainda deixa margem para o restante do JSON.
+    public const int MaxTcpMessageBytes = 24 * 1024 * 1024;
     public const int MaxUdpMessageBytes = 2048;
 
     public const int MaxTitleLength = 200;
@@ -17,6 +26,54 @@ public static class ProtocolConstants
     public const int MaxBotoes = 4;
     public const int MaxBotaoLabelLength = 40;
     public const int MaxBotaoUrlLength = 500;
+
+    public const int MaxImageBytes = 4 * 1024 * 1024;
+    public const int MaxImageNameLength = 255;
+    public const int MaxImageBase64Length = ((MaxImageBytes + 2) / 3) * 4;
+    public const int MinImageDurationSeconds = 3;
+    public const int MaxImageDurationSeconds = 3600;
+    public const int MaxMonitors = 12;
+    public const int MaxScreenImages = 12;
+    public const int MaxTotalImageBytes = 16 * 1024 * 1024;
+    public const int MaxUpdateFiles = 2;
+    public const int MaxUpdateSourceBytes = 2 * 1024 * 1024;
+    public const int MaxUpdateTotalBytes = 4 * 1024 * 1024;
+    public const int MaxSyncEntries = 500;
+    public const int MaxLogCategoryLength = 100;
+    public const int MaxLogDetailLength = 8000;
+    public const int MinImageWidthPercent = 10;
+    public const int MaxImageWidthPercent = 100;
+    public const int MinToastDurationSeconds = 5;
+    public const int MaxToastDurationSeconds = 300;
+    public const int MinFontScalePercent = 80;
+    public const int MaxFontScalePercent = 160;
+
+    public static class SoundType
+    {
+        public const string Information = "information";
+        public const string Warning = "warning";
+        public const string Error = "error";
+        public static readonly IReadOnlySet<string> All = new HashSet<string> { Information, Warning, Error };
+    }
+
+    public static class ToastPosition
+    {
+        public const string BottomRight = "bottom_right";
+        public const string TopRight = "top_right";
+        public static readonly IReadOnlySet<string> All = new HashSet<string> { BottomRight, TopRight };
+    }
+
+    public static class DisplayMode
+    {
+        public const string Toast = "toast";
+        public const string CenterImage = "center_image";
+        public const string CenterAlert = "center_alert";
+
+        public static readonly IReadOnlySet<string> All = new HashSet<string>
+        {
+            Toast, CenterImage, CenterAlert,
+        };
+    }
 
     public static class MessageType
     {
@@ -32,11 +89,16 @@ public static class ProtocolConstants
         public const string Error = "error";
         public const string Register = "register";
         public const string RegisterAck = "register_ack";
+        public const string UpdateRequest = "update_request";
+        public const string UpdateStatus = "update_status";
+        public const string SyncRequest = "sync_request";
+        public const string SyncResponse = "sync_response";
 
         public static readonly IReadOnlySet<string> All = new HashSet<string>
         {
             Discover, Announce, PairRequest, PairResponse, Ping, Pong,
             Notification, Ack, Reply, Error, Register, RegisterAck,
+            UpdateRequest, UpdateStatus, SyncRequest, SyncResponse,
         };
     }
 
@@ -51,5 +113,7 @@ public static class ProtocolConstants
         public const string InvalidId = "INVALID_ID";
         public const string Unauthorized = "UNAUTHORIZED";
         public const string ProtocolVersionUnsupported = "PROTOCOL_VERSION_UNSUPPORTED";
+        public const string ContentBlocked = "CONTENT_BLOCKED";
+        public const string InternalError = "INTERNAL_ERROR";
     }
 }

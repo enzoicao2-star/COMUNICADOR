@@ -11,7 +11,7 @@ if %errorlevel% neq 0 (
 )
 
 echo ===============================================
-echo   Comunicador Receptor - desinstalacao
+echo   Comunicador Receptor 2.2.0 - desinstalacao
 echo ===============================================
 echo.
 
@@ -34,6 +34,9 @@ if %errorlevel%==0 (
 ) else (
     echo       Nenhuma tarefa "%TASK_NAME%" encontrada.
 )
+powershell -NoProfile -Command ^
+    "$atalho=Join-Path ([Environment]::GetFolderPath('Startup')) 'Comunicador Receptor.lnk';" ^
+    "if(Test-Path $atalho){Remove-Item -LiteralPath $atalho -Force; Write-Host '      Atalho da pasta Inicializar removido.'}"
 
 echo.
 echo [3/5] Removendo as regras de Firewall criadas pelo Comunicador...
