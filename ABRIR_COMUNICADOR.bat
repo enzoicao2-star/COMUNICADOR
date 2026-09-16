@@ -3,7 +3,7 @@ setlocal
 
 set "ROOT=%~dp0"
 set "COMUNICADOR_ROOT=%~dp0"
-set "VERSAO_ESPERADA=2.2.0.0"
+set "VERSAO_ESPERADA=2.2.1.0"
 cd /d "%ROOT%"
 
 set "PRECISA_COMPILAR=0"
@@ -14,7 +14,7 @@ if exist "dist\Comunicador.exe" (
 )
 
 if "%PRECISA_COMPILAR%"=="1" (
-    echo Foi encontrada uma versao nova do Comunicador 2.2.0.
+    echo Foi encontrada uma versao nova do Comunicador 2.2.1.
     echo Compilando e publicando antes de abrir...
     echo.
     call build.bat

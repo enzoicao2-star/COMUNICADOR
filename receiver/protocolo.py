@@ -177,6 +177,16 @@ def _require_str(obj: dict, name: str, max_len: int) -> str:
     return value
 
 
+def _require_str_allow_empty(obj: dict, name: str, max_len: int) -> str:
+    """Exige o campo e seu tipo, mas permite texto vazio para conteúdo visual."""
+    value = obj.get(name)
+    if not isinstance(value, str):
+        raise ProtocolError(ErrorCode.MISSING_FIELD, f"Campo obrigatório ausente: {name}")
+    if len(value) > max_len:
+        raise ProtocolError(ErrorCode.FIELD_TOO_LONG, f"Campo '{name}' excede {max_len} caracteres.")
+    return value
+
+
 def _require_bool(obj: dict, name: str) -> bool:
     value = obj.get(name)
     if not isinstance(value, bool):
@@ -510,8 +520,12 @@ def validate(msg: dict) -> None:
     elif msg_type == MessageType.NOTIFICATION:
         _require_str(msg, "token", MAX_NAME_LENGTH)
         _require_str(msg, "sender", MAX_NAME_LENGTH)
-        _require_str(msg, "title", MAX_TITLE_LENGTH)
-        _require_str(msg, "message", MAX_MESSAGE_LENGTH)
+        if msg.get("display_mode") == DISPLAY_MODE_CENTER_IMAGE:
+            _require_str_allow_empty(msg, "title", MAX_TITLE_LENGTH)
+            _require_str_allow_empty(msg, "message", MAX_MESSAGE_LENGTH)
+        else:
+            _require_str(msg, "title", MAX_TITLE_LENGTH)
+            _require_str(msg, "message", MAX_MESSAGE_LENGTH)
         _require_bool(msg, "allow_reply")
         _validar_botoes(msg)
         _validar_conteudo_visual(msg)

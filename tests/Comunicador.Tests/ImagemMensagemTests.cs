@@ -37,6 +37,16 @@ public sealed class ImagemMensagemTests
     }
 
     [Fact]
+    public void ImagemCentralSemTituloNemMensagem_Passa()
+    {
+        var msg = NotificacaoCentral();
+        msg.Title = string.Empty;
+        msg.Message = string.Empty;
+
+        Assert.True(MessageValidator.Validate(msg).IsValid);
+    }
+
+    [Fact]
     public void Base64Invalido_EhRecusado()
     {
         var msg = NotificacaoCentral();

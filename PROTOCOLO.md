@@ -173,7 +173,9 @@ transportada no próprio JSON por `{ name, mime_type, data_base64 }`;
 são aceitos PNG, JPEG, GIF e BMP após validação do MIME, Base64,
 tamanho e assinatura real do arquivo. `image_duration_seconds`
 (3–3600) controla o fechamento automático e `allow_manual_close`
-define se o usuário pode fechar antes.
+controla se um clique na própria imagem pode fechá-la. Nesse modo, `title`
+e `message` podem ser strings vazias; o receptor exibe somente a imagem,
+sem cartão, cabeçalho, fundo ou botões.
 
 `appearance` pode definir `accent_color`, `font_scale_percent`
 (80–160), `play_sound`, `sound_type`, `toast_duration_seconds`
@@ -244,7 +246,7 @@ máquina do receptor — só o painel precisa da porta aberta.
 ```json
 { "protocol_version": 1, "type": "register", "id": "...", "timestamp": "...",
   "computer_id": "b0b1...", "computer_name": "COMPUTADOR-1", "token": "9f8b...",
-  "receiver_version": "2.2.0", "has_panel": false,
+  "receiver_version": "2.2.1", "has_panel": false,
   "monitors": [{ "index": 0, "name": "DISPLAY1", "width": 1920,
     "height": 1080, "x": 0, "y": 0, "primary": true }] }
 ```

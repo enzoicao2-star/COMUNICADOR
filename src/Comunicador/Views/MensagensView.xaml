@@ -85,7 +85,16 @@
                       HorizontalContentAlignment="Stretch">
             <controls:ResponsiveColumnsPanel MinColumnWidth="405" MaxColumns="2"
                                              ColumnGap="14" RowGap="14" Margin="0,0,8,8">
-                <Border x:Name="CardComposicao" Style="{StaticResource CardBorder}" Padding="19">
+                <Border x:Name="CardComposicao" Padding="19">
+                    <Border.Style>
+                        <Style TargetType="Border" BasedOn="{StaticResource CardBorder}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ExibirImagemCentral}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,13">
                             <Border Width="32" Height="32" CornerRadius="9" Background="{DynamicResource SidebarSelectedBrush}">
@@ -332,8 +341,17 @@
                     </StackPanel>
                 </Border>
 
-                <Border x:Name="CardInteracao" Style="{StaticResource CardBorder}" Padding="19"
+                <Border x:Name="CardInteracao" Padding="19"
                         controls:ResponsiveColumnsPanel.ColumnSpan="99">
+                    <Border.Style>
+                        <Style TargetType="Border" BasedOn="{StaticResource CardBorder}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ExibirImagemCentral}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="0.8*" MinWidth="260" />

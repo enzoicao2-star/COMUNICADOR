@@ -15,10 +15,16 @@
     </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
+        <SolidColorBrush x:Key="PingOfflineBrush" Color="#171717" />
+        <SolidColorBrush x:Key="PingExcellentBrush" Color="#19A15F" />
+        <SolidColorBrush x:Key="PingMediumBrush" Color="#C98700" />
+        <SolidColorBrush x:Key="PingHighBrush" Color="#E34747" />
+
         <Style x:Key="ChromeButton" TargetType="Button">
-            <Setter Property="Width" Value="46" />
-            <Setter Property="Height" Value="34" />
-            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Margin" Value="3,0,0,0" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
@@ -29,7 +35,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="ChromeSurface" Background="{TemplateBinding Background}"
-                                CornerRadius="0,0,8,8">
+                                CornerRadius="16">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -50,7 +56,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="ChromeSurface" Background="{TemplateBinding Background}"
-                                CornerRadius="0,0,0,8">
+                                CornerRadius="16">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -178,33 +184,44 @@
                                          ReduceMotion="{Binding Configuracoes.ReduzirMovimento}" />
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="112" />
+                    <RowDefinition Height="142" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Height="36" VerticalAlignment="Top" Panel.ZIndex="5">
-                    <Border Margin="18,6,0,0" Padding="11,5" HorizontalAlignment="Left"
-                            VerticalAlignment="Top" CornerRadius="15"
-                            Background="{DynamicResource SurfaceBrush}" Opacity="0.94">
+                <Grid Grid.Row="0" Height="66" VerticalAlignment="Top" Panel.ZIndex="5">
+                    <Border Margin="0,39,13,0" Padding="11,5" HorizontalAlignment="Right"
+                            VerticalAlignment="Top" CornerRadius="15" Background="#F7F8FA">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="8" Height="8" VerticalAlignment="Center">
                                 <Ellipse.Style>
                                     <Style TargetType="Ellipse">
-                                        <Setter Property="Fill" Value="#111111" />
+                                        <Setter Property="Fill" Value="{StaticResource PingOfflineBrush}" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding PingNivel}" Value="excelente"><Setter Property="Fill" Value="#26C281" /></DataTrigger>
-                                            <DataTrigger Binding="{Binding PingNivel}" Value="medio"><Setter Property="Fill" Value="#F2C94C" /></DataTrigger>
-                                            <DataTrigger Binding="{Binding PingNivel}" Value="alto"><Setter Property="Fill" Value="#F05D5E" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding PingNivel}" Value="excelente"><Setter Property="Fill" Value="{StaticResource PingExcellentBrush}" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding PingNivel}" Value="medio"><Setter Property="Fill" Value="{StaticResource PingMediumBrush}" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding PingNivel}" Value="alto"><Setter Property="Fill" Value="{StaticResource PingHighBrush}" /></DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Ellipse.Style>
                             </Ellipse>
-                            <TextBlock Text="{Binding PingTexto}" FontSize="11" Margin="7,0,0,0"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <TextBlock Text="{Binding PingTexto}" FontSize="11" FontWeight="SemiBold"
+                                       Margin="7,0,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource PingOfflineBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding PingNivel}" Value="excelente"><Setter Property="Foreground" Value="{StaticResource PingExcellentBrush}" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding PingNivel}" Value="medio"><Setter Property="Foreground" Value="{StaticResource PingMediumBrush}" /></DataTrigger>
+                                            <DataTrigger Binding="{Binding PingNivel}" Value="alto"><Setter Property="Foreground" Value="{StaticResource PingHighBrush}" /></DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
                     </Border>
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                Margin="0,3,10,0" VerticalAlignment="Top"
                                 shell:WindowChrome.IsHitTestVisibleInChrome="True">
                         <Button Style="{StaticResource ChromeButton}" Content="&#xE921;" Click="OnMinimizeClick"
                                 automation:AutomationProperties.Name="Minimizar" />

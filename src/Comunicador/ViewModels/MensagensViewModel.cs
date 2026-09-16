@@ -109,7 +109,7 @@ public sealed class MensagensViewModel : ViewModelBase
     public bool TemImagem => _dadosImagem is { Length: > 0 };
 
     public string DescricaoFormato => ExibirImagemCentral
-        ? "A imagem abrirá no centro da tela dos computadores escolhidos."
+        ? "Aparecerá somente a imagem, centralizada e sem moldura. Título e mensagem não são necessários."
         : ExibirAvisoObrigatorio
             ? "O computador ficará coberto pelo aviso até a pessoa clicar em OK."
         : "O aviso aparecerá no canto inferior direito, no estilo do Windows.";
@@ -289,11 +289,13 @@ public sealed class MensagensViewModel : ViewModelBase
         NovoBotaoUrl = string.Empty;
     }
 
-    private bool PodeEnviar() =>
-        !string.IsNullOrWhiteSpace(Titulo)
-        && !string.IsNullOrWhiteSpace(Mensagem)
-        && (!ExibirImagemCentral || TemImagem || DestinatariosComImagemEspecifica())
-        && Destinatarios.Any(d => d.Selecionado);
+    private bool PodeEnviar()
+    {
+        var temConteudo = ExibirImagemCentral
+            ? TemImagem || DestinatariosComImagemEspecifica()
+            : !string.IsNullOrWhiteSpace(Titulo) && !string.IsNullOrWhiteSpace(Mensagem);
+        return temConteudo && Destinatarios.Any(d => d.Selecionado);
+    }
 
     private bool DestinatariosComImagemEspecifica()
     {
@@ -464,7 +466,9 @@ public sealed class MensagensViewModel : ViewModelBase
             : ExibirAvisoObrigatorio
                 ? ProtocolConstants.DisplayMode.CenterAlert
                 : ProtocolConstants.DisplayMode.Toast;
-        var permiteInteracao = !ExibirAvisoObrigatorio && (!ExibirImagemCentral || PermitirFecharImagem);
+        // Imagem central é um conteúdo visual puro. O fechamento manual ocorre
+        // clicando na própria imagem, sem botões, campos ou textos sobrepostos.
+        var permiteInteracao = !ExibirAvisoObrigatorio && !ExibirImagemCentral;
         var botoesProtocolo = permiteInteracao
             ? Botoes.Select(b => b.ParaProtocolo()).ToList()
             : new List<BotaoResposta>();
@@ -491,12 +495,18 @@ public sealed class MensagensViewModel : ViewModelBase
             var computador = destino.Computador;
             var imagensPorMonitor = CriarImagensPorMonitor(computador.Id);
             var imagemParaEsteComputador = imagensPorMonitor.Count > 0 ? null : imagem;
+            var tituloHistorico = ExibirImagemCentral && string.IsNullOrWhiteSpace(Titulo)
+                ? "Imagem"
+                : Titulo;
+            var mensagemHistorico = ExibirImagemCentral && string.IsNullOrWhiteSpace(Mensagem)
+                ? NomeImagem ?? "Imagem enviada"
+                : Mensagem;
             var entry = new HistoricoEntry
             {
                 ComputadorId = computador.Id,
                 ComputadorNome = computador.Nome,
-                Titulo = Titulo,
-                Mensagem = Mensagem,
+                Titulo = tituloHistorico,
+                Mensagem = mensagemHistorico,
                 Status = StatusEnvio.Enviando,
             };
             _historico.Adicionar(entry);
@@ -529,8 +539,9 @@ public sealed class MensagensViewModel : ViewModelBase
             }
         }
 
+        var nomeConteudo = ExibirImagemCentral ? "Imagem" : "Mensagem";
         StatusOperacao = erros.Count == 0
-            ? $"Mensagem exibida em {enviados} computador(es)."
+            ? $"{nomeConteudo} exibida em {enviados} computador(es)."
             : $"Exibida em {enviados}; falhou em {erros.Count}. {string.Join(" | ", erros)}";
         Titulo = string.Empty;
         Mensagem = string.Empty;

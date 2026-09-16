@@ -29,6 +29,13 @@ def test_imagem_central_valida():
     protocolo.validate(notificacao())
 
 
+def test_imagem_central_sem_titulo_nem_mensagem():
+    msg = notificacao()
+    msg["title"] = ""
+    msg["message"] = ""
+    protocolo.validate(msg)
+
+
 def test_base64_invalido_e_recusado():
     msg = notificacao()
     msg["image"]["data_base64"] = "não-base64"

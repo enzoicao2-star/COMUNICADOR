@@ -20,6 +20,8 @@ public partial class NotificacaoRecebidaWindow : Window
     private readonly DispatcherTimer? _autoCloseTimer;
     private readonly bool _avisoCentral;
     private readonly bool _avisoObrigatorio;
+    private readonly bool _imagemCentral;
+    private readonly bool _bloquearFechamentoManual;
     private readonly int? _monitorIndex;
     private readonly string _posicaoToast;
     private bool _fechamentoConfirmado;
@@ -93,19 +95,58 @@ public partial class NotificacaoRecebidaWindow : Window
                         new() { MonitorIndex = monitorIndex ?? 0, WidthPercent = 70, Image = imagem! },
                     };
                 var areaMonitor = ObterAreaMonitor(monitorIndex);
-                ImagensAvisoPanel.ItemsSource = itens.Select(item => new ImagemRenderizada
-                {
-                    Source = CarregarImagem(item.Image.DataBase64),
-                    Width = Math.Max(120, (areaMonitor.Width - 70) * item.WidthPercent / 100d),
-                    MaxHeight = Math.Max(160, areaMonitor.Height * 0.58),
-                }).ToList();
+                var colunas = itens.Count == 1 ? 1 : 2;
+                var linhas = (int)Math.Ceiling(itens.Count / (double)colunas);
+                var larguraCelula = Math.Max(1, (areaMonitor.Width - 40) / colunas);
+                var alturaCelula = Math.Max(1, (areaMonitor.Height - 40) / linhas);
+                var renderizadas = itens.Select(item => CriarImagemRenderizada(
+                    item, areaMonitor, larguraCelula, alturaCelula)).ToList();
+
+                ImagensAvisoPanel.ItemsSource = renderizadas;
+                ImagensAvisoPanel.Width = itens.Count == 1
+                    ? renderizadas[0].Width
+                    : Math.Min(areaMonitor.Width - 40, larguraCelula * colunas);
                 ImagemPanel.Visibility = Visibility.Visible;
                 _avisoCentral = true;
+                _imagemCentral = true;
+                _bloquearFechamentoManual = permitirFecharManualmente == false;
 
-                Width = Math.Max(420, areaMonitor.Width - 34);
-                MaxHeight = Math.Max(320, areaMonitor.Height - 34);
-                TituloText.FontSize = 18;
-                MensagemText.FontSize = 14;
+                // Modo imagem puro: nenhum cartão, cabeçalho, texto, botão,
+                // borda ou fundo fica visível ao redor do arquivo.
+                CabecalhoPanel.Visibility = Visibility.Collapsed;
+                TituloText.Visibility = Visibility.Collapsed;
+                MensagemText.Visibility = Visibility.Collapsed;
+                BotoesPanel.Visibility = Visibility.Collapsed;
+                RespostaPanel.Visibility = Visibility.Collapsed;
+                OkPanel.Visibility = Visibility.Collapsed;
+                FecharX.Visibility = Visibility.Collapsed;
+                Cartao.Margin = new Thickness(0);
+                Cartao.Padding = new Thickness(0);
+                Cartao.Background = Brushes.Transparent;
+                Cartao.BorderThickness = new Thickness(0);
+                Cartao.Effect = null;
+                ConteudoCartao.Margin = new Thickness(0);
+                ImagemPanel.Margin = new Thickness(0);
+                ImagemPanel.Padding = new Thickness(0);
+                ImagemPanel.Background = Brushes.Transparent;
+                ImagemPanel.BorderThickness = new Thickness(0);
+                Width = double.NaN;
+                Height = double.NaN;
+                MaxWidth = Math.Max(1, areaMonitor.Width - 20);
+                MaxHeight = Math.Max(1, areaMonitor.Height - 20);
+                SizeToContent = SizeToContent.WidthAndHeight;
+
+                if (permitirFecharManualmente != false)
+                {
+                    ImagemPanel.Cursor = Cursors.Hand;
+                    ImagemPanel.MouseLeftButtonDown += (_, e) =>
+                    {
+                        e.Handled = true;
+                        _fechamentoConfirmado = true;
+                        _autoCloseTimer?.Stop();
+                        Close();
+                    };
+                }
             }
             catch (Exception ex) when (ex is FormatException or NotSupportedException or IOException)
             {
@@ -113,8 +154,7 @@ public partial class NotificacaoRecebidaWindow : Window
             }
         }
 
-        var interacaoPermitida = !_avisoObrigatorio
-            && (!_avisoCentral || permitirFecharManualmente != false);
+        var interacaoPermitida = !_avisoObrigatorio && !_imagemCentral;
         if (!interacaoPermitida)
         {
             FecharX.Visibility = Visibility.Collapsed;
@@ -154,6 +194,7 @@ public partial class NotificacaoRecebidaWindow : Window
             _autoCloseTimer.Tick += (_, _) =>
             {
                 _autoCloseTimer.Stop();
+                _fechamentoConfirmado = true;
                 Close();
             };
             _autoCloseTimer.Start();
@@ -225,7 +266,7 @@ public partial class NotificacaoRecebidaWindow : Window
 
     private void AoTentarFechar(object? sender, CancelEventArgs e)
     {
-        if (_avisoObrigatorio && !_fechamentoConfirmado
+        if ((_avisoObrigatorio || _bloquearFechamentoManual) && !_fechamentoConfirmado
             && Application.Current?.Dispatcher.HasShutdownStarted != true)
         {
             e.Cancel = true;
@@ -382,6 +423,25 @@ public partial class NotificacaoRecebidaWindow : Window
         return bitmap;
     }
 
+    private static ImagemRenderizada CriarImagemRenderizada(
+        ImagemMonitor item, Rect areaMonitor, double larguraCelula, double alturaCelula)
+    {
+        var bitmap = CarregarImagem(item.Image.DataBase64);
+        var larguraDesejada = Math.Max(1, (areaMonitor.Width - 40) * item.WidthPercent / 100d);
+        var larguraMaxima = Math.Min(larguraDesejada, larguraCelula);
+        var alturaMaxima = Math.Min(areaMonitor.Height - 40, alturaCelula);
+        var escala = Math.Min(
+            larguraMaxima / Math.Max(1, bitmap.PixelWidth),
+            alturaMaxima / Math.Max(1, bitmap.PixelHeight));
+
+        return new ImagemRenderizada
+        {
+            Source = bitmap,
+            Width = Math.Max(1, bitmap.PixelWidth * escala),
+            Height = Math.Max(1, bitmap.PixelHeight * escala),
+        };
+    }
+
     private static void TocarSom(string tipo)
     {
         if (tipo == ProtocolConstants.SoundType.Error)
@@ -402,7 +462,7 @@ public partial class NotificacaoRecebidaWindow : Window
     {
         public BitmapImage Source { get; init; } = null!;
         public double Width { get; init; }
-        public double MaxHeight { get; init; }
+        public double Height { get; init; }
     }
 
     private static void AnimarEntradaCentral(Window window)

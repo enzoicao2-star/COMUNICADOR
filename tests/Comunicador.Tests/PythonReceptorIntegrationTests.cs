@@ -286,7 +286,7 @@ public class PythonReceptorIntegrationTests : IClassFixture<PythonReceptorFixtur
         };
 
         var resultado = await client.SendNotificationAsync(
-            "127.0.0.1", _tcpPort, par.Token, "Imagem", "Teste visual",
+            "127.0.0.1", _tcpPort, par.Token, string.Empty, string.Empty,
             allowReply: false,
             modoExibicao: ProtocolConstants.DisplayMode.CenterImage,
             imagem: imagem,

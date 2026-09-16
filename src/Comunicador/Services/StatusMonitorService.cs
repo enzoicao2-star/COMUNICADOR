@@ -43,7 +43,9 @@ public sealed class StatusMonitorService : IDisposable
     {
         while (!ct.IsCancellationRequested)
         {
-            var pareados = _getComputadores().Where(c => c.Pareado).ToList();
+            var pareados = _getComputadores()
+                .Where(c => c.Pareado && !EhComputadorLocal(c))
+                .ToList();
             var checks = pareados.Select(c => CheckOneAsync(c, ct));
             await Task.WhenAll(checks).ConfigureAwait(false);
 
@@ -66,6 +68,10 @@ public sealed class StatusMonitorService : IDisposable
             resultado.Online ? StatusComputador.Online : StatusComputador.Offline,
             resultado.PingMs);
     }
+
+    private bool EhComputadorLocal(Computador computador) =>
+        string.Equals(computador.Id, _settings.PainelId, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(computador.Nome, Environment.MachineName, StringComparison.OrdinalIgnoreCase);
 
     public void Dispose() => Stop();
 }

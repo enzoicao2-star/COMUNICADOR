@@ -62,7 +62,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     };
 
     public string PingTexto => _pingMedioMs is null
-        ? "sem comunicação"
+        ? "sem PCs conectados"
         : double.IsNaN(_pingMedioMs.Value)
             ? "conectado"
         : $"{_pingMedioMs.Value:0} ms em média";

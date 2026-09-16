@@ -11,7 +11,7 @@ if %errorlevel% neq 0 (
 )
 
 echo ===============================================
-echo   Comunicador Receptor 2.2.0 - desinstalacao
+echo   Comunicador Receptor 2.2.1 - desinstalacao
 echo ===============================================
 echo.
 

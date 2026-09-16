@@ -16,7 +16,7 @@
             <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.45" Color="#000000" />
         </Border.Effect>
 
-        <Grid Margin="16,12,12,14">
+        <Grid x:Name="ConteudoCartao" Margin="16,12,12,14">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -28,7 +28,7 @@
             </Grid.RowDefinitions>
 
             <!-- cabecalho: nome do app + fechar -->
-            <Grid Grid.Row="0" Margin="0,0,0,8">
+            <Grid x:Name="CabecalhoPanel" Grid.Row="0" Margin="0,0,0,8">
                 <!-- Cabecalho mostra quem enviou, nao o nome do app. A janela continua
                      identificada como Comunicador no Title (alt-tab / barra de tarefas). -->
                 <StackPanel Orientation="Horizontal">
@@ -71,8 +71,8 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Image Source="{Binding Source}" Width="{Binding Width}" MaxHeight="{Binding MaxHeight}"
-                                   Stretch="Uniform" SnapsToDevicePixels="True" Margin="5" />
+                            <Image Source="{Binding Source}" Width="{Binding Width}" Height="{Binding Height}"
+                                   Stretch="Fill" SnapsToDevicePixels="True" Margin="0" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

@@ -84,6 +84,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
             {
                 Computadores.Remove(computador);
                 Persist();
+                PublicarPingMedio();
             }
         });
 
@@ -170,6 +171,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
             }
 
             Persist();
+            PublicarPingMedio();
         });
     }
 
@@ -185,18 +187,28 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 computador.UltimaVezVisto = DateTime.UtcNow;
             }
 
-            var online = Computadores
-                .Where(c => c.Pareado && c.Status == StatusComputador.Online)
-                .ToList();
-            var pings = online
-                .Where(c => c.PingMs.HasValue)
-                .Select(c => c.PingMs!.Value)
-                .ToList();
-            PingMedioAtualizado?.Invoke(pings.Count > 0
-                ? pings.Average()
-                : online.Count > 0 ? double.NaN : null);
+            PublicarPingMedio();
         });
     }
+
+    private void PublicarPingMedio()
+    {
+        var onlineRemotos = Computadores
+            .Where(c => c.Pareado && c.Status == StatusComputador.Online && !EhComputadorLocal(c))
+            .ToList();
+        var pings = onlineRemotos
+            .Where(c => c.PingMs.HasValue)
+            .Select(c => c.PingMs!.Value)
+            .ToList();
+
+        PingMedioAtualizado?.Invoke(pings.Count > 0
+            ? pings.Average()
+            : onlineRemotos.Count > 0 ? double.NaN : null);
+    }
+
+    private bool EhComputadorLocal(Computador computador) =>
+        string.Equals(computador.Id, _settings.PainelId, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(computador.Nome, Environment.MachineName, StringComparison.OrdinalIgnoreCase);
 
     private void OnReceptorDescoberto(AnnounceInfo info)
     {
@@ -238,6 +250,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
             }
 
             Persist();
+            PublicarPingMedio();
         });
     }
 

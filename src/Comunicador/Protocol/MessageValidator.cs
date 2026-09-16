@@ -93,8 +93,7 @@ public static class MessageValidator
 
             MessageType.Notification => RequireString(msg.Token, "token", MaxNameLength)
                 ?? RequireString(msg.Sender, "sender", MaxNameLength)
-                ?? RequireString(msg.Title, "title", MaxTitleLength)
-                ?? RequireString(msg.Message, "message", MaxMessageLength)
+                ?? ValidarTextoNotificacao(msg)
                 ?? RequireBool(msg.AllowReply, "allow_reply")
                 ?? ValidarBotoes(msg.Buttons)
                 ?? ValidarConteudoVisual(
@@ -145,6 +144,21 @@ public static class MessageValidator
         };
 
         return fieldsCheck ?? ValidarMonitores(msg.Monitors) ?? ValidationResult.Ok();
+    }
+
+    /// <summary>Uma imagem central é conteúdo completo por si só, portanto título e
+    /// mensagem podem ser strings vazias nesse modo. Nos avisos textuais ambos
+    /// continuam obrigatórios.</summary>
+    private static ValidationResult? ValidarTextoNotificacao(ComunicadorMessage msg)
+    {
+        if (msg.DisplayMode == DisplayMode.CenterImage)
+        {
+            return RequireStringAllowEmpty(msg.Title, "title", MaxTitleLength)
+                ?? RequireStringAllowEmpty(msg.Message, "message", MaxMessageLength);
+        }
+
+        return RequireString(msg.Title, "title", MaxTitleLength)
+            ?? RequireString(msg.Message, "message", MaxMessageLength);
     }
 
     public static byte[] Frame(ComunicadorMessage message)
@@ -564,6 +578,18 @@ public static class MessageValidator
         }
 
         return null;
+    }
+
+    private static ValidationResult? RequireStringAllowEmpty(string? value, string name, int maxLen)
+    {
+        if (value is null)
+        {
+            return ValidationResult.Fail(ErrorCode.MissingField, $"Campo obrigatório ausente: {name}");
+        }
+
+        return value.Length > maxLen
+            ? ValidationResult.Fail(ErrorCode.FieldTooLong, $"Campo '{name}' excede {maxLen} caracteres.")
+            : null;
     }
 
     private static ValidationResult? RequireUuid(string? value, string name)

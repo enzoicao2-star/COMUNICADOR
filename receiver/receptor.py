@@ -37,7 +37,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.2.0"
+RECEIVER_VERSION = "2.2.1"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -401,7 +401,14 @@ class NotificationUi:
         with Image.open(io.BytesIO(dados)) as original:
             imagem = original.copy()
         filtro = getattr(Image, "Resampling", Image).LANCZOS
-        imagem.thumbnail((max(1, int(largura_maxima)), max(1, int(altura_maxima))), filtro)
+        limite_largura = max(1, int(largura_maxima))
+        limite_altura = max(1, int(altura_maxima))
+        escala = min(limite_largura / max(1, imagem.width),
+                     limite_altura / max(1, imagem.height))
+        tamanho = (max(1, round(imagem.width * escala)),
+                   max(1, round(imagem.height * escala)))
+        if tamanho != imagem.size:
+            imagem = imagem.resize(tamanho, filtro)
         return ImageTk.PhotoImage(imagem)
 
     def _exibir_janela(
@@ -521,7 +528,6 @@ class NotificationUi:
             screen_images, duration, manual_close, appearance):
         tk = self._tk
         visual = self._aparencia(appearance)
-        escala = visual["font_scale_percent"] / 100.0
         itens = list(screen_images)
         if not itens and image is not None:
             principal = self._monitor_por_indice(0)
@@ -545,72 +551,62 @@ class NotificationUi:
                     pass
             on_result(value)
 
+        # Cada arquivo recebe uma janela exatamente do tamanho da imagem. Assim
+        # não existe painel, cabeçalho, botão, borda ou retângulo preto ao redor.
         for indice, imagens in grupos.items():
             monitor = self._monitor_por_indice(indice)
-            win = self._nova_janela()
-            janelas.append(win)
-            corpo = tk.Frame(win, bg="#202020", highlightbackground="#555555", highlightthickness=1)
-            corpo.pack(fill="both", expand=True)
-
-            cabecalho = tk.Frame(corpo, bg="#202020")
-            cabecalho.pack(fill="x", padx=14, pady=(10, 3))
-            tk.Label(cabecalho, text="Comunicador", bg="#202020", fg="#C8C8C8",
-                     font=("Segoe UI", 9)).pack(side="left")
-            if manual_close:
-                tk.Button(cabecalho, text="×", command=lambda: finish(None), bd=0, relief="flat",
-                          bg="#202020", activebackground="#454545", fg="white").pack(side="right")
-            tk.Label(corpo, text=title, bg="#202020", fg="white",
-                     font=("Segoe UI", max(11, round(16 * escala)), "bold"),
-                     wraplength=max(300, monitor["width"] - 100)).pack(padx=14, pady=(2, 3))
-            tk.Label(corpo, text=message, bg="#202020", fg="#E1E1E1",
-                     font=("Segoe UI", max(9, round(12 * escala))),
-                     wraplength=max(300, monitor["width"] - 100)).pack(padx=14, pady=(0, 9))
-
-            quadro = tk.Frame(corpo, bg="#101010")
-            quadro.pack(padx=12, pady=(0, 9))
-            referencias = []
             colunas = 1 if len(imagens) == 1 else 2
+            linhas = max(1, (len(imagens) + colunas - 1) // colunas)
+            espaco = 12
+            largura_celula = max(1, (monitor["width"] - 40 - espaco * (colunas - 1)) // colunas)
+            altura_celula = max(1, (monitor["height"] - 40 - espaco * (linhas - 1)) // linhas)
+
+            fotos = []
             for posicao, item in enumerate(imagens):
                 max_largura = min(
                     monitor["width"] * item.get("width_percent", 70) / 100,
-                    (monitor["width"] - 100) / colunas)
-                max_altura = max(140, (monitor["height"] * 0.62) / max(1, (len(imagens) + 1) // 2))
+                    largura_celula)
+                max_altura = altura_celula
                 foto = self._foto_tk(item["image"], max_largura, max_altura)
-                referencias.append(foto)
-                tk.Label(quadro, image=foto, bg="#101010").grid(
-                    row=posicao // colunas, column=posicao % colunas, padx=5, pady=5)
-            win._image_refs = referencias  # mantém PhotoImage viva
+                fotos.append((posicao, foto))
 
-            if manual_close:
-                for botao in buttons:
-                    rotulo = botao.get("label", "")
-                    url = botao.get("url")
+            largura_grade = colunas * largura_celula + espaco * (colunas - 1)
+            altura_grade = linhas * altura_celula + espaco * (linhas - 1)
+            origem_x = monitor["x"] + (monitor["width"] - largura_grade) // 2
+            origem_y = monitor["y"] + (monitor["height"] - altura_grade) // 2
 
-                    def ao_clicar(rot=rotulo, endereco=url):
-                        if endereco and protocolo.url_permitida(endereco):
-                            webbrowser.open(endereco)
-                        finish(rot)
+            for posicao, foto in fotos:
+                largura = foto.width()
+                altura = foto.height()
+                coluna = posicao % colunas
+                linha = posicao // colunas
+                x = origem_x + coluna * (largura_celula + espaco) + (largura_celula - largura) // 2
+                y = origem_y + linha * (altura_celula + espaco) + (altura_celula - altura) // 2
 
-                    tk.Button(corpo, text=rotulo, command=ao_clicar, bg="#3B3B3B", fg="white",
-                              relief="flat").pack(fill="x", padx=14, pady=(2, 4))
+                win = tk.Toplevel(self._root)
+                win.title(APP_NAME)
+                win.attributes("-topmost", True)
+                win.resizable(False, False)
+                win.overrideredirect(True)
+                chave_transparente = "#010203"
+                win.configure(bg=chave_transparente)
+                try:
+                    win.wm_attributes("-transparentcolor", chave_transparente)
+                except tk.TclError:
+                    pass
 
-                if allow_reply:
-                    entry = tk.Entry(corpo, bg="#3B3B3B", fg="white", insertbackground="white", relief="flat")
-                    entry.pack(fill="x", padx=14, pady=(7, 4))
-                    tk.Button(corpo, text="Responder", command=lambda e=entry: finish(e.get()),
-                              bg=visual["accent_color"], fg="white", relief="flat").pack(
-                        fill="x", padx=14, pady=(2, 10))
-                else:
-                    tk.Button(corpo, text="OK", command=lambda: finish(None), bg="#3B3B3B",
-                              fg="white", relief="flat").pack(fill="x", padx=14, pady=(2, 10))
-
-            win.protocol("WM_DELETE_WINDOW", lambda: finish(None) if manual_close else None)
-            win.update_idletasks()
-            largura = min(max(win.winfo_reqwidth(), 360), max(360, monitor["width"] - 30))
-            altura = min(win.winfo_reqheight(), max(260, monitor["height"] - 60))
-            x = monitor["x"] + (monitor["width"] - largura) // 2
-            y = monitor["y"] + (monitor["height"] - altura) // 2
-            win.geometry(f"{largura}x{altura}{x:+d}{y:+d}")
+                label = tk.Label(win, image=foto, bg=chave_transparente,
+                                 bd=0, relief="flat", highlightthickness=0)
+                label.pack()
+                win._image_refs = [foto]  # mantém PhotoImage viva
+                win.geometry(f"{largura}x{altura}{x:+d}{y:+d}")
+                if manual_close:
+                    label.configure(cursor="hand2")
+                    label.bind("<Button-1>", lambda _e: finish(None))
+                    win.bind("<Escape>", lambda _e: finish(None))
+                win.protocol("WM_DELETE_WINDOW", lambda: finish(None) if manual_close else None)
+                win.lift()
+                janelas.append(win)
 
         if not janelas:
             on_result(None)

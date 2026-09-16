@@ -5,7 +5,7 @@ set "ROOT=%~dp0"
 cd /d "%ROOT%"
 
 echo ===============================================
-echo   Comunicador 2.2.0 - validar e subir ao GitHub
+echo   Comunicador 2.2.1 - validar e subir ao GitHub
 echo ===============================================
 echo.
 
@@ -32,7 +32,7 @@ if errorlevel 1 goto :erro
 
 git diff --cached --quiet
 if errorlevel 1 (
-    set "MENSAGEM=Comunicador 2.2.0 - interface responsiva e receptor atualizado"
+    set "MENSAGEM=Comunicador 2.2.1 - ping remoto e imagens sem moldura"
     if not "%~1"=="" set "MENSAGEM=%*"
     git commit -m "%MENSAGEM%"
     if errorlevel 1 goto :erro
@@ -57,8 +57,8 @@ if errorlevel 1 goto :erro
 echo.
 echo ===============================================
 echo   Tudo enviado ao GitHub com sucesso.
-echo   Receptor publicado: 2.2.0
-echo   Painel publicado:    2.2.0
+echo   Receptor publicado: 2.2.1
+echo   Painel publicado:    2.2.1
 echo ===============================================
 echo Esta janela fecha sozinha em 5 segundos...
 ping -n 6 127.0.0.1 >nul 2>nul
