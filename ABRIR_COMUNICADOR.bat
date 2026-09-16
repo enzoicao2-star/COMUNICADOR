@@ -7,12 +7,15 @@ set "VERSAO_ESPERADA=2.2.2.0"
 set "REPO_RAW=https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main"
 cd /d "%ROOT%"
 
-rem Dentro do repositorio usamos dist. Se este BAT estiver sozinho em outro PC,
-rem o painel fica numa pasta local permanente e nao exige SDK do .NET.
-if exist "%ROOT%build.bat" (
+rem Um clone Git e tratado como ambiente de desenvolvimento. Se este BAT estiver
+rem sozinho em outro PC, o projeto completo sera instalado em Documents\P5.
+set "MODO_DEV=0"
+if exist "%ROOT%.git" set "MODO_DEV=1"
+if "!MODO_DEV!"=="1" (
     set "PAINEL_EXE=%ROOT%dist\Comunicador.exe"
 ) else (
-    set "PAINEL_EXE=%LOCALAPPDATA%\Comunicador\Painel\Comunicador.exe"
+    set "INSTALL_ROOT=%USERPROFILE%\Documents\P5"
+    set "PAINEL_EXE=!INSTALL_ROOT!\release\Comunicador.exe"
 )
 
 echo Verificando o Comunicador...
@@ -20,7 +23,7 @@ echo Verificando o Comunicador...
 rem Em uma copia de desenvolvimento, recompila apenas se a fonte local mudou ou
 rem se o executavel e mais antigo que a versao desta copia. Um EXE mais novo,
 rem baixado do GitHub, nunca e rebaixado por este teste.
-if exist "%ROOT%build.bat" (
+if "!MODO_DEV!"=="1" (
     set "PRECISA_COMPILAR=0"
     if not exist "!PAINEL_EXE!" set "PRECISA_COMPILAR=1"
     if exist "!PAINEL_EXE!" (
@@ -55,7 +58,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
 if not errorlevel 1 move /y "!UPDATER_NOVO!" "!UPDATER!" >nul
 
 if exist "!UPDATER!" (
-    powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATER!" -ExecutablePath "!PAINEL_EXE!"
+    if "!MODO_DEV!"=="1" (
+        powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATER!" -ExecutablePath "!PAINEL_EXE!"
+    ) else (
+        powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATER!" -ExecutablePath "!PAINEL_EXE!" -InstallRoot "!INSTALL_ROOT!" -LauncherPath "%~f0"
+    )
     if errorlevel 1 (
         echo AVISO: a verificacao online falhou.
         if not exist "!PAINEL_EXE!" goto :sem_executavel
@@ -73,13 +80,16 @@ if /I "%~1"=="--verificar" (
     exit /b 0
 )
 
-rem Na primeira execucao configura rede e Firewall. Quando o BAT esta sozinho em
-rem outro computador, baixa tambem o auxiliar mais recente antes de pedir o UAC.
+rem Na primeira execucao configura rede e Firewall. A instalacao completa ja
+rem inclui o auxiliar; o download isolado abaixo e apenas uma recuperacao extra.
 netsh advfirewall firewall show rule name="Comunicador" >nul 2>nul
 if errorlevel 1 (
-    set "FIREWALL_HELPER=%ROOT%LIBERAR_FIREWALL.bat"
+    if "!MODO_DEV!"=="1" (
+        set "FIREWALL_HELPER=%ROOT%LIBERAR_FIREWALL.bat"
+    ) else (
+        set "FIREWALL_HELPER=!INSTALL_ROOT!\LIBERAR_FIREWALL.bat"
+    )
     if not exist "!FIREWALL_HELPER!" (
-        set "FIREWALL_HELPER=%LOCALAPPDATA%\Comunicador\Painel\LIBERAR_FIREWALL.bat"
         powershell -NoProfile -ExecutionPolicy Bypass -Command ^
             "$ProgressPreference='SilentlyContinue'; try {" ^
             "$dest=$env:FIREWALL_HELPER; New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null;" ^
@@ -99,7 +109,8 @@ exit /b 0
 
 :sem_executavel
 echo.
-echo ERRO: nao existe uma copia local do Comunicador e nao foi possivel baixar
-echo       a versao publicada no GitHub. Verifique a internet e tente novamente.
+echo ERRO: nao foi possivel instalar o Comunicador em:
+echo       %USERPROFILE%\Documents\P5
+echo       Verifique a conexao com a internet e tente novamente.
 pause
 exit /b 1

@@ -59,9 +59,13 @@ ele consulta a versão publicada no GitHub; quando há uma mais nova,
 baixa o executável self-contained, valida versão e SHA-256 e só então
 substitui a cópia instalada. Sem internet, abre normalmente a última
 versão válida. Dentro do repositório ele também recompila quando a
-fonte local é mais nova; em outro computador o BAT funciona sozinho e
-instala o painel em `%LOCALAPPDATA%\Comunicador\Painel`, além de baixar o
-auxiliar que libera as portas na primeira execução.
+fonte local é mais nova. Em outro computador o BAT funciona sozinho:
+se ainda não houver instalação, baixa **todos os arquivos publicados no
+GitHub** para `C:\Users\<usuário>\Documents\P5`, valida o executável,
+registra a instalação e cria atalhos no Desktop e no menu Iniciar. Se
+algum arquivo instalado for apagado, a próxima inicialização baixa o
+pacote novamente e restaura o que estiver faltando. O auxiliar que
+libera as portas também faz parte dessa instalação completa.
 
 `build.bat` gera o ícone, restaura dependências, roda os testes Python
 e C# (inclusive integração real C# ↔ Python), compila em Release e
