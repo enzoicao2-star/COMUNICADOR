@@ -92,7 +92,11 @@ Receptor"** no Agendador de Tarefas do Windows para iniciar com o
 login do usuário (via `pythonw.exe`, sem janela de console). O arquivo
 sempre baixa e valida a versão 2.2.1 publicada no GitHub antes de
 substituir uma instalação existente. Ao concluir com sucesso, fecha
-sozinho. Para remover tudo, use `receiver/DESINSTALAR_RECEPTOR.bat`.
+sozinho. Para remover o receptor, use
+`receiver/DESINSTALAR_RECEPTOR.bat`. O desinstalador preserva as regras
+e configurações compartilhadas quando há um painel na mesma máquina.
+Para conferir antecipadamente todos os alvos sem alterar nada, execute
+`receiver/DESINSTALAR_RECEPTOR.bat --verificar`.
 
 Rodar os testes do receptor localmente:
 

@@ -54,6 +54,7 @@ set "REPO_RAW=https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/
 set "INSTALL_ROOT=%LOCALAPPDATA%\Comunicador\Receptor"
 set "INSTALL_DIR=%INSTALL_ROOT%\app"
 set "DOWNLOAD_DIR=%TEMP%\Comunicador-Receptor-%RECEIVER_VERSION%"
+set "CACHE_BUSTER=%RANDOM%%RANDOM%%RANDOM%"
 set "COMUNICADOR_RECEPTOR_SCRIPT=%LOCALAPPDATA%\Comunicador\Receptor\app\receptor.py"
 set "TASK_NAME=Comunicador Receptor"
 set "PYTHON_INSTALLER_URL=https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe"
@@ -135,15 +136,15 @@ if errorlevel 1 (
 
 echo.
 echo [4/8] Baixando e validando o receptor %RECEIVER_VERSION%...
-curl -fsSL -o "%DOWNLOAD_DIR%\receptor.py" "%REPO_RAW%/receptor.py?v=%RECEIVER_VERSION%"
+curl -fsSL -o "%DOWNLOAD_DIR%\receptor.py" "%REPO_RAW%/receptor.py?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
 if errorlevel 1 goto :erro_download
-curl -fsSL -o "%DOWNLOAD_DIR%\protocolo.py" "%REPO_RAW%/protocolo.py?v=%RECEIVER_VERSION%"
+curl -fsSL -o "%DOWNLOAD_DIR%\protocolo.py" "%REPO_RAW%/protocolo.py?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
 if errorlevel 1 goto :erro_download
-curl -fsSL -o "%DOWNLOAD_DIR%\requirements.txt" "%REPO_RAW%/requirements.txt?v=%RECEIVER_VERSION%"
+curl -fsSL -o "%DOWNLOAD_DIR%\requirements.txt" "%REPO_RAW%/requirements.txt?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
 if errorlevel 1 goto :erro_download
-curl -fsSL -o "%DOWNLOAD_DIR%\DIAGNOSTICO.bat" "%REPO_RAW%/DIAGNOSTICO.bat?v=%RECEIVER_VERSION%"
+curl -fsSL -o "%DOWNLOAD_DIR%\DIAGNOSTICO.bat" "%REPO_RAW%/DIAGNOSTICO.bat?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
 if errorlevel 1 goto :erro_download
-curl -fsSL -o "%DOWNLOAD_DIR%\DESINSTALAR_RECEPTOR.bat" "%REPO_RAW%/DESINSTALAR_RECEPTOR.bat?v=%RECEIVER_VERSION%"
+curl -fsSL -o "%DOWNLOAD_DIR%\DESINSTALAR_RECEPTOR.bat" "%REPO_RAW%/DESINSTALAR_RECEPTOR.bat?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
 if errorlevel 1 goto :erro_download
 
 "!PYTHON_EXE!" -m py_compile "%DOWNLOAD_DIR%\protocolo.py" "%DOWNLOAD_DIR%\receptor.py"
@@ -155,6 +156,17 @@ findstr /L /C:"RECEIVER_VERSION = " "%DOWNLOAD_DIR%\receptor.py" | findstr /L /C
 if errorlevel 1 (
     echo ERRO: o GitHub ainda nao entregou a versao %RECEIVER_VERSION% esperada.
     echo        Aguarde alguns segundos e execute o instalador novamente.
+    goto :erro_download
+)
+findstr /L /C:"--verificar" "%DOWNLOAD_DIR%\DESINSTALAR_RECEPTOR.bat" >nul
+if errorlevel 1 (
+    echo ERRO: o GitHub entregou uma copia antiga do desinstalador.
+    echo        Execute o instalador novamente para baixar a revisao segura.
+    goto :erro_download
+)
+findstr /L /C:"As regras do painel Comunicador foram preservadas." "%DOWNLOAD_DIR%\DESINSTALAR_RECEPTOR.bat" >nul
+if errorlevel 1 (
+    echo ERRO: a validacao de seguranca do desinstalador falhou.
     goto :erro_download
 )
 
