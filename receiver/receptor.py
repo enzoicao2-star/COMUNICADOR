@@ -24,7 +24,9 @@ import queue
 import re
 import socket
 import socketserver
+import subprocess
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -37,10 +39,77 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.2.1"
+RECEIVER_VERSION = "2.4.0"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
+
+MEDIA_PLAYER_SCRIPT = r'''param(
+    [Parameter(Mandatory=$true)][string]$MediaPath,
+    [Parameter(Mandatory=$true)][string]$Kind,
+    [int]$X = 0, [int]$Y = 0, [int]$MonitorWidth = 1280, [int]$MonitorHeight = 720,
+    [int]$WidthPercent = 70, [switch]$Loop, [int]$DurationSeconds = 0,
+    [switch]$AllowClose
+)
+Add-Type -AssemblyName PresentationFramework
+Add-Type -AssemblyName PresentationCore
+$window = New-Object System.Windows.Window
+$window.WindowStyle = [System.Windows.WindowStyle]::None
+$window.ResizeMode = [System.Windows.ResizeMode]::NoResize
+$window.ShowInTaskbar = $false
+$window.ShowActivated = $false
+$window.Topmost = $true
+$window.AllowsTransparency = $true
+$window.Background = [System.Windows.Media.Brushes]::Transparent
+$media = New-Object System.Windows.Controls.MediaElement
+$media.LoadedBehavior = [System.Windows.Controls.MediaState]::Manual
+$media.UnloadedBehavior = [System.Windows.Controls.MediaState]::Manual
+$media.Stretch = [System.Windows.Media.Stretch]::Uniform
+$media.Source = [Uri]::new($MediaPath)
+$window.Content = $media
+$isAudio = $Kind -eq 'audio'
+if ($isAudio) {
+    $window.Width = 1; $window.Height = 1; $window.Left = -32000; $window.Top = -32000
+    $window.Opacity = 0; $window.IsHitTestVisible = $false
+} else {
+    $window.Width = [Math]::Max(160, $MonitorWidth * $WidthPercent / 100.0)
+    $window.Height = [Math]::Min($MonitorHeight, [Math]::Max(90, $window.Width * 9.0 / 16.0))
+    $window.Left = $X + ($MonitorWidth - $window.Width) / 2.0
+    $window.Top = $Y + ($MonitorHeight - $window.Height) / 2.0
+    $window.Opacity = 0
+    if ($AllowClose) {
+        $window.Cursor = [System.Windows.Input.Cursors]::Hand
+        $window.Add_MouseLeftButtonDown({ $window.Close() })
+        $window.Add_KeyDown({ param($sender, $eventArgs); if ($eventArgs.Key -eq [System.Windows.Input.Key]::Escape) { $window.Close() } })
+    }
+}
+$media.add_MediaOpened({
+    if (-not $isAudio -and $media.NaturalVideoWidth -gt 0 -and $media.NaturalVideoHeight -gt 0) {
+        $maxW = [Math]::Max(1, $MonitorWidth * $WidthPercent / 100.0)
+        $maxH = [Math]::Max(1, $MonitorHeight - 20)
+        $scale = [Math]::Min($maxW / $media.NaturalVideoWidth, $maxH / $media.NaturalVideoHeight)
+        $window.Width = [Math]::Max(1, $media.NaturalVideoWidth * $scale)
+        $window.Height = [Math]::Max(1, $media.NaturalVideoHeight * $scale)
+        $window.Left = $X + ($MonitorWidth - $window.Width) / 2.0
+        $window.Top = $Y + ($MonitorHeight - $window.Height) / 2.0
+        $window.Opacity = 1
+    }
+})
+$media.add_MediaEnded({
+    if ($Loop) { $media.Position = [TimeSpan]::Zero; $media.Play() }
+    else { $window.Close() }
+})
+$media.add_MediaFailed({ $window.Close() })
+$timer = $null
+if ($DurationSeconds -gt 0) {
+    $timer = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [TimeSpan]::FromSeconds($DurationSeconds)
+    $timer.Add_Tick({ $timer.Stop(); $window.Close() })
+}
+$window.Add_Loaded({ if ($timer) { $timer.Start() }; $media.Play() })
+$window.Add_Closed({ if ($timer) { $timer.Stop() }; $media.Stop(); $media.Close() })
+$null = $window.ShowDialog()
+'''
 
 
 def obter_monitores() -> list[dict]:
@@ -333,16 +402,19 @@ class NotificationUi:
     def mostrar(
             self, sender: str, title: str, message: str, allow_reply: bool, on_result,
             buttons=None, display_mode="toast", image=None, screen_images=None,
-            image_duration_seconds=None, allow_manual_close=None, appearance=None):
+            image_duration_seconds=None, allow_manual_close=None, appearance=None,
+            video=None, screen_videos=None, video_loop=False, audio=None, audio_loop=False):
         """Agenda a exibição de um aviso. `on_result(reply_text_or_None)` é chamado
         quando o usuário responde, clica num botão, fecha a janela, ou o tempo esgota."""
         if self.test_mode:
-            on_result("Recebido automaticamente (modo de teste)." if allow_reply else None)
+            resposta_teste = (buttons or [{}])[0].get("label") if buttons else (
+                "Recebido automaticamente (modo de teste)." if allow_reply else None)
+            on_result(resposta_teste)
             return
         self._pending.put((
             sender, title, message, allow_reply, on_result, buttons or [], display_mode,
             image, screen_images or [], image_duration_seconds, allow_manual_close,
-            appearance or {}))
+            appearance or {}, video, screen_videos or [], video_loop, audio, audio_loop))
 
     def _poll(self):
         try:
@@ -414,18 +486,135 @@ class NotificationUi:
     def _exibir_janela(
             self, sender, title, message, allow_reply, on_result, buttons=None,
             display_mode="toast", image=None, screen_images=None,
-            image_duration_seconds=None, allow_manual_close=None, appearance=None):
+            image_duration_seconds=None, allow_manual_close=None, appearance=None,
+            video=None, screen_videos=None, video_loop=False, audio=None, audio_loop=False):
         if display_mode == protocolo.DISPLAY_MODE_CENTER_IMAGE:
             self._exibir_imagens_monitores(
                 sender, title, message, allow_reply, on_result, buttons or [], image,
                 screen_images or [], image_duration_seconds or 15,
                 allow_manual_close is not False, appearance or {})
             return
+        if display_mode == protocolo.DISPLAY_MODE_CENTER_VIDEO:
+            self._reproduzir_midia_windows(
+                on_result, video=video, screen_videos=screen_videos or [],
+                repetir=bool(video_loop), duracao=image_duration_seconds,
+                permitir_fechar=allow_manual_close is not False)
+            return
+        if display_mode == protocolo.DISPLAY_MODE_AUDIO:
+            self._reproduzir_midia_windows(
+                on_result, audio=audio, repetir=bool(audio_loop),
+                duracao=image_duration_seconds, permitir_fechar=False)
+            return
         if display_mode == protocolo.DISPLAY_MODE_CENTER_ALERT:
             self._exibir_alerta_obrigatorio(sender, title, message, on_result, appearance or {})
             return
 
-        self._exibir_toast(sender, title, message, allow_reply, on_result, buttons or [], appearance or {})
+        visual = self._aparencia(appearance or {})
+        if (display_mode in {protocolo.DISPLAY_MODE_TOAST, protocolo.DISPLAY_MODE_CENTER_MESSAGE}
+                and not allow_reply and not buttons
+                and visual["sound_type"] in {"warning", "error"} and os.name == "nt"):
+            import ctypes
+            icone = 0x10 if visual["sound_type"] == "error" else 0x30
+            corpo = f"{title}\n\n{message}" if title else message
+            ctypes.windll.user32.MessageBoxW(None, corpo, sender, icone | 0x00040000)
+            on_result(None)
+            return
+
+        self._exibir_toast(sender, title, message, allow_reply, on_result, buttons or [], appearance or {},
+                           centralizado=display_mode == protocolo.DISPLAY_MODE_CENTER_MESSAGE)
+
+    @staticmethod
+    def _gravar_midia_temporaria(conteudo):
+        mime = conteudo.get("mime_type", "")
+        extensao = {
+            "video/mp4": ".mp4", "video/x-ms-wmv": ".wmv",
+            "audio/mpeg": ".mp3", "audio/wav": ".wav",
+        }.get(mime, ".bin")
+        dados = base64.b64decode(conteudo["data_base64"], validate=True)
+        pasta = Path(tempfile.gettempdir()) / "Comunicador" / "midia"
+        pasta.mkdir(parents=True, exist_ok=True)
+        caminho = pasta / f"{uuid.uuid4().hex}{extensao}"
+        caminho.write_bytes(dados)
+        return caminho
+
+    @staticmethod
+    def _script_player_path():
+        pasta = Path(tempfile.gettempdir()) / "Comunicador"
+        pasta.mkdir(parents=True, exist_ok=True)
+        caminho = pasta / f"media-player-{RECEIVER_VERSION}.ps1"
+        caminho.write_text(MEDIA_PLAYER_SCRIPT, encoding="utf-8")
+        return caminho
+
+    def _reproduzir_midia_windows(
+            self, on_result, video=None, screen_videos=None, repetir=False,
+            duracao=None, permitir_fechar=True, audio=None):
+        if os.name != "nt":
+            on_result(None)
+            return
+
+        itens = []
+        if audio is not None:
+            itens.append(("audio", audio, self._monitor_por_indice(0), 100))
+        elif screen_videos:
+            for item in screen_videos:
+                itens.append((
+                    "video", item["video"],
+                    self._monitor_por_indice(item.get("monitor_index", 0)),
+                    item.get("width_percent", 70)))
+        elif video is not None:
+            itens.append(("video", video, self._monitor_por_indice(0), 70))
+
+        if not itens:
+            on_result(None)
+            return
+
+        temporarios = []
+        processos = []
+        try:
+            script = self._script_player_path()
+            for tipo, conteudo, monitor, percentual in itens:
+                arquivo = self._gravar_midia_temporaria(conteudo)
+                temporarios.append(arquivo)
+                comando = [
+                    "powershell.exe", "-NoProfile", "-NonInteractive",
+                    "-ExecutionPolicy", "Bypass", "-STA", "-File", str(script),
+                    "-MediaPath", str(arquivo), "-Kind", tipo,
+                    "-X", str(monitor.get("x", 0)), "-Y", str(monitor.get("y", 0)),
+                    "-MonitorWidth", str(max(1, monitor.get("width", 1280))),
+                    "-MonitorHeight", str(max(1, monitor.get("height", 720))),
+                    "-WidthPercent", str(percentual),
+                    "-DurationSeconds", str(int(duracao or 0)),
+                ]
+                if repetir:
+                    comando.append("-Loop")
+                if permitir_fechar:
+                    comando.append("-AllowClose")
+                processos.append(subprocess.Popen(
+                    comando, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)))
+        except Exception:
+            logging.exception("Não foi possível iniciar a reprodução da mídia recebida.")
+            for caminho in temporarios:
+                try:
+                    caminho.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            on_result(None)
+            return
+
+        def aguardar():
+            for processo in processos:
+                try:
+                    processo.wait()
+                except Exception:
+                    logging.exception("Falha ao aguardar o player de mídia.")
+            for caminho in temporarios:
+                try:
+                    caminho.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            on_result(None)
+
+        threading.Thread(target=aguardar, daemon=True, name="reproducao-midia").start()
 
     def _nova_janela(self):
         tk = self._tk
@@ -437,7 +626,8 @@ class NotificationUi:
         win.configure(bg="#2C2C2C")
         return win
 
-    def _exibir_toast(self, sender, title, message, allow_reply, on_result, buttons, appearance):
+    def _exibir_toast(self, sender, title, message, allow_reply, on_result, buttons, appearance,
+                      centralizado=False):
         tk = self._tk
         visual = self._aparencia(appearance)
         escala = visual["font_scale_percent"] / 100.0
@@ -459,8 +649,7 @@ class NotificationUi:
 
         cabecalho = tk.Frame(corpo, bg="#2C2C2C")
         cabecalho.pack(fill="x", padx=14, pady=(12, 4))
-        tk.Label(cabecalho, text="■", font=("Segoe UI", 9), fg=visual["accent_color"], bg="#2C2C2C").pack(side="left")
-        tk.Label(cabecalho, text="  Comunicador", font=("Segoe UI", 9),
+        tk.Label(cabecalho, text=sender, font=("Segoe UI", 9),
                  fg="#C8C8C8", bg="#2C2C2C").pack(side="left")
         tk.Button(cabecalho, text="×", command=lambda: finish(None), bd=0, relief="flat",
                   bg="#2C2C2C", activebackground="#454545", fg="#DDDDDD",
@@ -475,6 +664,9 @@ class NotificationUi:
         # Botões de resposta rápida enviados junto com o aviso. Se o botão tiver
         # link, além de responder ele abre o endereço no navegador padrão — e a
         # URL é revalidada aqui, porque veio pela rede.
+        botoes_frame = tk.Frame(corpo, bg="#2C2C2C")
+        if buttons:
+            botoes_frame.pack(fill="x", padx=10, pady=(10, 0))
         for botao in (buttons or []):
             rotulo = botao.get("label", "")
             url = botao.get("url")
@@ -488,10 +680,9 @@ class NotificationUi:
                         logging.warning("Link recusado no botão '%s': só http/https.", rot)
                 finish(rot)
 
-            tk.Button(corpo, text=texto, font=("Segoe UI", max(9, round(10 * escala))), command=ao_clicar,
+            tk.Button(botoes_frame, text=texto, font=("Segoe UI", max(9, round(10 * escala))), command=ao_clicar,
                       bg="#3B3B3B", activebackground="#4A4A4A", fg="white", activeforeground="white",
-                      relief="flat", bd=0).pack(
-                fill="x", padx=14, pady=(6, 0))
+                      relief="flat", bd=0).pack(side="left", fill="x", expand=True, padx=4)
 
         if allow_reply:
             entry = tk.Entry(corpo, font=("Segoe UI", max(9, round(10 * escala))), bg="#3B3B3B",
@@ -506,7 +697,7 @@ class NotificationUi:
             tk.Button(btns, text="Fechar", width=12, command=lambda: finish(None),
                       bg="#3B3B3B", fg="white", relief="flat").pack(side="left", padx=4)
             entry.bind("<Return>", lambda _e: finish(entry.get()))
-        else:
+        elif not buttons:
             tk.Button(corpo, text="OK", width=12, command=lambda: finish(None),
                       bg="#3B3B3B", fg="white", relief="flat").pack(pady=14)
             win.after(visual["toast_duration_seconds"] * 1000, lambda: finish(None))
@@ -517,8 +708,12 @@ class NotificationUi:
         altura = win.winfo_reqheight()
         tela_largura = win.winfo_screenwidth()
         tela_altura = win.winfo_screenheight()
-        x = tela_largura - largura - 18
-        y = 18 if visual["toast_position"] == "top_right" else tela_altura - altura - 58
+        if centralizado:
+            x = max(0, (tela_largura - largura) // 2)
+            y = max(0, (tela_altura - altura) // 2)
+        else:
+            x = tela_largura - largura - 18
+            y = 18 if visual["toast_position"] == "top_right" else tela_altura - altura - 58
         win.geometry(f"{largura}x{altura}+{x}+{y}")
         if visual["play_sound"]:
             self._tocar_som(visual["sound_type"])
@@ -799,14 +994,17 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
             buttons=msg.get("buttons"), display_mode=msg.get("display_mode", "toast"),
             image=msg.get("image"), screen_images=msg.get("screen_images"),
             image_duration_seconds=msg.get("image_duration_seconds"),
-            allow_manual_close=msg.get("allow_manual_close"), appearance=msg.get("appearance"))
+            allow_manual_close=msg.get("allow_manual_close"), appearance=msg.get("appearance"),
+            video=msg.get("video"), screen_videos=msg.get("screen_videos"),
+            video_loop=msg.get("video_loop", False), audio=msg.get("audio"),
+            audio_loop=msg.get("audio_loop", False))
 
         ack = protocolo.base_message(MessageType.ACK)
         ack["in_reply_to"] = notification_id
         ack["status"] = "shown"
         self._safe_send(ack)
 
-        if not allow_reply:
+        if not allow_reply and not msg.get("buttons"):
             return
 
         try:
@@ -1084,14 +1282,17 @@ class ReverseConnection(threading.Thread):
             buttons=msg.get("buttons"), display_mode=msg.get("display_mode", "toast"),
             image=msg.get("image"), screen_images=msg.get("screen_images"),
             image_duration_seconds=msg.get("image_duration_seconds"),
-            allow_manual_close=msg.get("allow_manual_close"), appearance=msg.get("appearance"))
+            allow_manual_close=msg.get("allow_manual_close"), appearance=msg.get("appearance"),
+            video=msg.get("video"), screen_videos=msg.get("screen_videos"),
+            video_loop=msg.get("video_loop", False), audio=msg.get("audio"),
+            audio_loop=msg.get("audio_loop", False))
 
         ack = protocolo.base_message(MessageType.ACK)
         ack["in_reply_to"] = notification_id
         ack["status"] = "shown"
         self._enviar(ack)
 
-        if not allow_reply:
+        if not allow_reply and not msg.get("buttons"):
             return
 
         try:

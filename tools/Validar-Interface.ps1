@@ -5,6 +5,16 @@ param(
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class ComunicadorWindowPosition {
+    [DllImport("user32.dll", SetLastError=true)]
+    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
+        int X, int Y, int cx, int cy, uint uFlags);
+}
+'@
 
 $process = Start-Process -FilePath ([IO.Path]::GetFullPath($ExePath)) -PassThru
 try {
@@ -14,6 +24,19 @@ try {
         $process.Refresh()
     } while ($process.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $limit)
     if ($process.MainWindowHandle -eq 0) { throw 'A janela principal não abriu.' }
+
+    $screens = @([System.Windows.Forms.Screen]::AllScreens)
+    if ($screens.Count -gt 1) {
+        $second = @($screens | Where-Object { -not $_.Primary })[0]
+        $bounds = $second.WorkingArea
+        $width = [Math]::Min(1280, $bounds.Width)
+        $height = [Math]::Min(850, $bounds.Height)
+        $x = $bounds.X + [Math]::Max(0, [int](($bounds.Width - $width) / 2))
+        $y = $bounds.Y + [Math]::Max(0, [int](($bounds.Height - $height) / 2))
+        [ComunicadorWindowPosition]::SetWindowPos(
+            $process.MainWindowHandle, [IntPtr]::Zero, $x, $y, $width, $height, 0x0040) | Out-Null
+        Start-Sleep -Milliseconds 500
+    }
 
     $root = [System.Windows.Automation.AutomationElement]::RootElement
     $processCondition = New-Object System.Windows.Automation.PropertyCondition(
@@ -36,7 +59,10 @@ try {
     }
 
     Invoke-Tab 'Mensagens'
+    Invoke-Tab 'Lembretes'
+    Invoke-Tab ("Hist" + [char]0x00F3 + "rico")
     Invoke-Tab 'Logs'
+    Invoke-Tab ("Configura" + [char]0x00E7 + [char]0x00F5 + "es")
     Invoke-Tab 'Computadores'
     Invoke-Tab 'Mensagens'
 
@@ -46,7 +72,7 @@ try {
         throw "Foi aberta uma janela inesperada: $names"
     }
 
-    Write-Host 'Interface validada: Mensagens, Logs e Computadores alternaram sem erro.'
+    Write-Host 'Interface validada: todas as abas alternaram sem erro.'
 }
 finally {
     if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }

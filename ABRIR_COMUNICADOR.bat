@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 set "ROOT=%~dp0"
 set "COMUNICADOR_ROOT=%~dp0"
-set "VERSAO_ESPERADA=2.2.2.0"
+set "VERSAO_ESPERADA=2.4.0.0"
 set "REPO_RAW=https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main"
 cd /d "%ROOT%"
 
@@ -35,7 +35,7 @@ if "!MODO_DEV!"=="1" (
             "if($atual -lt $expected -or $novo -gt $item.LastWriteTimeUtc){'1'}else{'0'}"') do set "PRECISA_COMPILAR=%%I"
     )
     if "!PRECISA_COMPILAR!"=="1" (
-        echo A fonte local mudou. Compilando a versao 2.2.2...
+        echo A fonte local mudou. Compilando a versao 2.4.0...
         call "%ROOT%build.bat"
         if errorlevel 1 (
             echo.
@@ -82,8 +82,12 @@ if /I "%~1"=="--verificar" (
 
 rem Na primeira execucao configura rede e Firewall. A instalacao completa ja
 rem inclui o auxiliar; o download isolado abaixo e apenas uma recuperacao extra.
+set "CONFIGURAR_FIREWALL=0"
 netsh advfirewall firewall show rule name="Comunicador" >nul 2>nul
-if errorlevel 1 (
+if errorlevel 1 set "CONFIGURAR_FIREWALL=1"
+netsh advfirewall firewall show rule name="Comunicador" verbose | findstr /C:"57933" >nul 2>nul
+if errorlevel 1 set "CONFIGURAR_FIREWALL=1"
+if "!CONFIGURAR_FIREWALL!"=="1" (
     if "!MODO_DEV!"=="1" (
         set "FIREWALL_HELPER=%ROOT%LIBERAR_FIREWALL.bat"
     ) else (

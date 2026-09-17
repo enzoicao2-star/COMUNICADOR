@@ -5,7 +5,8 @@ param(
     [string]$LauncherPath = '',
     [string]$ManifestUrl = 'https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/panel-version.json',
     [string]$RepositoryArchiveUrl = 'https://github.com/enzoicao2-star/COMUNICADOR/archive/refs/heads/main.zip',
-    [switch]$SkipShortcuts
+    [switch]$SkipShortcuts,
+    [switch]$RestartAfterUpdate
 )
 
 $ErrorActionPreference = 'Stop'
@@ -128,6 +129,7 @@ function Install-RepositorySnapshot(
 
         New-Item -ItemType Directory -Force -Path $Root | Out-Null
         $launcherFull = if ([string]::IsNullOrWhiteSpace($CurrentLauncher)) { '' } else { [IO.Path]::GetFullPath($CurrentLauncher) }
+        $pendingLauncher = $null
         $sourceFiles = @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -File -Force)
         foreach ($sourceFile in $sourceFiles) {
             $relativePath = $sourceFile.FullName.Substring($sourceRoot.Length).TrimStart('\')
@@ -137,9 +139,42 @@ function Install-RepositorySnapshot(
 
             $isRunningLauncher = -not [string]::IsNullOrWhiteSpace($launcherFull) -and
                 $destinationPath.Equals($launcherFull, [StringComparison]::OrdinalIgnoreCase)
-            if ($isRunningLauncher) { continue }
-            if ($FreshInstall -or -not (Test-Path -LiteralPath $destinationPath -PathType Leaf)) {
+            if ($isRunningLauncher) {
+                $pendingLauncher = Join-Path $Root 'ABRIR_COMUNICADOR.pending.bat'
+                Copy-Item -LiteralPath $sourceFile.FullName -Destination $pendingLauncher -Force
+                continue
+            }
+            $isBatchFile = $sourceFile.Extension.Equals('.bat', [StringComparison]::OrdinalIgnoreCase)
+            $isUpdater = $relativePath.Equals(
+                'tools\Atualizar-Comunicador.ps1', [StringComparison]::OrdinalIgnoreCase)
+            if ($FreshInstall -or $isBatchFile -or $isUpdater `
+                -or -not (Test-Path -LiteralPath $destinationPath -PathType Leaf)) {
                 Copy-Item -LiteralPath $sourceFile.FullName -Destination $destinationPath -Force
+            }
+        }
+
+        if ($null -ne $pendingLauncher -and -not [string]::IsNullOrWhiteSpace($launcherFull)) {
+            # O CMD ainda está executando o BAT atual. Um processo oculto espera esse
+            # CMD terminar e só então troca o launcher, evitando cortá-lo no meio.
+            $parentProcessId = (Get-CimInstance Win32_Process -Filter "ProcessId=$PID" -ErrorAction SilentlyContinue).ParentProcessId
+            if ($parentProcessId) {
+                $pendingQuoted = $pendingLauncher.Replace("'", "''")
+                $launcherQuoted = $launcherFull.Replace("'", "''")
+                $deferred = @"
+try { Wait-Process -Id $parentProcessId -Timeout 120 -ErrorAction SilentlyContinue } catch {}
+for (`$attempt = 0; `$attempt -lt 20; `$attempt++) {
+    try {
+        Copy-Item -LiteralPath '$pendingQuoted' -Destination '$launcherQuoted' -Force -ErrorAction Stop
+        Remove-Item -LiteralPath '$pendingQuoted' -Force -ErrorAction SilentlyContinue
+        break
+    }
+    catch { Start-Sleep -Milliseconds 500 }
+}
+"@
+                $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($deferred))
+                Start-Process -FilePath 'powershell.exe' `
+                    -ArgumentList @('-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-EncodedCommand', $encoded) `
+                    -WindowStyle Hidden
             }
         }
 
@@ -248,21 +283,22 @@ $inventory = @()
 if ($null -ne $managedRoot) {
     $metadata = Read-InstallMetadata $managedRoot
     $inventory = Get-InstallInventory $metadata
-    if (-not (Test-CompleteInstall $managedRoot $metadata)) {
-        $freshInstall = -not (Test-Path -LiteralPath (Join-Path $managedRoot 'release\Comunicador.exe') -PathType Leaf)
-        try {
-            $inventory = Install-RepositorySnapshot $managedRoot $RepositoryArchiveUrl $LauncherPath $freshInstall
-            if ($freshInstall) {
-                Write-Host ('Projeto completo instalado em ' + $managedRoot + '.')
-            }
-            else {
-                Write-Host 'Arquivos ausentes da instalacao foram restaurados.'
-            }
+    $freshInstall = -not (Test-Path -LiteralPath (Join-Path $managedRoot 'release\Comunicador.exe') -PathType Leaf)
+    try {
+        $inventory = Install-RepositorySnapshot $managedRoot $RepositoryArchiveUrl $LauncherPath $freshInstall
+        if ($freshInstall) {
+            Write-Host ('Projeto completo instalado em ' + $managedRoot + '.')
         }
-        catch {
-            Write-Host ('Falha ao instalar todos os arquivos do GitHub: ' + $_.Exception.Message)
-            if ($freshInstall -or -not (Test-Path -LiteralPath $target)) { exit 4 }
+        elseif (-not (Test-CompleteInstall $managedRoot $metadata)) {
+            Write-Host 'Arquivos ausentes da instalacao foram restaurados.'
         }
+        else {
+            Write-Host 'Arquivos BAT e auxiliares sincronizados com o GitHub.'
+        }
+    }
+    catch {
+        Write-Host ('Falha ao sincronizar os arquivos do GitHub: ' + $_.Exception.Message)
+        if ($freshInstall -or -not (Test-Path -LiteralPath $target)) { exit 4 }
     }
 }
 
@@ -333,6 +369,20 @@ try {
         Install-Shortcuts $managedRoot $target
     }
     Write-Host ('Comunicador atualizado automaticamente para ' + $latestVersion + '.')
+    if ($RestartAfterUpdate) {
+        try {
+            $noticeDirectory = Join-Path $env:APPDATA 'Comunicador'
+            New-Item -ItemType Directory -Force -Path $noticeDirectory | Out-Null
+            $notice = [ordered]@{
+                version = $latestVersion.ToString()
+                summary = [string]$manifest.summary
+                changes = @($manifest.changes)
+            }
+            $notice | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $noticeDirectory 'ultima-atualizacao.json') -Encoding UTF8
+        }
+        catch { Write-Host ('AVISO: nao foi possivel salvar o resumo da atualizacao: ' + $_.Exception.Message) }
+        Start-Process -FilePath $target -WorkingDirectory $targetDirectory
+    }
     exit 0
 }
 catch {

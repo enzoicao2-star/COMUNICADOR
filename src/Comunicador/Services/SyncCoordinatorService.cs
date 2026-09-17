@@ -15,6 +15,7 @@ public sealed class SyncCoordinatorService : IDisposable
     private readonly RegistroConexoesReversas _connections;
     private readonly HistoricoRepository _history;
     private readonly LogRepository _logs;
+    private readonly PerfilComputadorRepository _profiles;
     private readonly CancellationTokenSource _stop = new();
     private readonly SemaphoreSlim _syncLock = new(1, 1);
     private Task? _loop;
@@ -24,13 +25,15 @@ public sealed class SyncCoordinatorService : IDisposable
         ReceptorClient client,
         RegistroConexoesReversas connections,
         HistoricoRepository history,
-        LogRepository logs)
+        LogRepository logs,
+        PerfilComputadorRepository profiles)
     {
         _computers = computers;
         _client = client;
         _connections = connections;
         _history = history;
         _logs = logs;
+        _profiles = profiles;
     }
 
     public void Start() => _loop ??= Task.Run(() => LoopAsync(_stop.Token));
@@ -66,6 +69,7 @@ public sealed class SyncCoordinatorService : IDisposable
                 reached++;
                 historyAdded += _history.Mesclar(result.HistoryEntries.Select(i => i.ToModel()));
                 logsAdded += _logs.Mesclar(result.LogEntries.Select(i => i.ToModel()));
+                _profiles.Mesclar(result.ComputerProfiles);
             }
             return new(reached, historyAdded, logsAdded, failures);
         }
@@ -88,16 +92,19 @@ public sealed class SyncCoordinatorService : IDisposable
         request.LogEntries = computer.TemPainel
             ? _logs.Snapshot(ProtocolConstants.MaxSyncEntries).Select(i => i.ToSync()).ToList()
             : [];
+        request.ComputerProfiles = computer.TemPainel
+            ? _profiles.Snapshot(ProtocolConstants.MaxSyncProfiles).ToList()
+            : [];
 
         var validation = MessageValidator.Validate(request);
         if (!validation.IsValid)
         {
-            return new(false, [], [], validation.Message);
+            return new(false, [], [], [], validation.Message);
         }
         var size = MessageValidator.ValidateSize(MessageValidator.Frame(request).Length, isUdp: false);
         if (!size.IsValid)
         {
-            return new(false, [], [], size.Message);
+            return new(false, [], [], [], size.Message);
         }
 
         return connection is not null

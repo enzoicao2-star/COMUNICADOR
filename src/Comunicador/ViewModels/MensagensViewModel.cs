@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Windows.Input;
 using Comunicador.Models;
@@ -14,12 +15,15 @@ public sealed class MensagensViewModel : ViewModelBase
     private readonly ComputadoresViewModel _computadores;
     private readonly EnviadorNotificacoes _enviador;
     private readonly HistoricoRepository _historico;
+    private readonly Dictionary<string, List<MidiaMonitorEditavel>> _midiasPorMonitor = new(StringComparer.Ordinal);
+    private readonly HashSet<Computador> _computadoresObservados = new();
 
     private string _titulo = string.Empty;
     private string _mensagem = string.Empty;
     private bool _permitirResposta = true;
     private bool _exibirImagemCentral;
     private bool _exibirAvisoObrigatorio;
+    private bool _exibirMensagemCentral;
     private double _tempoImagemSegundos = 15;
     private bool _permitirFecharImagem = true;
     private bool _tocarSom = true;
@@ -32,6 +36,17 @@ public sealed class MensagensViewModel : ViewModelBase
     private string? _nomeImagem;
     private string? _mimeImagem;
     private byte[]? _dadosImagem;
+    private string? _caminhoVideo;
+    private string? _nomeVideo;
+    private string? _mimeVideo;
+    private byte[]? _dadosVideo;
+    private string? _caminhoAudio;
+    private string? _nomeAudio;
+    private string? _mimeAudio;
+    private byte[]? _dadosAudio;
+    private bool _repetirVideo;
+    private bool _repetirAudio;
+    private bool _limitarDuracaoAudio;
     private string? _statusOperacao;
 
     public ObservableCollection<ComputadorSelecionavel> Destinatarios { get; } = new();
@@ -88,6 +103,11 @@ public sealed class MensagensViewModel : ViewModelBase
                     _exibirAvisoObrigatorio = false;
                     OnPropertyChanged(nameof(ExibirAvisoObrigatorio));
                 }
+                if (value && _exibirMensagemCentral)
+                {
+                    _exibirMensagemCentral = false;
+                    OnPropertyChanged(nameof(ExibirMensagemCentral));
+                }
                 OnPropertyChanged(nameof(DescricaoFormato));
                 CommandManager.InvalidateRequerySuggested();
             }
@@ -107,12 +127,72 @@ public sealed class MensagensViewModel : ViewModelBase
     }
 
     public bool TemImagem => _dadosImagem is { Length: > 0 };
+    public bool TemVideo => _dadosVideo is { Length: > 0 };
+    public bool TemAudio => _dadosAudio is { Length: > 0 };
+    public bool TemMidia => TemImagem || TemVideo || TemAudio;
+    public bool TemVideoConfigurado => TemVideo || MonitoresDestino.Any(m => m.Midias.Any(i => i.EhVideo));
+    public bool PodeConfigurarMonitores => !TemAudio;
+    public string? CaminhoMidia => CaminhoImagem ?? _caminhoVideo ?? _caminhoAudio;
+    public string? NomeMidia => NomeImagem ?? _nomeVideo ?? _nomeAudio;
+    public string TipoMidiaTexto => TemImagem ? "Imagem" : TemVideo ? "Vídeo" : TemAudio ? "Áudio" : "Mídia";
+
+    public bool RepetirVideo
+    {
+        get => _repetirVideo;
+        set { if (SetField(ref _repetirVideo, value)) CommandManager.InvalidateRequerySuggested(); }
+    }
+
+    public bool RepetirAudio
+    {
+        get => _repetirAudio;
+        set
+        {
+            if (SetField(ref _repetirAudio, value) && value)
+            {
+                LimitarDuracaoAudio = true;
+            }
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    public bool LimitarDuracaoAudio
+    {
+        get => _limitarDuracaoAudio;
+        set
+        {
+            var valor = RepetirAudio || value;
+            if (SetField(ref _limitarDuracaoAudio, valor))
+            {
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+    }
 
     public string DescricaoFormato => ExibirImagemCentral
-        ? "Aparecerá somente a imagem, centralizada e sem moldura. Título e mensagem não são necessários."
+        ? TemAudio
+            ? "O áudio tocará em segundo plano, sem abrir nenhuma janela."
+            : "A mídia aparecerá centralizada, sem moldura. Título e mensagem não são necessários."
         : ExibirAvisoObrigatorio
             ? "O computador ficará coberto pelo aviso até a pessoa clicar em OK."
+        : ExibirMensagemCentral
+            ? "A mensagem aparecerá no centro da tela e poderá receber respostas ou ações."
         : "O aviso aparecerá no canto inferior direito, no estilo do Windows.";
+
+    public bool ExibirMensagemCentral
+    {
+        get => _exibirMensagemCentral;
+        set
+        {
+            if (!SetField(ref _exibirMensagemCentral, value)) return;
+            if (value)
+            {
+                if (_exibirImagemCentral) { _exibirImagemCentral = false; OnPropertyChanged(nameof(ExibirImagemCentral)); }
+                if (_exibirAvisoObrigatorio) { _exibirAvisoObrigatorio = false; OnPropertyChanged(nameof(ExibirAvisoObrigatorio)); }
+            }
+            OnPropertyChanged(nameof(DescricaoFormato));
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
 
     public bool ExibirAvisoObrigatorio
     {
@@ -125,6 +205,11 @@ public sealed class MensagensViewModel : ViewModelBase
                 {
                     _exibirImagemCentral = false;
                     OnPropertyChanged(nameof(ExibirImagemCentral));
+                }
+                if (value && _exibirMensagemCentral)
+                {
+                    _exibirMensagemCentral = false;
+                    OnPropertyChanged(nameof(ExibirMensagemCentral));
                 }
                 OnPropertyChanged(nameof(DescricaoFormato));
                 CommandManager.InvalidateRequerySuggested();
@@ -178,8 +263,12 @@ public sealed class MensagensViewModel : ViewModelBase
     public ICommand EnviarCommand { get; }
     public ICommand AtualizarDestinatariosCommand { get; }
     public ICommand SelecionarImagemCommand { get; }
+    public ICommand SelecionarVideoCommand { get; }
+    public ICommand SelecionarAudioCommand { get; }
     public ICommand RemoverImagemCommand { get; }
+    public ICommand UsarImagemCarregadaNoMonitorCommand { get; }
     public ICommand AdicionarImagemMonitorCommand { get; }
+    public ICommand AdicionarVideoMonitorCommand { get; }
     public ICommand RemoverImagemMonitorCommand { get; }
 
     public MensagensViewModel(
@@ -192,7 +281,16 @@ public sealed class MensagensViewModel : ViewModelBase
         EnviarCommand = new AsyncRelayCommand(EnviarAsync, PodeEnviar);
         AtualizarDestinatariosCommand = new RelayCommand(_ => AtualizarDestinatarios());
         SelecionarImagemCommand = new RelayCommand(_ => SelecionarImagem());
-        RemoverImagemCommand = new RelayCommand(_ => RemoverImagem(), _ => TemImagem);
+        SelecionarVideoCommand = new RelayCommand(_ => SelecionarVideo());
+        SelecionarAudioCommand = new RelayCommand(_ => SelecionarAudio());
+        RemoverImagemCommand = new RelayCommand(_ => RemoverMidia(), _ => TemMidia);
+        UsarImagemCarregadaNoMonitorCommand = new RelayCommand(param =>
+        {
+            if (param is DestinoMonitor destino)
+            {
+                UsarMidiaCarregadaNoMonitor(destino);
+            }
+        }, param => param is DestinoMonitor && (TemImagem || TemVideo));
         AdicionarImagemMonitorCommand = new RelayCommand(param =>
         {
             if (param is DestinoMonitor destino)
@@ -200,17 +298,26 @@ public sealed class MensagensViewModel : ViewModelBase
                 AdicionarImagensAoMonitor(destino);
             }
         });
+        AdicionarVideoMonitorCommand = new RelayCommand(param =>
+        {
+            if (param is DestinoMonitor destino)
+            {
+                AdicionarVideoAoMonitor(destino);
+            }
+        });
         RemoverImagemMonitorCommand = new RelayCommand(param =>
         {
-            if (param is ImagemMonitorEditavel imagem)
+            if (param is MidiaMonitorEditavel midia)
             {
                 foreach (var destino in MonitoresDestino)
                 {
-                    if (destino.Imagens.Remove(imagem))
+                    if (destino.Midias.Remove(midia))
                     {
+                        GuardarMidias(destino);
                         break;
                     }
                 }
+                OnPropertyChanged(nameof(TemVideoConfigurado));
                 CommandManager.InvalidateRequerySuggested();
             }
         });
@@ -231,21 +338,76 @@ public sealed class MensagensViewModel : ViewModelBase
     private void AtualizarDestinatarios()
     {
         var idsSelecionados = Destinatarios.Where(d => d.Selecionado).Select(d => d.Computador.Id).ToHashSet();
-        Destinatarios.Clear();
-        foreach (var computador in _computadores.Computadores.Where(c => c.Pareado))
+
+        foreach (var destinatario in Destinatarios)
         {
-            Destinatarios.Add(new ComputadorSelecionavel(computador) { Selecionado = idsSelecionados.Contains(computador.Id) });
+            destinatario.PropertyChanged -= OnDestinatarioPropertyChanged;
+        }
+
+        foreach (var computador in _computadoresObservados)
+        {
+            computador.PropertyChanged -= OnComputadorPropertyChanged;
+        }
+        _computadoresObservados.Clear();
+
+        Destinatarios.Clear();
+        foreach (var computador in _computadores.Computadores)
+        {
+            if (_computadoresObservados.Add(computador))
+            {
+                computador.PropertyChanged += OnComputadorPropertyChanged;
+            }
+
+            if (!computador.Pareado)
+            {
+                continue;
+            }
+
+            var destinatario = new ComputadorSelecionavel(computador)
+            {
+                Selecionado = idsSelecionados.Contains(computador.Id),
+            };
+            destinatario.PropertyChanged += OnDestinatarioPropertyChanged;
+            Destinatarios.Add(destinatario);
         }
 
         AtualizarMonitoresDestino();
     }
 
+    private void OnDestinatarioPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(ComputadorSelecionavel.Selecionado))
+        {
+            return;
+        }
+
+        AtualizarMonitoresDestino();
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private void OnComputadorPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(Computador.Pareado)
+            or nameof(Computador.Monitores)
+            or nameof(Computador.Nome)
+            or nameof(Computador.Apelido))
+        {
+            AtualizarDestinatarios();
+        }
+    }
+
     private void AtualizarMonitoresDestino()
     {
-        var imagensExistentes = MonitoresDestino.ToDictionary(d => d.Chave, d => d.Imagens.ToList());
+        foreach (var destino in MonitoresDestino)
+        {
+            GuardarMidias(destino);
+        }
         MonitoresDestino.Clear();
 
-        foreach (var computador in _computadores.Computadores.Where(c => c.Pareado))
+        foreach (var computador in Destinatarios
+                     .Where(d => d.Selecionado)
+                     .Select(d => d.Computador)
+                     .DistinctBy(c => c.Id))
         {
             var monitores = computador.Monitores.Count > 0
                 ? computador.Monitores
@@ -254,17 +416,20 @@ public sealed class MensagensViewModel : ViewModelBase
             foreach (var monitor in monitores.OrderBy(m => m.Index))
             {
                 var destino = new DestinoMonitor { Computador = computador, Monitor = monitor };
-                if (imagensExistentes.TryGetValue(destino.Chave, out var imagens))
+                if (_midiasPorMonitor.TryGetValue(destino.Chave, out var midias))
                 {
-                    foreach (var imagem in imagens)
+                    foreach (var midia in midias)
                     {
-                        destino.Imagens.Add(imagem);
+                        destino.Midias.Add(midia);
                     }
                 }
                 MonitoresDestino.Add(destino);
             }
         }
     }
+
+    private void GuardarMidias(DestinoMonitor destino) =>
+        _midiasPorMonitor[destino.Chave] = destino.Midias.ToList();
 
     private bool PodeAdicionarBotao()
     {
@@ -292,16 +457,16 @@ public sealed class MensagensViewModel : ViewModelBase
     private bool PodeEnviar()
     {
         var temConteudo = ExibirImagemCentral
-            ? TemImagem || DestinatariosComImagemEspecifica()
+            ? TemMidia || DestinatariosComMidiaEspecifica()
             : !string.IsNullOrWhiteSpace(Titulo) && !string.IsNullOrWhiteSpace(Mensagem);
         return temConteudo && Destinatarios.Any(d => d.Selecionado);
     }
 
-    private bool DestinatariosComImagemEspecifica()
+    private bool DestinatariosComMidiaEspecifica()
     {
         var selecionados = Destinatarios.Where(d => d.Selecionado).Select(d => d.Computador.Id).ToList();
         return selecionados.Count > 0
-            && selecionados.All(id => MonitoresDestino.Any(m => m.Computador.Id == id && m.Imagens.Count > 0));
+            && selecionados.All(id => MonitoresDestino.Any(m => m.Computador.Id == id && m.Midias.Count > 0));
     }
 
     private void AdicionarImagensAoMonitor(DestinoMonitor destino)
@@ -329,7 +494,7 @@ public sealed class MensagensViewModel : ViewModelBase
                     continue;
                 }
 
-                var mime = MimePelaExtensao(caminho);
+                var mime = MimeImagemPelaExtensao(caminho);
                 var dados = File.ReadAllBytes(caminho);
                 if (!ConteudoImagem.MimePermitido(mime) || !ConteudoImagem.AssinaturaCorresponde(mime, dados))
                 {
@@ -337,28 +502,19 @@ public sealed class MensagensViewModel : ViewModelBase
                     continue;
                 }
 
-                var totalDoComputador = MonitoresDestino
-                    .Where(m => m.Computador.Id == destino.Computador.Id)
-                    .SelectMany(m => m.Imagens)
-                    .Sum(i => (long)i.Dados.Length);
-                var quantidadeDoComputador = MonitoresDestino
-                    .Where(m => m.Computador.Id == destino.Computador.Id)
-                    .Sum(m => m.Imagens.Count);
-                if (quantidadeDoComputador >= ProtocolConstants.MaxScreenImages
-                    || totalDoComputador + dados.Length > ProtocolConstants.MaxTotalImageBytes)
+                if (!PodeAdicionarMidia(destino, TipoMidiaMonitor.Imagem, dados.Length))
                 {
-                    StatusOperacao = "Limite por computador: 12 imagens e 16 MB no total.";
                     break;
                 }
 
-                destino.Imagens.Add(new ImagemMonitorEditavel
+                AdicionarMidia(destino, new MidiaMonitorEditavel
                 {
                     Caminho = caminho,
                     Nome = arquivo.Name,
                     MimeType = mime,
                     Dados = dados,
+                    Tipo = TipoMidiaMonitor.Imagem,
                 });
-                StatusOperacao = $"{arquivo.Name} adicionada ao {destino.Titulo}.";
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -370,7 +526,101 @@ public sealed class MensagensViewModel : ViewModelBase
         CommandManager.InvalidateRequerySuggested();
     }
 
-    private static string MimePelaExtensao(string caminho) => Path.GetExtension(caminho).ToLowerInvariant() switch
+    private void UsarMidiaCarregadaNoMonitor(DestinoMonitor destino)
+    {
+        var ehVideo = TemVideo;
+        var dados = ehVideo ? _dadosVideo : _dadosImagem;
+        var mime = ehVideo ? _mimeVideo : _mimeImagem;
+        var nome = ehVideo ? _nomeVideo : NomeImagem;
+        var caminho = ehVideo ? _caminhoVideo : CaminhoImagem;
+        var tipo = ehVideo ? TipoMidiaMonitor.Video : TipoMidiaMonitor.Imagem;
+
+        if (dados is not { Length: > 0 } || string.IsNullOrWhiteSpace(mime) || string.IsNullOrWhiteSpace(nome))
+        {
+            StatusOperacao = "Carregue uma imagem ou um vídeo antes de escolher o monitor.";
+            return;
+        }
+
+        if (destino.Midias.Any(i =>
+                i.Tipo == tipo
+                && string.Equals(i.MimeType, mime, StringComparison.OrdinalIgnoreCase)
+                && i.Dados.SequenceEqual(dados)))
+        {
+            StatusOperacao = $"{nome} já está no {destino.Titulo}.";
+            return;
+        }
+
+        if (!PodeAdicionarMidia(destino, tipo, dados.Length))
+        {
+            return;
+        }
+
+        AdicionarMidia(destino, new MidiaMonitorEditavel
+        {
+            Caminho = caminho ?? string.Empty,
+            Nome = nome,
+            MimeType = mime,
+            Dados = dados.ToArray(),
+            Tipo = tipo,
+        });
+        ExibirImagemCentral = true;
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private bool PodeAdicionarMidia(DestinoMonitor destino, TipoMidiaMonitor tipo, int tamanhoBytes)
+    {
+        var midiasDoComputador = MonitoresDestino
+            .Where(m => m.Computador.Id == destino.Computador.Id)
+            .SelectMany(m => m.Midias)
+            .ToList();
+        var totalBytes = midiasDoComputador.Sum(i => (long)i.Dados.Length);
+        var quantidadeTipo = midiasDoComputador.Count(i => i.Tipo == tipo);
+        var limiteQuantidade = tipo == TipoMidiaMonitor.Video
+            ? ProtocolConstants.MaxScreenVideos
+            : ProtocolConstants.MaxScreenImages;
+        var limiteBytes = tipo == TipoMidiaMonitor.Video
+            ? ProtocolConstants.MaxTotalMediaBytes
+            : ProtocolConstants.MaxTotalImageBytes;
+        if (quantidadeTipo >= limiteQuantidade || totalBytes + tamanhoBytes > limiteBytes)
+        {
+            StatusOperacao = tipo == TipoMidiaMonitor.Video
+                ? "Limite por computador: 4 vídeos e 40 MB no total."
+                : "Limite por computador: 12 imagens e 16 MB no total.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private void AdicionarMidia(DestinoMonitor destino, MidiaMonitorEditavel midia)
+    {
+        RemoverMidiasDeOutroTipo(destino.Computador.Id, midia.Tipo);
+        if (midia.EhVideo)
+        {
+            foreach (var existente in destino.Midias.Where(i => i.EhVideo).ToList())
+            {
+                destino.Midias.Remove(existente);
+            }
+        }
+        destino.Midias.Add(midia);
+        GuardarMidias(destino);
+        OnPropertyChanged(nameof(TemVideoConfigurado));
+        StatusOperacao = $"{midia.Nome} adicionada ao {destino.Titulo}.";
+    }
+
+    private void RemoverMidiasDeOutroTipo(string computadorId, TipoMidiaMonitor tipo)
+    {
+        foreach (var destino in MonitoresDestino.Where(m => m.Computador.Id == computadorId))
+        {
+            foreach (var item in destino.Midias.Where(i => i.Tipo != tipo).ToList())
+            {
+                destino.Midias.Remove(item);
+            }
+            GuardarMidias(destino);
+        }
+    }
+
+    private static string MimeImagemPelaExtensao(string caminho) => Path.GetExtension(caminho).ToLowerInvariant() switch
     {
         ".png" => "image/png",
         ".jpg" or ".jpeg" => "image/jpeg",
@@ -379,9 +629,28 @@ public sealed class MensagensViewModel : ViewModelBase
         _ => string.Empty,
     };
 
+    private static string MimeVideoPelaExtensao(string caminho) => Path.GetExtension(caminho).ToLowerInvariant() switch
+    {
+        ".mp4" => "video/mp4",
+        ".wmv" => "video/x-ms-wmv",
+        _ => string.Empty,
+    };
+
+    private static string MimeAudioPelaExtensao(string caminho) => Path.GetExtension(caminho).ToLowerInvariant() switch
+    {
+        ".mp3" => "audio/mpeg",
+        ".wav" => "audio/wav",
+        _ => string.Empty,
+    };
+
     private List<ImagemMonitor> CriarImagensPorMonitor(string computadorId) => MonitoresDestino
         .Where(m => m.Computador.Id == computadorId)
-        .SelectMany(m => m.Imagens.Select(i => i.ParaProtocolo(m.Monitor.Index)))
+        .SelectMany(m => m.Midias.Where(i => i.EhImagem).Select(i => i.ParaProtocolo(m.Monitor.Index)))
+        .ToList();
+
+    private List<VideoMonitor> CriarVideosPorMonitor(string computadorId) => MonitoresDestino
+        .Where(m => m.Computador.Id == computadorId)
+        .SelectMany(m => m.Midias.Where(i => i.EhVideo).Select(i => i.ParaVideoProtocolo(m.Monitor.Index)))
         .ToList();
 
     private void SelecionarImagem()
@@ -408,7 +677,7 @@ public sealed class MensagensViewModel : ViewModelBase
                 return;
             }
 
-            var mime = MimePelaExtensao(dialog.FileName);
+            var mime = MimeImagemPelaExtensao(dialog.FileName);
             var dados = File.ReadAllBytes(dialog.FileName);
             if (!ConteudoImagem.MimePermitido(mime) || !ConteudoImagem.AssinaturaCorresponde(mime, dados))
             {
@@ -416,14 +685,14 @@ public sealed class MensagensViewModel : ViewModelBase
                 return;
             }
 
+            LimparMidiaGeral();
             _dadosImagem = dados;
             _mimeImagem = mime;
-            CaminhoImagem = dialog.FileName;
-            NomeImagem = arquivo.Name;
+            _caminhoImagem = dialog.FileName;
+            _nomeImagem = arquivo.Name;
             ExibirImagemCentral = true;
             StatusOperacao = $"Imagem selecionada: {arquivo.Name} ({arquivo.Length / 1024d:0.#} KB).";
-            OnPropertyChanged(nameof(TemImagem));
-            CommandManager.InvalidateRequerySuggested();
+            NotificarMidiaAlterada();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -431,15 +700,190 @@ public sealed class MensagensViewModel : ViewModelBase
         }
     }
 
-    private void RemoverImagem()
+    private void SelecionarVideo()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Escolher vídeo para reproduzir no centro da tela",
+            Filter = "Vídeos permitidos|*.mp4;*.wmv|MP4|*.mp4|Windows Media Video|*.wmv",
+            CheckFileExists = true,
+            Multiselect = false,
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var arquivo = new FileInfo(dialog.FileName);
+            if (arquivo.Length <= 0 || arquivo.Length > ProtocolConstants.MaxVideoBytes)
+            {
+                StatusOperacao = "O vídeo precisa ter no máximo 24 MB.";
+                return;
+            }
+            var mime = MimeVideoPelaExtensao(dialog.FileName);
+            var dados = File.ReadAllBytes(dialog.FileName);
+            if (!ConteudoVideo.MimePermitido(mime) || !ConteudoVideo.AssinaturaCorresponde(mime, dados))
+            {
+                StatusOperacao = "Arquivo inválido. Escolha um vídeo MP4 ou WMV.";
+                return;
+            }
+
+            LimparMidiaGeral();
+            _dadosVideo = dados;
+            _mimeVideo = mime;
+            _caminhoVideo = dialog.FileName;
+            _nomeVideo = arquivo.Name;
+            ExibirImagemCentral = true;
+            StatusOperacao = $"Vídeo selecionado: {arquivo.Name} ({arquivo.Length / 1024d / 1024d:0.#} MB).";
+            NotificarMidiaAlterada();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            StatusOperacao = $"Não foi possível abrir o vídeo: {ex.Message}";
+        }
+    }
+
+    private void SelecionarAudio()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Escolher áudio para tocar em segundo plano",
+            Filter = "Áudios permitidos|*.mp3;*.wav|MP3|*.mp3|WAV|*.wav",
+            CheckFileExists = true,
+            Multiselect = false,
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var arquivo = new FileInfo(dialog.FileName);
+            if (arquivo.Length <= 0 || arquivo.Length > ProtocolConstants.MaxAudioBytes)
+            {
+                StatusOperacao = "O áudio precisa ter no máximo 12 MB.";
+                return;
+            }
+            var mime = MimeAudioPelaExtensao(dialog.FileName);
+            var dados = File.ReadAllBytes(dialog.FileName);
+            if (!ConteudoAudio.MimePermitido(mime) || !ConteudoAudio.AssinaturaCorresponde(mime, dados))
+            {
+                StatusOperacao = "Arquivo inválido. Escolha um áudio MP3 ou WAV.";
+                return;
+            }
+
+            LimparMidiaGeral();
+            _dadosAudio = dados;
+            _mimeAudio = mime;
+            _caminhoAudio = dialog.FileName;
+            _nomeAudio = arquivo.Name;
+            ExibirImagemCentral = true;
+            StatusOperacao = $"Áudio selecionado: {arquivo.Name} ({arquivo.Length / 1024d / 1024d:0.#} MB).";
+            NotificarMidiaAlterada();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            StatusOperacao = $"Não foi possível abrir o áudio: {ex.Message}";
+        }
+    }
+
+    private void AdicionarVideoAoMonitor(DestinoMonitor destino)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = $"Escolher vídeo para {destino.Titulo}",
+            Filter = "Vídeos permitidos|*.mp4;*.wmv|MP4|*.mp4|Windows Media Video|*.wmv",
+            CheckFileExists = true,
+            Multiselect = false,
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var arquivo = new FileInfo(dialog.FileName);
+            if (arquivo.Length <= 0 || arquivo.Length > ProtocolConstants.MaxVideoBytes)
+            {
+                StatusOperacao = "O vídeo precisa ter no máximo 24 MB.";
+                return;
+            }
+            var mime = MimeVideoPelaExtensao(dialog.FileName);
+            var dados = File.ReadAllBytes(dialog.FileName);
+            if (!ConteudoVideo.MimePermitido(mime) || !ConteudoVideo.AssinaturaCorresponde(mime, dados))
+            {
+                StatusOperacao = "Arquivo inválido. Escolha um vídeo MP4 ou WMV.";
+                return;
+            }
+            if (!PodeAdicionarMidia(destino, TipoMidiaMonitor.Video, dados.Length))
+            {
+                return;
+            }
+            AdicionarMidia(destino, new MidiaMonitorEditavel
+            {
+                Caminho = dialog.FileName,
+                Nome = arquivo.Name,
+                MimeType = mime,
+                Dados = dados,
+                Tipo = TipoMidiaMonitor.Video,
+            });
+            ExibirImagemCentral = true;
+            CommandManager.InvalidateRequerySuggested();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            StatusOperacao = $"Não foi possível abrir o vídeo: {ex.Message}";
+        }
+    }
+
+    private void LimparMidiaGeral()
     {
         _dadosImagem = null;
         _mimeImagem = null;
-        CaminhoImagem = null;
-        NomeImagem = null;
-        ExibirImagemCentral = false;
+        _caminhoImagem = null;
+        _nomeImagem = null;
+        _dadosVideo = null;
+        _mimeVideo = null;
+        _caminhoVideo = null;
+        _nomeVideo = null;
+        _dadosAudio = null;
+        _mimeAudio = null;
+        _caminhoAudio = null;
+        _nomeAudio = null;
+        _repetirVideo = false;
+        _repetirAudio = false;
+        _limitarDuracaoAudio = false;
+    }
+
+    private void RemoverMidia()
+    {
+        LimparMidiaGeral();
+        ExibirImagemCentral = MonitoresDestino.Any(m => m.Midias.Count > 0);
+        StatusOperacao = "Mídia carregada removida.";
+        NotificarMidiaAlterada();
+    }
+
+    private void NotificarMidiaAlterada()
+    {
+        OnPropertyChanged(nameof(CaminhoImagem));
+        OnPropertyChanged(nameof(NomeImagem));
         OnPropertyChanged(nameof(TemImagem));
-        StatusOperacao = "Imagem removida.";
+        OnPropertyChanged(nameof(TemVideo));
+        OnPropertyChanged(nameof(TemAudio));
+        OnPropertyChanged(nameof(TemMidia));
+        OnPropertyChanged(nameof(TemVideoConfigurado));
+        OnPropertyChanged(nameof(PodeConfigurarMonitores));
+        OnPropertyChanged(nameof(CaminhoMidia));
+        OnPropertyChanged(nameof(NomeMidia));
+        OnPropertyChanged(nameof(TipoMidiaTexto));
+        OnPropertyChanged(nameof(RepetirVideo));
+        OnPropertyChanged(nameof(RepetirAudio));
+        OnPropertyChanged(nameof(LimitarDuracaoAudio));
+        OnPropertyChanged(nameof(DescricaoFormato));
         CommandManager.InvalidateRequerySuggested();
     }
 
@@ -458,29 +902,53 @@ public sealed class MensagensViewModel : ViewModelBase
         };
     }
 
+    private ConteudoVideo? CriarConteudoVideo()
+    {
+        if (!ExibirImagemCentral || _dadosVideo is not { Length: > 0 }
+            || _mimeVideo is null || _nomeVideo is null)
+        {
+            return null;
+        }
+        return new ConteudoVideo
+        {
+            Name = _nomeVideo,
+            MimeType = _mimeVideo,
+            DataBase64 = Convert.ToBase64String(_dadosVideo),
+        };
+    }
+
+    private ConteudoAudio? CriarConteudoAudio()
+    {
+        if (!ExibirImagemCentral || _dadosAudio is not { Length: > 0 }
+            || _mimeAudio is null || _nomeAudio is null)
+        {
+            return null;
+        }
+        return new ConteudoAudio
+        {
+            Name = _nomeAudio,
+            MimeType = _mimeAudio,
+            DataBase64 = Convert.ToBase64String(_dadosAudio),
+        };
+    }
+
     private async Task EnviarAsync()
     {
         var selecionados = Destinatarios.Where(d => d.Selecionado).ToList();
-        var modoExibicao = ExibirImagemCentral
-            ? ProtocolConstants.DisplayMode.CenterImage
-            : ExibirAvisoObrigatorio
-                ? ProtocolConstants.DisplayMode.CenterAlert
-                : ProtocolConstants.DisplayMode.Toast;
-        // Imagem central é um conteúdo visual puro. O fechamento manual ocorre
-        // clicando na própria imagem, sem botões, campos ou textos sobrepostos.
+        // Mídia central é conteúdo puro: não exige título, mensagem nem interação.
         var permiteInteracao = !ExibirAvisoObrigatorio && !ExibirImagemCentral;
         var botoesProtocolo = permiteInteracao
             ? Botoes.Select(b => b.ParaProtocolo()).ToList()
             : new List<BotaoResposta>();
         var imagem = CriarConteudoImagem();
-        var duracaoImagem = ExibirImagemCentral ? (int)TempoImagemSegundos : (int?)null;
-        var permitirFechar = ExibirImagemCentral ? PermitirFecharImagem : (bool?)null;
+        var video = CriarConteudoVideo();
+        var audio = CriarConteudoAudio();
         var permitirRespostaEfetiva = PermitirResposta && permiteInteracao;
         var aparencia = new AparenciaNotificacao
         {
             AccentColor = CorDestaque.Trim(),
             FontScalePercent = (int)EscalaTexto,
-            PlaySound = TocarSom,
+            PlaySound = TocarSom && !TemAudio,
             SoundType = TipoSom,
             ToastDurationSeconds = (int)TempoAvisoSegundos,
             ToastPosition = PosicaoAviso,
@@ -494,12 +962,43 @@ public sealed class MensagensViewModel : ViewModelBase
         {
             var computador = destino.Computador;
             var imagensPorMonitor = CriarImagensPorMonitor(computador.Id);
+            var videosPorMonitor = CriarVideosPorMonitor(computador.Id);
+            var modoExibicao = !ExibirImagemCentral
+                ? ExibirAvisoObrigatorio
+                    ? ProtocolConstants.DisplayMode.CenterAlert
+                    : ExibirMensagemCentral
+                        ? ProtocolConstants.DisplayMode.CenterMessage
+                        : ProtocolConstants.DisplayMode.Toast
+                : audio is not null
+                    ? ProtocolConstants.DisplayMode.Audio
+                    : videosPorMonitor.Count > 0 || video is not null
+                        ? ProtocolConstants.DisplayMode.CenterVideo
+                        : ProtocolConstants.DisplayMode.CenterImage;
             var imagemParaEsteComputador = imagensPorMonitor.Count > 0 ? null : imagem;
+            var videoParaEsteComputador = videosPorMonitor.Count > 0 ? null : video;
+            var duracaoMidia = modoExibicao switch
+            {
+                ProtocolConstants.DisplayMode.CenterImage => (int?)TempoImagemSegundos,
+                ProtocolConstants.DisplayMode.CenterVideo when RepetirVideo => (int?)TempoImagemSegundos,
+                ProtocolConstants.DisplayMode.Audio when LimitarDuracaoAudio || RepetirAudio => (int?)TempoImagemSegundos,
+                _ => null,
+            };
+            var permitirFechar = modoExibicao is ProtocolConstants.DisplayMode.CenterImage
+                or ProtocolConstants.DisplayMode.CenterVideo
+                ? PermitirFecharImagem
+                : (bool?)null;
+            var nomeTipo = modoExibicao switch
+            {
+                ProtocolConstants.DisplayMode.CenterVideo => "Vídeo",
+                ProtocolConstants.DisplayMode.Audio => "Áudio",
+                ProtocolConstants.DisplayMode.CenterImage => "Imagem",
+                _ => "Mensagem",
+            };
             var tituloHistorico = ExibirImagemCentral && string.IsNullOrWhiteSpace(Titulo)
-                ? "Imagem"
+                ? nomeTipo
                 : Titulo;
             var mensagemHistorico = ExibirImagemCentral && string.IsNullOrWhiteSpace(Mensagem)
-                ? NomeImagem ?? "Imagem enviada"
+                ? NomeMidia ?? $"{nomeTipo} enviado"
                 : Mensagem;
             var entry = new HistoricoEntry
             {
@@ -517,9 +1016,14 @@ public sealed class MensagensViewModel : ViewModelBase
                     modoExibicao: modoExibicao,
                     imagem: imagemParaEsteComputador,
                     imagensPorMonitor: imagensPorMonitor,
-                    duracaoImagemSegundos: duracaoImagem,
+                    duracaoImagemSegundos: duracaoMidia,
                     permitirFecharManualmente: permitirFechar,
-                    aparencia: aparencia)
+                    aparencia: aparencia,
+                    video: videoParaEsteComputador,
+                    videosPorMonitor: videosPorMonitor,
+                    repetirVideo: modoExibicao == ProtocolConstants.DisplayMode.CenterVideo ? RepetirVideo : null,
+                    audio: modoExibicao == ProtocolConstants.DisplayMode.Audio ? audio : null,
+                    repetirAudio: modoExibicao == ProtocolConstants.DisplayMode.Audio ? RepetirAudio : null)
                 .ConfigureAwait(true);
 
             _historico.AtualizarExistente(
@@ -539,7 +1043,7 @@ public sealed class MensagensViewModel : ViewModelBase
             }
         }
 
-        var nomeConteudo = ExibirImagemCentral ? "Imagem" : "Mensagem";
+        var nomeConteudo = ExibirImagemCentral ? TipoMidiaTexto : "Mensagem";
         StatusOperacao = erros.Count == 0
             ? $"{nomeConteudo} exibida em {enviados} computador(es)."
             : $"Exibida em {enviados}; falhou em {erros.Count}. {string.Join(" | ", erros)}";

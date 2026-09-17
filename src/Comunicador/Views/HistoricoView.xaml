@@ -41,6 +41,24 @@
             </Button>
         </Grid>
 
+        <ScrollViewer DockPanel.Dock="Top" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                      Margin="0,0,0,14">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="Todos" Style="{StaticResource BotaoSecundario}" Margin="0,0,7,0"
+                        Command="{Binding SelecionarComputadorCommand}" CommandParameter="{x:Null}" />
+                <ItemsControl ItemsSource="{Binding Computadores}">
+                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Content="{Binding Rotulo}" Style="{StaticResource BotaoSecundario}" Margin="0,0,7,0"
+                                    Command="{Binding DataContext.SelecionarComputadorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding Id}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+
         <StackPanel DockPanel.Dock="Top" Margin="0,48,0,0" HorizontalAlignment="Center">
             <StackPanel.Style>
                 <Style TargetType="StackPanel">

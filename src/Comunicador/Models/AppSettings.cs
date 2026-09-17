@@ -11,6 +11,7 @@ public sealed class AppSettings
     public int IntervaloDescobertaSegundos { get; set; } = 15;
     public int IntervaloPingSegundos { get; set; } = 5;
     public string NomePainel { get; set; } = Environment.MachineName;
+    public bool EstePainelEhOwner { get; set; } = true;
     public bool IniciarComWindows { get; set; }
 
     /// <summary>Controla a exibição de mensagens recebidas. O receptor embutido continua

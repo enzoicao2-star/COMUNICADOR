@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Comunicador.Services;
 
 namespace Comunicador.Controls;
@@ -15,6 +16,8 @@ public sealed class AnimatedBackground : FrameworkElement
     private readonly Random _fluidRandom = new(731942);
     private TimeSpan _lastFrame;
     private double _lastFluidTime = -1;
+    private WriteableBitmap? _particleWaveBitmap;
+    private byte[]? _particleWavePixels;
 
     public static readonly DependencyProperty ModeProperty = DependencyProperty.Register(
         nameof(Mode), typeof(string), typeof(AnimatedBackground),
@@ -82,7 +85,134 @@ public sealed class AnimatedBackground : FrameworkElement
             case "Constelação": DrawConstellation(dc, time, opacity); break;
             case "Grade fluida": DrawFluidGrid(dc, time, opacity); break;
             case "Partículas fluidas": DrawFluidParticles(dc, time, opacity); break;
+            case "Onda de partículas": DrawParticleWave(dc, time); break;
         }
+    }
+
+    /// <summary>
+    /// Port direto do particle-wave do 21st.dev: grade 200 x 200 com espaçamento
+    /// 0,3, câmera em (0, 6, 5), FOV de 75 graus e o mesmo deslocamento do shader.
+    /// O bitmap evita criar 40 mil objetos WPF por quadro e preserva a animação fluida.
+    /// </summary>
+    private void DrawParticleWave(DrawingContext dc, double time)
+    {
+        var pixelWidth = Math.Max(1, (int)Math.Ceiling(ActualWidth));
+        var pixelHeight = Math.Max(1, (int)Math.Ceiling(ActualHeight));
+        EnsureParticleWaveBitmap(pixelWidth, pixelHeight);
+        if (_particleWaveBitmap is null || _particleWavePixels is null) return;
+
+        var background = IsDarkTheme() ? (byte)0 : (byte)255;
+        for (var index = 0; index < _particleWavePixels.Length; index += 4)
+        {
+            _particleWavePixels[index] = background;
+            _particleWavePixels[index + 1] = background;
+            _particleWavePixels[index + 2] = background;
+            _particleWavePixels[index + 3] = 255;
+        }
+
+        // O shader original incrementa uTime em 0,05 por frame. Em 60 Hz são
+        // aproximadamente três unidades por segundo.
+        var shaderTime = time * 3d;
+        const int amountX = 200;
+        const int amountY = 200;
+        const double gap = .3;
+        const double cameraY = 6;
+        const double cameraZ = 5;
+        const double cameraDistance = 7.810249675906654;
+        const double forwardY = -cameraY / cameraDistance;
+        const double forwardZ = -cameraZ / cameraDistance;
+        const double upY = cameraZ / cameraDistance;
+        const double upZ = -cameraY / cameraDistance;
+        var aspect = pixelWidth / (double)pixelHeight;
+        var tanHalfFov = Math.Tan(75d * Math.PI / 360d);
+        var particle = background == 0 ? (byte)255 : (byte)0;
+
+        for (var ix = 0; ix < amountX; ix++)
+        {
+            var baseX = ix * gap - amountX * gap / 2d;
+            for (var iy = 0; iy < amountY; iy++)
+            {
+                var z = iy * gap - amountX * gap / 2d;
+                var y = Math.Sin(baseX + shaderTime) * .5
+                        + Math.Cos(shaderTime) * .2;
+                var x = baseX + Math.Sin(y + shaderTime) * .5;
+
+                // Equivalente ao lookAt(scene.position) da câmera Three.js.
+                var relativeY = y - cameraY;
+                var relativeZ = z - cameraZ;
+                var depth = relativeY * forwardY + relativeZ * forwardZ;
+                if (depth <= .01) continue;
+
+                var cameraUp = relativeY * upY + relativeZ * upZ;
+                var normalizedX = (x / depth) / (tanHalfFov * aspect);
+                var normalizedY = (cameraUp / depth) / tanHalfFov;
+                if (normalizedX < -1.04 || normalizedX > 1.04 || normalizedY < -1.04 || normalizedY > 1.04)
+                    continue;
+
+                var screenX = (int)Math.Round((normalizedX + 1) * .5 * (pixelWidth - 1));
+                var screenY = (int)Math.Round((1 - normalizedY) * .5 * (pixelHeight - 1));
+
+                // Mesmo cálculo de scale e gl_PointSize usado no vertex shader.
+                var scale = 1d
+                            + Math.Sin(x + shaderTime) * .5
+                            + Math.Cos(y + shaderTime) * .2;
+                var pointSize = Math.Clamp(scale * 15d / depth, .45, 9);
+                DrawParticleSquare(_particleWavePixels, pixelWidth, pixelHeight,
+                    screenX, screenY, pointSize, particle);
+            }
+        }
+
+        _particleWaveBitmap.WritePixels(
+            new Int32Rect(0, 0, pixelWidth, pixelHeight),
+            _particleWavePixels,
+            pixelWidth * 4,
+            0);
+        dc.DrawImage(_particleWaveBitmap, new Rect(0, 0, ActualWidth, ActualHeight));
+    }
+
+    private void EnsureParticleWaveBitmap(int width, int height)
+    {
+        if (_particleWaveBitmap?.PixelWidth == width && _particleWaveBitmap.PixelHeight == height &&
+            _particleWavePixels?.Length == width * height * 4)
+            return;
+
+        _particleWaveBitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
+        _particleWavePixels = new byte[width * height * 4];
+    }
+
+    private static void DrawParticleSquare(
+        byte[] pixels,
+        int width,
+        int height,
+        int centerX,
+        int centerY,
+        double size,
+        byte color)
+    {
+        var diameter = Math.Max(1, (int)Math.Ceiling(size));
+        var startX = centerX - diameter / 2;
+        var startY = centerY - diameter / 2;
+        var endX = startX + diameter;
+        var endY = startY + diameter;
+
+        for (var y = Math.Max(0, startY); y < Math.Min(height, endY); y++)
+        {
+            for (var x = Math.Max(0, startX); x < Math.Min(width, endX); x++)
+            {
+                var offset = (y * width + x) * 4;
+                // fragment shader: vec4(uColor, 0.5), sobre preto ou branco.
+                pixels[offset] = (byte)((pixels[offset] + color) / 2);
+                pixels[offset + 1] = (byte)((pixels[offset + 1] + color) / 2);
+                pixels[offset + 2] = (byte)((pixels[offset + 2] + color) / 2);
+            }
+        }
+    }
+
+    private static bool IsDarkTheme()
+    {
+        var color = ThemeColor("BackgroundBrush", Colors.White);
+        var luminance = .2126 * color.R + .7152 * color.G + .0722 * color.B;
+        return luminance < 128;
     }
 
     private void DrawTopographic(DrawingContext dc, double time, double opacity)

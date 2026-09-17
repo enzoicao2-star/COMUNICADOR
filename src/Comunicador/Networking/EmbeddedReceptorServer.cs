@@ -23,6 +23,7 @@ public sealed class EmbeddedReceptorServer : IDisposable
     private readonly HistoricoRepository _historico;
     private readonly LogRepository _logs;
     private readonly RegistroConexoesReversas _conexoesReversas;
+    private readonly PerfilComputadorRepository _perfis;
 
     /// <summary>Disparado quando um receptor se registra abrindo conexao para este painel.</summary>
     public event Action<ConexaoReversa>? ReceptorRegistrado;
@@ -30,6 +31,8 @@ public sealed class EmbeddedReceptorServer : IDisposable
     private TcpListener? _tcpListener;
     private UdpClient? _udpClient;
     private CancellationTokenSource? _cts;
+    private int _portaTcpAtiva;
+    private int _portaUdpAtiva;
 
     public bool Ativo { get; private set; }
 
@@ -43,7 +46,8 @@ public sealed class EmbeddedReceptorServer : IDisposable
         AppSettings settings, ObservableCollection<PainelPareado> paineisPareados,
         JsonStore<PainelPareado> paineisPareadosStore, HistoricoRepository historico,
         LogRepository logs,
-        RegistroConexoesReversas conexoesReversas)
+        RegistroConexoesReversas conexoesReversas,
+        PerfilComputadorRepository perfis)
     {
         _settings = settings;
         _paineisPareados = paineisPareados;
@@ -51,6 +55,7 @@ public sealed class EmbeddedReceptorServer : IDisposable
         _historico = historico;
         _logs = logs;
         _conexoesReversas = conexoesReversas;
+        _perfis = perfis;
     }
 
     public void AtualizarDisponibilidade()
@@ -72,29 +77,43 @@ public sealed class EmbeddedReceptorServer : IDisposable
         TcpListener? tcpListener = null;
         UdpClient? udpClient = null;
 
-        try
+        SocketException? ultimoErroSocket = null;
+        var candidatos = new[]
         {
-            // Sem ReuseAddress de propósito: se a porta já estiver em uso (ex.: receptor.py
-            // já rodando nesta máquina), queremos uma falha clara aqui, não os dois
-            // processos dividindo a mesma porta de forma imprevisível.
-            tcpListener = new TcpListener(IPAddress.Any, _settings.PortaTcp);
-            tcpListener.Start();
+            (_settings.PortaTcp, _settings.PortaDescobertaUdp),
+            (ProtocolConstants.PanelFallbackTcpPort, ProtocolConstants.PanelFallbackUdpDiscoveryPort),
+        }.Distinct().ToList();
 
-            udpClient = new UdpClient();
-            udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, _settings.PortaDescobertaUdp));
+        foreach (var (portaTcp, portaUdp) in candidatos)
+        {
+            try
+            {
+                tcpListener = new TcpListener(IPAddress.Any, portaTcp);
+                tcpListener.Start();
+                udpClient = new UdpClient();
+                udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, portaUdp));
+                _portaTcpAtiva = portaTcp;
+                _portaUdpAtiva = portaUdp;
+                break;
+            }
+            catch (SocketException ex)
+            {
+                ultimoErroSocket = ex;
+                tcpListener?.Stop();
+                udpClient?.Dispose();
+                tcpListener = null;
+                udpClient = null;
+            }
         }
-        catch (SocketException ex)
-        {
-            tcpListener?.Stop();
-            udpClient?.Dispose();
-            cts.Dispose();
 
+        if (tcpListener is null || udpClient is null)
+        {
+            cts.Dispose();
             UltimoErro =
                 $"Receptor embutido não ativado: a porta TCP {_settings.PortaTcp} ou UDP {_settings.PortaDescobertaUdp} " +
-                "já está em uso nesta máquina (provavelmente o receptor.py já está rodando aqui). " +
-                "O Comunicador continua funcionando normalmente para enviar mensagens; quem já está " +
-                "ouvindo essa porta continua recebendo normalmente.";
-            Logger.Info(UltimoErro + $" (SocketErrorCode={ex.SocketErrorCode})");
+                $"e as portas alternativas TCP {ProtocolConstants.PanelFallbackTcpPort}/UDP " +
+                $"{ProtocolConstants.PanelFallbackUdpDiscoveryPort} estão indisponíveis.";
+            Logger.Info(UltimoErro + $" (SocketErrorCode={ultimoErroSocket?.SocketErrorCode})");
             Ativo = false;
             return;
         }
@@ -108,7 +127,7 @@ public sealed class EmbeddedReceptorServer : IDisposable
 
         UltimoErro = null;
         Ativo = true;
-        Logger.Info($"Receptor embutido ativo (TCP {_settings.PortaTcp}, UDP {_settings.PortaDescobertaUdp}).");
+        Logger.Info($"Receptor embutido ativo (TCP {_portaTcpAtiva}, UDP {_portaUdpAtiva}).");
     }
 
     public void Stop()
@@ -122,6 +141,8 @@ public sealed class EmbeddedReceptorServer : IDisposable
         _tcpListener?.Stop();
         _udpClient?.Close();
         _udpClient?.Dispose();
+        _portaTcpAtiva = 0;
+        _portaUdpAtiva = 0;
         Ativo = false;
         Logger.Info("Receptor embutido desativado (bloqueado nas configurações ou encerrando).");
     }
@@ -300,12 +321,15 @@ public sealed class EmbeddedReceptorServer : IDisposable
         resposta.HasPanel = true;
         resposta.Monitors = MonitorInfo.ListarLocais();
         resposta.ReceiverVersion = ProtocolConstants.CurrentReceiverVersion;
+        resposta.PanelVersion = ProtocolConstants.CurrentPanelVersion;
+        resposta.IsOwner = _settings.EstePainelEhOwner;
         await EnviarAsync(stream, resposta, ct).ConfigureAwait(false);
 
         var ip = (client.Client.RemoteEndPoint as System.Net.IPEndPoint)?.Address.ToString() ?? "?";
         var conexao = new ConexaoReversa(
             client, stream, computerId, computerName, ip, token,
-            msg.HasPanel ?? false, msg.Monitors, msg.ReceiverVersion);
+            msg.HasPanel ?? false, msg.Monitors, msg.ReceiverVersion,
+            msg.PanelVersion, msg.IsOwner ?? false);
         _conexoesReversas.Registrar(conexao);
         ReceptorRegistrado?.Invoke(conexao);
         Logger.Info($"Receptor '{computerName}' registrou-se via conexao reversa de {ip}.");
@@ -329,6 +353,8 @@ public sealed class EmbeddedReceptorServer : IDisposable
         pong.HasPanel = true;
         pong.Monitors = MonitorInfo.ListarLocais();
         pong.ReceiverVersion = ProtocolConstants.CurrentReceiverVersion;
+        pong.PanelVersion = ProtocolConstants.CurrentPanelVersion;
+        pong.IsOwner = _settings.EstePainelEhOwner;
         pong.Status = "online";
         await EnviarAsync(stream, pong, ct).ConfigureAwait(false);
     }
@@ -365,6 +391,8 @@ public sealed class EmbeddedReceptorServer : IDisposable
         response.HasPanel = true;
         response.Monitors = MonitorInfo.ListarLocais();
         response.ReceiverVersion = ProtocolConstants.CurrentReceiverVersion;
+        response.PanelVersion = ProtocolConstants.CurrentPanelVersion;
+        response.IsOwner = _settings.EstePainelEhOwner;
         response.Token = token;
         await EnviarAsync(stream, response, ct).ConfigureAwait(false);
     }
@@ -388,12 +416,14 @@ public sealed class EmbeddedReceptorServer : IDisposable
             return;
         }
 
-        if ((msg.Image is not null || msg.ScreenImages is { Count: > 0 })
+        if ((msg.Image is not null || msg.ScreenImages is { Count: > 0 }
+                || msg.Video is not null || msg.ScreenVideos is { Count: > 0 }
+                || msg.Audio is not null)
             && !_settings.AceitarImagensDeOutrosPaineis)
         {
             await EnviarAsync(stream, ComunicadorMessage.Error(
                 ProtocolConstants.ErrorCode.ContentBlocked,
-                "Este painel bloqueou o recebimento de imagens.", msg.Id), ct).ConfigureAwait(false);
+                "Este painel bloqueou o recebimento de imagens, vídeos e áudios.", msg.Id), ct).ConfigureAwait(false);
             return;
         }
 
@@ -409,6 +439,7 @@ public sealed class EmbeddedReceptorServer : IDisposable
         var entry = new HistoricoEntry
         {
             Direcao = DirecaoHistorico.Recebida,
+            ComputadorId = msg.PanelId ?? msg.Sender!,
             ComputadorNome = msg.Sender!,
             Titulo = msg.Title!,
             Mensagem = msg.Message!,
@@ -419,14 +450,15 @@ public sealed class EmbeddedReceptorServer : IDisposable
         var mostrarTask = NotificacaoRecebidaWindow.MostrarAsync(
             msg.Sender!, msg.Title!, msg.Message!, allowReply, msg.Buttons,
             msg.DisplayMode, msg.Image, msg.ScreenImages, msg.ImageDurationSeconds,
-            msg.AllowManualClose, msg.Appearance);
+            msg.AllowManualClose, msg.Appearance, msg.Video, msg.ScreenVideos,
+            msg.VideoLoop, msg.Audio, msg.AudioLoop);
 
         var ack = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ack);
         ack.InReplyTo = msg.Id;
         ack.Status = "shown";
         await EnviarAsync(stream, ack, ct).ConfigureAwait(false);
 
-        if (!allowReply)
+        if (!allowReply && msg.Buttons is not { Count: > 0 })
         {
             return;
         }
@@ -480,6 +512,10 @@ public sealed class EmbeddedReceptorServer : IDisposable
         {
             _logs.Mesclar(msg.LogEntries.Select(i => i.ToModel()));
         }
+        if (msg.ComputerProfiles is { Count: > 0 })
+        {
+            _perfis.Mesclar(msg.ComputerProfiles);
+        }
 
         var response = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.SyncResponse);
         response.InReplyTo = msg.Id;
@@ -489,6 +525,7 @@ public sealed class EmbeddedReceptorServer : IDisposable
         response.LogEntries = msg.IncludeLogs == true
             ? _logs.Snapshot(ProtocolConstants.MaxSyncEntries).Select(i => i.ToSync()).ToList()
             : [];
+        response.ComputerProfiles = _perfis.Snapshot(ProtocolConstants.MaxSyncProfiles).ToList();
         await EnviarAsync(stream, response, ct).ConfigureAwait(false);
     }
 
@@ -547,7 +584,9 @@ public sealed class EmbeddedReceptorServer : IDisposable
             announce.HasPanel = true;
             announce.Monitors = MonitorInfo.ListarLocais();
             announce.ReceiverVersion = ProtocolConstants.CurrentReceiverVersion;
-            announce.TcpPort = _settings.PortaTcp;
+            announce.PanelVersion = ProtocolConstants.CurrentPanelVersion;
+            announce.IsOwner = _settings.EstePainelEhOwner;
+            announce.TcpPort = _portaTcpAtiva;
             announce.Paired = pareadoComEsse;
 
             try

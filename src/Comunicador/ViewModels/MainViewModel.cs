@@ -17,6 +17,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     private readonly RegistroConexoesReversas _conexoesReversas;
     private readonly LogRepository _logsRepositorio;
     private readonly SyncCoordinatorService _sync;
+    private readonly PanelUpdateService _panelUpdate;
 
     private object _secaoAtual;
     private double? _pingMedioMs;
@@ -88,6 +89,13 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var historicoStore = new JsonStore<HistoricoEntry>(AppPaths.HistoricoFile);
         var logsStore = new JsonStore<LogEntry>(AppPaths.LogsFile);
         var paineisPareadosStore = new JsonStore<PainelPareado>(AppPaths.PaineisPareadosFile);
+        var perfis = new PerfilComputadorRepository(new JsonStore<PerfilComputador>(AppPaths.PerfisComputadoresFile));
+        _panelUpdate = new PanelUpdateService();
+        if (perfis.Obter(Settings.PainelId) is null)
+        {
+            perfis.Salvar(Settings.PainelId, Settings.NomePainel, Settings.EstePainelEhOwner,
+                Array.Empty<BadgeUsuario>(), Settings.PainelId);
+        }
 
         var client = new ReceptorClient(Settings.PainelId, Settings.NomePainel);
         _discovery = new DiscoveryService(Settings);
@@ -99,9 +107,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var atualizador = new AtualizadorReceptor(client, _conexoesReversas);
 
         Computadores = new ComputadoresViewModel(
-            computadoresStore, _discovery, client, atualizador, Settings);
+            computadoresStore, _discovery, client, atualizador, Settings, perfis);
         _sync = new SyncCoordinatorService(
-            Computadores.Snapshot, client, _conexoesReversas, _historicoRepositorio, _logsRepositorio);
+            Computadores.Snapshot, client, _conexoesReversas, _historicoRepositorio, _logsRepositorio, perfis);
         Historico = new HistoricoViewModel(_historicoRepositorio);
         Logs = new LogsViewModel(_logsRepositorio, _sync);
         Mensagens = new MensagensViewModel(Computadores, enviador, _historicoRepositorio);
@@ -120,9 +128,10 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var paineisPareados = new ObservableCollection<PainelPareado>(paineisPareadosStore.Load());
         _embeddedReceptorServer = new EmbeddedReceptorServer(
             Settings, paineisPareados, paineisPareadosStore, _historicoRepositorio,
-            _logsRepositorio, _conexoesReversas);
+            _logsRepositorio, _conexoesReversas, perfis);
         _embeddedReceptorServer.ReceptorRegistrado += Computadores.RegistrarViaConexaoReversa;
-        Configuracoes = new ConfiguracoesViewModel(Settings, paineisPareados, paineisPareadosStore, _embeddedReceptorServer);
+        Configuracoes = new ConfiguracoesViewModel(Settings, paineisPareados, paineisPareadosStore,
+            _embeddedReceptorServer, perfis, client, _panelUpdate);
 
         _secaoAtual = Computadores;
 
@@ -168,6 +177,11 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         _embeddedReceptorServer.AtualizarDisponibilidade();
         _sync.Start();
         Configuracoes.AtualizarStatusReceptor();
+        _ = Configuracoes.VerificarAtualizacaoPainelAsync();
+        var resumo = _panelUpdate.ConsumeUpdateSummary();
+        if (!string.IsNullOrWhiteSpace(resumo))
+            System.Windows.MessageBox.Show(resumo, "Atualização concluída",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
     }
 
     public void Dispose()

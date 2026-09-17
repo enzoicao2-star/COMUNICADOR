@@ -10,6 +10,9 @@
     <SolidColorBrush x:Key="BackgroundBrush" Color="#080B11" />
     <SolidColorBrush x:Key="SurfaceBrush" Color="#121923" />
     <SolidColorBrush x:Key="SurfaceAltBrush" Color="#192231" />
+    <SolidColorBrush x:Key="CardSurfaceBrush" Color="#B3121923" />
+    <SolidColorBrush x:Key="CardHoverBrush" Color="#CC192231" />
+    <SolidColorBrush x:Key="CardGlassBorderBrush" Color="#9952637C" />
     <SolidColorBrush x:Key="SidebarBrush" Color="#121923" />
     <SolidColorBrush x:Key="SidebarHoverBrush" Color="#273347" />
     <SolidColorBrush x:Key="SidebarSelectedBrush" Color="#33435C" />
@@ -35,6 +38,8 @@
 
     <CornerRadius x:Key="ControlRadius">4</CornerRadius>
     <CornerRadius x:Key="CardRadius">12</CornerRadius>
+    <DropShadowEffect x:Key="GlassCardShadow" Color="#000000" BlurRadius="18"
+                      ShadowDepth="2" Direction="270" Opacity="0.26" />
 
     <Style TargetType="Window">
         <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
@@ -79,11 +84,12 @@
     </Style>
 
     <Style x:Key="CardBorder" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        <Setter Property="Background" Value="{DynamicResource CardSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource CardGlassBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource CardRadius}" />
         <Setter Property="Padding" Value="16" />
+        <Setter Property="Effect" Value="{StaticResource GlassCardShadow}" />
         <Style.Triggers>
             <EventTrigger RoutedEvent="Loaded">
                 <BeginStoryboard>
@@ -95,6 +101,7 @@
             </EventTrigger>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
+                <Setter Property="Background" Value="{DynamicResource CardHoverBrush}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -104,7 +111,7 @@
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
-                <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+                <Setter Property="Background" Value="{DynamicResource CardHoverBrush}" />
             </Trigger>
         </Style.Triggers>
     </Style>

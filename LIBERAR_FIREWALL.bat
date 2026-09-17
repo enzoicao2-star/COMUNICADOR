@@ -5,7 +5,7 @@ rem Configura o Windows para o Comunicador funcionar entre computadores:
 rem  - marca as redes FISICAS como "Particular" (no perfil Publico o Windows
 rem    bloqueia descoberta na rede; Particular tambem e o perfil correto para
 rem    compartilhamento de arquivos / unidades de rede continuarem funcionando)
-rem  - libera as portas 57931/57932 no Firewall
+rem  - libera as portas 57931/57932 e as alternativas 57933/57934 no Firewall
 rem
 rem O script SO ADICIONA liberacoes para essas duas portas. Ele nao remove nem
 rem bloqueia nenhuma outra regra, e nao mexe em adaptadores virtuais/VPN.
@@ -19,9 +19,11 @@ if %errorlevel% neq 0 (
 
 set "PORT_TCP=57931"
 set "PORT_UDP=57932"
+set "PORT_PANEL_TCP=57933"
+set "PORT_PANEL_UDP=57934"
 
 echo ===============================================
-echo   Comunicador 2.2.2 - configurar rede
+echo   Comunicador 2.4.0 - configurar rede
 echo ===============================================
 echo.
 
@@ -54,8 +56,8 @@ netsh advfirewall firewall delete rule name="Comunicador (descoberta)" >nul 2>nu
 
 rem profile=any cobre Publico/Particular/Dominio — se a rede voltar a ser
 rem classificada como Publica, a regra continua valendo.
-netsh advfirewall firewall add rule name="Comunicador" dir=in action=allow protocol=TCP localport=%PORT_TCP% profile=any >nul
-netsh advfirewall firewall add rule name="Comunicador (descoberta)" dir=in action=allow protocol=UDP localport=%PORT_UDP% profile=any >nul
+netsh advfirewall firewall add rule name="Comunicador" dir=in action=allow protocol=TCP localport=%PORT_TCP%,%PORT_PANEL_TCP% profile=any >nul
+netsh advfirewall firewall add rule name="Comunicador (descoberta)" dir=in action=allow protocol=UDP localport=%PORT_UDP%,%PORT_PANEL_UDP% profile=any >nul
 
 if errorlevel 1 (
     echo ERRO: nao foi possivel criar as regras no Firewall.
@@ -63,7 +65,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo       Portas liberadas: TCP %PORT_TCP% ^(mensagens^) e UDP %PORT_UDP% ^(descoberta^).
+echo       Portas liberadas: TCP %PORT_TCP%/%PORT_PANEL_TCP% e UDP %PORT_UDP%/%PORT_PANEL_UDP%.
 echo.
 echo ===============================================
 echo   Pronto! Rede configurada.

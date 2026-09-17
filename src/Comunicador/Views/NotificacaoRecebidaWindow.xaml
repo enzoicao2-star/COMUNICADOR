@@ -32,9 +32,7 @@
                 <!-- Cabecalho mostra quem enviou, nao o nome do app. A janela continua
                      identificada como Comunicador no Title (alt-tab / barra de tarefas). -->
                 <StackPanel Orientation="Horizontal">
-                    <Border x:Name="IconeComunicador" Width="16" Height="16" CornerRadius="3"
-                            Background="#0067C0" VerticalAlignment="Center" />
-                    <TextBlock x:Name="DeSenderText" FontSize="12" Foreground="#C5C5C5" Margin="8,0,0,0"
+                    <TextBlock x:Name="DeSenderText" FontSize="12" Foreground="#C5C5C5" Margin="0"
                                VerticalAlignment="Center" />
                 </StackPanel>
                 <Button x:Name="FecharX" Click="Fechar_Click" HorizontalAlignment="Right" VerticalAlignment="Top"
@@ -80,10 +78,13 @@
 
             <!-- botoes de resposta rapida enviados junto com o aviso -->
             <ItemsControl x:Name="BotoesPanel" Grid.Row="4" Visibility="Collapsed" Margin="0,14,0,0">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <Button Click="BotaoResposta_Click" Tag="{Binding}" Height="32" Cursor="Hand"
-                                Margin="0,0,0,6" HorizontalContentAlignment="Stretch" Foreground="White" FontSize="13">
+                                Margin="3,0" Padding="12,0" MinWidth="90" HorizontalContentAlignment="Stretch" Foreground="White" FontSize="13">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="Bd" Background="#3B3B3B" CornerRadius="4"

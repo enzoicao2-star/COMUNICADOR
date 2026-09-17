@@ -1,10 +1,12 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows.Input;
 using Comunicador.Models;
 using Comunicador.Networking;
 using Comunicador.Protocol;
 using Comunicador.Services;
 using Comunicador.Storage;
+using Microsoft.Win32;
 
 namespace Comunicador.ViewModels;
 
@@ -16,6 +18,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private readonly ReceptorClient _client;
     private readonly AtualizadorReceptor _atualizador;
     private readonly AppSettings _settings;
+    private readonly PerfilComputadorRepository _perfis;
     private string? _statusMensagem;
     private string _novoIp = string.Empty;
     private string _novaPorta = ProtocolConstants.TcpPort.ToString();
@@ -47,16 +50,26 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public ICommand RenomearCommand { get; }
     public ICommand ConfirmarRenomeCommand { get; }
     public ICommand AtualizarReceptorCommand { get; }
+    public ICommand AdicionarBadgeCommand { get; }
+    public ICommand RemoverBadgeCommand { get; }
+    public ICommand CarregarIconeBadgeCommand { get; }
+    public ICommand SalvarPerfilCommand { get; }
+
+    public IReadOnlyList<string> EstilosBadge { get; } = ["Holográfica", "Metal", "Pílula", "Contorno", "Selo"];
+    public IReadOnlyList<string> IconesBadge { get; } =
+        ["Coroa", "Estrela", "Escudo", "Raio", "Diamante", "Fogo", "Coração", "Usuário", "Código", "Música", "Jogo", "Casa", "Medalha", "Chave", "Globo"];
 
     public ComputadoresViewModel(
         JsonStore<Computador> store, DiscoveryService discovery, ReceptorClient client,
-        AtualizadorReceptor atualizador, AppSettings settings)
+        AtualizadorReceptor atualizador, AppSettings settings,
+        PerfilComputadorRepository perfis)
     {
         _store = store;
         _discovery = discovery;
         _client = client;
         _atualizador = atualizador;
         _settings = settings;
+        _perfis = perfis;
         _novaPorta = settings.PortaTcp.ToString();
 
         foreach (var computador in _store.Load())
@@ -65,8 +78,11 @@ public sealed class ComputadoresViewModel : ViewModelBase
             {
                 computador.Monitores = MonitoresOuPadrao(null);
             }
+            AplicarPerfil(computador);
             Computadores.Add(computador);
         }
+
+        _perfis.Alterado += AplicarPerfis;
 
         _discovery.ReceptorDescoberto += OnReceptorDescoberto;
 
@@ -119,10 +135,134 @@ public sealed class ComputadoresViewModel : ViewModelBase
             if (param is Computador computador)
             {
                 computador.EmEdicao = false;
-                Persist();
+                SalvarPerfil(computador);
                 StatusMensagem = $"Renomeado para \"{computador.NomeExibicao}\".";
             }
         });
+
+        AdicionarBadgeCommand = new RelayCommand(param =>
+        {
+            if (param is Computador computador) AdicionarBadge(computador);
+        });
+        RemoverBadgeCommand = new RelayCommand(param =>
+        {
+            if (param is not BadgeUsuario badge) return;
+            var computador = Computadores.FirstOrDefault(c => c.Id == badge.ComputerId || c.Badges.Contains(badge));
+            if (computador is null) return;
+            computador.Badges = computador.Badges.Where(b => b.Id != badge.Id).ToList();
+            SalvarPerfil(computador);
+            StatusMensagem = $"Badge '{badge.Texto}' removida de {computador.NomeExibicao}.";
+        });
+        CarregarIconeBadgeCommand = new RelayCommand(param =>
+        {
+            if (param is Computador computador) CarregarIconePersonalizado(computador);
+        });
+        SalvarPerfilCommand = new RelayCommand(param =>
+        {
+            if (param is Computador computador)
+            {
+                SalvarPerfil(computador);
+                computador.EmEdicao = false;
+                StatusMensagem = $"Nome e badges de {computador.NomeExibicao} sincronizados com os painéis.";
+            }
+        });
+    }
+
+    private void AdicionarBadge(Computador computador)
+    {
+        if (computador.Badges.Count >= ProtocolConstants.MaxBadgesPerComputer)
+        {
+            StatusMensagem = "Cada computador pode ter até 4 badges.";
+            return;
+        }
+        var texto = computador.NovoBadgeTexto.Trim();
+        if (string.IsNullOrWhiteSpace(texto)) texto = "Badge";
+        if (texto.Length > ProtocolConstants.MaxBadgeTextLength) texto = texto[..ProtocolConstants.MaxBadgeTextLength];
+        if (!ThemeService.TryNormalizeColor(computador.NovoBadgeCor, out var cor))
+        {
+            StatusMensagem = "Cor inválida. Use uma cor como #4C8DFF.";
+            return;
+        }
+        var badge = new BadgeUsuario
+        {
+            ComputerId = computador.Id,
+            Texto = texto,
+            Cor = cor,
+            Estilo = EstilosBadge.Contains(computador.NovoBadgeEstilo) ? computador.NovoBadgeEstilo : "Holográfica",
+            Icone = IconesBadge.Contains(computador.NovoBadgeIcone) ? computador.NovoBadgeIcone : "Estrela",
+            IconePersonalizadoBase64 = computador.NovoBadgeIconePersonalizadoBase64,
+            Brilho = computador.NovoBadgeBrilho,
+            EfeitoMouse = computador.NovoBadgeEfeitoMouse,
+        };
+        computador.Badges = computador.Badges.Append(badge).ToList();
+        computador.NovoBadgeTexto = "Destaque";
+        computador.NovoBadgeIconePersonalizadoBase64 = null;
+        SalvarPerfil(computador);
+        StatusMensagem = $"Badge '{badge.Texto}' adicionada e compartilhada.";
+    }
+
+    private void CarregarIconePersonalizado(Computador computador)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Escolher ícone personalizado para a badge",
+            Filter = "Imagens|*.png;*.jpg;*.jpeg|PNG|*.png|JPEG|*.jpg;*.jpeg",
+            CheckFileExists = true,
+        };
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            var bytes = File.ReadAllBytes(dialog.FileName);
+            if (bytes.Length == 0 || bytes.Length > ProtocolConstants.MaxCustomBadgeIconBytes)
+            {
+                StatusMensagem = "O ícone personalizado precisa ter no máximo 64 KB.";
+                return;
+            }
+            var png = bytes.Length >= 8 && bytes.Take(8).SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
+            var jpeg = bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF;
+            if (!png && !jpeg)
+            {
+                StatusMensagem = "Ícone inválido. Escolha PNG ou JPEG.";
+                return;
+            }
+            computador.NovoBadgeIconePersonalizadoBase64 = Convert.ToBase64String(bytes);
+            StatusMensagem = $"Ícone {Path.GetFileName(dialog.FileName)} carregado para a próxima badge.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            StatusMensagem = $"Não foi possível carregar o ícone: {ex.Message}";
+        }
+    }
+
+    private void SalvarPerfil(Computador computador)
+    {
+        var nome = string.IsNullOrWhiteSpace(computador.Apelido) ? computador.Nome : computador.Apelido!;
+        _perfis.Salvar(computador.Id, nome, computador.EhOwner, computador.Badges, _settings.PainelId);
+        Persist();
+    }
+
+    private void AplicarPerfis() => UiDispatcher.Invoke(() =>
+    {
+        foreach (var computador in Computadores) AplicarPerfil(computador);
+        Persist();
+    });
+
+    private void AplicarPerfil(Computador computador)
+    {
+        var perfil = _perfis.Obter(computador.Id);
+        if (perfil is null)
+        {
+            foreach (var badge in computador.Badges) badge.ComputerId = computador.Id;
+            return;
+        }
+        computador.Apelido = string.IsNullOrWhiteSpace(perfil.NomePublico) ? null : perfil.NomePublico;
+        computador.EhOwner = perfil.EhOwner;
+        computador.Badges = perfil.Badges.Select(b =>
+        {
+            var clone = b.Clone();
+            clone.ComputerId = computador.Id;
+            return clone;
+        }).ToList();
     }
 
     public IReadOnlyList<Computador> Snapshot() => Computadores.ToList();
@@ -150,6 +290,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
                     TemPainel = conexao.HasPanel,
                     Monitores = MonitoresOuPadrao(conexao.Monitors),
                     VersaoReceptor = conexao.ReceiverVersion,
+                    VersaoPainel = conexao.PanelVersion,
+                    EhOwner = conexao.IsOwner,
                     Status = StatusComputador.Online,
                     UltimaVezVisto = DateTime.UtcNow,
                 });
@@ -165,11 +307,15 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 existente.TemPainel = conexao.HasPanel;
                 existente.Monitores = MonitoresOuPadrao(conexao.Monitors);
                 existente.VersaoReceptor = conexao.ReceiverVersion;
+                existente.VersaoPainel = conexao.PanelVersion;
+                existente.EhOwner = conexao.IsOwner;
                 existente.Status = StatusComputador.Online;
                 existente.UltimaVezVisto = DateTime.UtcNow;
                 StatusMensagem = $"{conexao.ComputerName} reconectou-se.";
             }
 
+            var atualizado = Computadores.First(c => c.Id == conexao.ComputerId);
+            AplicarPerfil(atualizado);
             Persist();
             PublicarPingMedio();
         });
@@ -231,6 +377,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
                     TemPainel = info.HasPanel,
                     Monitores = MonitoresOuPadrao(info.Monitors),
                     VersaoReceptor = info.ReceiverVersion,
+                    VersaoPainel = info.PanelVersion,
+                    EhOwner = info.IsOwner,
                     Status = StatusComputador.Online,
                     UltimaVezVisto = DateTime.UtcNow,
                 });
@@ -245,10 +393,13 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 existente.TemPainel = info.HasPanel;
                 existente.Monitores = MonitoresOuPadrao(info.Monitors);
                 existente.VersaoReceptor = info.ReceiverVersion;
+                existente.VersaoPainel = info.PanelVersion;
+                existente.EhOwner = info.IsOwner;
                 existente.Status = StatusComputador.Online;
                 existente.UltimaVezVisto = DateTime.UtcNow;
             }
 
+            AplicarPerfil(Computadores.First(c => c.Id == info.ComputerId));
             Persist();
             PublicarPingMedio();
         });
@@ -348,7 +499,10 @@ public sealed class ComputadoresViewModel : ViewModelBase
             computador.TemPainel = resultado.HasPanel;
             computador.Monitores = MonitoresOuPadrao(resultado.Monitors);
             computador.VersaoReceptor = resultado.ReceiverVersion;
+            computador.VersaoPainel = resultado.PanelVersion;
+            computador.EhOwner = resultado.IsOwner;
             computador.Status = StatusComputador.Online;
+            AplicarPerfil(computador);
             Persist();
             StatusMensagem = $"Pareado com {computador.Nome}.";
         }

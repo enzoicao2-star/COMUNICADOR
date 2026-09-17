@@ -45,7 +45,7 @@ public partial class NotificacaoRecebidaWindow : Window
         _monitorIndex = monitorIndex;
         _posicaoToast = aparencia.ToastPosition;
 
-        DeSenderText.Text = "Comunicador";
+        DeSenderText.Text = sender;
         TituloText.Text = title;
         MensagemText.Text = message;
 
@@ -57,7 +57,6 @@ public partial class NotificacaoRecebidaWindow : Window
             var cor = (Color)ColorConverter.ConvertFromString(aparencia.AccentColor);
             var brush = new SolidColorBrush(cor);
             brush.Freeze();
-            IconeComunicador.Background = brush;
             ResponderButton.Background = brush;
         }
         catch (FormatException)
@@ -65,22 +64,22 @@ public partial class NotificacaoRecebidaWindow : Window
             // A validação do protocolo já impede esta situação; conserva a cor padrão.
         }
 
-        if (modoExibicao == ProtocolConstants.DisplayMode.CenterAlert)
+        if (modoExibicao is ProtocolConstants.DisplayMode.CenterAlert or ProtocolConstants.DisplayMode.CenterMessage)
         {
             _avisoCentral = true;
-            _avisoObrigatorio = true;
-            DeSenderText.Text = "Comunicador";
+            _avisoObrigatorio = modoExibicao == ProtocolConstants.DisplayMode.CenterAlert;
+            DeSenderText.Text = sender;
             SizeToContent = SizeToContent.Manual;
             PlanoFundo.Background = new SolidColorBrush(Color.FromArgb(224, 14, 14, 14));
             Cartao.Width = 580;
             Cartao.MaxWidth = 580;
             Cartao.HorizontalAlignment = HorizontalAlignment.Center;
             Cartao.VerticalAlignment = VerticalAlignment.Center;
-            Cartao.BorderBrush = IconeComunicador.Background;
+            Cartao.BorderBrush = ResponderButton.Background;
             Cartao.BorderThickness = new Thickness(2);
             TituloText.FontSize = Math.Max(TituloText.FontSize, 22 * escala);
             MensagemText.FontSize = Math.Max(MensagemText.FontSize, 15 * escala);
-            OkButton.Background = IconeComunicador.Background;
+            OkButton.Background = ResponderButton.Background;
         }
 
         if (modoExibicao == ProtocolConstants.DisplayMode.CenterImage
@@ -171,7 +170,7 @@ public partial class NotificacaoRecebidaWindow : Window
             RespostaPanel.Visibility = Visibility.Visible;
             Loaded += (_, _) => RespostaBox.Focus();
         }
-        else if (interacaoPermitida || _avisoObrigatorio)
+        else if ((interacaoPermitida || _avisoObrigatorio) && botoes is not { Count: > 0 })
         {
             OkPanel.Visibility = Visibility.Visible;
         }
@@ -317,8 +316,43 @@ public partial class NotificacaoRecebidaWindow : Window
         IReadOnlyList<ImagemMonitor>? imagensPorMonitor = null,
         int? duracaoImagemSegundos = null,
         bool? permitirFecharManualmente = null,
-        AparenciaNotificacao? aparencia = null)
+        AparenciaNotificacao? aparencia = null,
+        ConteudoVideo? video = null,
+        IReadOnlyList<VideoMonitor>? videosPorMonitor = null,
+        bool? repetirVideo = null,
+        ConteudoAudio? audio = null,
+        bool? repetirAudio = null)
     {
+        if (modoExibicao is ProtocolConstants.DisplayMode.CenterVideo or ProtocolConstants.DisplayMode.Audio)
+        {
+            return MidiaRecebidaWindow.MostrarAsync(
+                video, videosPorMonitor, repetirVideo == true,
+                audio, repetirAudio == true, duracaoImagemSegundos,
+                permitirFecharManualmente != false);
+        }
+
+        var tipoSom = aparencia?.SoundType;
+        var usarJanelaWindows = !allowReply && botoes is not { Count: > 0 }
+            && imagem is null && imagensPorMonitor is not { Count: > 0 }
+            && modoExibicao is ProtocolConstants.DisplayMode.Toast or ProtocolConstants.DisplayMode.CenterMessage
+            && tipoSom is ProtocolConstants.SoundType.Warning or ProtocolConstants.SoundType.Error;
+        if (usarJanelaWindows)
+        {
+            var nativeResult = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var thread = new Thread(() =>
+            {
+                var icon = tipoSom == ProtocolConstants.SoundType.Error
+                    ? MessageBoxImage.Error : MessageBoxImage.Warning;
+                var body = string.IsNullOrWhiteSpace(title) ? message : $"{title}\n\n{message}";
+                MessageBox.Show(body, sender, MessageBoxButton.OK, icon);
+                nativeResult.TrySetResult(null);
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.IsBackground = true;
+            thread.Start();
+            return nativeResult.Task;
+        }
+
         var tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         Application.Current?.Dispatcher.BeginInvoke(new Action(() =>

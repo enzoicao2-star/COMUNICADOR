@@ -27,6 +27,16 @@ public sealed class Computador : ObservableModel
     private string? _versaoReceptor;
     private bool _atualizandoReceptor;
     private double? _pingMs;
+    private string? _versaoPainel;
+    private bool _ehOwner;
+    private List<BadgeUsuario> _badges = new();
+    private string _novoBadgeTexto = "Destaque";
+    private string _novoBadgeCor = "#4C8DFF";
+    private string _novoBadgeEstilo = "Holográfica";
+    private string _novoBadgeIcone = "Estrela";
+    private string? _novoBadgeIconePersonalizadoBase64;
+    private bool _novoBadgeBrilho = true;
+    private bool _novoBadgeEfeitoMouse = true;
 
     public string Id { get => _id; set => SetField(ref _id, value); }
 
@@ -43,8 +53,7 @@ public sealed class Computador : ObservableModel
         }
     }
 
-    /// <summary>Nome dado pelo usuário para reconhecer a máquina ("PC da sala").
-    /// Fica só neste painel; não é enviado pela rede nem altera o hostname.</summary>
+    /// <summary>Nome público definido pelo usuário e sincronizado entre os painéis.</summary>
     public string? Apelido
     {
         get => _apelido;
@@ -95,6 +104,55 @@ public sealed class Computador : ObservableModel
             }
         }
     }
+
+    public string? VersaoPainel
+    {
+        get => _versaoPainel;
+        set
+        {
+            if (SetField(ref _versaoPainel, value))
+            {
+                OnPropertyChanged(nameof(StatusVersaoPainel));
+                OnPropertyChanged(nameof(PainelAtualizado));
+            }
+        }
+    }
+
+    public bool EhOwner { get => _ehOwner; set => SetField(ref _ehOwner, value); }
+    public List<BadgeUsuario> Badges
+    {
+        get => _badges;
+        set
+        {
+            var badges = value ?? new();
+            foreach (var badge in badges) badge.ComputerId = Id;
+            SetField(ref _badges, badges);
+        }
+    }
+
+    [JsonIgnore]
+    public bool PainelAtualizado => !TemPainel || VersaoPainel == ProtocolConstants.CurrentPanelVersion;
+
+    [JsonIgnore]
+    public string StatusVersaoPainel => !TemPainel
+        ? string.Empty
+        : string.IsNullOrWhiteSpace(VersaoPainel)
+            ? "Painel antigo — versão desconhecida"
+            : PainelAtualizado
+                ? $"Painel {VersaoPainel} atualizado"
+                : $"Painel {VersaoPainel} — atualização disponível";
+
+    [JsonIgnore] public string NovoBadgeTexto { get => _novoBadgeTexto; set => SetField(ref _novoBadgeTexto, value); }
+    [JsonIgnore] public string NovoBadgeCor { get => _novoBadgeCor; set => SetField(ref _novoBadgeCor, value); }
+    [JsonIgnore] public string NovoBadgeEstilo { get => _novoBadgeEstilo; set => SetField(ref _novoBadgeEstilo, value); }
+    [JsonIgnore] public string NovoBadgeIcone { get => _novoBadgeIcone; set => SetField(ref _novoBadgeIcone, value); }
+    [JsonIgnore] public string? NovoBadgeIconePersonalizadoBase64
+    {
+        get => _novoBadgeIconePersonalizadoBase64;
+        set => SetField(ref _novoBadgeIconePersonalizadoBase64, value);
+    }
+    [JsonIgnore] public bool NovoBadgeBrilho { get => _novoBadgeBrilho; set => SetField(ref _novoBadgeBrilho, value); }
+    [JsonIgnore] public bool NovoBadgeEfeitoMouse { get => _novoBadgeEfeitoMouse; set => SetField(ref _novoBadgeEfeitoMouse, value); }
 
     [JsonIgnore]
     public bool AtualizandoReceptor

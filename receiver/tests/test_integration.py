@@ -146,7 +146,7 @@ def test_atualizacao_oficial_em_modo_teste(receptor):
     token = pair(receptor["port"])
     pedido = protocolo.base_message(MessageType.UPDATE_REQUEST)
     pedido["token"] = token
-    pedido["target_version"] = "2.2.1"
+    pedido["target_version"] = "2.4.0"
     pedido["update_files"] = []
     for nome in ("receptor.py", "protocolo.py"):
         dados = (RECEPTOR_PATH.parent / nome).read_bytes()
@@ -160,7 +160,7 @@ def test_atualizacao_oficial_em_modo_teste(receptor):
     assert response["type"] == MessageType.UPDATE_STATUS
     assert response["success"] is True
     assert response["status"] == "updated"
-    assert response["receiver_version"] == "2.2.1"
+    assert response["receiver_version"] == "2.4.0"
 
 
 def test_painel_coleta_logs_sem_mostrar_janela(receptor):

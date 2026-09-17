@@ -39,6 +39,12 @@ public sealed class ComunicadorMessage
     [JsonPropertyName("receiver_version")]
     public string? ReceiverVersion { get; set; }
 
+    [JsonPropertyName("panel_version")]
+    public string? PanelVersion { get; set; }
+
+    [JsonPropertyName("is_owner")]
+    public bool? IsOwner { get; set; }
+
     [JsonPropertyName("target_version")]
     public string? TargetVersion { get; set; }
 
@@ -59,6 +65,9 @@ public sealed class ComunicadorMessage
 
     [JsonPropertyName("log_entries")]
     public List<RegistroLogSincronizado>? LogEntries { get; set; }
+
+    [JsonPropertyName("computer_profiles")]
+    public List<PerfilComputadorSincronizado>? ComputerProfiles { get; set; }
 
     [JsonPropertyName("tcp_port")]
     public int? TcpPort { get; set; }
@@ -100,6 +109,21 @@ public sealed class ComunicadorMessage
 
     [JsonPropertyName("screen_images")]
     public List<ImagemMonitor>? ScreenImages { get; set; }
+
+    [JsonPropertyName("video")]
+    public ConteudoVideo? Video { get; set; }
+
+    [JsonPropertyName("screen_videos")]
+    public List<VideoMonitor>? ScreenVideos { get; set; }
+
+    [JsonPropertyName("video_loop")]
+    public bool? VideoLoop { get; set; }
+
+    [JsonPropertyName("audio")]
+    public ConteudoAudio? Audio { get; set; }
+
+    [JsonPropertyName("audio_loop")]
+    public bool? AudioLoop { get; set; }
 
     [JsonPropertyName("image_duration_seconds")]
     public int? ImageDurationSeconds { get; set; }

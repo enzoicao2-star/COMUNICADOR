@@ -20,14 +20,14 @@ PROTOCOL_VERSION = 1
 TCP_PORT = 57931
 UDP_DISCOVERY_PORT = 57932
 
-MAX_TCP_MESSAGE_BYTES = 24 * 1024 * 1024
+MAX_TCP_MESSAGE_BYTES = 64 * 1024 * 1024
 MAX_UDP_MESSAGE_BYTES = 2048
 
 MAX_TITLE_LENGTH = 200
 MAX_MESSAGE_LENGTH = 4000
 MAX_NAME_LENGTH = 100
 
-MAX_BOTOES = 4
+MAX_BOTOES = 2
 MAX_BOTAO_LABEL_LENGTH = 40
 MAX_BOTAO_URL_LENGTH = 500
 
@@ -39,6 +39,12 @@ MAX_IMAGE_DURATION_SECONDS = 3600
 MAX_MONITORS = 12
 MAX_SCREEN_IMAGES = 12
 MAX_TOTAL_IMAGE_BYTES = 16 * 1024 * 1024
+MAX_VIDEO_BYTES = 24 * 1024 * 1024
+MAX_VIDEO_BASE64_LENGTH = ((MAX_VIDEO_BYTES + 2) // 3) * 4
+MAX_SCREEN_VIDEOS = 4
+MAX_AUDIO_BYTES = 12 * 1024 * 1024
+MAX_AUDIO_BASE64_LENGTH = ((MAX_AUDIO_BYTES + 2) // 3) * 4
+MAX_TOTAL_MEDIA_BYTES = 40 * 1024 * 1024
 MAX_UPDATE_FILES = 2
 MAX_UPDATE_SOURCE_BYTES = 2 * 1024 * 1024
 MAX_UPDATE_TOTAL_BYTES = 4 * 1024 * 1024
@@ -54,8 +60,14 @@ MAX_FONT_SCALE_PERCENT = 160
 
 DISPLAY_MODE_TOAST = "toast"
 DISPLAY_MODE_CENTER_IMAGE = "center_image"
+DISPLAY_MODE_CENTER_VIDEO = "center_video"
+DISPLAY_MODE_AUDIO = "audio"
 DISPLAY_MODE_CENTER_ALERT = "center_alert"
-DISPLAY_MODES = {DISPLAY_MODE_TOAST, DISPLAY_MODE_CENTER_IMAGE, DISPLAY_MODE_CENTER_ALERT}
+DISPLAY_MODE_CENTER_MESSAGE = "center_message"
+DISPLAY_MODES = {
+    DISPLAY_MODE_TOAST, DISPLAY_MODE_CENTER_IMAGE, DISPLAY_MODE_CENTER_VIDEO,
+    DISPLAY_MODE_AUDIO, DISPLAY_MODE_CENTER_ALERT, DISPLAY_MODE_CENTER_MESSAGE,
+}
 SOUND_TYPES = {"information", "warning", "error"}
 TOAST_POSITIONS = {"bottom_right", "top_right"}
 
@@ -276,34 +288,110 @@ def _validar_imagem(imagem: dict) -> int:
     return len(dados)
 
 
+def _validar_video(video: dict) -> int:
+    if not isinstance(video, dict):
+        raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Campo 'video' precisa ser um objeto.")
+    _require_str(video, "name", MAX_IMAGE_NAME_LENGTH)
+    mime_type = _require_str(video, "mime_type", 40)
+    if mime_type not in {"video/mp4", "video/x-ms-wmv"}:
+        raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Formato de vídeo não permitido. Use MP4 ou WMV.")
+    data_base64 = _require_str(video, "data_base64", MAX_VIDEO_BASE64_LENGTH)
+    try:
+        dados = base64.b64decode(data_base64, validate=True)
+    except (ValueError, binascii.Error) as exc:
+        raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Campo 'video.data_base64' não é Base64 válido.") from exc
+    assinatura_valida = (
+        mime_type == "video/mp4" and len(dados) >= 12 and dados[4:8] == b"ftyp"
+    ) or (
+        mime_type == "video/x-ms-wmv" and dados.startswith(
+            b"\x30\x26\xb2\x75\x8e\x66\xcf\x11\xa6\xd9\x00\xaa\x00\x62\xce\x6c")
+    )
+    if not dados or len(dados) > MAX_VIDEO_BYTES:
+        raise ProtocolError(ErrorCode.PAYLOAD_TOO_LARGE, f"Vídeo precisa ter entre 1 e {MAX_VIDEO_BYTES} bytes.")
+    if not assinatura_valida:
+        raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "O conteúdo não corresponde ao formato de vídeo informado.")
+    return len(dados)
+
+
+def _validar_audio(audio: dict) -> int:
+    if not isinstance(audio, dict):
+        raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Campo 'audio' precisa ser um objeto.")
+    _require_str(audio, "name", MAX_IMAGE_NAME_LENGTH)
+    mime_type = _require_str(audio, "mime_type", 40)
+    if mime_type not in {"audio/mpeg", "audio/wav"}:
+        raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Formato de áudio não permitido. Use MP3 ou WAV.")
+    data_base64 = _require_str(audio, "data_base64", MAX_AUDIO_BASE64_LENGTH)
+    try:
+        dados = base64.b64decode(data_base64, validate=True)
+    except (ValueError, binascii.Error) as exc:
+        raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Campo 'audio.data_base64' não é Base64 válido.") from exc
+    assinatura_valida = (
+        mime_type == "audio/mpeg" and (
+            dados.startswith(b"ID3") or (len(dados) >= 2 and dados[0] == 0xff and dados[1] & 0xe0 == 0xe0))
+    ) or (
+        mime_type == "audio/wav" and len(dados) >= 12
+        and dados[:4] == b"RIFF" and dados[8:12] == b"WAVE"
+    )
+    if not dados or len(dados) > MAX_AUDIO_BYTES:
+        raise ProtocolError(ErrorCode.PAYLOAD_TOO_LARGE, f"Áudio precisa ter entre 1 e {MAX_AUDIO_BYTES} bytes.")
+    if not assinatura_valida:
+        raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "O conteúdo não corresponde ao formato de áudio informado.")
+    return len(dados)
+
+
 def _validar_conteudo_visual(msg: dict) -> None:
     modo = msg.get("display_mode", DISPLAY_MODE_TOAST)
     if not isinstance(modo, str) or modo not in DISPLAY_MODES:
         raise ProtocolError(
             ErrorCode.INVALID_FIELD_TYPE,
-            "Campo 'display_mode' precisa ser 'toast', 'center_image' ou 'center_alert'.")
+            "Campo 'display_mode' usa um modo não reconhecido.")
 
     imagem = msg.get("image")
     imagens_por_monitor = msg.get("screen_images")
+    video = msg.get("video")
+    videos_por_monitor = msg.get("screen_videos")
+    audio = msg.get("audio")
     if modo == DISPLAY_MODE_CENTER_IMAGE:
         if not isinstance(imagem, dict) and not (
                 isinstance(imagens_por_monitor, list) and imagens_por_monitor):
             raise ProtocolError(
                 ErrorCode.MISSING_FIELD, "Aviso central precisa de 'image' ou 'screen_images'.")
 
-        duracao = msg.get("image_duration_seconds")
-        if not isinstance(duracao, int) or isinstance(duracao, bool):
-            raise ProtocolError(
-                ErrorCode.MISSING_FIELD, "Aviso central precisa do campo 'image_duration_seconds'.")
-        if not MIN_IMAGE_DURATION_SECONDS <= duracao <= MAX_IMAGE_DURATION_SECONDS:
-            raise ProtocolError(
-                ErrorCode.INVALID_FIELD_TYPE,
-                f"'image_duration_seconds' precisa ficar entre {MIN_IMAGE_DURATION_SECONDS} e "
-                f"{MAX_IMAGE_DURATION_SECONDS}.")
+    if modo == DISPLAY_MODE_CENTER_VIDEO and not isinstance(video, dict) and not (
+            isinstance(videos_por_monitor, list) and videos_por_monitor):
+        raise ProtocolError(ErrorCode.MISSING_FIELD, "Vídeo central precisa de 'video' ou 'screen_videos'.")
+    if modo == DISPLAY_MODE_AUDIO and not isinstance(audio, dict):
+        raise ProtocolError(ErrorCode.MISSING_FIELD, "Reprodução de áudio precisa do campo 'audio'.")
 
-        if not isinstance(msg.get("allow_manual_close"), bool):
-            raise ProtocolError(
-                ErrorCode.MISSING_FIELD, "Aviso central precisa do campo 'allow_manual_close'.")
+    if modo == DISPLAY_MODE_CENTER_IMAGE and (video is not None or videos_por_monitor):
+        raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Modo de imagem não aceita conteúdo de vídeo.")
+    if modo == DISPLAY_MODE_CENTER_VIDEO and (imagem is not None or imagens_por_monitor):
+        raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Modo de vídeo não aceita conteúdo de imagem.")
+    if modo == DISPLAY_MODE_AUDIO and any(
+            value is not None and value != [] for value in
+            (imagem, imagens_por_monitor, video, videos_por_monitor)):
+        raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Modo de áudio não aceita imagem ou vídeo.")
+
+    duracao = msg.get("image_duration_seconds")
+    if modo == DISPLAY_MODE_CENTER_IMAGE and not isinstance(duracao, int):
+        raise ProtocolError(ErrorCode.MISSING_FIELD, "Aviso central precisa do campo 'image_duration_seconds'.")
+    if modo == DISPLAY_MODE_CENTER_VIDEO and not isinstance(msg.get("video_loop"), bool):
+        raise ProtocolError(ErrorCode.MISSING_FIELD, "Vídeo central precisa do campo 'video_loop'.")
+    if modo == DISPLAY_MODE_AUDIO and not isinstance(msg.get("audio_loop"), bool):
+        raise ProtocolError(ErrorCode.MISSING_FIELD, "Reprodução de áudio precisa do campo 'audio_loop'.")
+    if modo == DISPLAY_MODE_CENTER_VIDEO and msg.get("video_loop") is True and not isinstance(duracao, int):
+        raise ProtocolError(ErrorCode.MISSING_FIELD, "Vídeo em loop precisa do campo 'image_duration_seconds'.")
+    if modo == DISPLAY_MODE_AUDIO and msg.get("audio_loop") is True and not isinstance(duracao, int):
+        raise ProtocolError(ErrorCode.MISSING_FIELD, "Áudio em loop precisa do campo 'image_duration_seconds'.")
+    if duracao is not None and (
+            not isinstance(duracao, int) or isinstance(duracao, bool)
+            or not MIN_IMAGE_DURATION_SECONDS <= duracao <= MAX_IMAGE_DURATION_SECONDS):
+        raise ProtocolError(
+            ErrorCode.INVALID_FIELD_TYPE,
+            f"'image_duration_seconds' precisa ficar entre {MIN_IMAGE_DURATION_SECONDS} e {MAX_IMAGE_DURATION_SECONDS}.")
+    if modo in {DISPLAY_MODE_CENTER_IMAGE, DISPLAY_MODE_CENTER_VIDEO} \
+            and not isinstance(msg.get("allow_manual_close"), bool):
+        raise ProtocolError(ErrorCode.MISSING_FIELD, "Aviso central precisa do campo 'allow_manual_close'.")
 
     total = _validar_imagem(imagem) if imagem is not None else 0
     if imagens_por_monitor is not None:
@@ -329,6 +417,29 @@ def _validar_conteudo_visual(msg: dict) -> None:
     if total > MAX_TOTAL_IMAGE_BYTES:
         raise ProtocolError(
             ErrorCode.PAYLOAD_TOO_LARGE, f"O conjunto de imagens excede {MAX_TOTAL_IMAGE_BYTES} bytes.")
+
+    total_video = _validar_video(video) if video is not None else 0
+    if videos_por_monitor is not None:
+        if not isinstance(videos_por_monitor, list):
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "'screen_videos' precisa ser uma lista.")
+        if len(videos_por_monitor) > MAX_SCREEN_VIDEOS:
+            raise ProtocolError(ErrorCode.FIELD_TOO_LONG, f"São permitidos no máximo {MAX_SCREEN_VIDEOS} vídeos.")
+        monitores_usados = set()
+        for item in videos_por_monitor:
+            if not isinstance(item, dict):
+                raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Item de 'screen_videos' inválido.")
+            indice = _require_int(item, "monitor_index")
+            percentual = _require_int(item, "width_percent")
+            if not 0 <= indice < MAX_MONITORS or indice in monitores_usados:
+                raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Cada vídeo precisa apontar para um monitor válido e único.")
+            monitores_usados.add(indice)
+            if not MIN_IMAGE_WIDTH_PERCENT <= percentual <= MAX_IMAGE_WIDTH_PERCENT:
+                raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Tamanho do vídeo inválido.")
+            total_video += _validar_video(item.get("video"))
+
+    total_audio = _validar_audio(audio) if audio is not None else 0
+    if total + total_video + total_audio > MAX_TOTAL_MEDIA_BYTES:
+        raise ProtocolError(ErrorCode.PAYLOAD_TOO_LARGE, f"O conjunto de mídias excede {MAX_TOTAL_MEDIA_BYTES} bytes.")
 
 
 def _validar_aparencia(msg: dict) -> None:
@@ -520,7 +631,8 @@ def validate(msg: dict) -> None:
     elif msg_type == MessageType.NOTIFICATION:
         _require_str(msg, "token", MAX_NAME_LENGTH)
         _require_str(msg, "sender", MAX_NAME_LENGTH)
-        if msg.get("display_mode") == DISPLAY_MODE_CENTER_IMAGE:
+        if msg.get("display_mode") in {
+                DISPLAY_MODE_CENTER_IMAGE, DISPLAY_MODE_CENTER_VIDEO, DISPLAY_MODE_AUDIO}:
             _require_str_allow_empty(msg, "title", MAX_TITLE_LENGTH)
             _require_str_allow_empty(msg, "message", MAX_MESSAGE_LENGTH)
         else:

@@ -32,6 +32,11 @@ public sealed class EnviadorNotificacoes
         int? duracaoImagemSegundos = null,
         bool? permitirFecharManualmente = null,
         AparenciaNotificacao? aparencia = null,
+        ConteudoVideo? video = null,
+        IReadOnlyList<VideoMonitor>? videosPorMonitor = null,
+        bool? repetirVideo = null,
+        ConteudoAudio? audio = null,
+        bool? repetirAudio = null,
         CancellationToken ct = default)
     {
         var listaBotoes = botoes is { Count: > 0 } ? botoes.ToList() : null;
@@ -43,6 +48,7 @@ public sealed class EnviadorNotificacoes
             // o token da propria conexao e a fonte confiavel: o do Computador pode
             // estar vazio se ele entrou na lista por outro caminho.
             notificacao.Token = string.IsNullOrEmpty(conexao.Token) ? computador.Token ?? string.Empty : conexao.Token;
+            notificacao.PanelId = _settings.PainelId;
             notificacao.Sender = _settings.NomePainel;
             notificacao.Title = titulo;
             notificacao.Message = mensagem;
@@ -51,6 +57,11 @@ public sealed class EnviadorNotificacoes
             notificacao.DisplayMode = modoExibicao;
             notificacao.Image = imagem;
             notificacao.ScreenImages = imagensPorMonitor?.ToList();
+            notificacao.Video = video;
+            notificacao.ScreenVideos = videosPorMonitor?.ToList();
+            notificacao.VideoLoop = repetirVideo;
+            notificacao.Audio = audio;
+            notificacao.AudioLoop = repetirAudio;
             notificacao.ImageDurationSeconds = duracaoImagemSegundos;
             notificacao.AllowManualClose = permitirFecharManualmente;
             notificacao.Appearance = aparencia;
@@ -69,7 +80,8 @@ public sealed class EnviadorNotificacoes
             }
 
             var resultado = await conexao
-                .EnviarNotificacaoAsync(notificacao, permitirResposta, TimeoutResposta, ct)
+                .EnviarNotificacaoAsync(notificacao,
+                    permitirResposta || listaBotoes is { Count: > 0 }, TimeoutResposta, ct)
                 .ConfigureAwait(false);
 
             if (resultado.Delivered)
@@ -85,7 +97,8 @@ public sealed class EnviadorNotificacoes
             computador.EnderecoIp, computador.PortaTcp, computador.Token ?? string.Empty,
             titulo, mensagem, permitirResposta, listaBotoes, modoExibicao, imagem,
             imagensPorMonitor?.ToList(), duracaoImagemSegundos,
-            permitirFecharManualmente, aparencia, ct).ConfigureAwait(false);
+            permitirFecharManualmente, aparencia, video, videosPorMonitor?.ToList(),
+            repetirVideo, audio, repetirAudio, ct).ConfigureAwait(false);
     }
 
     /// <summary>Online se existe conexao reversa viva ou se o ping direto responde.</summary>

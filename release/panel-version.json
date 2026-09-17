@@ -1,5 +1,14 @@
 {
-    "version":  "2.2.2.0",
+    "version":  "2.4.0.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "253F4904E0C7B4EB5D102ABE624FBC83016DE36CEA3A9929314B0EBD3BC103A3"
+    "sha256":  "1092406A8D4C65F28E3EC396E3E14681F6F9A5B34C0CBCD1AB3D1C5DA27DCE45",
+    "summary":  "A versão 2.4 adiciona identidade sincronizada entre painéis, badges personalizáveis, atualização pelo próprio aplicativo e novos formatos de mensagem.",
+    "changes":  [
+                    "Foi adicionado 1 novo fundo: Onda de partículas.",
+                    "Foram adicionadas badges com texto, cor, estilo, ícone, brilho, animação e ícone personalizado.",
+                    "Nomes públicos, OWNER, badges, versões e histórico passam a ser sincronizados entre os painéis.",
+                    "Mensagens podem aparecer no centro, usar até 2 botões lado a lado e registrar a resposta no histórico por computador.",
+                    "O painel agora verifica e instala atualizações sem depender da abertura pelo arquivo BAT.",
+                    "Foram adicionados envio de vídeo e áudio, com repetição e duração configuráveis."
+                ]
 }

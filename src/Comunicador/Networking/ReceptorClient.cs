@@ -13,13 +13,16 @@ public sealed class ReceptorClient
     private static readonly TimeSpan ReplyTimeout = TimeSpan.FromMinutes(5);
 
     private readonly string _panelId;
-    private readonly string _panelName;
+    private string _panelName;
 
     public ReceptorClient(string panelId, string panelName)
     {
         _panelId = panelId;
         _panelName = panelName;
     }
+
+    public void UpdatePanelName(string panelName) =>
+        _panelName = string.IsNullOrWhiteSpace(panelName) ? Environment.MachineName : panelName.Trim();
 
     public async Task<PairResult> PairAsync(string ipAddress, int tcpPort, CancellationToken ct = default)
     {
@@ -44,7 +47,8 @@ public sealed class ReceptorClient
 
         return new PairResult(
             true, response.ComputerId!, response.ComputerName!, response.Token!,
-            response.HasPanel ?? false, response.Monitors, response.ReceiverVersion);
+            response.HasPanel ?? false, response.Monitors, response.ReceiverVersion,
+            response.PanelVersion, response.IsOwner ?? false);
     }
 
     public async Task<bool> PingAsync(string ipAddress, int tcpPort, string token, CancellationToken ct = default)
@@ -79,6 +83,11 @@ public sealed class ReceptorClient
         int? duracaoImagemSegundos = null,
         bool? permitirFecharManualmente = null,
         AparenciaNotificacao? aparencia = null,
+        ConteudoVideo? video = null,
+        List<VideoMonitor>? videosPorMonitor = null,
+        bool? repetirVideo = null,
+        ConteudoAudio? audio = null,
+        bool? repetirAudio = null,
         CancellationToken ct = default)
     {
         try
@@ -88,6 +97,7 @@ public sealed class ReceptorClient
 
             var notification = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Notification);
             notification.Token = token;
+            notification.PanelId = _panelId;
             notification.Sender = _panelName;
             notification.Title = title;
             notification.Message = message;
@@ -96,6 +106,11 @@ public sealed class ReceptorClient
             notification.DisplayMode = modoExibicao;
             notification.Image = imagem;
             notification.ScreenImages = imagensPorMonitor;
+            notification.Video = video;
+            notification.ScreenVideos = videosPorMonitor;
+            notification.VideoLoop = repetirVideo;
+            notification.Audio = audio;
+            notification.AudioLoop = repetirAudio;
             notification.ImageDurationSeconds = duracaoImagemSegundos;
             notification.AllowManualClose = permitirFecharManualmente;
             notification.Appearance = aparencia;
@@ -126,7 +141,7 @@ public sealed class ReceptorClient
 
             var shown = ack.Status == "shown";
 
-            if (!allowReply)
+            if (!allowReply && notification.Buttons is not { Count: > 0 })
             {
                 return new NotificationResult(true, shown, false, null, null);
             }
@@ -218,18 +233,19 @@ public sealed class ReceptorClient
             var response = await ReadValidatedAsync(stream, cts.Token).ConfigureAwait(false);
             if (response.Type == ProtocolConstants.MessageType.Error)
             {
-                return new(false, [], [], response.Message);
+                return new(false, [], [], [], response.Message);
             }
             if (response.Type != ProtocolConstants.MessageType.SyncResponse)
             {
-                return new(false, [], [], $"Resposta inesperada: '{response.Type}'.");
+                return new(false, [], [], [], $"Resposta inesperada: '{response.Type}'.");
             }
-            return new(true, response.HistoryEntries ?? [], response.LogEntries ?? [], null);
+            return new(true, response.HistoryEntries ?? [], response.LogEntries ?? [],
+                response.ComputerProfiles ?? [], null);
         }
         catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException
             or ReceptorComunicacaoException or ObjectDisposedException)
         {
-            return new(false, [], [], ex.Message);
+            return new(false, [], [], [], ex.Message);
         }
     }
 

@@ -1,9 +1,9 @@
-# Comunicador 2.2.2
+# Comunicador 2.4.0
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
-responder. Também envia avisos centrais, botões com links HTTP/HTTPS e
-imagens para monitores específicos. Veja [PROTOCOLO.md](PROTOCOLO.md)
+responder. Também envia avisos centrais, botões com links HTTP/HTTPS,
+imagens, vídeos e áudios para computadores ou monitores específicos. Veja [PROTOCOLO.md](PROTOCOLO.md)
 para o protocolo TCP/JSON completo.
 
 ```
@@ -22,26 +22,26 @@ quer usar o painel **não precisa instalar nada em Python**. O
 `receptor.py` continua existindo à parte para computadores que devem
 só *receber* avisos, sem a interface completa do painel (ex.: uma
 máquina compartilhada sem monitor dedicado). Os dois podem coexistir
-na mesma máquina sem conflito: se as portas já estiverem em uso pelo
-outro, o painel simplesmente desiste de escutar e loga o motivo, sem
-derrubar quem já está rodando. Detalhes em
+na mesma máquina sem conflito: se o receptor estiver usando as portas
+principais, o painel passa automaticamente para as portas alternativas
+57933/TCP e 57934/UDP. Detalhes em
 [PROTOCOLO.md § Painel como seu próprio receptor](PROTOCOLO.md#painel-como-seu-próprio-receptor).
 
 Dá para bloquear o recebimento a qualquer momento em
 Configurações → *"Aceitar mensagens de outros painéis"*, ou bloquear
-um painel pareado específico. Mensagens, imagens e botões com links
+um painel pareado específico. Mensagens, mídias e botões com links
 possuem controles de permissão separados.
 
 ## Recursos principais
 
 - Interface WPF responsiva com moldura própria, temas claro/escuro,
-  paletas predefinidas ou criadas pelo usuário e oito opções de fundo animado.
+  paletas predefinidas ou criadas pelo usuário e nove opções de fundo animado.
 - Navegação superior por ícones, transições e configurações salvas automaticamente.
 - Ping médio em tempo real com indicador verde, amarelo, vermelho ou sem conexão.
-- Avisos comuns, alertas centrais e imagens por monitor, com tamanho e tempo configuráveis.
-- Identificação visual de computadores que também executam o painel.
-- Histórico e logs sincronizados entre painéis, com exportação para TXT.
-- Versão do receptor visível no painel e atualização remota autenticada.
+- Avisos comuns, alertas centrais, imagens e vídeos por monitor, além de áudio invisível em segundo plano.
+- Nomes públicos, indicação OWNER e badges personalizáveis sincronizados entre os painéis.
+- Histórico separado por computador e logs sincronizados entre painéis, com respostas e exportação para TXT.
+- Versões do painel e do receptor visíveis, atualização remota do receptor e atualização do próprio painel pela interface.
 - TCP + JSON independente de linguagem, conexão reversa e descoberta UDP/LAN.
 
 ## Painel (Comunicador.exe)
@@ -64,8 +64,14 @@ se ainda não houver instalação, baixa **todos os arquivos publicados no
 GitHub** para `C:\Users\<usuário>\Documents\P5`, valida o executável,
 registra a instalação e cria atalhos no Desktop e no menu Iniciar. Se
 algum arquivo instalado for apagado, a próxima inicialização baixa o
-pacote novamente e restaura o que estiver faltando. O auxiliar que
-libera as portas também faz parte dessa instalação completa.
+pacote novamente e restaura o que estiver faltando. A inicialização
+também sincroniza todos os arquivos `.bat`, inclusive instalador,
+diagnóstico e desinstalador do receptor. O auxiliar que libera as portas
+também faz parte dessa instalação completa.
+
+O painel também verifica atualizações sozinho quando é aberto diretamente. Em
+Configurações → Painel e rede, o botão **Atualizar e reiniciar** instala a versão
+publicada; ao voltar, o aplicativo mostra um resumo curto do que foi adicionado.
 
 `build.bat` gera o ícone, restaura dependências, roda os testes Python
 e C# (inclusive integração real C# ↔ Python), compila em Release e
@@ -90,7 +96,7 @@ verifica/instala o Python automaticamente, baixa `receptor.py`,
 instala as dependências e configura a tarefa **"Comunicador
 Receptor"** no Agendador de Tarefas do Windows para iniciar com o
 login do usuário (via `pythonw.exe`, sem janela de console). O arquivo
-sempre baixa e valida a versão 2.2.1 publicada no GitHub antes de
+sempre baixa e valida a versão 2.4.0 publicada no GitHub antes de
 substituir uma instalação existente. Ao concluir com sucesso, fecha
 sozinho. Para remover o receptor, use
 `receiver/DESINSTALAR_RECEPTOR.bat`. O desinstalador preserva as regras

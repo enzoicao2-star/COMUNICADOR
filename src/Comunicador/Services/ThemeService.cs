@@ -28,6 +28,8 @@ public static class ThemeService
             {
                 ["BackgroundBrush"] = "#080B11", ["SurfaceBrush"] = "#121923",
                 ["SurfaceAltBrush"] = "#192231", ["SidebarBrush"] = "#121923",
+                ["CardSurfaceBrush"] = "#B3121923", ["CardHoverBrush"] = "#CC192231",
+                ["CardGlassBorderBrush"] = "#9952637C",
                 ["SidebarHoverBrush"] = "#273347", ["SidebarSelectedBrush"] = "#33435C",
                 ["TextPrimaryBrush"] = "#F7F9FC", ["TextSecondaryBrush"] = "#B8C3D2",
                 ["TextOnDarkBrush"] = "#F7F9FC", ["TextOnDarkDimBrush"] = "#C2CCDA",
@@ -39,6 +41,8 @@ public static class ThemeService
             {
                 ["BackgroundBrush"] = "#F0F4F9", ["SurfaceBrush"] = "#FFFFFF",
                 ["SurfaceAltBrush"] = "#F8FAFD", ["SidebarBrush"] = "#FFFFFF",
+                ["CardSurfaceBrush"] = "#B3FFFFFF", ["CardHoverBrush"] = "#D9FFFFFF",
+                ["CardGlassBorderBrush"] = "#A6C7D2E0",
                 ["SidebarHoverBrush"] = "#E3EAF3", ["SidebarSelectedBrush"] = "#D6E3F3",
                 ["TextPrimaryBrush"] = "#111923", ["TextSecondaryBrush"] = "#4F6074",
                 ["TextOnDarkBrush"] = "#111923", ["TextOnDarkDimBrush"] = "#4F6074",

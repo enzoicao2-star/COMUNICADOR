@@ -14,6 +14,11 @@ Qualquer alteração aqui deve ser refletida nas duas implementações:
 | Descoberta / pareamento       | UDP       | 57932 |
 | Mensagens (notificação, ping) | TCP       | 57931 |
 
+Quando o painel e o receptor Python coexistem no mesmo computador e as
+portas principais já estão ocupadas, o receptor embutido do painel usa
+automaticamente **57934/UDP** e **57933/TCP**. A descoberta consulta os
+dois pares de portas.
+
 Ambas configuráveis na tela **Configurações** do painel e no
 `config.json` do receptor, mas o padrão acima é o que os dois lados
 assumem se nada for configurado.
@@ -32,12 +37,15 @@ delimitador.
 
 ## Limites de tamanho
 
-- Mensagem TCP completa (bytes UTF-8, incluindo o `\n`): **24 MiB** no máximo.
+- Mensagem TCP completa (bytes UTF-8, incluindo o `\n`): **64 MiB** no máximo.
 - Datagrama UDP de descoberta: **2048 bytes** no máximo.
 - `title`: até 200 caracteres.
 - `message` / `reply_text`: até 4000 caracteres.
 - `sender` / `panel_name` / `computer_name`: até 100 caracteres.
 - Uma imagem: até **4 MiB**; todas as imagens de uma mensagem: até **16 MiB**.
+- Um vídeo MP4/WMV: até **24 MiB**; até 4 vídeos por notificação.
+- Um áudio MP3/WAV: até **12 MiB**.
+- O conjunto de mídias de uma mensagem: até **40 MiB**.
 - Até 12 monitores e 12 imagens por notificação.
 - Sincronização: até 500 registros de histórico e 500 registros de log por resposta.
 
@@ -165,6 +173,8 @@ O campo opcional `display_mode` define a apresentação:
 
 - `toast`: aviso comum em um canto da tela;
 - `center_image`: uma ou mais imagens no centro dos monitores escolhidos;
+- `center_video`: um ou mais vídeos no centro dos monitores escolhidos;
+- `audio`: áudio reproduzido em segundo plano, sem janela ou elemento visual;
 - `center_alert`: aviso modal central que exige confirmação.
 
 Para imagem central, `screen_images` contém objetos com
@@ -177,6 +187,19 @@ controla se um clique na própria imagem pode fechá-la. Nesse modo, `title`
 e `message` podem ser strings vazias; o receptor exibe somente a imagem,
 sem cartão, cabeçalho, fundo ou botões.
 
+Para vídeo central, `video` envia um único arquivo ao monitor principal e
+`screen_videos` contém objetos com `monitor_index`, `width_percent` e
+`video`. São aceitos MP4 e WMV após as mesmas validações de nome, MIME,
+Base64, tamanho e assinatura. `video_loop` define repetição; quando for
+`true`, `image_duration_seconds` é obrigatório e encerra o loop no tempo
+definido. Sem repetição e sem duração, o vídeo fecha ao terminar.
+
+Para áudio, `audio` transporta MP3 ou WAV e `audio_loop` define repetição.
+Nenhuma janela é mostrada. `image_duration_seconds` pode limitar a execução;
+sem limite e sem repetição, o áudio toca até o fim. Um áudio em loop exige
+duração. O nome histórico do campo de duração foi preservado para manter
+compatibilidade com receptores anteriores.
+
 `appearance` pode definir `accent_color`, `font_scale_percent`
 (80–160), `play_sound`, `sound_type`, `toast_duration_seconds`
 (5–300) e `toast_position`. Essas escolhas alteram somente o aviso e
@@ -184,7 +207,8 @@ não mudam configurações do computador receptor.
 
 #### Botões de resposta rápida (`buttons`, opcional)
 
-A `notification` pode trazer até **4** botões, mostrados no aviso:
+A `notification` pode trazer até **2** botões, mostrados lado a lado no aviso. Quando existem,
+eles substituem o botão `OK`:
 
 ```json
 { "protocol_version": 1, "type": "notification", "id": "...", "timestamp": "...",
@@ -246,7 +270,7 @@ máquina do receptor — só o painel precisa da porta aberta.
 ```json
 { "protocol_version": 1, "type": "register", "id": "...", "timestamp": "...",
   "computer_id": "b0b1...", "computer_name": "COMPUTADOR-1", "token": "9f8b...",
-  "receiver_version": "2.2.1", "has_panel": false,
+  "receiver_version": "2.4.0", "has_panel": false,
   "monitors": [{ "index": 0, "name": "DISPLAY1", "width": 1920,
     "height": 1080, "x": 0, "y": 0, "primary": true }] }
 ```

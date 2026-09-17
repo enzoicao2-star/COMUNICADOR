@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Net.Http;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Comunicador.Models;
@@ -14,6 +16,9 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     private readonly EmbeddedReceptorServer _embeddedReceptorServer;
     private readonly JsonStore<PainelPareado> _paineisPareadosStore;
     private readonly DispatcherTimer _autoSaveTimer;
+    private readonly PerfilComputadorRepository _perfis;
+    private readonly ReceptorClient _client;
+    private readonly PanelUpdateService _panelUpdate;
 
     private string _nomePainel;
     private int _portaTcp;
@@ -28,18 +33,21 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     private string _paleta;
     private string _fundoPainel;
     private bool _reduzirMovimento;
+    private bool _estePainelEhOwner;
     private string _nomeNovaPaleta = "Minha cor";
     private string _corNovaPaleta = "#4C8DFF";
     private string _corNovaPaletaVisual = "#4C8DFF";
     private string _secaoConfiguracoes = "personalizacao";
     private string? _statusOperacao;
+    private string? _statusAtualizacaoPainel;
+    private PanelUpdateInfo? _ultimaVerificacaoPainel;
 
     public ObservableCollection<PainelPareado> PaineisPareados { get; }
     public ObservableCollection<PaletaPersonalizada> PaletasPersonalizadas { get; }
     public IReadOnlyList<string> Temas { get; } = ["Escuro", "Claro"];
     public IReadOnlyList<string> Paletas { get; } = ["Azul", "Violeta", "Verde", "Coral"];
     public IReadOnlyList<string> Fundos { get; } =
-        ["Sem fundo", "Topográfico", "Caminhos flutuantes", "Vórtice", "Ondas luminosas", "Constelação", "Grade fluida", "Partículas fluidas"];
+        ["Sem fundo", "Topográfico", "Caminhos flutuantes", "Vórtice", "Ondas luminosas", "Constelação", "Grade fluida", "Partículas fluidas", "Onda de partículas"];
 
     public string NomeNovaPaleta
     {
@@ -67,6 +75,12 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     {
         get => _nomePainel;
         set { if (SetField(ref _nomePainel, value)) AgendarSalvamento(); }
+    }
+
+    public bool EstePainelEhOwner
+    {
+        get => _estePainelEhOwner;
+        set { if (SetField(ref _estePainelEhOwner, value)) AgendarSalvamento(); }
     }
 
     public int PortaTcp
@@ -198,6 +212,13 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     }
 
     public string PainelId => _settings.PainelId;
+    public string VersaoPainelAtual => $"Versão instalada: {Protocol.ProtocolConstants.CurrentPanelVersion}";
+    public bool AtualizacaoPainelDisponivel => _ultimaVerificacaoPainel?.IsAvailable == true;
+    public string? StatusAtualizacaoPainel
+    {
+        get => _statusAtualizacaoPainel;
+        private set => SetField(ref _statusAtualizacaoPainel, value);
+    }
 
     public ICommand SalvarCommand { get; }
     public ICommand SelecionarTemaCommand { get; }
@@ -207,19 +228,26 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     public ICommand RemoverPaletaPersonalizadaCommand { get; }
     public ICommand NavegarConfiguracaoCommand { get; }
     public ICommand RemoverPainelPareadoCommand { get; }
+    public ICommand VerificarAtualizacaoPainelCommand { get; }
+    public ICommand AtualizarPainelCommand { get; }
 
     public ConfiguracoesViewModel(
         AppSettings settings, ObservableCollection<PainelPareado> paineisPareados,
-        JsonStore<PainelPareado> paineisPareadosStore, EmbeddedReceptorServer embeddedReceptorServer)
+        JsonStore<PainelPareado> paineisPareadosStore, EmbeddedReceptorServer embeddedReceptorServer,
+        PerfilComputadorRepository perfis, ReceptorClient client, PanelUpdateService panelUpdate)
     {
         _settings = settings;
         _embeddedReceptorServer = embeddedReceptorServer;
         _paineisPareadosStore = paineisPareadosStore;
+        _perfis = perfis;
+        _client = client;
+        _panelUpdate = panelUpdate;
         PaineisPareados = paineisPareados;
         PaletasPersonalizadas = new ObservableCollection<PaletaPersonalizada>(
             settings.PaletasPersonalizadas ?? new List<PaletaPersonalizada>());
 
         _nomePainel = settings.NomePainel;
+        _estePainelEhOwner = settings.EstePainelEhOwner;
         _portaTcp = settings.PortaTcp;
         _portaUdp = settings.PortaDescobertaUdp;
         _intervaloDescoberta = settings.IntervaloDescobertaSegundos;
@@ -284,6 +312,41 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
                 StatusOperacao = $"Painel '{pareado.PanelName}' removido — ele precisará parear novamente para enviar mensagens.";
             }
         });
+        VerificarAtualizacaoPainelCommand = new AsyncRelayCommand(_ => VerificarAtualizacaoPainelAsync());
+        AtualizarPainelCommand = new AsyncRelayCommand(_ => AtualizarPainelAsync(),
+            _ => AtualizacaoPainelDisponivel);
+    }
+
+    public async Task VerificarAtualizacaoPainelAsync()
+    {
+        StatusAtualizacaoPainel = "Verificando a versão publicada…";
+        try
+        {
+            _ultimaVerificacaoPainel = await _panelUpdate.CheckAsync().ConfigureAwait(true);
+            OnPropertyChanged(nameof(AtualizacaoPainelDisponivel));
+            StatusAtualizacaoPainel = _ultimaVerificacaoPainel.IsAvailable
+                ? $"Versão {_ultimaVerificacaoPainel.LatestVersion} disponível."
+                : "Este painel já está atualizado.";
+            CommandManager.InvalidateRequerySuggested();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or InvalidDataException)
+        {
+            StatusAtualizacaoPainel = $"Não foi possível verificar agora: {ex.Message}";
+        }
+    }
+
+    private async Task AtualizarPainelAsync()
+    {
+        if (_ultimaVerificacaoPainel is not { IsAvailable: true } info) return;
+        StatusAtualizacaoPainel = "Baixando a atualização. O painel reiniciará sozinho…";
+        try
+        {
+            await _panelUpdate.StartUpdateAsync(info).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is IOException or HttpRequestException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            StatusAtualizacaoPainel = $"Falha ao iniciar a atualização: {ex.Message}";
+        }
     }
 
     /// <summary>Chamado pelo MainViewModel depois que o receptor embutido efetivamente
@@ -312,6 +375,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
 
         var inicializacaoMudou = _settings.IniciarComWindows != IniciarComWindows;
         _settings.NomePainel = NomePainel.Trim();
+        _settings.EstePainelEhOwner = EstePainelEhOwner;
         _settings.PortaTcp = PortaTcp;
         _settings.PortaDescobertaUdp = PortaUdp;
         _settings.IntervaloDescobertaSegundos = IntervaloDescobertaSegundos;
@@ -327,6 +391,10 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         _settings.IntensidadeFundo = 100;
         _settings.ReduzirMovimento = ReduzirMovimento;
         SettingsStore.Save(_settings);
+        _client.UpdatePanelName(_settings.NomePainel);
+        var perfilAtual = _perfis.Obter(_settings.PainelId);
+        _perfis.Salvar(_settings.PainelId, _settings.NomePainel, _settings.EstePainelEhOwner,
+            perfilAtual?.Badges ?? (IEnumerable<BadgeUsuario>)Array.Empty<BadgeUsuario>(), _settings.PainelId);
         if (inicializacaoMudou) StartupManager.Aplicar(IniciarComWindows);
         _embeddedReceptorServer.AtualizarDisponibilidade();
         StatusReceptorEmbutido = CalcularStatusReceptor();

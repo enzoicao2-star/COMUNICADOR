@@ -288,6 +288,10 @@
                                         CommandParameter="Partículas fluidas" Tag="{Binding FundoPainel, ConverterParameter=Partículas fluidas, Converter={StaticResource SecaoAtivaConverter}}">
                                     <Grid Background="{DynamicResource BackgroundBrush}"><controls:AnimatedBackground Mode="Partículas fluidas" Intensity="100" ReduceMotion="True" /><Border Background="#66000000" VerticalAlignment="Bottom" Height="28" /><TextBlock Text="Partículas fluidas" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,6" /></Grid>
                                 </Button>
+                                <Button Height="94" Style="{StaticResource ChoiceCardButton}" Command="{Binding SelecionarFundoCommand}"
+                                        CommandParameter="Onda de partículas" Tag="{Binding FundoPainel, ConverterParameter=Onda de partículas, Converter={StaticResource SecaoAtivaConverter}}">
+                                    <Grid Background="{DynamicResource BackgroundBrush}"><controls:AnimatedBackground Mode="Onda de partículas" Intensity="100" ReduceMotion="True" /><Border Background="#66000000" VerticalAlignment="Bottom" Height="28" /><TextBlock Text="Onda de partículas" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,6" /></Grid>
+                                </Button>
                             </UniformGrid>
                             <Border Margin="4,6,4,3" Padding="11,8" CornerRadius="8"
                                     Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
@@ -321,7 +325,7 @@
                         <Border Margin="28,0,0,14" Padding="13" CornerRadius="9" Background="{DynamicResource SurfaceBrush}">
                             <StackPanel IsEnabled="{Binding AceitarMensagensDeOutrosPaineis}">
                                 <CheckBox IsChecked="{Binding AceitarImagensDeOutrosPaineis}" Margin="0,0,0,9"
-                                          Content="Aceitar imagens no centro da tela" />
+                                          Content="Aceitar imagens, vídeos e áudios" />
                                 <CheckBox IsChecked="{Binding AceitarBotoesComLinks}" Margin="0"
                                           Content="Aceitar botões que abrem links" />
                             </StackPanel>
@@ -374,10 +378,12 @@
                     <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,0,0,12">
                         <StackPanel>
                             <TextBlock Text="Identificação" Style="{StaticResource TituloCard}" />
-                            <TextBlock Text="Este nome aparece apenas no histórico e nos logs técnicos."
+                            <TextBlock Text="Este nome identifica o painel e é sincronizado com os outros painéis."
                                        Style="{StaticResource Subtitulo}" Margin="0,2,0,13" />
                             <TextBlock Text="Nome deste painel" Style="{StaticResource RotuloCampo}" />
                             <TextBox Text="{Binding NomePainel, UpdateSourceTrigger=PropertyChanged}" MaxLength="100" />
+                            <CheckBox IsChecked="{Binding EstePainelEhOwner}" Margin="0,12,0,0"
+                                      Content="Marcar este painel como OWNER nos outros computadores" />
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,0,0,12">
@@ -392,6 +398,20 @@
                             <TextBlock Text="Identificador exclusivo local" Style="{StaticResource Subtitulo}" FontSize="12" />
                             <TextBlock Text="{Binding PainelId}" FontFamily="Consolas" FontSize="12"
                                        Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Atualização do painel" Style="{StaticResource TituloCard}" />
+                            <TextBlock Text="{Binding VersaoPainelAtual}" Style="{StaticResource Subtitulo}" Margin="0,3,0,8" />
+                            <TextBlock Text="{Binding StatusAtualizacaoPainel}" TextWrapping="Wrap" Margin="0,0,0,10"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <WrapPanel>
+                                <Button Content="Verificar agora" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,0"
+                                        Command="{Binding VerificarAtualizacaoPainelCommand}" />
+                                <Button Content="Atualizar e reiniciar" Style="{StaticResource BotaoPrimario}"
+                                        Command="{Binding AtualizarPainelCommand}" />
+                            </WrapPanel>
                         </StackPanel>
                     </Border>
                 </StackPanel>

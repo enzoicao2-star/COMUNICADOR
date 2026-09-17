@@ -9,7 +9,7 @@ set "INSTALL_DIR=%BASE%\app"
 set "PORT_TCP=57931"
 set "PORT_UDP=57932"
 set "TASK_NAME=Comunicador Receptor"
-set "EXPECTED_VERSION=2.2.1"
+set "EXPECTED_VERSION=2.4.0"
 
 echo ===============================================
 echo   Comunicador Receptor %EXPECTED_VERSION% - diagnostico
@@ -21,15 +21,19 @@ echo Data:       %DATE% %TIME%
 echo.
 
 echo [1] PYTHON
-where python >nul 2>nul
-if %errorlevel%==0 (
-    for /f "delims=" %%P in ('where python') do (
-        if not defined PY set "PY=%%P"
+for /f "delims=" %%P in ('where python 2^>nul') do (
+    echo %%P | findstr /I /C:"\WindowsApps\python.exe" >nul
+    if errorlevel 1 if not defined PY (
+        for /f "delims=" %%V in ('"%%P" -c "import sys; print(sys.executable)" 2^>nul') do if not defined PY set "PY=%%V"
     )
-    echo     Encontrado: !PY!
+)
+if defined PY (
+    echo     Python real encontrado: !PY!
     "!PY!" --version 2>&1
 ) else (
-    echo     NAO ENCONTRADO no PATH.
+    echo     PYTHON REAL NAO ENCONTRADO.
+    echo     O atalho WindowsApps/Microsoft Store, se aparecer no PATH, foi ignorado.
+    echo     Execute INSTALAR_RECEPTOR.bat para instalar automaticamente.
 )
 echo.
 

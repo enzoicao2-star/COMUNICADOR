@@ -21,6 +21,8 @@ public sealed class ConexaoReversa : IDisposable
     public bool HasPanel { get; }
     public IReadOnlyList<MonitorInfo> Monitors { get; }
     public string? ReceiverVersion { get; }
+    public string? PanelVersion { get; }
+    public bool IsOwner { get; }
 
     /// <summary>Token emitido para este receptor no registro. Precisa acompanhar a
     /// conexao: sem ele a notificacao sai sem token e o receptor a rejeita na
@@ -47,7 +49,8 @@ public sealed class ConexaoReversa : IDisposable
     public ConexaoReversa(
         TcpClient client, NetworkStream stream, string computerId, string computerName,
         string enderecoIp, string token, bool hasPanel = false,
-        IReadOnlyList<MonitorInfo>? monitors = null, string? receiverVersion = null)
+        IReadOnlyList<MonitorInfo>? monitors = null, string? receiverVersion = null,
+        string? panelVersion = null, bool isOwner = false)
     {
         _client = client;
         _stream = stream;
@@ -58,6 +61,8 @@ public sealed class ConexaoReversa : IDisposable
         HasPanel = hasPanel;
         Monitors = monitors is null ? Array.Empty<MonitorInfo>() : monitors.ToList();
         ReceiverVersion = receiverVersion;
+        PanelVersion = panelVersion;
+        IsOwner = isOwner;
     }
 
     /// <summary>Envia a notificacao pela conexao ja aberta e aguarda ack e, se pedido,
@@ -175,22 +180,23 @@ public sealed class ConexaoReversa : IDisposable
             var response = await LerAsync(cts.Token).ConfigureAwait(false);
             if (response is null)
             {
-                return new(false, [], [], "A conexão foi encerrada durante a coleta.");
+                return new(false, [], [], [], "A conexão foi encerrada durante a coleta.");
             }
             if (response.Type == ProtocolConstants.MessageType.Error)
             {
-                return new(false, [], [], response.Message);
+                return new(false, [], [], [], response.Message);
             }
             if (response.Type != ProtocolConstants.MessageType.SyncResponse)
             {
-                return new(false, [], [], $"Resposta inesperada: '{response.Type}'.");
+                return new(false, [], [], [], $"Resposta inesperada: '{response.Type}'.");
             }
-            return new(true, response.HistoryEntries ?? [], response.LogEntries ?? [], null);
+            return new(true, response.HistoryEntries ?? [], response.LogEntries ?? [],
+                response.ComputerProfiles ?? [], null);
         }
         catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException
             or OperationCanceledException)
         {
-            return new(false, [], [], ex.Message);
+            return new(false, [], [], [], ex.Message);
         }
         finally
         {

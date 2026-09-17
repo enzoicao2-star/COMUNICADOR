@@ -3,12 +3,12 @@ namespace Comunicador.Networking;
 public sealed record AnnounceInfo(
     string ComputerId, string ComputerName, string IpAddress, int TcpPort, bool Paired,
     bool HasPanel = false, IReadOnlyList<Protocol.MonitorInfo>? Monitors = null,
-    string? ReceiverVersion = null);
+    string? ReceiverVersion = null, string? PanelVersion = null, bool IsOwner = false);
 
 public sealed record PairResult(
     bool Accepted, string ComputerId, string ComputerName, string Token,
     bool HasPanel = false, IReadOnlyList<Protocol.MonitorInfo>? Monitors = null,
-    string? ReceiverVersion = null);
+    string? ReceiverVersion = null, string? PanelVersion = null, bool IsOwner = false);
 
 public sealed record NotificationResult(bool Delivered, bool WasShown, bool GotReply, string? ReplyText, string? ErrorMessage);
 
@@ -19,6 +19,7 @@ public sealed record SyncResult(
     bool Success,
     IReadOnlyList<Protocol.HistoricoSincronizado> HistoryEntries,
     IReadOnlyList<Protocol.RegistroLogSincronizado> LogEntries,
+    IReadOnlyList<Protocol.PerfilComputadorSincronizado> ComputerProfiles,
     string? ErrorMessage);
 
 public sealed class ReceptorComunicacaoException : Exception

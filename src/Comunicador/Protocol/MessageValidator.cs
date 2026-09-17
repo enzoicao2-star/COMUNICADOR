@@ -98,7 +98,8 @@ public static class MessageValidator
                 ?? ValidarBotoes(msg.Buttons)
                 ?? ValidarConteudoVisual(
                     msg.DisplayMode, msg.Image, msg.ScreenImages,
-                    msg.ImageDurationSeconds, msg.AllowManualClose)
+                    msg.Video, msg.ScreenVideos, msg.ImageDurationSeconds,
+                    msg.AllowManualClose, msg.VideoLoop, msg.Audio, msg.AudioLoop)
                 ?? ValidarAparencia(msg.Appearance),
 
             MessageType.Ack => RequireUuid(msg.InReplyTo, "in_reply_to")
@@ -134,11 +135,13 @@ public static class MessageValidator
                 ?? RequireBool(msg.IncludeHistory, "include_history")
                 ?? RequireBool(msg.IncludeLogs, "include_logs")
                 ?? ValidarHistoricoSincronizado(msg.HistoryEntries)
-                ?? ValidarLogsSincronizados(msg.LogEntries),
+                ?? ValidarLogsSincronizados(msg.LogEntries)
+                ?? ValidarPerfisComputadores(msg.ComputerProfiles),
 
             MessageType.SyncResponse => RequireUuid(msg.InReplyTo, "in_reply_to")
                 ?? ValidarHistoricoSincronizado(msg.HistoryEntries)
-                ?? ValidarLogsSincronizados(msg.LogEntries),
+                ?? ValidarLogsSincronizados(msg.LogEntries)
+                ?? ValidarPerfisComputadores(msg.ComputerProfiles),
 
             _ => ValidationResult.Fail(ErrorCode.UnknownType, $"Tipo de mensagem desconhecido: '{msg.Type}'"),
         };
@@ -151,7 +154,7 @@ public static class MessageValidator
     /// continuam obrigatórios.</summary>
     private static ValidationResult? ValidarTextoNotificacao(ComunicadorMessage msg)
     {
-        if (msg.DisplayMode == DisplayMode.CenterImage)
+        if (msg.DisplayMode is DisplayMode.CenterImage or DisplayMode.CenterVideo or DisplayMode.Audio)
         {
             return RequireStringAllowEmpty(msg.Title, "title", MaxTitleLength)
                 ?? RequireStringAllowEmpty(msg.Message, "message", MaxMessageLength);
@@ -217,14 +220,16 @@ public static class MessageValidator
 
     private static ValidationResult? ValidarConteudoVisual(
         string? modo, ConteudoImagem? imagem, List<ImagemMonitor>? imagensPorMonitor,
-        int? duracaoSegundos, bool? permitirFechar)
+        ConteudoVideo? video, List<VideoMonitor>? videosPorMonitor,
+        int? duracaoSegundos, bool? permitirFechar, bool? repetirVideo,
+        ConteudoAudio? audio, bool? repetirAudio)
     {
         modo ??= DisplayMode.Toast;
         if (!DisplayMode.All.Contains(modo))
         {
             return ValidationResult.Fail(
                 ErrorCode.InvalidFieldType,
-                "Campo 'display_mode' precisa ser 'toast', 'center_image' ou 'center_alert'.");
+                "Campo 'display_mode' precisa ser 'toast', 'center_image', 'center_video', 'audio' ou 'center_alert'.");
         }
 
         if (modo == DisplayMode.CenterImage
@@ -235,13 +240,65 @@ public static class MessageValidator
                 ErrorCode.MissingField, "Aviso central precisa de 'image' ou 'screen_images'.");
         }
 
+        if (modo == DisplayMode.CenterVideo
+            && video is null
+            && (videosPorMonitor is null || videosPorMonitor.Count == 0))
+        {
+            return ValidationResult.Fail(
+                ErrorCode.MissingField, "Vídeo central precisa de 'video' ou 'screen_videos'.");
+        }
+
+        if (modo == DisplayMode.Audio && audio is null)
+        {
+            return ValidationResult.Fail(ErrorCode.MissingField, "Reprodução de áudio precisa do campo 'audio'.");
+        }
+
+        if (modo == DisplayMode.CenterImage && (video is not null || videosPorMonitor is { Count: > 0 }))
+        {
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Modo de imagem não aceita conteúdo de vídeo.");
+        }
+
+        if (modo == DisplayMode.CenterVideo && (imagem is not null || imagensPorMonitor is { Count: > 0 }))
+        {
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Modo de vídeo não aceita conteúdo de imagem.");
+        }
+
+        if (modo == DisplayMode.Audio
+            && (imagem is not null || imagensPorMonitor is { Count: > 0 }
+                || video is not null || videosPorMonitor is { Count: > 0 }))
+        {
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Modo de áudio não aceita imagem ou vídeo.");
+        }
+
         if (modo == DisplayMode.CenterImage && !duracaoSegundos.HasValue)
         {
             return ValidationResult.Fail(
                 ErrorCode.MissingField, "Aviso central precisa do campo 'image_duration_seconds'.");
         }
 
-        if (modo == DisplayMode.CenterImage
+        if (modo == DisplayMode.CenterVideo && !repetirVideo.HasValue)
+        {
+            return ValidationResult.Fail(ErrorCode.MissingField, "Vídeo central precisa do campo 'video_loop'.");
+        }
+
+        if (modo == DisplayMode.Audio && !repetirAudio.HasValue)
+        {
+            return ValidationResult.Fail(ErrorCode.MissingField, "Reprodução de áudio precisa do campo 'audio_loop'.");
+        }
+
+        if (modo == DisplayMode.CenterVideo && repetirVideo == true && !duracaoSegundos.HasValue)
+        {
+            return ValidationResult.Fail(
+                ErrorCode.MissingField, "Vídeo em loop precisa do campo 'image_duration_seconds'.");
+        }
+
+        if (modo == DisplayMode.Audio && repetirAudio == true && !duracaoSegundos.HasValue)
+        {
+            return ValidationResult.Fail(ErrorCode.MissingField, "Áudio em loop precisa do campo 'image_duration_seconds'.");
+        }
+
+        if ((modo is DisplayMode.CenterImage or DisplayMode.CenterVideo or DisplayMode.Audio)
+            && duracaoSegundos.HasValue
             && (duracaoSegundos < MinImageDurationSeconds || duracaoSegundos > MaxImageDurationSeconds))
         {
             return ValidationResult.Fail(
@@ -249,7 +306,7 @@ public static class MessageValidator
                 $"'image_duration_seconds' precisa ficar entre {MinImageDurationSeconds} e {MaxImageDurationSeconds}.");
         }
 
-        if (modo == DisplayMode.CenterImage && !permitirFechar.HasValue)
+        if ((modo is DisplayMode.CenterImage or DisplayMode.CenterVideo) && !permitirFechar.HasValue)
         {
             return ValidationResult.Fail(
                 ErrorCode.MissingField, "Aviso central precisa do campo 'allow_manual_close'.");
@@ -308,6 +365,168 @@ public static class MessageValidator
                 ErrorCode.PayloadTooLarge, $"O conjunto de imagens excede {MaxTotalImageBytes} bytes.");
         }
 
+        var totalVideoBytes = 0;
+        if (video is not null)
+        {
+            var resultadoVideo = ValidarVideo(video, out var tamanho);
+            if (resultadoVideo is not null)
+            {
+                return resultadoVideo;
+            }
+            totalVideoBytes += tamanho;
+        }
+
+        if (videosPorMonitor is { Count: > 0 })
+        {
+            if (videosPorMonitor.Count > MaxScreenVideos)
+            {
+                return ValidationResult.Fail(
+                    ErrorCode.FieldTooLong, $"São permitidos no máximo {MaxScreenVideos} vídeos por mensagem.");
+            }
+
+            var monitoresUsados = new HashSet<int>();
+            foreach (var item in videosPorMonitor)
+            {
+                if (item is null || item.Video is null)
+                {
+                    return ValidationResult.Fail(
+                        ErrorCode.MissingField, "Campo obrigatório ausente: screen_videos[].video");
+                }
+                if (item.MonitorIndex is < 0 or >= MaxMonitors || !monitoresUsados.Add(item.MonitorIndex))
+                {
+                    return ValidationResult.Fail(
+                        ErrorCode.InvalidFieldType, "Cada vídeo precisa apontar para um monitor válido e único.");
+                }
+                if (item.WidthPercent is < MinImageWidthPercent or > MaxImageWidthPercent)
+                {
+                    return ValidationResult.Fail(
+                        ErrorCode.InvalidFieldType,
+                        $"Tamanho do vídeo precisa ficar entre {MinImageWidthPercent}% e {MaxImageWidthPercent}%.");
+                }
+
+                var resultadoVideo = ValidarVideo(item.Video, out var tamanho);
+                if (resultadoVideo is not null)
+                {
+                    return resultadoVideo;
+                }
+                totalVideoBytes += tamanho;
+            }
+        }
+
+        if (totalBytes + totalVideoBytes > MaxTotalMediaBytes)
+        {
+            return ValidationResult.Fail(
+                ErrorCode.PayloadTooLarge, $"O conjunto de mídias excede {MaxTotalMediaBytes} bytes.");
+        }
+
+
+        var totalAudioBytes = 0;
+        if (audio is not null)
+        {
+            var resultadoAudio = ValidarAudio(audio, out totalAudioBytes);
+            if (resultadoAudio is not null)
+            {
+                return resultadoAudio;
+            }
+        }
+
+        if (totalBytes + totalVideoBytes + totalAudioBytes > MaxTotalMediaBytes)
+        {
+            return ValidationResult.Fail(
+                ErrorCode.PayloadTooLarge, $"O conjunto de mídias excede {MaxTotalMediaBytes} bytes.");
+        }
+
+        return null;
+    }
+
+    private static ValidationResult? ValidarAudio(ConteudoAudio audio, out int tamanhoBytes)
+    {
+        tamanhoBytes = 0;
+        var nome = RequireString(audio.Name, "audio.name", MaxImageNameLength);
+        if (nome is not null)
+        {
+            return nome;
+        }
+        if (!ConteudoAudio.MimePermitido(audio.MimeType))
+        {
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Formato de áudio não permitido. Use MP3 ou WAV.");
+        }
+        if (string.IsNullOrEmpty(audio.DataBase64))
+        {
+            return ValidationResult.Fail(ErrorCode.MissingField, "Campo obrigatório ausente: audio.data_base64");
+        }
+        if (audio.DataBase64.Length > MaxAudioBase64Length)
+        {
+            return ValidationResult.Fail(ErrorCode.PayloadTooLarge, $"Áudio excede {MaxAudioBytes} bytes.");
+        }
+
+        byte[] dados;
+        try
+        {
+            dados = Convert.FromBase64String(audio.DataBase64);
+        }
+        catch (FormatException)
+        {
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Campo 'audio.data_base64' não é Base64 válido.");
+        }
+        if (dados.Length == 0 || dados.Length > MaxAudioBytes)
+        {
+            return ValidationResult.Fail(ErrorCode.PayloadTooLarge, $"Áudio precisa ter entre 1 e {MaxAudioBytes} bytes.");
+        }
+        if (!ConteudoAudio.AssinaturaCorresponde(audio.MimeType, dados))
+        {
+            return ValidationResult.Fail(
+                ErrorCode.InvalidFieldType, "O conteúdo do arquivo não corresponde ao formato de áudio informado.");
+        }
+
+        tamanhoBytes = dados.Length;
+        return null;
+    }
+
+    private static ValidationResult? ValidarVideo(ConteudoVideo video, out int tamanhoBytes)
+    {
+        tamanhoBytes = 0;
+        var nome = RequireString(video.Name, "video.name", MaxImageNameLength);
+        if (nome is not null)
+        {
+            return nome;
+        }
+
+        if (!ConteudoVideo.MimePermitido(video.MimeType))
+        {
+            return ValidationResult.Fail(
+                ErrorCode.InvalidFieldType, "Formato de vídeo não permitido. Use MP4 (H.264) ou WMV.");
+        }
+        if (string.IsNullOrEmpty(video.DataBase64))
+        {
+            return ValidationResult.Fail(ErrorCode.MissingField, "Campo obrigatório ausente: video.data_base64");
+        }
+        if (video.DataBase64.Length > MaxVideoBase64Length)
+        {
+            return ValidationResult.Fail(ErrorCode.PayloadTooLarge, $"Vídeo excede {MaxVideoBytes} bytes.");
+        }
+
+        byte[] dados;
+        try
+        {
+            dados = Convert.FromBase64String(video.DataBase64);
+        }
+        catch (FormatException)
+        {
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Campo 'video.data_base64' não é Base64 válido.");
+        }
+
+        if (dados.Length == 0 || dados.Length > MaxVideoBytes)
+        {
+            return ValidationResult.Fail(ErrorCode.PayloadTooLarge, $"Vídeo precisa ter entre 1 e {MaxVideoBytes} bytes.");
+        }
+        if (!ConteudoVideo.AssinaturaCorresponde(video.MimeType, dados))
+        {
+            return ValidationResult.Fail(
+                ErrorCode.InvalidFieldType, "O conteúdo do arquivo não corresponde ao formato de vídeo informado.");
+        }
+
+        tamanhoBytes = dados.Length;
         return null;
     }
 
@@ -459,6 +678,47 @@ public static class MessageValidator
                 || item.ErrorDetail is { Length: > MaxLogDetailLength })
             {
                 return ValidationResult.Fail(ErrorCode.FieldTooLong, "Detalhe do histórico excede o limite.");
+            }
+        }
+        return null;
+    }
+
+    private static ValidationResult? ValidarPerfisComputadores(List<PerfilComputadorSincronizado>? perfis)
+    {
+        if (perfis is null) return null;
+        if (perfis.Count > MaxSyncProfiles)
+            return ValidationResult.Fail(ErrorCode.FieldTooLong, "Sincronização de perfis excede o limite.");
+        var estilos = new HashSet<string>(StringComparer.Ordinal)
+            { "Holográfica", "Metal", "Pílula", "Contorno", "Selo" };
+        foreach (var perfil in perfis)
+        {
+            if (perfil is null || !DateTimeOffset.TryParse(perfil.UpdatedAt, out _))
+                return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Perfil sincronizado inválido.");
+            var campos = RequireString(perfil.ComputerId, "computer_profiles[].computer_id", MaxNameLength)
+                ?? RequireString(perfil.DisplayName, "computer_profiles[].display_name", MaxNameLength)
+                ?? RequireString(perfil.UpdatedBy, "computer_profiles[].updated_by", MaxNameLength);
+            if (campos is not null) return campos;
+            if (perfil.Badges.Count > MaxBadgesPerComputer)
+                return ValidationResult.Fail(ErrorCode.FieldTooLong, "Um computador excede o limite de badges.");
+            foreach (var badge in perfil.Badges)
+            {
+                if (badge is null || string.IsNullOrWhiteSpace(badge.Id)
+                    || string.IsNullOrWhiteSpace(badge.Texto) || badge.Texto.Length > MaxBadgeTextLength
+                    || badge.Cor.Length != 7 || badge.Cor[0] != '#' || badge.Cor[1..].Any(c => !Uri.IsHexDigit(c))
+                    || !estilos.Contains(badge.Estilo) || string.IsNullOrWhiteSpace(badge.Icone))
+                    return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Badge sincronizada inválida.");
+                if (badge.IconePersonalizadoBase64 is { Length: > 0 } icon)
+                {
+                    try
+                    {
+                        if (Convert.FromBase64String(icon).Length > MaxCustomBadgeIconBytes)
+                            return ValidationResult.Fail(ErrorCode.PayloadTooLarge, "Ícone personalizado da badge é grande demais.");
+                    }
+                    catch (FormatException)
+                    {
+                        return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Ícone personalizado da badge não é Base64 válido.");
+                    }
+                }
             }
         }
         return null;

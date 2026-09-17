@@ -1,6 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-set "RECEIVER_VERSION=2.2.1"
+set "RECEIVER_VERSION=2.4.0"
 
 rem Criar a tarefa no Agendador e liberar portas no Firewall exige administrador.
 rem Se este .bat nao estiver rodando elevado, pede UAC uma unica vez e continua
@@ -64,15 +64,15 @@ set "PORT_TCP=57931"
 set "PORT_UDP=57932"
 
 echo [1/8] Verificando se o Python ja esta instalado...
-where python >nul 2>nul
-if %errorlevel%==0 (
-    python -c "print(1)" >"%TEMP%\comunicador_pycheck.txt" 2>nul
-    set /p PYCHECK=<"%TEMP%\comunicador_pycheck.txt"
-    if "!PYCHECK!"=="1" (
-        for /f "delims=" %%P in ('where python') do (
-            if not defined PYTHON_EXE set "PYTHON_EXE=%%P"
-        )
-    )
+for /f "delims=" %%P in ('where python 2^>nul') do call :validar_python "%%P"
+if not defined PYTHON_EXE (
+    for /f "delims=" %%P in ('py -3 -c "import sys; print(sys.executable)" 2^>nul') do call :validar_python "%%P"
+)
+if not defined PYTHON_EXE (
+    for /d %%D in ("%ProgramFiles%\Python3*") do call :validar_python "%%D\python.exe"
+)
+if not defined PYTHON_EXE (
+    for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do call :validar_python "%%D\python.exe"
 )
 
 if defined PYTHON_EXE (
@@ -103,11 +103,11 @@ if defined PYTHON_EXE (
     echo       Verificando instalacao...
     set "PYTHON_EXE="
     for /d %%D in ("%ProgramFiles%\Python3*") do (
-        if exist "%%D\python.exe" set "PYTHON_EXE=%%D\python.exe"
+        call :validar_python "%%D\python.exe"
     )
     if not defined PYTHON_EXE (
         for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do (
-            if exist "%%D\python.exe" set "PYTHON_EXE=%%D\python.exe"
+            call :validar_python "%%D\python.exe"
         )
     )
     if not defined PYTHON_EXE (
@@ -336,6 +336,20 @@ rem aberta, para a mensagem poder ser lida.
 echo Esta janela fecha sozinha em 5 segundos...
 rem ping em vez de timeout: timeout falha quando a entrada esta redirecionada.
 ping -n 6 127.0.0.1 >nul 2>nul
+exit /b 0
+
+:validar_python
+if defined PYTHON_EXE exit /b 0
+set "CANDIDATO_PY=%~1"
+if not exist "!CANDIDATO_PY!" exit /b 0
+echo(!CANDIDATO_PY!| findstr /I /C:"\WindowsApps\python.exe" >nul
+if not errorlevel 1 exit /b 0
+set "PYCHECK="
+for /f "delims=" %%V in ('"!CANDIDATO_PY!" -c "import sys; print(sys.executable)" 2^>nul') do if not defined PYCHECK set "PYCHECK=%%V"
+if not defined PYCHECK exit /b 0
+for %%Q in ("!PYCHECK!") do (
+    if exist "%%~dpQpythonw.exe" set "PYTHON_EXE=%%~fQ"
+)
 exit /b 0
 
 :erro

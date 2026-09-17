@@ -61,16 +61,25 @@ public sealed class DiscoveryService : IDisposable
         var destinos = new List<IPAddress> { IPAddress.Broadcast };
         destinos.AddRange(EnderecosBroadcastPorInterface());
 
+        var portas = new[]
+        {
+            _settings.PortaDescobertaUdp,
+            ProtocolConstants.PanelFallbackUdpDiscoveryPort,
+        }.Distinct();
+
         foreach (var destino in destinos)
         {
-            try
+            foreach (var porta in portas)
             {
-                var endpoint = new IPEndPoint(destino, _settings.PortaDescobertaUdp);
-                await _client.SendAsync(payload, payload.Length, endpoint).ConfigureAwait(false);
-            }
-            catch (SocketException)
-            {
-                // interface indisponível no momento; as outras seguem normalmente.
+                try
+                {
+                    var endpoint = new IPEndPoint(destino, porta);
+                    await _client.SendAsync(payload, payload.Length, endpoint).ConfigureAwait(false);
+                }
+                catch (SocketException)
+                {
+                    // interface indisponível no momento; as outras seguem normalmente.
+                }
             }
         }
     }
@@ -188,7 +197,8 @@ public sealed class DiscoveryService : IDisposable
 
         ReceptorDescoberto?.Invoke(new AnnounceInfo(
             msg.ComputerId!, msg.ComputerName!, remote.Address.ToString(), msg.TcpPort!.Value,
-            msg.Paired ?? false, msg.HasPanel ?? false, msg.Monitors, msg.ReceiverVersion));
+            msg.Paired ?? false, msg.HasPanel ?? false, msg.Monitors, msg.ReceiverVersion,
+            msg.PanelVersion, msg.IsOwner ?? false));
     }
 
     public void Dispose() => Stop();

@@ -31,10 +31,25 @@ if ([version]$actualVersion -ne [version]$Version) {
 New-Item -ItemType Directory -Force -Path $releaseDirectory | Out-Null
 Copy-Item -LiteralPath $source -Destination $destination -Force
 $hash = (Get-Sha256 $destination).ToUpperInvariant()
+$releaseNotes = @'
+{
+  "summary": "A vers\u00e3o 2.4 adiciona identidade sincronizada entre pain\u00e9is, badges personaliz\u00e1veis, atualiza\u00e7\u00e3o pelo pr\u00f3prio aplicativo e novos formatos de mensagem.",
+  "changes": [
+    "Foi adicionado 1 novo fundo: Onda de part\u00edculas.",
+    "Foram adicionadas badges com texto, cor, estilo, \u00edcone, brilho, anima\u00e7\u00e3o e \u00edcone personalizado.",
+    "Nomes p\u00fablicos, OWNER, badges, vers\u00f5es e hist\u00f3rico passam a ser sincronizados entre os pain\u00e9is.",
+    "Mensagens podem aparecer no centro, usar at\u00e9 2 bot\u00f5es lado a lado e registrar a resposta no hist\u00f3rico por computador.",
+    "O painel agora verifica e instala atualiza\u00e7\u00f5es sem depender da abertura pelo arquivo BAT.",
+    "Foram adicionados envio de v\u00eddeo e \u00e1udio, com repeti\u00e7\u00e3o e dura\u00e7\u00e3o configur\u00e1veis."
+  ]
+}
+'@ | ConvertFrom-Json
 $manifest = [ordered]@{
     version = $Version
     download_url = 'https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe'
     sha256 = $hash
+    summary = $releaseNotes.summary
+    changes = @($releaseNotes.changes)
 }
 $json = $manifest | ConvertTo-Json
 [IO.File]::WriteAllText($manifestPath, $json + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))

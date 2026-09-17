@@ -9,6 +9,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .codex-pytest-*/
+.pytest-temp-*/
 *.egg-info/
 
 # editores / SO

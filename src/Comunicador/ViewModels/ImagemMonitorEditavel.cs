@@ -9,7 +9,7 @@ public sealed class DestinoMonitor
 {
     public Computador Computador { get; init; } = null!;
     public MonitorInfo Monitor { get; init; } = null!;
-    public ObservableCollection<ImagemMonitorEditavel> Imagens { get; } = new();
+    public ObservableCollection<MidiaMonitorEditavel> Midias { get; } = new();
 
     public string Chave => $"{Computador.Id}:{Monitor.Index}";
     public string Titulo => $"{Computador.NomeExibicao} · Monitor {Monitor.Index + 1}";
@@ -19,7 +19,13 @@ public sealed class DestinoMonitor
         : 146;
 }
 
-public sealed class ImagemMonitorEditavel : ViewModelBase
+public enum TipoMidiaMonitor
+{
+    Imagem,
+    Video,
+}
+
+public sealed class MidiaMonitorEditavel : ViewModelBase
 {
     private double _tamanhoPercentual = 70;
 
@@ -27,6 +33,9 @@ public sealed class ImagemMonitorEditavel : ViewModelBase
     public string Nome { get; init; } = string.Empty;
     public string MimeType { get; init; } = string.Empty;
     public byte[] Dados { get; init; } = Array.Empty<byte>();
+    public TipoMidiaMonitor Tipo { get; init; }
+    public bool EhImagem => Tipo == TipoMidiaMonitor.Imagem;
+    public bool EhVideo => Tipo == TipoMidiaMonitor.Video;
 
     public double TamanhoPercentual
     {
@@ -50,6 +59,18 @@ public sealed class ImagemMonitorEditavel : ViewModelBase
         MonitorIndex = monitorIndex,
         WidthPercent = (int)TamanhoPercentual,
         Image = new ConteudoImagem
+        {
+            Name = Path.GetFileName(Nome),
+            MimeType = MimeType,
+            DataBase64 = Convert.ToBase64String(Dados),
+        },
+    };
+
+    public VideoMonitor ParaVideoProtocolo(int monitorIndex) => new()
+    {
+        MonitorIndex = monitorIndex,
+        WidthPercent = (int)TamanhoPercentual,
+        Video = new ConteudoVideo
         {
             Name = Path.GetFileName(Nome),
             MimeType = MimeType,

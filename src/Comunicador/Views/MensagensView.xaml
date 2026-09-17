@@ -162,7 +162,7 @@
                         <TextBlock Text="Escolha onde e como o conteúdo deverá chamar atenção."
                                    Style="{StaticResource Subtitulo}" Margin="0,2,0,12" />
                         <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="10" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="10" /><ColumnDefinition /><ColumnDefinition Width="10" /><ColumnDefinition /></Grid.ColumnDefinitions>
                             <Border Grid.Column="0" CornerRadius="9" Padding="11,8" Background="{DynamicResource SurfaceBrush}">
                                 <CheckBox IsChecked="{Binding ExibirImagemCentral}" Margin="0">
                                     <StackPanel>
@@ -176,6 +176,14 @@
                                     <StackPanel>
                                         <TextBlock Text="Confirmação obrigatória" FontWeight="SemiBold" />
                                         <TextBlock Text="Bloqueia até clicar em OK" Style="{StaticResource Subtitulo}" FontSize="11" />
+                                    </StackPanel>
+                                </CheckBox>
+                            </Border>
+                            <Border Grid.Column="4" CornerRadius="9" Padding="11,8" Background="{DynamicResource SurfaceBrush}">
+                                <CheckBox IsChecked="{Binding ExibirMensagemCentral}" Margin="0">
+                                    <StackPanel>
+                                        <TextBlock Text="Mensagem no centro" FontWeight="SemiBold" />
+                                        <TextBlock Text="Mantém respostas e botões" Style="{StaticResource Subtitulo}" FontSize="11" />
                                     </StackPanel>
                                 </CheckBox>
                             </Border>
@@ -224,8 +232,8 @@
                 <Border x:Name="CardImagem" Style="{StaticResource PainelImagemRevelado}" Padding="19"
                         controls:ResponsiveColumnsPanel.ColumnSpan="99">
                     <StackPanel>
-                        <TextBlock Text="Imagem central" Style="{StaticResource TituloCard}" />
-                        <TextBlock Text="Envie uma imagem geral ou prepare imagens diferentes para cada monitor."
+                        <TextBlock Text="Imagem, vídeo ou áudio" Style="{StaticResource TituloCard}" />
+                        <TextBlock Text="Carregue uma vez e reutilize nos monitores escolhidos. Áudios tocam em segundo plano."
                                    Style="{StaticResource Subtitulo}" Margin="0,2,0,13" />
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="215" /><ColumnDefinition Width="15" /><ColumnDefinition /></Grid.ColumnDefinitions>
@@ -245,53 +253,126 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                        <TextBlock Text="&#xEB9F;" FontFamily="Segoe MDL2 Assets" FontSize="28"
+                                        <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" FontSize="28"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center" />
-                                        <TextBlock Text="Sem imagem" Style="{StaticResource Subtitulo}" Margin="0,6,0,0" />
+                                        <TextBlock Text="{Binding TipoMidiaTexto}" Style="{StaticResource Subtitulo}" Margin="0,6,0,0" />
                                     </StackPanel>
                                 </Grid>
                             </Border>
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="{Binding NomeImagem, TargetNullValue=Nenhuma imagem selecionada}"
+                                <TextBlock Text="{Binding NomeMidia, TargetNullValue=Nenhuma mídia selecionada}"
                                            FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,0,0,8" />
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,7">
-                                    <Button Style="{StaticResource BotaoSecundario}" Content="Escolher imagem"
-                                            Command="{Binding SelecionarImagemCommand}" Margin="0,0,7,0" />
+                                <WrapPanel Margin="0,0,0,7">
+                                    <Button Style="{StaticResource BotaoSecundario}" Content="Imagem"
+                                            Command="{Binding SelecionarImagemCommand}" Margin="0,0,7,6" />
+                                    <Button Style="{StaticResource BotaoSecundario}" Content="Vídeo"
+                                            Command="{Binding SelecionarVideoCommand}" Margin="0,0,7,6" />
+                                    <Button Style="{StaticResource BotaoSecundario}" Content="Áudio"
+                                            Command="{Binding SelecionarAudioCommand}" Margin="0,0,7,6" />
                                     <Button Style="{StaticResource BotaoSecundario}" Content="Remover"
-                                            Command="{Binding RemoverImagemCommand}" IsEnabled="{Binding TemImagem}" />
-                                </StackPanel>
-                                <TextBlock Text="PNG, JPEG, GIF ou BMP · máximo de 4 MB"
+                                            Command="{Binding RemoverImagemCommand}" IsEnabled="{Binding TemMidia}" Margin="0,0,0,6" />
+                                </WrapPanel>
+                                <TextBlock Text="Imagem até 4 MB · vídeo MP4/WMV até 24 MB · áudio MP3/WAV até 12 MB"
                                            Style="{StaticResource Subtitulo}" FontSize="11" />
-                                <TextBlock Text="Tempo na tela" Style="{StaticResource RotuloCampo}" Margin="0,9,0,0" />
-                                <Slider Minimum="3" Maximum="300" TickFrequency="1" IsSnapToTickEnabled="True"
-                                        Value="{Binding TempoImagemSegundos}" Tag=" s" />
-                                <CheckBox IsChecked="{Binding PermitirFecharImagem}" Margin="0,2,0,0"
-                                          Content="Permitir fechar manualmente" />
+                                <StackPanel Margin="0,8,0,0">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TemImagem}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBlock Text="Tempo na tela" Style="{StaticResource RotuloCampo}" />
+                                    <Slider Minimum="3" Maximum="300" TickFrequency="1" IsSnapToTickEnabled="True"
+                                            Value="{Binding TempoImagemSegundos}" Tag=" s" />
+                                </StackPanel>
+                                <StackPanel Margin="0,8,0,0">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TemVideoConfigurado}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <CheckBox IsChecked="{Binding RepetirVideo}" Content="Repetir vídeo em loop" Margin="0,0,0,5" />
+                                    <TextBlock Text="Tempo total quando estiver em loop" Style="{StaticResource RotuloCampo}" />
+                                    <Slider Minimum="3" Maximum="300" TickFrequency="1" IsSnapToTickEnabled="True"
+                                            Value="{Binding TempoImagemSegundos}" Tag=" s" IsEnabled="{Binding RepetirVideo}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,8,0,0">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TemAudio}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <CheckBox IsChecked="{Binding RepetirAudio}" Content="Repetir áudio em loop" Margin="0,0,0,5" />
+                                    <CheckBox IsChecked="{Binding LimitarDuracaoAudio}" Content="Parar após o tempo definido" Margin="0,0,0,5" />
+                                    <TextBlock Text="Tempo de reprodução" Style="{StaticResource RotuloCampo}" />
+                                    <Slider Minimum="3" Maximum="300" TickFrequency="1" IsSnapToTickEnabled="True"
+                                            Value="{Binding TempoImagemSegundos}" Tag=" s" IsEnabled="{Binding LimitarDuracaoAudio}" />
+                                </StackPanel>
+                                <CheckBox IsChecked="{Binding PermitirFecharImagem}" Margin="0,7,0,0"
+                                          Content="Permitir fechar manualmente">
+                                    <CheckBox.Style>
+                                        <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TemAudio}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </CheckBox.Style>
+                                </CheckBox>
                             </StackPanel>
                         </Grid>
 
-                        <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,15,0,13" />
-                        <TextBlock Text="Prévia dos monitores escolhidos" Style="{StaticResource RotuloCampo}" />
-                        <TextBlock Text="Cada monitor aceita várias imagens e um tamanho independente."
-                                   Style="{StaticResource Subtitulo}" FontSize="11" Margin="0,0,0,9" />
-                        <ItemsControl ItemsSource="{Binding MonitoresDestino}">
+                        <StackPanel>
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding TemAudio}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,15,0,13" />
+                            <TextBlock Text="Prévia dos monitores escolhidos" Style="{StaticResource RotuloCampo}" />
+                            <TextBlock Text="Aparecem somente os monitores dos computadores marcados. A mídia já carregada pode ser reutilizada sem abrir outro seletor."
+                                       Style="{StaticResource Subtitulo}" FontSize="11" Margin="0,0,0,9" />
+                            <TextBlock Text="Marque um computador em “Enviar para” para escolher o monitor de destino."
+                                       FontSize="11" Margin="0,2,0,10">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Subtitulo}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding MonitoresDestino.Count}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <ItemsControl ItemsSource="{Binding MonitoresDestino}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Width="335" Background="#151A22" BorderBrush="#4F5F75" BorderThickness="1"
+                                    <Border Width="335" Background="{DynamicResource CardSurfaceBrush}"
+                                            BorderBrush="{DynamicResource CardGlassBorderBrush}" BorderThickness="1"
                                             CornerRadius="9" Padding="11" Margin="0,0,9,9">
                                         <StackPanel>
                                             <Grid Margin="0,0,0,7">
-                                                <TextBlock Text="{Binding Titulo}" Foreground="White" FontWeight="SemiBold" />
-                                                <TextBlock Text="{Binding Resolucao}" Foreground="#B8C3D2" FontSize="11"
+                                                <TextBlock Text="{Binding Titulo}" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding Resolucao}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11"
                                                            HorizontalAlignment="Right" />
                                             </Grid>
                                             <Border Height="{Binding AlturaPreview}" MinHeight="80" MaxHeight="155"
                                                     Background="#080B11" BorderBrush="#52637C" BorderThickness="1"
                                                     CornerRadius="5" Padding="5">
-                                                <ItemsControl ItemsSource="{Binding Imagens}">
+                                                <ItemsControl ItemsSource="{Binding Midias}">
                                                     <ItemsControl.ItemsPanel>
                                                         <ItemsPanelTemplate>
                                                             <WrapPanel HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -299,13 +380,31 @@
                                                     </ItemsControl.ItemsPanel>
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
-                                                            <Image Source="{Binding Caminho}" Width="{Binding PreviewWidth}"
-                                                                   MaxHeight="130" Stretch="Uniform" Margin="3" />
+                                                            <Grid Width="{Binding PreviewWidth}" MaxHeight="130" Margin="3">
+                                                                <Image Source="{Binding Caminho}" MaxHeight="130" Stretch="Uniform">
+                                                                    <Image.Style>
+                                                                        <Style TargetType="Image">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                            <Style.Triggers><DataTrigger Binding="{Binding EhImagem}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                                                                        </Style>
+                                                                    </Image.Style>
+                                                                </Image>
+                                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                    <StackPanel.Style>
+                                                                        <Style TargetType="StackPanel">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                            <Style.Triggers><DataTrigger Binding="{Binding EhVideo}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                                                                        </Style>
+                                                                    </StackPanel.Style>
+                                                                    <TextBlock Text="&#xE714;" FontFamily="Segoe MDL2 Assets" FontSize="28" Foreground="White" HorizontalAlignment="Center" />
+                                                                    <TextBlock Text="Vídeo" Foreground="White" FontSize="11" HorizontalAlignment="Center" />
+                                                                </StackPanel>
+                                                            </Grid>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
                                             </Border>
-                                            <ItemsControl ItemsSource="{Binding Imagens}" Margin="0,8,0,0">
+                                            <ItemsControl ItemsSource="{Binding Midias}" Margin="0,8,0,0">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
                                                         <Grid Margin="0,0,0,3">
@@ -314,13 +413,13 @@
                                                                 <ColumnDefinition />
                                                                 <ColumnDefinition Width="Auto" />
                                                             </Grid.ColumnDefinitions>
-                                                            <TextBlock Text="{Binding Nome}" Foreground="White" FontSize="11"
+                                                            <TextBlock Text="{Binding Nome}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11"
                                                                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                                             <Slider Grid.Column="1" Minimum="10" Maximum="100" TickFrequency="5"
                                                                     IsSnapToTickEnabled="True" Value="{Binding TamanhoPercentual}"
                                                                     Tag="%" Margin="7,0" />
                                                             <Button Grid.Column="2" Style="{StaticResource BotaoSecundario}" Padding="7,0"
-                                                                    Height="26" ToolTip="Remover imagem"
+                                                                    Height="26" ToolTip="Remover mídia"
                                                                     Command="{Binding DataContext.RemoverImagemMonitorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                     CommandParameter="{Binding}">
                                                                 <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="11" />
@@ -329,15 +428,26 @@
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
-                                            <Button Style="{StaticResource BotaoSecundario}" Content="Adicionar imagem neste monitor"
-                                                    HorizontalAlignment="Left" Margin="0,5,0,0"
-                                                    Command="{Binding DataContext.AdicionarImagemMonitorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                    CommandParameter="{Binding}" />
+                                            <WrapPanel Margin="0,5,0,0">
+                                                <Button Style="{StaticResource BotaoPrimario}" Content="Usar mídia carregada"
+                                                        Margin="0,0,7,5"
+                                                        Command="{Binding DataContext.UsarImagemCarregadaNoMonitorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}" />
+                                                <Button Style="{StaticResource BotaoSecundario}" Content="Outra imagem"
+                                                        Margin="0,0,0,5"
+                                                        Command="{Binding DataContext.AdicionarImagemMonitorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}" />
+                                                <Button Style="{StaticResource BotaoSecundario}" Content="Outro vídeo"
+                                                        Margin="7,0,0,5"
+                                                        Command="{Binding DataContext.AdicionarVideoMonitorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}" />
+                                            </WrapPanel>
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                            </ItemsControl>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
