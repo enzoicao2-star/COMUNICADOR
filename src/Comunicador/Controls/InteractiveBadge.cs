@@ -18,6 +18,7 @@ public sealed class InteractiveBadge : FrameworkElement
     private BitmapSource? _customIcon;
     private TimeSpan _lastRenderTime;
     private double _shinePhase;
+    private bool _renderingSubscribed;
 
     public static readonly DependencyProperty TextProperty = DependencyProperty.Register(
         nameof(Text), typeof(string), typeof(InteractiveBadge),
@@ -27,7 +28,7 @@ public sealed class InteractiveBadge : FrameworkElement
         new FrameworkPropertyMetadata("#4C8DFF", FrameworkPropertyMetadataOptions.AffectsRender, OnColorChanged));
     public static readonly DependencyProperty BadgeStyleProperty = DependencyProperty.Register(
         nameof(BadgeStyle), typeof(string), typeof(InteractiveBadge),
-        new FrameworkPropertyMetadata("Holográfica", FrameworkPropertyMetadataOptions.AffectsRender));
+        new FrameworkPropertyMetadata("Holográfica", FrameworkPropertyMetadataOptions.AffectsRender, OnAnimationModeChanged));
     public static readonly DependencyProperty IconProperty = DependencyProperty.Register(
         nameof(Icon), typeof(string), typeof(InteractiveBadge),
         new FrameworkPropertyMetadata("Estrela", FrameworkPropertyMetadataOptions.AffectsRender));
@@ -79,10 +80,29 @@ public sealed class InteractiveBadge : FrameworkElement
     {
         ApplyGlow();
         _lastRenderTime = TimeSpan.Zero;
-        CompositionTarget.Rendering += OnRendering;
+        UpdateRenderingSubscription();
     }
 
-    private void OnUnloaded(object sender, RoutedEventArgs e) => CompositionTarget.Rendering -= OnRendering;
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (!_renderingSubscribed) return;
+        CompositionTarget.Rendering -= OnRendering;
+        _renderingSubscribed = false;
+    }
+
+    private static void OnAnimationModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is InteractiveBadge badge) badge.UpdateRenderingSubscription();
+    }
+
+    private void UpdateRenderingSubscription()
+    {
+        var shouldSubscribe = IsLoaded && BadgeStyle == "Holográfica";
+        if (shouldSubscribe == _renderingSubscribed) return;
+        if (shouldSubscribe) CompositionTarget.Rendering += OnRendering;
+        else CompositionTarget.Rendering -= OnRendering;
+        _renderingSubscribed = shouldSubscribe;
+    }
 
     private void OnRendering(object? sender, EventArgs e)
     {

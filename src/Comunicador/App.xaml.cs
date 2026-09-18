@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Threading;
 using Comunicador.Services;
@@ -7,6 +8,8 @@ namespace Comunicador;
 
 public partial class App : Application
 {
+    internal static readonly Stopwatch StartupWatch = Stopwatch.StartNew();
+    internal static string? BenchmarkFile { get; private set; }
     private MainViewModel? _mainViewModel;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -17,6 +20,9 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
 
         Logger.Info("Comunicador iniciando.");
+
+        BenchmarkFile = e.Args.FirstOrDefault(arg =>
+            arg.StartsWith("--benchmark-file=", StringComparison.OrdinalIgnoreCase))?[17..];
 
         _mainViewModel = new MainViewModel();
         _mainViewModel.Start();

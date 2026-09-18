@@ -78,9 +78,18 @@
                        Text="As mensagens enviadas e recebidas aparecem nesta lista." />
         </StackPanel>
 
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding ItensFiltrados}">
-                <ItemsControl.ItemTemplate>
+        <ListBox ItemsSource="{Binding ItensFiltrados}" Background="Transparent" BorderThickness="0"
+                 ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.CanContentScroll="True"
+                 VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="0" />
+                        <Setter Property="Background" Value="Transparent" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Border Style="{StaticResource CardListaBorder}" Margin="0,0,0,8" Padding="16,14">
                             <Grid>
@@ -124,8 +133,7 @@
                             </Grid>
                         </Border>
                     </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
+                </ListBox.ItemTemplate>
+        </ListBox>
     </DockPanel>
 </UserControl>

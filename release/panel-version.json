@@ -1,7 +1,7 @@
 {
     "version":  "2.5.0.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "3CD3AC828C7D7D4FAE3BCA01721D11EC8A44FBCADACB74FF8DDA58CDBD3CE626",
+    "sha256":  "DDD2D225148A79AF6BC584CC6459FB0E5129DE23324A45CE46690BF70C20026F",
     "summary":  "A versão 2.5.0 adiciona identidade permanente, administração central, sincronização pelo Supabase e entregas mesmo com o painel fechado.",
     "changes":  [
                     "Cada computador ganhou um identificador permanente compartilhado pelo painel e receptor.",

@@ -18,10 +18,15 @@ public sealed class AnimatedBackground : FrameworkElement
     private double _lastFluidTime = -1;
     private WriteableBitmap? _particleWaveBitmap;
     private byte[]? _particleWavePixels;
+    private Brush[]? _vortexBrushes;
+    private string? _vortexBrushSignature;
+    private Brush[]? _fluidBrushes;
+    private Pen[]? _fluidPens;
+    private string? _fluidBrushSignature;
 
     public static readonly DependencyProperty ModeProperty = DependencyProperty.Register(
         nameof(Mode), typeof(string), typeof(AnimatedBackground),
-        new FrameworkPropertyMetadata("Sem fundo", FrameworkPropertyMetadataOptions.AffectsRender));
+        new FrameworkPropertyMetadata("Sem fundo", FrameworkPropertyMetadataOptions.AffectsRender, OnModeChanged));
     public static readonly DependencyProperty IntensityProperty = DependencyProperty.Register(
         nameof(Intensity), typeof(double), typeof(AnimatedBackground),
         new FrameworkPropertyMetadata(100d, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -45,9 +50,6 @@ public sealed class AnimatedBackground : FrameworkElement
     {
         IsHitTestVisible = false;
         ClipToBounds = true;
-        SeedVortex(2800, 3);
-        SeedStars(92);
-        SeedFluidParticles(2000);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
@@ -65,6 +67,19 @@ public sealed class AnimatedBackground : FrameworkElement
     }
 
     private void OnThemeChanged() => InvalidateVisual();
+
+    private static void OnModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is AnimatedBackground background && e.NewValue is string mode)
+            background.EnsureModeData(mode);
+    }
+
+    private void EnsureModeData(string mode)
+    {
+        if (mode == "Vórtice" && _particles.Count == 0) SeedVortex(2200, 3);
+        else if (mode == "Constelação" && _stars.Count == 0) SeedStars(72);
+        else if (mode == "Partículas fluidas" && _fluidParticles.Count == 0) SeedFluidParticles(1500);
+    }
 
     private void OnRendering(object? sender, EventArgs e)
     {
@@ -288,17 +303,23 @@ public sealed class AnimatedBackground : FrameworkElement
     {
         var accent = ThemeColor("AccentBrush", Colors.CornflowerBlue);
         var muted = ThemeColor("TextSecondaryBrush", Colors.Gray);
-        var brushes = Enumerable.Range(0, 12).Select(i =>
+        var signature = $"{accent}-{muted}-{opacity:F3}";
+        if (_vortexBrushes is null || _vortexBrushSignature != signature)
         {
-            var t = i / 11d;
-            var color = Color.FromRgb(
-                (byte)(accent.R + (muted.R - accent.R) * t),
-                (byte)(accent.G + (muted.G - accent.G) * t),
-                (byte)(accent.B + (muted.B - accent.B) * t));
-            var brush = new SolidColorBrush(color) { Opacity = opacity * (.9 - t * .45) };
-            brush.Freeze();
-            return brush;
-        }).ToArray();
+            _vortexBrushSignature = signature;
+            _vortexBrushes = Enumerable.Range(0, 12).Select(i =>
+            {
+                var t = i / 11d;
+                var color = Color.FromRgb(
+                    (byte)(accent.R + (muted.R - accent.R) * t),
+                    (byte)(accent.G + (muted.G - accent.G) * t),
+                    (byte)(accent.B + (muted.B - accent.B) * t));
+                var brush = new SolidColorBrush(color) { Opacity = opacity * (.9 - t * .45) };
+                brush.Freeze();
+                return brush;
+            }).ToArray();
+        }
+        var brushes = _vortexBrushes;
 
         var rotation = time * .11;
         var pulse = 1 + Math.Sin(time * .46) * .045;
@@ -434,16 +455,24 @@ public sealed class AnimatedBackground : FrameworkElement
         _lastFluidTime = time;
 
         var color = ThemeColor("TextPrimaryBrush", Colors.White);
-        var brushes = new Brush[10];
-        var pens = new Pen[10];
-        for (var i = 0; i < brushes.Length; i++)
+        var signature = $"{color}-{opacity:F3}";
+        if (_fluidBrushes is null || _fluidPens is null || _fluidBrushSignature != signature)
         {
-            // O original atinge 0,15 de alfa e cruza suavemente por dez níveis.
-            brushes[i] = new SolidColorBrush(color) { Opacity = opacity * .15 * (i + 1) / brushes.Length };
-            brushes[i].Freeze();
-            pens[i] = new Pen(brushes[i], .72) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
-            pens[i].Freeze();
+            _fluidBrushSignature = signature;
+            _fluidBrushes = new Brush[10];
+            _fluidPens = new Pen[10];
+            for (var i = 0; i < _fluidBrushes.Length; i++)
+            {
+                _fluidBrushes[i] = new SolidColorBrush(color)
+                    { Opacity = opacity * .15 * (i + 1) / _fluidBrushes.Length };
+                _fluidBrushes[i].Freeze();
+                _fluidPens[i] = new Pen(_fluidBrushes[i], .72)
+                    { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+                _fluidPens[i].Freeze();
+            }
         }
+        var brushes = _fluidBrushes;
+        var pens = _fluidPens;
 
         foreach (var particle in _fluidParticles)
         {

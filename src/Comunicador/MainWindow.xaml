@@ -153,7 +153,7 @@
 
     <Border x:Name="WindowFrame" Background="{DynamicResource BackgroundBrush}" CornerRadius="13">
         <Grid>
-            <controls:AnimatedBackground Mode="{Binding Configuracoes.FundoPainel}"
+            <controls:AnimatedBackground x:Name="AnimatedBackdrop" Mode="{Binding Configuracoes.FundoPainel}"
                                          Intensity="100"
                                          Speed="{Binding Configuracoes.VelocidadeFundo}"
                                          ReduceMotion="{Binding Configuracoes.ReduzirMovimento}" />
