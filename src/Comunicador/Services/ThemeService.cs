@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using Comunicador.Models;
 
 namespace Comunicador.Services;
@@ -8,6 +9,7 @@ namespace Comunicador.Services;
 public static class ThemeService
 {
     public static event Action? ThemeChanged;
+    public static bool ReduceMotion { get; private set; }
 
     private static readonly Dictionary<string, (string Accent, string Hover, string Pressed)> Palettes =
         new(StringComparer.OrdinalIgnoreCase)
@@ -21,6 +23,7 @@ public static class ThemeService
     public static void Apply(AppSettings settings, bool animate = true)
     {
         if (Application.Current is null) return;
+        ReduceMotion = settings.ReduzirMovimento;
         var dark = !settings.Tema.Equals("Claro", StringComparison.OrdinalIgnoreCase);
         var palette = ResolverPaleta(settings);
         var colors = dark
@@ -59,6 +62,38 @@ public static class ThemeService
         {
             AnimateBrush(pair.Key, (Color)ColorConverter.ConvertFromString(pair.Value), animate);
         }
+        ApplyCardAppearance(settings);
+        ThemeChanged?.Invoke();
+    }
+
+    public static void ApplyCardAppearance(AppSettings settings)
+    {
+        if (Application.Current is null) return;
+        var dark = !settings.Tema.Equals("Claro", StringComparison.OrdinalIgnoreCase);
+        var transparency = Math.Clamp(settings.TransparenciaCards, 0, 90) / 100d;
+        var opacity = 1d - transparency;
+        var baseColor = dark ? Color.FromRgb(18, 25, 35) : Colors.White;
+        var hoverColor = dark ? Color.FromRgb(25, 34, 49) : Colors.White;
+        Application.Current.Resources["CardSurfaceBrush"] = new SolidColorBrush(Color.FromArgb(
+            (byte)Math.Round(255 * opacity), baseColor.R, baseColor.G, baseColor.B));
+        Application.Current.Resources["CardHoverBrush"] = new SolidColorBrush(Color.FromArgb(
+            (byte)Math.Round(255 * Math.Clamp(opacity + .14, .18, 1)), hoverColor.R, hoverColor.G, hoverColor.B));
+
+        var blur = Math.Clamp(settings.BlurCards, 0, 40);
+        Application.Current.Resources["GlassCardShadow"] = new DropShadowEffect
+        {
+            Color = Colors.Black,
+            BlurRadius = Math.Max(2, blur),
+            ShadowDepth = blur <= 2 ? 0 : 2,
+            Direction = 270,
+            Opacity = .18 + blur / 40d * .22,
+        };
+    }
+
+    public static void SetReduceMotion(bool value)
+    {
+        if (ReduceMotion == value) return;
+        ReduceMotion = value;
         ThemeChanged?.Invoke();
     }
 

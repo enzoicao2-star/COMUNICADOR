@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Net.Http;
 using System.Windows.Input;
 using Comunicador.Models;
 using Comunicador.Networking;
@@ -19,6 +20,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private readonly AtualizadorReceptor _atualizador;
     private readonly AppSettings _settings;
     private readonly PerfilComputadorRepository _perfis;
+    private readonly CloudSyncService _cloud;
     private string? _statusMensagem;
     private string _novoIp = string.Empty;
     private string _novaPorta = ProtocolConstants.TcpPort.ToString();
@@ -51,9 +53,12 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public ICommand ConfirmarRenomeCommand { get; }
     public ICommand AtualizarReceptorCommand { get; }
     public ICommand AdicionarBadgeCommand { get; }
+    public ICommand EditarBadgeCommand { get; }
+    public ICommand NovaBadgeCommand { get; }
     public ICommand RemoverBadgeCommand { get; }
     public ICommand CarregarIconeBadgeCommand { get; }
     public ICommand SalvarPerfilCommand { get; }
+    public ICommand FecharEdicaoCommand { get; }
 
     public IReadOnlyList<string> EstilosBadge { get; } = ["Holográfica", "Metal", "Pílula", "Contorno", "Selo"];
     public IReadOnlyList<string> IconesBadge { get; } =
@@ -62,7 +67,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public ComputadoresViewModel(
         JsonStore<Computador> store, DiscoveryService discovery, ReceptorClient client,
         AtualizadorReceptor atualizador, AppSettings settings,
-        PerfilComputadorRepository perfis)
+        PerfilComputadorRepository perfis, CloudSyncService cloud)
     {
         _store = store;
         _discovery = discovery;
@@ -70,6 +75,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         _atualizador = atualizador;
         _settings = settings;
         _perfis = perfis;
+        _cloud = cloud;
         _novaPorta = settings.PortaTcp.ToString();
 
         foreach (var computador in _store.Load())
@@ -83,6 +89,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         }
 
         _perfis.Alterado += AplicarPerfis;
+        _cloud.StateChanged += AplicarAutoridadeCloud;
 
         _discovery.ReceptorDescoberto += OnReceptorDescoberto;
 
@@ -118,7 +125,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
         RenomearCommand = new RelayCommand(param =>
         {
-            if (param is Computador computador)
+            if (param is Computador computador && PodeEditar(computador))
             {
                 // um de cada vez, para nao ficar varios cartoes em edicao
                 foreach (var outro in Computadores)
@@ -128,49 +135,71 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
                 computador.EmEdicao = true;
             }
-        });
+        }, param => param is Computador computador && PodeEditar(computador));
 
-        ConfirmarRenomeCommand = new RelayCommand(param =>
+        ConfirmarRenomeCommand = new AsyncRelayCommand(async param =>
         {
-            if (param is Computador computador)
+            if (param is Computador computador && PodeEditar(computador))
             {
+                await SalvarPerfilAsync(computador).ConfigureAwait(true);
                 computador.EmEdicao = false;
-                SalvarPerfil(computador);
-                StatusMensagem = $"Renomeado para \"{computador.NomeExibicao}\".";
             }
-        });
+        }, param => param is Computador computador && PodeEditar(computador));
 
         AdicionarBadgeCommand = new RelayCommand(param =>
         {
-            if (param is Computador computador) AdicionarBadge(computador);
+            if (param is Computador computador) SalvarBadge(computador);
+        });
+        EditarBadgeCommand = new RelayCommand(param =>
+        {
+            if (param is BadgeUsuario badge) CarregarBadgeNoEditor(badge);
+        });
+        NovaBadgeCommand = new RelayCommand(param =>
+        {
+            if (param is Computador computador && PodeEditar(computador)) ResetarEditorBadge(computador);
         });
         RemoverBadgeCommand = new RelayCommand(param =>
         {
             if (param is not BadgeUsuario badge) return;
             var computador = Computadores.FirstOrDefault(c => c.Id == badge.ComputerId || c.Badges.Contains(badge));
-            if (computador is null) return;
+            if (computador is null || !PodeEditar(computador)) return;
             computador.Badges = computador.Badges.Where(b => b.Id != badge.Id).ToList();
-            SalvarPerfil(computador);
-            StatusMensagem = $"Badge '{badge.Texto}' removida de {computador.NomeExibicao}.";
+            if (computador.BadgeEmEdicaoId == badge.Id) ResetarEditorBadge(computador);
+            StatusMensagem = $"Badge '{badge.Texto}' removida da prévia. Clique em Aplicar mudanças para sincronizar.";
         });
         CarregarIconeBadgeCommand = new RelayCommand(param =>
         {
-            if (param is Computador computador) CarregarIconePersonalizado(computador);
+            if (param is Computador computador && PodeEditar(computador)) CarregarIconePersonalizado(computador);
         });
-        SalvarPerfilCommand = new RelayCommand(param =>
+        SalvarPerfilCommand = new AsyncRelayCommand(async param =>
         {
-            if (param is Computador computador)
+            if (param is Computador computador && PodeEditar(computador))
             {
-                SalvarPerfil(computador);
+                await SalvarPerfilAsync(computador).ConfigureAwait(true);
                 computador.EmEdicao = false;
-                StatusMensagem = $"Nome e badges de {computador.NomeExibicao} sincronizados com os painéis.";
             }
+        }, param => param is Computador computador && PodeEditar(computador));
+        FecharEdicaoCommand = new RelayCommand(param =>
+        {
+            if (param is not Computador computador || !PodeEditar(computador)) return;
+            AplicarPerfil(computador);
+            ResetarEditorBadge(computador);
+            computador.EmEdicao = false;
+            StatusMensagem = "Edição fechada. Alterações ainda não aplicadas foram descartadas.";
         });
     }
 
-    private void AdicionarBadge(Computador computador)
+    private void SalvarBadge(Computador computador)
     {
-        if (computador.Badges.Count >= ProtocolConstants.MaxBadgesPerComputer)
+        if (!PodeEditar(computador))
+        {
+            StatusMensagem = "Somente o próprio painel pode alterar suas badges.";
+            return;
+        }
+        var existente = string.IsNullOrWhiteSpace(computador.BadgeEmEdicaoId)
+            ? null
+            : computador.Badges.FirstOrDefault(b => b.Id == computador.BadgeEmEdicaoId);
+        if (existente is null && computador.Badges.Count >= ProtocolConstants.MaxBadgesPerComputer)
         {
             StatusMensagem = "Cada computador pode ter até 4 badges.";
             return;
@@ -185,6 +214,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         }
         var badge = new BadgeUsuario
         {
+            Id = existente?.Id ?? Guid.NewGuid().ToString("N"),
             ComputerId = computador.Id,
             Texto = texto,
             Cor = cor,
@@ -194,11 +224,40 @@ public sealed class ComputadoresViewModel : ViewModelBase
             Brilho = computador.NovoBadgeBrilho,
             EfeitoMouse = computador.NovoBadgeEfeitoMouse,
         };
-        computador.Badges = computador.Badges.Append(badge).ToList();
+        computador.Badges = existente is null
+            ? computador.Badges.Append(badge).ToList()
+            : computador.Badges.Select(b => b.Id == existente.Id ? badge : b).ToList();
+        StatusMensagem = existente is null
+            ? $"Badge '{badge.Texto}' adicionada à prévia. Clique em Aplicar mudanças para sincronizar."
+            : $"Badge '{badge.Texto}' atualizada na prévia. Clique em Aplicar mudanças para sincronizar.";
+        ResetarEditorBadge(computador);
+    }
+
+    private void CarregarBadgeNoEditor(BadgeUsuario badge)
+    {
+        var computador = Computadores.FirstOrDefault(c => c.Id == badge.ComputerId || c.Badges.Contains(badge));
+        if (computador is null || !computador.EmEdicao || !PodeEditar(computador)) return;
+        computador.BadgeEmEdicaoId = badge.Id;
+        computador.NovoBadgeTexto = badge.Texto;
+        computador.NovoBadgeCor = badge.Cor;
+        computador.NovoBadgeEstilo = badge.Estilo;
+        computador.NovoBadgeIcone = badge.Icone;
+        computador.NovoBadgeIconePersonalizadoBase64 = badge.IconePersonalizadoBase64;
+        computador.NovoBadgeBrilho = badge.Brilho;
+        computador.NovoBadgeEfeitoMouse = badge.EfeitoMouse;
+        StatusMensagem = $"Editando a badge '{badge.Texto}'.";
+    }
+
+    private static void ResetarEditorBadge(Computador computador)
+    {
+        computador.BadgeEmEdicaoId = null;
         computador.NovoBadgeTexto = "Destaque";
+        computador.NovoBadgeCor = "#4C8DFF";
+        computador.NovoBadgeEstilo = "Holográfica";
+        computador.NovoBadgeIcone = "Estrela";
         computador.NovoBadgeIconePersonalizadoBase64 = null;
-        SalvarPerfil(computador);
-        StatusMensagem = $"Badge '{badge.Texto}' adicionada e compartilhada.";
+        computador.NovoBadgeBrilho = true;
+        computador.NovoBadgeEfeitoMouse = true;
     }
 
     private void CarregarIconePersonalizado(Computador computador)
@@ -234,12 +293,42 @@ public sealed class ComputadoresViewModel : ViewModelBase
         }
     }
 
-    private void SalvarPerfil(Computador computador)
+    private async Task SalvarPerfilAsync(Computador computador)
     {
+        if (!PodeEditar(computador))
+        {
+            StatusMensagem = "Somente o próprio computador ou o administrador pode alterar este perfil.";
+            return;
+        }
         var nome = string.IsNullOrWhiteSpace(computador.Apelido) ? computador.Nome : computador.Apelido!;
-        _perfis.Salvar(computador.Id, nome, computador.EhOwner, computador.Badges, _settings.PainelId);
+        var ehAdminAlvo = string.Equals(computador.Id, _cloud.AdminDeviceId, StringComparison.OrdinalIgnoreCase);
+        var badges = computador.Badges.Where(b => b.Id != "owner").ToList();
+        if (ehAdminAlvo)
+        {
+            var owner = computador.Badges.FirstOrDefault(b => b.Id == "owner") ?? CriarBadgeOwner(computador.Id);
+            badges.Insert(0, owner);
+        }
+        computador.Badges = badges.Take(ProtocolConstants.MaxBadgesPerComputer).ToList();
+        computador.EhOwner = ehAdminAlvo;
+        _perfis.Salvar(computador.Id, nome, ehAdminAlvo, computador.Badges,
+            _settings.PainelId, adminOverride: _cloud.IsAdmin);
         Persist();
+        try
+        {
+            await _cloud.SaveProfileAsync(computador).ConfigureAwait(true);
+            StatusMensagem = $"Nome e badges de {computador.NomeExibicao} sincronizados com todos os painéis.";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or TaskCanceledException)
+        {
+            StatusMensagem = $"Salvo neste painel; sincronização pendente: {ex.Message}";
+        }
     }
+
+    private static BadgeUsuario CriarBadgeOwner(string computerId) => new()
+    {
+        Id = "owner", ComputerId = computerId, Texto = "OWNER", Cor = "#F2B84B",
+        Estilo = "Holográfica", Icone = "Coroa", Brilho = true, EfeitoMouse = true,
+    };
 
     private void AplicarPerfis() => UiDispatcher.Invoke(() =>
     {
@@ -249,21 +338,43 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
     private void AplicarPerfil(Computador computador)
     {
+        computador.PodeEditarPerfil = PodeEditar(computador);
+        computador.ReduzirMovimento = _settings.ReduzirMovimento;
+        var ehAdmin = string.Equals(computador.Id, _cloud.AdminDeviceId, StringComparison.OrdinalIgnoreCase);
+        computador.EhOwner = ehAdmin;
         var perfil = _perfis.Obter(computador.Id);
         if (perfil is null)
         {
-            foreach (var badge in computador.Badges) badge.ComputerId = computador.Id;
+            var atuais = computador.Badges.Where(b => b.Id != "owner").ToList();
+            if (ehAdmin) atuais.Insert(0, CriarBadgeOwner(computador.Id));
+            computador.Badges = atuais.Take(ProtocolConstants.MaxBadgesPerComputer).ToList();
             return;
         }
         computador.Apelido = string.IsNullOrWhiteSpace(perfil.NomePublico) ? null : perfil.NomePublico;
-        computador.EhOwner = perfil.EhOwner;
-        computador.Badges = perfil.Badges.Select(b =>
+        var badges = perfil.Badges.Where(b => b.Id != "owner").Select(b =>
         {
             var clone = b.Clone();
             clone.ComputerId = computador.Id;
             return clone;
         }).ToList();
+        if (ehAdmin)
+        {
+            var owner = perfil.Badges.FirstOrDefault(b => b.Id == "owner")?.Clone()
+                ?? CriarBadgeOwner(computador.Id);
+            owner.ComputerId = computador.Id;
+            badges.Insert(0, owner);
+        }
+        computador.Badges = badges.Take(ProtocolConstants.MaxBadgesPerComputer).ToList();
     }
+
+    private bool PodeEditar(Computador computador) => _cloud.CanEdit(computador.Id);
+
+    private void AplicarAutoridadeCloud() => UiDispatcher.Invoke(() =>
+    {
+        foreach (var computador in Computadores) AplicarPerfil(computador);
+        CommandManager.InvalidateRequerySuggested();
+        Persist();
+    });
 
     public IReadOnlyList<Computador> Snapshot() => Computadores.ToList();
 
@@ -315,6 +426,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
             }
 
             var atualizado = Computadores.First(c => c.Id == conexao.ComputerId);
+            RemoverDuplicadosDe(atualizado);
             AplicarPerfil(atualizado);
             Persist();
             PublicarPingMedio();
@@ -350,6 +462,23 @@ public sealed class ComputadoresViewModel : ViewModelBase
         PingMedioAtualizado?.Invoke(pings.Count > 0
             ? pings.Average()
             : onlineRemotos.Count > 0 ? double.NaN : null);
+    }
+
+    private void RemoverDuplicadosDe(Computador principal)
+    {
+        var duplicados = Computadores.Where(c => !ReferenceEquals(c, principal)
+            && !string.Equals(c.Id, principal.Id, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(c.EnderecoIp, principal.EnderecoIp, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(c.Nome, principal.Nome, StringComparison.OrdinalIgnoreCase)).ToList();
+        foreach (var duplicado in duplicados)
+        {
+            if (string.IsNullOrWhiteSpace(principal.Token) && !string.IsNullOrWhiteSpace(duplicado.Token))
+                principal.Token = duplicado.Token;
+            principal.Pareado |= duplicado.Pareado;
+            if (principal.Monitores.Count == 0 && duplicado.Monitores.Count > 0)
+                principal.Monitores = duplicado.Monitores;
+            Computadores.Remove(duplicado);
+        }
     }
 
     private bool EhComputadorLocal(Computador computador) =>
@@ -399,7 +528,9 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 existente.UltimaVezVisto = DateTime.UtcNow;
             }
 
-            AplicarPerfil(Computadores.First(c => c.Id == info.ComputerId));
+            var atualizado = Computadores.First(c => c.Id == info.ComputerId);
+            RemoverDuplicadosDe(atualizado);
+            AplicarPerfil(atualizado);
             Persist();
             PublicarPingMedio();
         });

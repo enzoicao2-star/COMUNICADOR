@@ -82,39 +82,28 @@ public partial class MainWindow : Window
 
     private void AnimarSecao()
     {
-        if (_viewModel?.Configuracoes.ReduzirMovimento == true)
-        {
-            SectionContent.BeginAnimation(OpacityProperty, null);
-            SectionTransform.BeginAnimation(TranslateTransform.YProperty, null);
-            SectionScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-            SectionScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-            SectionContent.Opacity = 1;
-            SectionTransform.Y = 0;
-            SectionScale.ScaleX = 1;
-            SectionScale.ScaleY = 1;
-            return;
-        }
-
+        var reduzido = _viewModel?.Configuracoes.ReduzirMovimento == true;
         var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
-        SectionContent.BeginAnimation(OpacityProperty, new DoubleAnimation(0.25, 1, TimeSpan.FromMilliseconds(175))
+        SectionContent.BeginAnimation(OpacityProperty, new DoubleAnimation(reduzido ? .72 : .25, 1,
+            TimeSpan.FromMilliseconds(reduzido ? 260 : 175))
         {
             EasingFunction = easing,
             FillBehavior = FillBehavior.Stop,
         });
         SectionTransform.BeginAnimation(TranslateTransform.YProperty,
-            new DoubleAnimation(8, 0, TimeSpan.FromMilliseconds(210))
+            new DoubleAnimation(reduzido ? 2 : 8, 0, TimeSpan.FromMilliseconds(reduzido ? 300 : 210))
             {
                 EasingFunction = easing,
                 FillBehavior = FillBehavior.Stop,
             });
         SectionScale.BeginAnimation(ScaleTransform.ScaleXProperty,
-            new DoubleAnimation(.992, 1, TimeSpan.FromMilliseconds(195))
+            new DoubleAnimation(reduzido ? .998 : .992, 1, TimeSpan.FromMilliseconds(reduzido ? 280 : 195))
             {
                 EasingFunction = easing,
                 FillBehavior = FillBehavior.Stop,
             });
         SectionScale.BeginAnimation(ScaleTransform.ScaleYProperty,
-            new DoubleAnimation(.992, 1, TimeSpan.FromMilliseconds(195))
+            new DoubleAnimation(reduzido ? .998 : .992, 1, TimeSpan.FromMilliseconds(reduzido ? 280 : 195))
             {
                 EasingFunction = easing,
                 FillBehavior = FillBehavior.Stop,

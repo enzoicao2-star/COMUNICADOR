@@ -154,7 +154,7 @@ public static class MessageValidator
     /// continuam obrigatórios.</summary>
     private static ValidationResult? ValidarTextoNotificacao(ComunicadorMessage msg)
     {
-        if (msg.DisplayMode is DisplayMode.CenterImage or DisplayMode.CenterVideo or DisplayMode.Audio)
+        if (msg.DisplayMode is DisplayMode.CenterImage or DisplayMode.CenterVideo or DisplayMode.Audio or DisplayMode.Wallpaper)
         {
             return RequireStringAllowEmpty(msg.Title, "title", MaxTitleLength)
                 ?? RequireStringAllowEmpty(msg.Message, "message", MaxMessageLength);
@@ -238,6 +238,11 @@ public static class MessageValidator
         {
             return ValidationResult.Fail(
                 ErrorCode.MissingField, "Aviso central precisa de 'image' ou 'screen_images'.");
+        }
+
+        if (modo == DisplayMode.Wallpaper && imagem is null)
+        {
+            return ValidationResult.Fail(ErrorCode.MissingField, "Papel de parede precisa do campo 'image'.");
         }
 
         if (modo == DisplayMode.CenterVideo

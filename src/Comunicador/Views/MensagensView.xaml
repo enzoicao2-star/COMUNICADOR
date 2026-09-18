@@ -274,6 +274,36 @@
                                 </WrapPanel>
                                 <TextBlock Text="Imagem até 4 MB · vídeo MP4/WMV até 24 MB · áudio MP3/WAV até 12 MB"
                                            Style="{StaticResource Subtitulo}" FontSize="11" />
+                                <CheckBox IsChecked="{Binding DefinirComoPapelDeParede}"
+                                          IsEnabled="{Binding PodeAlterarPapelParede}"
+                                          Content="Definir esta imagem como papel de parede remoto (somente admin)"
+                                          Margin="0,9,0,0">
+                                    <CheckBox.Style>
+                                        <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TemImagem}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </CheckBox.Style>
+                                </CheckBox>
+                                <CheckBox IsChecked="{Binding DefinirComoPapelDeParede}"
+                                          IsEnabled="{Binding PodeAlterarPapelParede}"
+                                          Content="Definir esta imagem como papel de parede remoto (somente admin)"
+                                          Margin="0,9,0,0">
+                                    <CheckBox.Style>
+                                        <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TemImagem}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </CheckBox.Style>
+                                </CheckBox>
                                 <StackPanel Margin="0,8,0,0">
                                     <StackPanel.Style>
                                         <Style TargetType="StackPanel">
@@ -284,8 +314,11 @@
                                         </Style>
                                     </StackPanel.Style>
                                     <TextBlock Text="Tempo na tela" Style="{StaticResource RotuloCampo}" />
-                                    <Slider Minimum="3" Maximum="300" TickFrequency="1" IsSnapToTickEnabled="True"
-                                            Value="{Binding TempoImagemSegundos}" Tag=" s" />
+                                    <DockPanel LastChildFill="False">
+                                        <TextBox Width="96" Text="{Binding TempoImagemSegundos, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Text="segundos" VerticalAlignment="Center" Margin="8,0,0,0"
+                                                   Style="{StaticResource Subtitulo}" />
+                                    </DockPanel>
                                 </StackPanel>
                                 <StackPanel Margin="0,8,0,0">
                                     <StackPanel.Style>
@@ -298,8 +331,11 @@
                                     </StackPanel.Style>
                                     <CheckBox IsChecked="{Binding RepetirVideo}" Content="Repetir vídeo em loop" Margin="0,0,0,5" />
                                     <TextBlock Text="Tempo total quando estiver em loop" Style="{StaticResource RotuloCampo}" />
-                                    <Slider Minimum="3" Maximum="300" TickFrequency="1" IsSnapToTickEnabled="True"
-                                            Value="{Binding TempoImagemSegundos}" Tag=" s" IsEnabled="{Binding RepetirVideo}" />
+                                    <DockPanel LastChildFill="False" IsEnabled="{Binding RepetirVideo}">
+                                        <TextBox Width="96" Text="{Binding TempoImagemSegundos, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Text="segundos" VerticalAlignment="Center" Margin="8,0,0,0"
+                                                   Style="{StaticResource Subtitulo}" />
+                                    </DockPanel>
                                 </StackPanel>
                                 <StackPanel Margin="0,8,0,0">
                                     <StackPanel.Style>
@@ -313,8 +349,11 @@
                                     <CheckBox IsChecked="{Binding RepetirAudio}" Content="Repetir áudio em loop" Margin="0,0,0,5" />
                                     <CheckBox IsChecked="{Binding LimitarDuracaoAudio}" Content="Parar após o tempo definido" Margin="0,0,0,5" />
                                     <TextBlock Text="Tempo de reprodução" Style="{StaticResource RotuloCampo}" />
-                                    <Slider Minimum="3" Maximum="300" TickFrequency="1" IsSnapToTickEnabled="True"
-                                            Value="{Binding TempoImagemSegundos}" Tag=" s" IsEnabled="{Binding LimitarDuracaoAudio}" />
+                                    <DockPanel LastChildFill="False" IsEnabled="{Binding LimitarDuracaoAudio}">
+                                        <TextBox Width="96" Text="{Binding TempoImagemSegundos, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Text="segundos" VerticalAlignment="Center" Margin="8,0,0,0"
+                                                   Style="{StaticResource Subtitulo}" />
+                                    </DockPanel>
                                 </StackPanel>
                                 <CheckBox IsChecked="{Binding PermitirFecharImagem}" Margin="0,7,0,0"
                                           Content="Permitir fechar manualmente">

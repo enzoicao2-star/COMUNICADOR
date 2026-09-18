@@ -10,7 +10,11 @@ __pycache__/
 .pytest_cache/
 .codex-pytest-*/
 .pytest-temp-*/
+test-temp/
 *.egg-info/
+
+# arquivos locais de conexão
+supabase.txt
 
 # editores / SO
 .vs/

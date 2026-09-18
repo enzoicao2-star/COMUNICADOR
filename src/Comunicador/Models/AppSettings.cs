@@ -11,11 +11,11 @@ public sealed class AppSettings
     public int IntervaloDescobertaSegundos { get; set; } = 15;
     public int IntervaloPingSegundos { get; set; } = 5;
     public string NomePainel { get; set; } = Environment.MachineName;
-    public bool EstePainelEhOwner { get; set; } = true;
+    public bool EstePainelEhOwner { get; set; }
     public bool IniciarComWindows { get; set; }
 
-    /// <summary>Controla a exibição de mensagens recebidas. O receptor embutido continua
-    /// visível na rede para que os outros painéis identifiquem esta máquina corretamente.</summary>
+    /// <summary>Compatibilidade com configurações antigas. Mensagens e lembretes são
+    /// obrigatórios; somente mídias e links podem ser bloqueados.</summary>
     public bool AceitarMensagensDeOutrosPaineis { get; set; } = true;
     public bool AceitarImagensDeOutrosPaineis { get; set; } = true;
     public bool AceitarBotoesComLinks { get; set; } = true;
@@ -26,4 +26,7 @@ public sealed class AppSettings
     public string FundoPainel { get; set; } = "Topográfico";
     public int IntensidadeFundo { get; set; } = 100;
     public bool ReduzirMovimento { get; set; }
+    public int TransparenciaCards { get; set; } = 70;
+    public int BlurCards { get; set; } = 18;
+    public int VelocidadeFundo { get; set; } = 100;
 }

@@ -9,6 +9,7 @@ public sealed class Lembrete : ObservableModel
     private DateTime _dataHora;
     private bool _permitirResposta = true;
     private bool _enviado;
+    private bool _agendadoNaNuvem;
 
     public string Id { get => _id; set => SetField(ref _id, value); }
     public string Titulo { get => _titulo; set => SetField(ref _titulo, value); }
@@ -17,4 +18,5 @@ public sealed class Lembrete : ObservableModel
     public DateTime DataHora { get => _dataHora; set => SetField(ref _dataHora, value); }
     public bool PermitirResposta { get => _permitirResposta; set => SetField(ref _permitirResposta, value); }
     public bool Enviado { get => _enviado; set => SetField(ref _enviado, value); }
+    public bool AgendadoNaNuvem { get => _agendadoNaNuvem; set => SetField(ref _agendadoNaNuvem, value); }
 }

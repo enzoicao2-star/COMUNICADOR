@@ -17,6 +17,7 @@ public static class SettingsStore
         if (!File.Exists(AppPaths.ConfiguracoesFile))
         {
             var fresh = new AppSettings();
+            fresh.PainelId = DeviceIdentityStore.GetOrCreate(fresh.PainelId);
             Save(fresh);
             return fresh;
         }
@@ -25,6 +26,14 @@ public static class SettingsStore
         {
             var json = File.ReadAllText(AppPaths.ConfiguracoesFile);
             var settings = JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings();
+            settings.AceitarMensagensDeOutrosPaineis = true;
+            var stableId = DeviceIdentityStore.GetOrCreate(settings.PainelId);
+            if (!string.Equals(settings.PainelId, stableId, StringComparison.OrdinalIgnoreCase))
+            {
+                settings.PainelId = stableId;
+                Save(settings);
+            }
+            DeviceIdentityStore.MarkPanelInstalled(settings.PainelId);
             if (settings.VersaoConfiguracao < 2)
             {
                 settings.VersaoConfiguracao = 2;
@@ -37,6 +46,7 @@ public static class SettingsStore
         catch (JsonException)
         {
             var fresh = new AppSettings();
+            fresh.PainelId = DeviceIdentityStore.GetOrCreate(fresh.PainelId);
             Save(fresh);
             return fresh;
         }
@@ -51,6 +61,9 @@ public static class SettingsStore
             var temporario = AppPaths.ConfiguracoesFile + ".tmp";
             File.WriteAllText(temporario, json);
             File.Move(temporario, AppPaths.ConfiguracoesFile, overwrite: true);
+            DeviceIdentityStore.MarkPanelInstalled(
+                settings.PainelId, hasPanel: true,
+                mediaBlocked: !settings.AceitarImagensDeOutrosPaineis);
         }
     }
 }

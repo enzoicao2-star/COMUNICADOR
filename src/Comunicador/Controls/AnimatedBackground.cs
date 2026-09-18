@@ -28,10 +28,18 @@ public sealed class AnimatedBackground : FrameworkElement
     public static readonly DependencyProperty ReduceMotionProperty = DependencyProperty.Register(
         nameof(ReduceMotion), typeof(bool), typeof(AnimatedBackground),
         new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty PauseAnimationProperty = DependencyProperty.Register(
+        nameof(PauseAnimation), typeof(bool), typeof(AnimatedBackground),
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty SpeedProperty = DependencyProperty.Register(
+        nameof(Speed), typeof(double), typeof(AnimatedBackground),
+        new FrameworkPropertyMetadata(100d, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public string Mode { get => (string)GetValue(ModeProperty); set => SetValue(ModeProperty, value); }
     public double Intensity { get => (double)GetValue(IntensityProperty); set => SetValue(IntensityProperty, value); }
     public bool ReduceMotion { get => (bool)GetValue(ReduceMotionProperty); set => SetValue(ReduceMotionProperty, value); }
+    public bool PauseAnimation { get => (bool)GetValue(PauseAnimationProperty); set => SetValue(PauseAnimationProperty, value); }
+    public double Speed { get => (double)GetValue(SpeedProperty); set => SetValue(SpeedProperty, value); }
 
     public AnimatedBackground()
     {
@@ -60,11 +68,12 @@ public sealed class AnimatedBackground : FrameworkElement
 
     private void OnRendering(object? sender, EventArgs e)
     {
-        if (ReduceMotion || Mode == "Sem fundo") return;
+        if (PauseAnimation || Mode == "Sem fundo") return;
         var rendering = e as RenderingEventArgs;
         // O fundo roda a 30 fps e deixa a composição da interface/navegação livre
         // para 60 fps. Visualmente continua contínuo, sem travar a troca de abas.
-        if (rendering is not null && rendering.RenderingTime - _lastFrame < TimeSpan.FromMilliseconds(32)) return;
+        var frameInterval = ReduceMotion ? 66 : 32;
+        if (rendering is not null && rendering.RenderingTime - _lastFrame < TimeSpan.FromMilliseconds(frameInterval)) return;
         if (rendering is not null) _lastFrame = rendering.RenderingTime;
         InvalidateVisual();
     }
@@ -73,7 +82,9 @@ public sealed class AnimatedBackground : FrameworkElement
     {
         base.OnRender(dc);
         if (ActualWidth <= 0 || ActualHeight <= 0 || Mode == "Sem fundo") return;
-        var time = ReduceMotion ? 0d : (DateTime.UtcNow - _started).TotalSeconds;
+        var elapsed = (DateTime.UtcNow - _started).TotalSeconds;
+        var speedFactor = Math.Clamp(Speed, 5, 100) / 100d;
+        var time = PauseAnimation ? 0d : elapsed * speedFactor * (ReduceMotion ? .22 : 1d);
         var opacity = .20 + Math.Clamp(Intensity / 100d, 0, 1) * .65;
 
         switch (Mode)
@@ -419,7 +430,7 @@ public sealed class AnimatedBackground : FrameworkElement
         var dt = _lastFluidTime < 0 || time <= _lastFluidTime
             ? 1d / 60
             : Math.Clamp(time - _lastFluidTime, 1d / 240, .08);
-        if (ReduceMotion) dt = 0;
+        if (ReduceMotion) dt *= .22;
         _lastFluidTime = time;
 
         var color = ThemeColor("TextPrimaryBrush", Colors.White);

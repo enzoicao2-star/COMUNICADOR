@@ -15,6 +15,7 @@ public sealed class MensagensViewModel : ViewModelBase
     private readonly ComputadoresViewModel _computadores;
     private readonly EnviadorNotificacoes _enviador;
     private readonly HistoricoRepository _historico;
+    private readonly CloudSyncService _cloud;
     private readonly Dictionary<string, List<MidiaMonitorEditavel>> _midiasPorMonitor = new(StringComparer.Ordinal);
     private readonly HashSet<Computador> _computadoresObservados = new();
 
@@ -47,6 +48,7 @@ public sealed class MensagensViewModel : ViewModelBase
     private bool _repetirVideo;
     private bool _repetirAudio;
     private bool _limitarDuracaoAudio;
+    private bool _definirComoPapelDeParede;
     private string? _statusOperacao;
 
     public ObservableCollection<ComputadorSelecionavel> Destinatarios { get; } = new();
@@ -135,6 +137,18 @@ public sealed class MensagensViewModel : ViewModelBase
     public string? CaminhoMidia => CaminhoImagem ?? _caminhoVideo ?? _caminhoAudio;
     public string? NomeMidia => NomeImagem ?? _nomeVideo ?? _nomeAudio;
     public string TipoMidiaTexto => TemImagem ? "Imagem" : TemVideo ? "Vídeo" : TemAudio ? "Áudio" : "Mídia";
+    public bool PodeAlterarPapelParede => _cloud.IsAdmin;
+    public bool DefinirComoPapelDeParede
+    {
+        get => _definirComoPapelDeParede;
+        set
+        {
+            if (!PodeAlterarPapelParede && value) return;
+            if (SetField(ref _definirComoPapelDeParede, value) && value)
+                ExibirImagemCentral = true;
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
 
     public bool RepetirVideo
     {
@@ -272,11 +286,18 @@ public sealed class MensagensViewModel : ViewModelBase
     public ICommand RemoverImagemMonitorCommand { get; }
 
     public MensagensViewModel(
-        ComputadoresViewModel computadores, EnviadorNotificacoes enviador, HistoricoRepository historico)
+        ComputadoresViewModel computadores, EnviadorNotificacoes enviador,
+        HistoricoRepository historico, CloudSyncService cloud)
     {
         _computadores = computadores;
         _enviador = enviador;
         _historico = historico;
+        _cloud = cloud;
+        _cloud.StateChanged += () => UiDispatcher.Invoke(() =>
+        {
+            if (!_cloud.IsAdmin) DefinirComoPapelDeParede = false;
+            OnPropertyChanged(nameof(PodeAlterarPapelParede));
+        });
 
         EnviarCommand = new AsyncRelayCommand(EnviarAsync, PodeEnviar);
         AtualizarDestinatariosCommand = new RelayCommand(_ => AtualizarDestinatarios());
@@ -456,7 +477,9 @@ public sealed class MensagensViewModel : ViewModelBase
 
     private bool PodeEnviar()
     {
-        var temConteudo = ExibirImagemCentral
+        var temConteudo = DefinirComoPapelDeParede
+            ? PodeAlterarPapelParede && TemImagem
+            : ExibirImagemCentral
             ? TemMidia || DestinatariosComMidiaEspecifica()
             : !string.IsNullOrWhiteSpace(Titulo) && !string.IsNullOrWhiteSpace(Mensagem);
         return temConteudo && Destinatarios.Any(d => d.Selecionado);
@@ -889,7 +912,8 @@ public sealed class MensagensViewModel : ViewModelBase
 
     private ConteudoImagem? CriarConteudoImagem()
     {
-        if (!ExibirImagemCentral || _dadosImagem is not { Length: > 0 } || _mimeImagem is null || NomeImagem is null)
+        if ((!ExibirImagemCentral && !DefinirComoPapelDeParede)
+            || _dadosImagem is not { Length: > 0 } || _mimeImagem is null || NomeImagem is null)
         {
             return null;
         }
@@ -936,7 +960,7 @@ public sealed class MensagensViewModel : ViewModelBase
     {
         var selecionados = Destinatarios.Where(d => d.Selecionado).ToList();
         // Mídia central é conteúdo puro: não exige título, mensagem nem interação.
-        var permiteInteracao = !ExibirAvisoObrigatorio && !ExibirImagemCentral;
+        var permiteInteracao = !ExibirAvisoObrigatorio && !ExibirImagemCentral && !DefinirComoPapelDeParede;
         var botoesProtocolo = permiteInteracao
             ? Botoes.Select(b => b.ParaProtocolo()).ToList()
             : new List<BotaoResposta>();
@@ -963,7 +987,9 @@ public sealed class MensagensViewModel : ViewModelBase
             var computador = destino.Computador;
             var imagensPorMonitor = CriarImagensPorMonitor(computador.Id);
             var videosPorMonitor = CriarVideosPorMonitor(computador.Id);
-            var modoExibicao = !ExibirImagemCentral
+            var modoExibicao = DefinirComoPapelDeParede
+                ? ProtocolConstants.DisplayMode.Wallpaper
+                : !ExibirImagemCentral
                 ? ExibirAvisoObrigatorio
                     ? ProtocolConstants.DisplayMode.CenterAlert
                     : ExibirMensagemCentral
@@ -974,6 +1000,11 @@ public sealed class MensagensViewModel : ViewModelBase
                     : videosPorMonitor.Count > 0 || video is not null
                         ? ProtocolConstants.DisplayMode.CenterVideo
                         : ProtocolConstants.DisplayMode.CenterImage;
+            if (modoExibicao == ProtocolConstants.DisplayMode.Wallpaper)
+            {
+                imagensPorMonitor.Clear();
+                videosPorMonitor.Clear();
+            }
             var imagemParaEsteComputador = imagensPorMonitor.Count > 0 ? null : imagem;
             var videoParaEsteComputador = videosPorMonitor.Count > 0 ? null : video;
             var duracaoMidia = modoExibicao switch
@@ -992,6 +1023,7 @@ public sealed class MensagensViewModel : ViewModelBase
                 ProtocolConstants.DisplayMode.CenterVideo => "Vídeo",
                 ProtocolConstants.DisplayMode.Audio => "Áudio",
                 ProtocolConstants.DisplayMode.CenterImage => "Imagem",
+                ProtocolConstants.DisplayMode.Wallpaper => "Papel de parede",
                 _ => "Mensagem",
             };
             var tituloHistorico = ExibirImagemCentral && string.IsNullOrWhiteSpace(Titulo)
@@ -1028,6 +1060,12 @@ public sealed class MensagensViewModel : ViewModelBase
 
             _historico.AtualizarExistente(
                 entry.Id, item => AplicarResultado(item, resultado, permitirRespostaEfetiva));
+            if (resultado.GotReply)
+            {
+                _ = Views.NotificacaoRecebidaWindow.MostrarAsync(
+                    computador.NomeExibicao, "Resposta recebida",
+                    resultado.ReplyText ?? "O usuário confirmou o recebimento.", allowReply: false);
+            }
             if (resultado.Delivered)
             {
                 enviados++;
@@ -1049,6 +1087,7 @@ public sealed class MensagensViewModel : ViewModelBase
             : $"Exibida em {enviados}; falhou em {erros.Count}. {string.Join(" | ", erros)}";
         Titulo = string.Empty;
         Mensagem = string.Empty;
+        DefinirComoPapelDeParede = false;
     }
 
     private static void AplicarResultado(HistoricoEntry item, NotificationResult resultado, bool permitirResposta)

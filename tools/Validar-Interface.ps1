@@ -1,5 +1,6 @@
 param(
-    [string]$ExePath = (Join-Path $PSScriptRoot '..\src\Comunicador\bin\Release\net10.0-windows\Comunicador.exe')
+    [string]$ExePath = (Join-Path $PSScriptRoot '..\src\Comunicador\bin\Release\net10.0-windows\Comunicador.exe'),
+    [int]$HoldSeconds = 0
 )
 
 $ErrorActionPreference = 'Stop'
@@ -41,7 +42,7 @@ try {
     $root = [System.Windows.Automation.AutomationElement]::RootElement
     $processCondition = New-Object System.Windows.Automation.PropertyCondition(
         [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
-    $main = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $processCondition)
+    $main = [System.Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)
     if ($null -eq $main) { throw 'A janela não apareceu na árvore de automação.' }
 
     function Invoke-Tab([string]$name) {
@@ -51,8 +52,17 @@ try {
             [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
             [System.Windows.Automation.ControlType]::Button)
         $condition = New-Object System.Windows.Automation.AndCondition($nameCondition, $buttonCondition)
-        $button = $main.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
-        if ($null -eq $button) { throw "A aba '$name' não foi encontrada." }
+        $button = $null
+        $buttonLimit = [DateTime]::UtcNow.AddSeconds(10)
+        do {
+            $button = $main.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+            if ($null -eq $button) { Start-Sleep -Milliseconds 200 }
+        } while ($null -eq $button -and [DateTime]::UtcNow -lt $buttonLimit)
+        if ($null -eq $button) {
+            $allButtons = $main.FindAll([System.Windows.Automation.TreeScope]::Descendants, $buttonCondition)
+            $buttonNames = @($allButtons | ForEach-Object { $_.Current.Name }) -join ', '
+            throw "A aba '$name' não foi encontrada. Janela: '$($main.Current.Name)'. Botões: $buttonNames"
+        }
         $pattern = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
         $pattern.Invoke()
         Start-Sleep -Milliseconds 700
@@ -73,6 +83,7 @@ try {
     }
 
     Write-Host 'Interface validada: todas as abas alternaram sem erro.'
+    if ($HoldSeconds -gt 0) { Start-Sleep -Seconds $HoldSeconds }
 }
 finally {
     if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }

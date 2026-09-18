@@ -1,0 +1,24 @@
+<Window x:Class="Comunicador.Views.AdminLoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Administrador" Width="430" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{DynamicResource BackgroundBrush}">
+    <Border Style="{StaticResource CardBorder}" Padding="24" Margin="12">
+        <StackPanel>
+            <TextBlock Text="Acesso administrativo" Style="{StaticResource TituloCard}" FontSize="20" />
+            <TextBlock x:Name="Descricao" Margin="0,5,0,16" TextWrapping="Wrap"
+                       Style="{StaticResource Subtitulo}" />
+            <TextBlock Text="Senha administrativa" Style="{StaticResource RotuloCampo}" />
+            <PasswordBox x:Name="SenhaBox" MinHeight="38" MaxLength="128"
+                         KeyDown="SenhaBox_OnKeyDown" />
+            <Grid Margin="0,18,0,0">
+                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Button Grid.Column="1" Content="Cancelar" Style="{StaticResource BotaoSecundario}"
+                        Click="Cancelar_OnClick" />
+                <Button Grid.Column="3" Content="Continuar" Style="{StaticResource BotaoPrimario}"
+                        Click="Continuar_OnClick" IsDefault="True" />
+            </Grid>
+        </StackPanel>
+    </Border>
+</Window>

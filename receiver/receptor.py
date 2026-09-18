@@ -31,6 +31,9 @@ import threading
 import time
 import uuid
 import webbrowser
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -39,10 +42,13 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.4.0"
+RECEIVER_VERSION = "2.5.0"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
+SUPABASE_URL = "https://yofxuiajeyxeacophgdy.supabase.co"
+SUPABASE_KEY = "sb_publishable_9vE6ehPLNhoByGInnUAlug_Ndd_fTam"
+CLOUD_POLL_SECONDS = 8
 
 MEDIA_PLAYER_SCRIPT = r'''param(
     [Parameter(Mandatory=$true)][string]$MediaPath,
@@ -287,6 +293,28 @@ def default_config_dir() -> Path:
     return Path(base) / "Comunicador" / "Receptor"
 
 
+def mensagem_tem_midia(msg: dict) -> bool:
+    return bool(msg.get("image") or msg.get("screen_images")
+                or msg.get("video") or msg.get("screen_videos") or msg.get("audio"))
+
+
+def aplicar_papel_parede(image: dict, config: "Config") -> None:
+    if os.name != "nt":
+        raise OSError("Alteração remota do papel de parede requer Windows.")
+    mime = image.get("mime_type")
+    extensao = ".png" if mime == "image/png" else ".jpg" if mime == "image/jpeg" else None
+    if extensao is None:
+        raise ValueError("Formato de papel de parede não suportado.")
+    dados = base64.b64decode(image["data_base64"], validate=True)
+    destino = config.directory.parent / f"wallpaper{extensao}"
+    temporario = destino.with_suffix(extensao + ".tmp")
+    temporario.write_bytes(dados)
+    temporario.replace(destino)
+    import ctypes
+    if not ctypes.windll.user32.SystemParametersInfoW(20, 0, str(destino), 3):
+        raise OSError("O Windows recusou a alteração do papel de parede.")
+
+
 class Config:
     def __init__(self, directory: Path):
         self.directory = directory
@@ -306,7 +334,23 @@ class Config:
             self.data = {}
 
         changed = False
-        if "computer_id" not in self.data:
+        # O painel grava a identidade em %LOCALAPPDATA%\Comunicador\device.json.
+        # O receptor fica em ...\Comunicador\Receptor, portanto o arquivo
+        # compartilhado está exatamente um nível acima.
+        shared_identity = self.directory.parent / "device.json"
+        try:
+            identity = json.loads(shared_identity.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            identity = {}
+        shared_id = identity.get("device_id")
+        if isinstance(shared_id, str) and protocolo.is_valid_uuid(shared_id):
+            if self.data.get("computer_id") != shared_id:
+                self.data["computer_id"] = shared_id
+                changed = True
+            self.data["has_panel"] = bool(identity.get("has_panel", False))
+            self.data["panel_version"] = identity.get("panel_version")
+            self.data["media_blocked"] = bool(identity.get("media_blocked", False))
+        elif "computer_id" not in self.data:
             self.data["computer_id"] = str(uuid.uuid4())
             changed = True
         if "computer_name" not in self.data:
@@ -334,6 +378,19 @@ class Config:
         return self.data["computer_name"]
 
     @property
+    def has_panel(self) -> bool:
+        return bool(self.data.get("has_panel", False))
+
+    @property
+    def panel_version(self) -> Optional[str]:
+        value = self.data.get("panel_version")
+        return value if isinstance(value, str) and value else None
+
+    @property
+    def media_blocked(self) -> bool:
+        return bool(self.data.get("media_blocked", False))
+
+    @property
     def paired_panels(self) -> dict:
         return self.data["paired_panels"]
 
@@ -356,7 +413,6 @@ class Config:
 
     @property
     def panel_hosts(self) -> list:
-        """IPs de painéis para os quais este receptor disca (conexão reversa)."""
         return self.data.setdefault("panel_hosts", [])
 
     def remember_panel_host(self, host: str) -> None:
@@ -365,14 +421,12 @@ class Config:
             self.save()
 
     def token_for_panel_host(self) -> Optional[str]:
-        """Token de qualquer painel já pareado, usado ao se registrar novamente."""
         for p in self.paired_panels.values():
             if p.get("token"):
                 return p["token"]
         return None
 
     def store_reverse_token(self, token: str, panel_name: str) -> None:
-        """Guarda o token emitido pelo painel durante o registro reverso."""
         with self._lock:
             self.paired_panels[f"reverso:{panel_name}"] = {
                 "token": token,
@@ -381,6 +435,159 @@ class Config:
             }
         self.save()
 
+
+class CloudDeliveryWorker(threading.Thread):
+    """Fila persistente usada quando o painel está fechado.
+
+    A sessão anônima e o identificador ficam no diretório compartilhado do
+    Comunicador, portanto painel e receptor representam o mesmo computador.
+    """
+
+    def __init__(self, config: Config, ui: "NotificationUi"):
+        super().__init__(daemon=True, name="supabase-entregas")
+        self.config = config
+        self.ui = ui
+        self._stop_event = threading.Event()
+        self._session_path = config.directory.parent / "cloud_session.json"
+        self._session_lock = threading.Lock()
+        self._session = None
+
+    def stop(self):
+        self._stop_event.set()
+
+    @staticmethod
+    def _json_request(path, method="GET", body=None, access_token=None):
+        dados = None if body is None else json.dumps(body).encode("utf-8")
+        headers = {"apikey": SUPABASE_KEY, "Content-Type": "application/json"}
+        if access_token:
+            headers["Authorization"] = f"Bearer {access_token}"
+        request = urllib.request.Request(
+            SUPABASE_URL + path, data=dados, headers=headers, method=method)
+        with urllib.request.urlopen(request, timeout=15) as response:
+            conteudo = response.read()
+            return json.loads(conteudo.decode("utf-8")) if conteudo else None
+
+    def _salvar_sessao(self, session):
+        self._session_path.parent.mkdir(parents=True, exist_ok=True)
+        temporario = self._session_path.with_suffix(".tmp")
+        temporario.write_text(json.dumps(session, indent=2), encoding="utf-8")
+        temporario.replace(self._session_path)
+
+    def _obter_sessao(self):
+        with self._session_lock:
+            if self._session is None:
+                try:
+                    self._session = json.loads(self._session_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    self._session = None
+            agora = int(time.time())
+            if self._session and int(self._session.get("expires_at", 0)) > agora + 60:
+                return self._session
+            if self._session and self._session.get("refresh_token"):
+                try:
+                    self._session = self._json_request(
+                        "/auth/v1/token?grant_type=refresh_token", "POST",
+                        {"refresh_token": self._session["refresh_token"]})
+                except (OSError, urllib.error.URLError, ValueError):
+                    self._session = None
+            if self._session is None:
+                self._session = self._json_request("/auth/v1/signup", "POST", {})
+            self._session["expires_at"] = agora + max(60, int(self._session.get("expires_in", 3600)))
+            self._salvar_sessao(self._session)
+            return self._session
+
+    def _autorizado(self, path, method="GET", body=None):
+        session = self._obter_sessao()
+        try:
+            return self._json_request(path, method, body, session["access_token"])
+        except urllib.error.HTTPError as exc:
+            if exc.code != 401:
+                raise
+            self._session = None
+            session = self._obter_sessao()
+            return self._json_request(path, method, body, session["access_token"])
+
+    def _registrar(self):
+        self._autorizado("/rest/v1/rpc/register_device", "POST", {
+            "p_device_id": self.config.computer_id,
+            "p_machine_name": self.config.computer_name,
+            "p_panel_version": self.config.panel_version,
+            "p_receiver_version": RECEIVER_VERSION,
+        })
+
+    def _atualizar_entrega(self, delivery_id, resposta):
+        status = "responded" if resposta else "delivered"
+        body = {
+            "status": status,
+            "delivered_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if resposta:
+            body["response_text"] = str(resposta)[:1000]
+            body["responded_at"] = datetime.now(timezone.utc).isoformat()
+        filtro = urllib.parse.quote(delivery_id, safe="-")
+        self._autorizado(f"/rest/v1/deliveries?id=eq.{filtro}", "PATCH", body)
+
+    def _buscar_entregas(self):
+        agora = urllib.parse.quote(datetime.now(timezone.utc).isoformat(), safe="")
+        device = urllib.parse.quote(self.config.computer_id, safe="-")
+        caminho = ("/rest/v1/deliveries?select=id,payload&status=eq.pending"
+                   f"&target_device_id=eq.{device}&deliver_at=lte.{agora}"
+                   "&order=deliver_at.asc&limit=20")
+        return self._autorizado(caminho) or []
+
+    def _buscar_respostas(self):
+        device = urllib.parse.quote(self.config.computer_id, safe="-")
+        caminho = ("/rest/v1/deliveries?select=id,target_device_id,payload,response_text"
+                   f"&sender_device_id=eq.{device}&status=eq.responded"
+                   "&sender_notified_at=is.null&order=responded_at.asc&limit=20")
+        return self._autorizado(caminho) or []
+
+    def _confirmar_resposta(self, delivery_id):
+        self._autorizado("/rest/v1/rpc/acknowledge_response", "POST", {
+            "p_delivery_id": delivery_id,
+        })
+
+    def _mostrar_entrega(self, delivery):
+        payload = delivery.get("payload") or {}
+        delivery_id = delivery["id"]
+        # Reserva antes de enfileirar a janela para o polling seguinte não criar
+        # outra cópia enquanto a pessoa ainda está lendo.
+        self._atualizar_entrega(delivery_id, None)
+
+        def concluir(resposta):
+            if not resposta:
+                return
+            threading.Thread(
+                target=self._atualizar_entrega, args=(delivery_id, resposta),
+                daemon=True, name=f"resposta-cloud-{delivery_id[:8]}").start()
+
+        self.ui.mostrar(
+            payload.get("sender", "Comunicador"), payload.get("title", "Lembrete"),
+            payload.get("message", ""), bool(payload.get("allow_reply", True)),
+            concluir,
+            buttons=payload.get("buttons"),
+            display_mode=payload.get("display_mode", "toast"),
+            appearance=payload.get("appearance") or {})
+
+    def _mostrar_resposta(self, delivery):
+        self._confirmar_resposta(delivery["id"])
+        payload = delivery.get("payload") or {}
+        texto = delivery.get("response_text") or "O usuário confirmou o recebimento."
+        self.ui.mostrar(
+            "Comunicador", f"Resposta: {payload.get('title', 'mensagem')}", texto,
+            False, lambda _resultado: None, display_mode="toast")
+
+    def run(self):
+        while not self._stop_event.is_set():
+            try:
+                self._registrar()
+                for delivery in self._buscar_entregas():
+                    self._mostrar_entrega(delivery)
+                for delivery in self._buscar_respostas():
+                    self._mostrar_resposta(delivery)
+            except (OSError, ValueError, KeyError, urllib.error.URLError) as exc:
+                logging.warning("Sincronização Supabase indisponível: %s", exc)
+            self._stop_event.wait(CLOUD_POLL_SECONDS)
 
 # --------------------------------------------------------------------------- notificações (UI)
 
@@ -488,6 +695,10 @@ class NotificationUi:
             display_mode="toast", image=None, screen_images=None,
             image_duration_seconds=None, allow_manual_close=None, appearance=None,
             video=None, screen_videos=None, video_loop=False, audio=None, audio_loop=False):
+        if display_mode == protocolo.DISPLAY_MODE_WALLPAPER:
+            # O tratamento de rede aplica o papel de parede antes de chegar aqui.
+            on_result(None)
+            return
         if display_mode == protocolo.DISPLAY_MODE_CENTER_IMAGE:
             self._exibir_imagens_monitores(
                 sender, title, message, allow_reply, on_result, buttons or [], image,
@@ -957,9 +1168,11 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         pong = protocolo.base_message(MessageType.PONG)
         pong["computer_id"] = server.config.computer_id
         pong["computer_name"] = server.config.computer_name
-        pong["has_panel"] = False
+        pong["has_panel"] = server.config.has_panel
         pong["monitors"] = obter_monitores()
         pong["receiver_version"] = RECEIVER_VERSION
+        if server.config.panel_version:
+            pong["panel_version"] = server.config.panel_version
         pong["status"] = "online"
         self._safe_send(pong)
 
@@ -973,9 +1186,11 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         response["accepted"] = True
         response["computer_id"] = server.config.computer_id
         response["computer_name"] = server.config.computer_name
-        response["has_panel"] = False
+        response["has_panel"] = server.config.has_panel
         response["monitors"] = obter_monitores()
         response["receiver_version"] = RECEIVER_VERSION
+        if server.config.panel_version:
+            response["panel_version"] = server.config.panel_version
         response["token"] = token
         self._safe_send(response)
 
@@ -983,6 +1198,16 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         token = msg["token"]
         if not server.config.token_is_valid(token):
             raise ProtocolError(ErrorCode.UNAUTHORIZED, "Token inválido ou painel não pareado.")
+        if server.config.media_blocked and mensagem_tem_midia(msg):
+            raise ProtocolError(ErrorCode.CONTENT_BLOCKED,
+                                "Este computador bloqueou imagens, vídeos e áudios.")
+        if msg.get("display_mode") == protocolo.DISPLAY_MODE_WALLPAPER:
+            aplicar_papel_parede(msg["image"], server.config)
+            ack = protocolo.base_message(MessageType.ACK)
+            ack["in_reply_to"] = msg["id"]
+            ack["status"] = "wallpaper_applied"
+            self._safe_send(ack)
+            return
 
         allow_reply = msg["allow_reply"]
         notification_id = msg["id"]
@@ -1111,9 +1336,11 @@ class DiscoveryResponder(threading.Thread):
             announce = protocolo.base_message(MessageType.ANNOUNCE)
             announce["computer_id"] = self.config.computer_id
             announce["computer_name"] = self.config.computer_name
-            announce["has_panel"] = False
+            announce["has_panel"] = self.config.has_panel
             announce["monitors"] = obter_monitores()
             announce["receiver_version"] = RECEIVER_VERSION
+            if self.config.panel_version:
+                announce["panel_version"] = self.config.panel_version
             announce["tcp_port"] = self.tcp_port
             announce["paired"] = self.config.is_paired_with(msg["panel_id"])
 
@@ -1192,9 +1419,11 @@ class ReverseConnection(threading.Thread):
         registro = protocolo.base_message(MessageType.REGISTER)
         registro["computer_id"] = self.config.computer_id
         registro["computer_name"] = self.config.computer_name
-        registro["has_panel"] = False
+        registro["has_panel"] = self.config.has_panel
         registro["monitors"] = obter_monitores()
         registro["receiver_version"] = RECEIVER_VERSION
+        if self.config.panel_version:
+            registro["panel_version"] = self.config.panel_version
         token = self.config.token_for_panel_host()
         if token:
             registro["token"] = token
@@ -1258,9 +1487,11 @@ class ReverseConnection(threading.Thread):
         pong = protocolo.base_message(MessageType.PONG)
         pong["computer_id"] = self.config.computer_id
         pong["computer_name"] = self.config.computer_name
-        pong["has_panel"] = False
+        pong["has_panel"] = self.config.has_panel
         pong["monitors"] = obter_monitores()
         pong["receiver_version"] = RECEIVER_VERSION
+        if self.config.panel_version:
+            pong["panel_version"] = self.config.panel_version
         pong["status"] = "online"
         self._enviar(pong)
 
@@ -1271,6 +1502,18 @@ class ReverseConnection(threading.Thread):
             logging.exception("Falha isolada ao tratar notificação reversa %s.", msg.get("id"))
 
     def _tratar_notificacao(self, msg: dict) -> None:
+        if self.config.media_blocked and mensagem_tem_midia(msg):
+            self._enviar(protocolo.make_error(
+                ErrorCode.CONTENT_BLOCKED,
+                "Este computador bloqueou imagens, vídeos e áudios.", msg["id"]))
+            return
+        if msg.get("display_mode") == protocolo.DISPLAY_MODE_WALLPAPER:
+            aplicar_papel_parede(msg["image"], self.config)
+            ack = protocolo.base_message(MessageType.ACK)
+            ack["in_reply_to"] = msg["id"]
+            ack["status"] = "wallpaper_applied"
+            self._enviar(ack)
+            return
         allow_reply = msg.get("allow_reply", False)
         notification_id = msg["id"]
         result_queue: "queue.Queue[Optional[str]]" = queue.Queue()
@@ -1476,6 +1719,10 @@ def main(argv=None) -> int:
         config.save()
 
     ui = NotificationUi(test_mode=args.test_mode)
+    cloud_worker = None
+    if not args.test_mode:
+        cloud_worker = CloudDeliveryWorker(config, ui)
+        cloud_worker.start()
     try:
         tcp_server = ReceptorTcpServer(("0.0.0.0", args.port), config, ui)
     except OSError as exc:
@@ -1548,6 +1795,8 @@ def main(argv=None) -> int:
         threading.Thread(target=iniciar_conexoes_reversas, daemon=True).start()
 
     def shutdown():
+        if cloud_worker is not None:
+            cloud_worker.stop()
         for conexao in conexoes_reversas:
             conexao.stop()
         discovery.stop()

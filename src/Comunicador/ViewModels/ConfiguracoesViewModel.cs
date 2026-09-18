@@ -19,6 +19,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     private readonly PerfilComputadorRepository _perfis;
     private readonly ReceptorClient _client;
     private readonly PanelUpdateService _panelUpdate;
+    private readonly CloudSyncService _cloud;
 
     private string _nomePainel;
     private int _portaTcp;
@@ -33,7 +34,9 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     private string _paleta;
     private string _fundoPainel;
     private bool _reduzirMovimento;
-    private bool _estePainelEhOwner;
+    private int _transparenciaCards;
+    private int _blurCards;
+    private int _velocidadeFundo;
     private string _nomeNovaPaleta = "Minha cor";
     private string _corNovaPaleta = "#4C8DFF";
     private string _corNovaPaletaVisual = "#4C8DFF";
@@ -77,11 +80,13 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         set { if (SetField(ref _nomePainel, value)) AgendarSalvamento(); }
     }
 
-    public bool EstePainelEhOwner
-    {
-        get => _estePainelEhOwner;
-        set { if (SetField(ref _estePainelEhOwner, value)) AgendarSalvamento(); }
-    }
+    public bool EstePainelEhOwner => _cloud.IsAdmin;
+    public string StatusAdministrador => _cloud.IsAdmin
+        ? "ADMIN SUPREMO ativo neste computador"
+        : string.IsNullOrWhiteSpace(_cloud.AdminDeviceId)
+            ? "Nenhum administrador definido"
+            : "Administrador definido em outro computador";
+    public string StatusSincronizacao => _cloud.Status;
 
     public int PortaTcp
     {
@@ -184,8 +189,47 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
             if (SetField(ref _reduzirMovimento, value))
             {
                 _settings.ReduzirMovimento = value;
+                ThemeService.SetReduceMotion(value);
                 AgendarSalvamento();
             }
+        }
+    }
+
+    public int TransparenciaCards
+    {
+        get => _transparenciaCards;
+        set
+        {
+            value = Math.Clamp(value, 0, 90);
+            if (!SetField(ref _transparenciaCards, value)) return;
+            _settings.TransparenciaCards = value;
+            ThemeService.ApplyCardAppearance(_settings);
+            AgendarSalvamento();
+        }
+    }
+
+    public int BlurCards
+    {
+        get => _blurCards;
+        set
+        {
+            value = Math.Clamp(value, 0, 40);
+            if (!SetField(ref _blurCards, value)) return;
+            _settings.BlurCards = value;
+            ThemeService.ApplyCardAppearance(_settings);
+            AgendarSalvamento();
+        }
+    }
+
+    public int VelocidadeFundo
+    {
+        get => _velocidadeFundo;
+        set
+        {
+            value = Math.Clamp(value, 5, 100);
+            if (!SetField(ref _velocidadeFundo, value)) return;
+            _settings.VelocidadeFundo = value;
+            AgendarSalvamento();
         }
     }
 
@@ -234,7 +278,8 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     public ConfiguracoesViewModel(
         AppSettings settings, ObservableCollection<PainelPareado> paineisPareados,
         JsonStore<PainelPareado> paineisPareadosStore, EmbeddedReceptorServer embeddedReceptorServer,
-        PerfilComputadorRepository perfis, ReceptorClient client, PanelUpdateService panelUpdate)
+        PerfilComputadorRepository perfis, ReceptorClient client, PanelUpdateService panelUpdate,
+        CloudSyncService cloud)
     {
         _settings = settings;
         _embeddedReceptorServer = embeddedReceptorServer;
@@ -242,12 +287,12 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         _perfis = perfis;
         _client = client;
         _panelUpdate = panelUpdate;
+        _cloud = cloud;
         PaineisPareados = paineisPareados;
         PaletasPersonalizadas = new ObservableCollection<PaletaPersonalizada>(
             settings.PaletasPersonalizadas ?? new List<PaletaPersonalizada>());
 
         _nomePainel = settings.NomePainel;
-        _estePainelEhOwner = settings.EstePainelEhOwner;
         _portaTcp = settings.PortaTcp;
         _portaUdp = settings.PortaDescobertaUdp;
         _intervaloDescoberta = settings.IntervaloDescobertaSegundos;
@@ -261,8 +306,12 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         _fundoPainel = settings.FundoPainel;
         settings.IntensidadeFundo = 100;
         _reduzirMovimento = settings.ReduzirMovimento;
+        _transparenciaCards = Math.Clamp(settings.TransparenciaCards, 0, 90);
+        _blurCards = Math.Clamp(settings.BlurCards, 0, 40);
+        _velocidadeFundo = Math.Clamp(settings.VelocidadeFundo, 5, 100);
         _statusReceptorEmbutido = CalcularStatusReceptor();
         AtualizarSelecaoPaletas();
+        _cloud.StateChanged += OnCloudStateChanged;
 
         _autoSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
         _autoSaveTimer.Tick += (_, _) =>
@@ -354,6 +403,29 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     /// construção desta ViewModel), para o texto de status não ficar desatualizado.</summary>
     public void AtualizarStatusReceptor() => StatusReceptorEmbutido = CalcularStatusReceptor();
 
+    public async Task<string> AlternarAdministradorAsync(string senha)
+    {
+        try
+        {
+            var resultado = await _cloud.ToggleAdminAsync(senha).ConfigureAwait(true);
+            OnCloudStateChanged();
+            return resultado.Status;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or UnauthorizedAccessException)
+        {
+            StatusOperacao = $"Não foi possível validar o administrador: {ex.Message}";
+            return "unavailable";
+        }
+    }
+
+    private void OnCloudStateChanged() => UiDispatcher.Invoke(() =>
+    {
+        OnPropertyChanged(nameof(EstePainelEhOwner));
+        OnPropertyChanged(nameof(StatusAdministrador));
+        OnPropertyChanged(nameof(StatusSincronizacao));
+        StatusOperacao = _cloud.Status;
+    });
+
     private void AgendarSalvamento()
     {
         _autoSaveTimer.Stop();
@@ -375,13 +447,13 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
 
         var inicializacaoMudou = _settings.IniciarComWindows != IniciarComWindows;
         _settings.NomePainel = NomePainel.Trim();
-        _settings.EstePainelEhOwner = EstePainelEhOwner;
+        _settings.EstePainelEhOwner = _cloud.IsAdmin;
         _settings.PortaTcp = PortaTcp;
         _settings.PortaDescobertaUdp = PortaUdp;
         _settings.IntervaloDescobertaSegundos = IntervaloDescobertaSegundos;
         _settings.IntervaloPingSegundos = IntervaloPingSegundos;
         _settings.IniciarComWindows = IniciarComWindows;
-        _settings.AceitarMensagensDeOutrosPaineis = AceitarMensagensDeOutrosPaineis;
+        _settings.AceitarMensagensDeOutrosPaineis = true;
         _settings.AceitarImagensDeOutrosPaineis = AceitarImagensDeOutrosPaineis;
         _settings.AceitarBotoesComLinks = AceitarBotoesComLinks;
         _settings.Tema = Tema;
@@ -390,11 +462,29 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         _settings.FundoPainel = FundoPainel;
         _settings.IntensidadeFundo = 100;
         _settings.ReduzirMovimento = ReduzirMovimento;
+        _settings.TransparenciaCards = TransparenciaCards;
+        _settings.BlurCards = BlurCards;
+        _settings.VelocidadeFundo = VelocidadeFundo;
         SettingsStore.Save(_settings);
         _client.UpdatePanelName(_settings.NomePainel);
         var perfilAtual = _perfis.Obter(_settings.PainelId);
-        _perfis.Salvar(_settings.PainelId, _settings.NomePainel, _settings.EstePainelEhOwner,
-            perfilAtual?.Badges ?? (IEnumerable<BadgeUsuario>)Array.Empty<BadgeUsuario>(), _settings.PainelId);
+        var badges = perfilAtual?.Badges.Select(b => b.Clone()).ToList() ?? new List<BadgeUsuario>();
+        if (_cloud.IsAdmin && badges.All(b => b.Id != "owner"))
+        {
+            badges = badges.Take(Protocol.ProtocolConstants.MaxBadgesPerComputer - 1).ToList();
+            badges.Insert(0, new BadgeUsuario
+            {
+                Id = "owner", Texto = "OWNER", Cor = "#F2B84B", Estilo = "Holográfica",
+                Icone = "Coroa", Brilho = true, EfeitoMouse = true,
+            });
+        }
+        else if (!_cloud.IsAdmin)
+        {
+            badges.RemoveAll(b => b.Id == "owner");
+        }
+        _perfis.Salvar(_settings.PainelId, _settings.NomePainel, _cloud.IsAdmin,
+            badges, _settings.PainelId);
+        _ = SincronizarPerfilLocalAsync(_settings.NomePainel, badges);
         if (inicializacaoMudou) StartupManager.Aplicar(IniciarComWindows);
         _embeddedReceptorServer.AtualizarDisponibilidade();
         StatusReceptorEmbutido = CalcularStatusReceptor();
@@ -406,10 +496,20 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
 
     private string CalcularStatusReceptor() =>
         _embeddedReceptorServer.Ativo
-            ? AceitarMensagensDeOutrosPaineis
-                ? "Ativo — este computador aparece como painel e pode receber mensagens."
-                : "Ativo e visível como painel — mensagens recebidas estão bloqueadas."
+            ? "Ativo — mensagens e lembretes são obrigatórios; mídias seguem sua permissão."
             : _embeddedReceptorServer.UltimoErro ?? "Receptor embutido indisponível.";
+
+    private async Task SincronizarPerfilLocalAsync(string nome, IReadOnlyList<BadgeUsuario> badges)
+    {
+        try
+        {
+            await _cloud.SaveProfileAsync(_settings.PainelId, nome, badges).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or UnauthorizedAccessException)
+        {
+            UiDispatcher.Invoke(() => StatusOperacao = $"Salvo localmente; Supabase pendente: {ex.Message}");
+        }
+    }
 
     private void SalvarPaletaPersonalizada()
     {

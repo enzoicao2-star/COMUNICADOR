@@ -32,8 +32,14 @@ public sealed class PerfilComputadorRepository
         string displayName,
         bool isOwner,
         IEnumerable<BadgeUsuario> badges,
-        string panelId)
+        string panelId,
+        bool adminOverride = false)
     {
+        // Cada painel é a única autoridade sobre o próprio nome e suas badges.
+        // Isso impede que outro IP altere o perfil local e depois propague a
+        // modificação pela sincronização da rede.
+        if (!string.Equals(computerId, panelId, StringComparison.OrdinalIgnoreCase) && !adminOverride) return;
+
         lock (_gate)
         {
             var existing = _profiles.FirstOrDefault(p => p.ComputerId == computerId);
@@ -46,8 +52,7 @@ public sealed class PerfilComputadorRepository
             existing.EhOwner = isOwner;
             existing.Badges = badges.Take(4).Select(b => b.Clone()).ToList();
             existing.AtualizadoEmUtc = DateTime.UtcNow;
-            existing.AtualizadoPorPainelId = panelId;
-            if (isOwner) DesmarcarOutrosOwners(existing, existing.AtualizadoEmUtc, panelId);
+            existing.AtualizadoPorPainelId = computerId;
             ApararEPersistir();
         }
         Alterado?.Invoke();
@@ -61,6 +66,7 @@ public sealed class PerfilComputadorRepository
             foreach (var item in remote.Take(MaxProfiles))
             {
                 if (string.IsNullOrWhiteSpace(item.ComputerId) ||
+                    !string.Equals(item.ComputerId, item.UpdatedBy, StringComparison.OrdinalIgnoreCase) ||
                     !DateTime.TryParse(item.UpdatedAt, null,
                         System.Globalization.DateTimeStyles.RoundtripKind, out var updated))
                     continue;
@@ -78,7 +84,6 @@ public sealed class PerfilComputadorRepository
                 local.Badges = item.Badges.Take(4).Select(b => b.Clone()).ToList();
                 local.AtualizadoEmUtc = updated;
                 local.AtualizadoPorPainelId = item.UpdatedBy;
-                if (item.IsOwner) DesmarcarOutrosOwners(local, updated, item.UpdatedBy);
                 changed++;
             }
             if (changed > 0) ApararEPersistir();
@@ -113,13 +118,4 @@ public sealed class PerfilComputadorRepository
         _store.Save(_profiles);
     }
 
-    private void DesmarcarOutrosOwners(PerfilComputador owner, DateTime updatedAt, string updatedBy)
-    {
-        foreach (var profile in _profiles.Where(p => p != owner && p.EhOwner))
-        {
-            profile.EhOwner = false;
-            profile.AtualizadoEmUtc = updatedAt;
-            profile.AtualizadoPorPainelId = updatedBy;
-        }
-    }
 }

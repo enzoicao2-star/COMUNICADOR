@@ -69,19 +69,23 @@ public sealed class MensagensViewModelTests
         var discovery = new DiscoveryService(settings);
         var client = new ReceptorClient(settings.PainelId, settings.NomePainel);
         var conexoes = new RegistroConexoesReversas();
+        var perfis = new PerfilComputadorRepository(
+            new JsonStore<PerfilComputador>(Path.Combine(pasta, "perfis.json")));
+        var cloud = new CloudSyncService(new SupabaseClient(), settings, perfis);
         var computadores = new ComputadoresViewModel(
             new JsonStore<Computador>(Path.Combine(pasta, "computadores.json")),
             discovery,
             client,
             new AtualizadorReceptor(client, conexoes),
             settings,
-            new PerfilComputadorRepository(
-                new JsonStore<PerfilComputador>(Path.Combine(pasta, "perfis.json"))));
+            perfis,
+            cloud);
         var mensagens = new MensagensViewModel(
             computadores,
             new EnviadorNotificacoes(client, conexoes, settings),
-            new HistoricoRepository(new JsonStore<HistoricoEntry>(Path.Combine(pasta, "historico.json"))));
-        return new Contexto(pasta, discovery, computadores, mensagens);
+            new HistoricoRepository(new JsonStore<HistoricoEntry>(Path.Combine(pasta, "historico.json"))),
+            cloud);
+        return new Contexto(pasta, discovery, computadores, mensagens, cloud);
     }
 
     private static Computador ComputadorPareado(string id, string nome, int monitores) => new()
@@ -122,11 +126,13 @@ public sealed class MensagensViewModelTests
         string Pasta,
         DiscoveryService Discovery,
         ComputadoresViewModel Computadores,
-        MensagensViewModel Mensagens) : IDisposable
+        MensagensViewModel Mensagens,
+        CloudSyncService Cloud) : IDisposable
     {
         public void Dispose()
         {
             Discovery.Dispose();
+            Cloud.Dispose();
             try
             {
                 Directory.Delete(Pasta, recursive: true);

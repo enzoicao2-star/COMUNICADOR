@@ -1,4 +1,4 @@
-# Comunicador 2.4.0
+# Comunicador 2.5.0
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
@@ -27,10 +27,9 @@ principais, o painel passa automaticamente para as portas alternativas
 57933/TCP e 57934/UDP. Detalhes em
 [PROTOCOLO.md § Painel como seu próprio receptor](PROTOCOLO.md#painel-como-seu-próprio-receptor).
 
-Dá para bloquear o recebimento a qualquer momento em
-Configurações → *"Aceitar mensagens de outros painéis"*, ou bloquear
-um painel pareado específico. Mensagens, mídias e botões com links
-possuem controles de permissão separados.
+Mensagens e lembretes permanecem sempre ativos. Cada computador pode
+bloquear mídias centrais e botões com links nas Configurações; esse
+bloqueio local também vale quando apenas o receptor estiver aberto.
 
 ## Recursos principais
 
@@ -39,7 +38,10 @@ possuem controles de permissão separados.
 - Navegação superior por ícones, transições e configurações salvas automaticamente.
 - Ping médio em tempo real com indicador verde, amarelo, vermelho ou sem conexão.
 - Avisos comuns, alertas centrais, imagens e vídeos por monitor, além de áudio invisível em segundo plano.
-- Nomes públicos, indicação OWNER e badges personalizáveis sincronizados entre os painéis.
+- Identidade permanente por computador, nomes públicos e badges sincronizados pelo Supabase.
+- Um único admin global com badge OWNER exclusiva e permissão para editar os demais computadores.
+- Lembretes e respostas entregues em segundo plano, inclusive com o painel fechado.
+- Alteração remota do papel de parede pelo admin em computadores pareados.
 - Histórico separado por computador e logs sincronizados entre painéis, com respostas e exportação para TXT.
 - Versões do painel e do receptor visíveis, atualização remota do receptor e atualização do próprio painel pela interface.
 - TCP + JSON independente de linguagem, conexão reversa e descoberta UDP/LAN.
@@ -73,6 +75,24 @@ O painel também verifica atualizações sozinho quando é aberto diretamente. E
 Configurações → Painel e rede, o botão **Atualizar e reiniciar** instala a versão
 publicada; ao voltar, o aplicativo mostra um resumo curto do que foi adicionado.
 
+## Identidade, sincronização e admin
+
+Painel e receptor compartilham o mesmo identificador em
+`%LOCALAPPDATA%\Comunicador\device.json`. Ele não pode ser alterado pela
+interface e evita que o mesmo computador apareça duplicado.
+
+Na primeira utilização administrativa, abra **Configurações → Painel e rede**
+e pressione a tecla `'` duas vezes. A primeira senha com pelo menos oito
+caracteres torna esse computador o admin global. Repetir o gesto e a mesma
+senha no admin remove o acesso; fazer isso em outro computador transfere o
+admin para ele. Somente o admin global recebe a badge OWNER e pode definir o
+papel de parede remoto.
+
+O esquema executado no Supabase está em `supabase/comunicador.sql`. O painel e
+o receptor usam sessões anônimas autenticadas separadas por dispositivo; as
+políticas do banco permitem que cada máquina altere seu próprio perfil e que o
+admin altere os demais. Não é preciso colocar a chave `service_role` no app.
+
 `build.bat` gera o ícone, restaura dependências, roda os testes Python
 e C# (inclusive integração real C# ↔ Python), compila em Release e
 publica uma versão self-contained single-file em
@@ -96,7 +116,7 @@ verifica/instala o Python automaticamente, baixa `receptor.py`,
 instala as dependências e configura a tarefa **"Comunicador
 Receptor"** no Agendador de Tarefas do Windows para iniciar com o
 login do usuário (via `pythonw.exe`, sem janela de console). O arquivo
-sempre baixa e valida a versão 2.4.0 publicada no GitHub antes de
+sempre baixa e valida a versão 2.5.0 publicada no GitHub antes de
 substituir uma instalação existente. Ao concluir com sucesso, fecha
 sozinho. Para remover o receptor, use
 `receiver/DESINSTALAR_RECEPTOR.bat`. O desinstalador preserva as regras

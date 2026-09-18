@@ -3,8 +3,8 @@ namespace Comunicador.Protocol;
 public static class ProtocolConstants
 {
     public const int Version = 1;
-    public const string CurrentReceiverVersion = "2.4.0";
-    public const string CurrentPanelVersion = "2.4.0";
+    public const string CurrentReceiverVersion = "2.5.0";
+    public const string CurrentPanelVersion = "2.5.0";
     public const string MinimumManagedReceiverVersion = "2.1.0";
 
     public static bool SupportsRemoteManagement(string? receiverVersion) =>
@@ -84,10 +84,11 @@ public static class ProtocolConstants
         public const string Audio = "audio";
         public const string CenterAlert = "center_alert";
         public const string CenterMessage = "center_message";
+        public const string Wallpaper = "wallpaper";
 
         public static readonly IReadOnlySet<string> All = new HashSet<string>
         {
-            Toast, CenterImage, CenterVideo, Audio, CenterAlert, CenterMessage,
+            Toast, CenterImage, CenterVideo, Audio, CenterAlert, CenterMessage, Wallpaper,
         };
     }
 

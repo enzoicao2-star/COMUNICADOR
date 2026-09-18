@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
+using Comunicador.Services;
 
 namespace Comunicador.Controls;
 
@@ -15,6 +16,8 @@ public sealed class InteractiveBadge : FrameworkElement
     private double _pointerY = .5;
     private bool _hovered;
     private BitmapSource? _customIcon;
+    private TimeSpan _lastRenderTime;
+    private double _shinePhase;
 
     public static readonly DependencyProperty TextProperty = DependencyProperty.Register(
         nameof(Text), typeof(string), typeof(InteractiveBadge),
@@ -37,6 +40,9 @@ public sealed class InteractiveBadge : FrameworkElement
     public static readonly DependencyProperty InteractiveProperty = DependencyProperty.Register(
         nameof(Interactive), typeof(bool), typeof(InteractiveBadge),
         new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty ReduceMotionProperty = DependencyProperty.Register(
+        nameof(ReduceMotion), typeof(bool), typeof(InteractiveBadge),
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public string Text { get => (string)GetValue(TextProperty); set => SetValue(TextProperty, value); }
     public string Color { get => (string)GetValue(ColorProperty); set => SetValue(ColorProperty, value); }
@@ -45,6 +51,7 @@ public sealed class InteractiveBadge : FrameworkElement
     public string? CustomIconBase64 { get => (string?)GetValue(CustomIconBase64Property); set => SetValue(CustomIconBase64Property, value); }
     public bool Glow { get => (bool)GetValue(GlowProperty); set => SetValue(GlowProperty, value); }
     public bool Interactive { get => (bool)GetValue(InteractiveProperty); set => SetValue(InteractiveProperty, value); }
+    public bool ReduceMotion { get => (bool)GetValue(ReduceMotionProperty); set => SetValue(ReduceMotionProperty, value); }
 
     public InteractiveBadge()
     {
@@ -64,7 +71,38 @@ public sealed class InteractiveBadge : FrameworkElement
             _pointerY = Math.Clamp(point.Y / ActualHeight, 0, 1);
             InvalidateVisual();
         };
-        Loaded += (_, _) => ApplyGlow();
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        ApplyGlow();
+        _lastRenderTime = TimeSpan.Zero;
+        CompositionTarget.Rendering += OnRendering;
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e) => CompositionTarget.Rendering -= OnRendering;
+
+    private void OnRendering(object? sender, EventArgs e)
+    {
+        if (BadgeStyle != "Holográfica" || _hovered) return;
+        if (e is not RenderingEventArgs rendering) return;
+        if (_lastRenderTime == TimeSpan.Zero)
+        {
+            _lastRenderTime = rendering.RenderingTime;
+            return;
+        }
+
+        var reduced = ReduceMotion || ThemeService.ReduceMotion;
+        var interval = reduced ? 66 : 32;
+        var elapsed = rendering.RenderingTime - _lastRenderTime;
+        if (elapsed < TimeSpan.FromMilliseconds(interval)) return;
+        _lastRenderTime = rendering.RenderingTime;
+        // Uma volta completa leva cerca de oito segundos. No modo reduzido o
+        // brilho continua vivo, porém quatro vezes mais lento.
+        _shinePhase = (_shinePhase + elapsed.TotalSeconds / (reduced ? 32d : 8d)) % 1d;
+        InvalidateVisual();
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -153,7 +191,9 @@ public sealed class InteractiveBadge : FrameworkElement
 
     private void DrawHolographicOverlay(DrawingContext dc, Rect rect, double radius)
     {
-        var center = _hovered && Interactive ? _pointerX : .28;
+        var center = _hovered && Interactive
+            ? _pointerX
+            : .12 + .76 * ((Math.Sin(_shinePhase * Math.PI * 2 - Math.PI / 2) + 1) / 2);
         var brush = new LinearGradientBrush
         {
             StartPoint = new Point(Math.Clamp(center - .42, 0, 1), 0),

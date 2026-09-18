@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Net.Http;
 using System.Windows.Input;
 using Comunicador.Models;
 using Comunicador.Networking;
@@ -12,6 +14,7 @@ public sealed class LembretesViewModel : ViewModelBase
     private readonly JsonStore<Lembrete> _store;
     private readonly ComputadoresViewModel _computadores;
     private readonly HistoricoRepository _historico;
+    private readonly CloudSyncService _cloud;
 
     private string _titulo = string.Empty;
     private string _mensagem = string.Empty;
@@ -84,11 +87,12 @@ public sealed class LembretesViewModel : ViewModelBase
 
     public LembretesViewModel(
         JsonStore<Lembrete> store, ComputadoresViewModel computadores, HistoricoRepository historico,
-        LembreteSchedulerService scheduler)
+        LembreteSchedulerService scheduler, CloudSyncService cloud)
     {
         _store = store;
         _computadores = computadores;
         _historico = historico;
+        _cloud = cloud;
 
         foreach (var lembrete in _store.Load())
         {
@@ -98,7 +102,7 @@ public sealed class LembretesViewModel : ViewModelBase
         scheduler.NotificacaoEnviada += OnNotificacaoEnviada;
         scheduler.LembreteConcluido += _ => UiDispatcher.Invoke(Persist);
 
-        CriarCommand = new RelayCommand(_ => Criar(), _ => PodeCriar());
+        CriarCommand = new AsyncRelayCommand(_ => CriarAsync(), _ => PodeCriar());
         RemoverCommand = new RelayCommand(param =>
         {
             if (param is Lembrete lembrete)
@@ -137,6 +141,9 @@ public sealed class LembretesViewModel : ViewModelBase
         {
             entry.Status = StatusEnvio.Respondido;
             entry.RespostaTexto = resultado.ReplyText;
+            UiDispatcher.Invoke(() => _ = Views.NotificacaoRecebidaWindow.MostrarAsync(
+                computador.NomeExibicao, "Resposta ao lembrete",
+                resultado.ReplyText ?? "O usuário confirmou o recebimento.", allowReply: false));
         }
         else if (lembrete.PermitirResposta)
         {
@@ -166,7 +173,7 @@ public sealed class LembretesViewModel : ViewModelBase
         && Destinatarios.Any(d => d.Selecionado)
         && DataHora > DateTime.Now;
 
-    private void Criar()
+    private async Task CriarAsync()
     {
         var lembrete = new Lembrete
         {
@@ -180,13 +187,26 @@ public sealed class LembretesViewModel : ViewModelBase
         Lembretes.Add(lembrete);
         Persist();
 
+        try
+        {
+            await Task.WhenAll(lembrete.ComputadorIds.Select(id => _cloud.QueueReminderAsync(
+                id, lembrete.DataHora, lembrete.Titulo, lembrete.Mensagem, lembrete.PermitirResposta)))
+                .ConfigureAwait(true);
+            lembrete.AgendadoNaNuvem = true;
+            Persist();
+            StatusOperacao = "Lembrete agendado na nuvem; será entregue mesmo com o painel fechado.";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or UnauthorizedAccessException)
+        {
+            StatusOperacao = $"Lembrete salvo neste painel; envio local será usado: {ex.Message}";
+        }
+
         Titulo = string.Empty;
         Mensagem = string.Empty;
         var proximo = DateTime.Now.AddMinutes(5);
         _dataSelecionada = proximo.Date;
         OnPropertyChanged(nameof(DataSelecionada));
         HoraTexto = proximo.ToString("HH:mm");
-        StatusOperacao = "Lembrete criado.";
     }
 
     private void AtualizarDataHora()

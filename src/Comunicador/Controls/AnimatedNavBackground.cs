@@ -59,7 +59,7 @@ public sealed class AnimatedNavBackground : FrameworkElement
         control._startIndex = control._displayIndex;
         control._targetIndex = Math.Max(0, (int)e.NewValue);
         control._animationStarted = DateTime.UtcNow;
-        if (!control.IsLoaded || control.ReduceMotion)
+        if (!control.IsLoaded)
         {
             control._displayIndex = control._targetIndex;
         }
@@ -68,18 +68,9 @@ public sealed class AnimatedNavBackground : FrameworkElement
 
     private void OnRendering(object? sender, EventArgs e)
     {
-        if (ReduceMotion)
-        {
-            if (_displayIndex != _targetIndex)
-            {
-                _displayIndex = _targetIndex;
-                InvalidateVisual();
-            }
-            return;
-        }
-
         var elapsed = (DateTime.UtcNow - _animationStarted).TotalMilliseconds;
-        if (elapsed >= 340 || Math.Abs(_displayIndex - _targetIndex) < .001)
+        var duration = ReduceMotion ? 620d : 340d;
+        if (elapsed >= duration || Math.Abs(_displayIndex - _targetIndex) < .001)
         {
             if (_displayIndex != _targetIndex)
             {
@@ -89,7 +80,7 @@ public sealed class AnimatedNavBackground : FrameworkElement
             return;
         }
 
-        var progress = Math.Clamp(elapsed / 340d, 0, 1);
+        var progress = Math.Clamp(elapsed / duration, 0, 1);
         var eased = 1 - Math.Pow(1 - progress, 3);
         _displayIndex = _startIndex + (_targetIndex - _startIndex) * eased;
         InvalidateVisual();

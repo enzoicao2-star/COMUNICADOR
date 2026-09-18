@@ -155,6 +155,7 @@
         <Grid>
             <controls:AnimatedBackground Mode="{Binding Configuracoes.FundoPainel}"
                                          Intensity="100"
+                                         Speed="{Binding Configuracoes.VelocidadeFundo}"
                                          ReduceMotion="{Binding Configuracoes.ReduzirMovimento}" />
             <Grid>
                 <Grid.RowDefinitions>

@@ -1,14 +1,17 @@
 {
-    "version":  "2.4.0.0",
+    "version":  "2.5.0.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "1092406A8D4C65F28E3EC396E3E14681F6F9A5B34C0CBCD1AB3D1C5DA27DCE45",
-    "summary":  "A versão 2.4 adiciona identidade sincronizada entre painéis, badges personalizáveis, atualização pelo próprio aplicativo e novos formatos de mensagem.",
+    "sha256":  "3CD3AC828C7D7D4FAE3BCA01721D11EC8A44FBCADACB74FF8DDA58CDBD3CE626",
+    "summary":  "A versão 2.5.0 adiciona identidade permanente, administração central, sincronização pelo Supabase e entregas mesmo com o painel fechado.",
     "changes":  [
-                    "Foi adicionado 1 novo fundo: Onda de partículas.",
-                    "Foram adicionadas badges com texto, cor, estilo, ícone, brilho, animação e ícone personalizado.",
-                    "Nomes públicos, OWNER, badges, versões e histórico passam a ser sincronizados entre os painéis.",
-                    "Mensagens podem aparecer no centro, usar até 2 botões lado a lado e registrar a resposta no histórico por computador.",
-                    "O painel agora verifica e instala atualizações sem depender da abertura pelo arquivo BAT.",
-                    "Foram adicionados envio de vídeo e áudio, com repetição e duração configuráveis."
+                    "Cada computador ganhou um identificador permanente compartilhado pelo painel e receptor.",
+                    "Foi adicionado o admin global recuperável por senha, com OWNER exclusivo e edição central de nomes e badges.",
+                    "Nomes, badges, administrador, lembretes e respostas agora são sincronizados pelo Supabase.",
+                    "O receptor entrega lembretes e respostas em segundo plano mesmo quando o painel está fechado.",
+                    "Notificações e lembretes permanecem obrigatórios; o bloqueio local se aplica somente a mídias.",
+                    "O admin pode definir remotamente uma imagem como papel de parede do computador escolhido.",
+                    "Foram adicionados controles numéricos de duração para imagem, vídeo e áudio.",
+                    "O editor de badges ganhou prévia ao vivo, ícone personalizado, brilho holográfico e aplicação sincronizada.",
+                    "A interface ganhou fundos animados, transparência e blur ajustáveis, velocidade configurável e melhor contraste no modo escuro."
                 ]
 }

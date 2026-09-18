@@ -50,7 +50,7 @@ public sealed class LembreteSchedulerService : IDisposable
         while (!ct.IsCancellationRequested)
         {
             var vencidos = _getLembretes()
-                .Where(l => !l.Enviado && l.DataHora <= DateTime.Now)
+                .Where(l => !l.Enviado && !l.AgendadoNaNuvem && l.DataHora <= DateTime.Now)
                 .ToList();
 
             foreach (var lembrete in vencidos)

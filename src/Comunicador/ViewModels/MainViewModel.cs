@@ -18,6 +18,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     private readonly LogRepository _logsRepositorio;
     private readonly SyncCoordinatorService _sync;
     private readonly PanelUpdateService _panelUpdate;
+    private readonly CloudSyncService _cloudSync;
 
     private object _secaoAtual;
     private double? _pingMedioMs;
@@ -91,11 +92,17 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var paineisPareadosStore = new JsonStore<PainelPareado>(AppPaths.PaineisPareadosFile);
         var perfis = new PerfilComputadorRepository(new JsonStore<PerfilComputador>(AppPaths.PerfisComputadoresFile));
         _panelUpdate = new PanelUpdateService();
-        if (perfis.Obter(Settings.PainelId) is null)
+        var perfilLocal = perfis.Obter(Settings.PainelId);
+        var badgesLocais = perfilLocal?.Badges.Select(b => b.Clone()).ToList() ?? new List<BadgeUsuario>();
+        if (perfilLocal is null ||
+            !string.Equals(perfilLocal.NomePublico, Settings.NomePainel, StringComparison.Ordinal))
         {
-            perfis.Salvar(Settings.PainelId, Settings.NomePainel, Settings.EstePainelEhOwner,
-                Array.Empty<BadgeUsuario>(), Settings.PainelId);
+            perfis.Salvar(Settings.PainelId, Settings.NomePainel, false,
+                badgesLocais, Settings.PainelId);
         }
+
+        _cloudSync = new CloudSyncService(new SupabaseClient(), Settings, perfis);
+        _cloudSync.ResponseReceived += OnCloudResponseReceived;
 
         var client = new ReceptorClient(Settings.PainelId, Settings.NomePainel);
         _discovery = new DiscoveryService(Settings);
@@ -107,12 +114,12 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var atualizador = new AtualizadorReceptor(client, _conexoesReversas);
 
         Computadores = new ComputadoresViewModel(
-            computadoresStore, _discovery, client, atualizador, Settings, perfis);
+            computadoresStore, _discovery, client, atualizador, Settings, perfis, _cloudSync);
         _sync = new SyncCoordinatorService(
             Computadores.Snapshot, client, _conexoesReversas, _historicoRepositorio, _logsRepositorio, perfis);
         Historico = new HistoricoViewModel(_historicoRepositorio);
         Logs = new LogsViewModel(_logsRepositorio, _sync);
-        Mensagens = new MensagensViewModel(Computadores, enviador, _historicoRepositorio);
+        Mensagens = new MensagensViewModel(Computadores, enviador, _historicoRepositorio, _cloudSync);
 
         _statusMonitor = new StatusMonitorService(Computadores.Snapshot, enviador, Settings);
         _statusMonitor.StatusAtualizado += Computadores.AtualizarStatus;
@@ -123,7 +130,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             id => Computadores.Computadores.FirstOrDefault(c => c.Id == id),
             enviador);
 
-        Lembretes = new LembretesViewModel(lembretesStore, Computadores, _historicoRepositorio, _scheduler);
+        Lembretes = new LembretesViewModel(lembretesStore, Computadores, _historicoRepositorio, _scheduler, _cloudSync);
 
         var paineisPareados = new ObservableCollection<PainelPareado>(paineisPareadosStore.Load());
         _embeddedReceptorServer = new EmbeddedReceptorServer(
@@ -131,7 +138,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             _logsRepositorio, _conexoesReversas, perfis);
         _embeddedReceptorServer.ReceptorRegistrado += Computadores.RegistrarViaConexaoReversa;
         Configuracoes = new ConfiguracoesViewModel(Settings, paineisPareados, paineisPareadosStore,
-            _embeddedReceptorServer, perfis, client, _panelUpdate);
+            _embeddedReceptorServer, perfis, client, _panelUpdate, _cloudSync);
 
         _secaoAtual = Computadores;
 
@@ -169,8 +176,30 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(PingNivel));
     }
 
+    private void OnCloudResponseReceived(CloudDelivery resposta) => UiDispatcher.Invoke(() =>
+    {
+        var computador = Computadores.Computadores.FirstOrDefault(c => c.Id == resposta.TargetDeviceId);
+        var tituloOriginal = resposta.Payload.ValueKind == System.Text.Json.JsonValueKind.Object
+            && resposta.Payload.TryGetProperty("title", out var titulo)
+                ? titulo.GetString() : null;
+        var nome = computador?.NomeExibicao ?? resposta.TargetDeviceId;
+        _historicoRepositorio.Adicionar(new HistoricoEntry
+        {
+            ComputadorId = resposta.TargetDeviceId,
+            ComputadorNome = nome,
+            Titulo = tituloOriginal ?? "Resposta recebida",
+            Mensagem = "Resposta a uma entrega agendada",
+            Status = StatusEnvio.Respondido,
+            RespostaTexto = resposta.ResponseText,
+        });
+        _ = Views.NotificacaoRecebidaWindow.MostrarAsync(
+            nome, "Resposta recebida", resposta.ResponseText ?? "O usuário confirmou o recebimento.",
+            allowReply: false);
+    });
+
     public void Start()
     {
+        _cloudSync.Start();
         _discovery.Start();
         _statusMonitor.Start();
         _scheduler.Start();
@@ -187,10 +216,12 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         Computadores.PingMedioAtualizado -= AtualizarPingMedio;
+        _cloudSync.ResponseReceived -= OnCloudResponseReceived;
         _discovery.Dispose();
         _statusMonitor.Dispose();
         _scheduler.Dispose();
         _sync.Dispose();
+        _cloudSync.Dispose();
         _embeddedReceptorServer.Dispose();
     }
 }

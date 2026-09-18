@@ -75,9 +75,9 @@ Todo objeto JSON trafegado tem os campos:
 
 ### `discover` (UDP broadcast, painel → todos)
 
-`panel_id` é um GUID gerado uma única vez por instalação do
-`Comunicador` (persistido em `config.json` do painel) — identifica
-*aquele* painel de forma estável, independente do IP ou do
+`panel_id` é um GUID gerado uma única vez por computador e compartilhado
+entre painel e receptor em `%LOCALAPPDATA%\Comunicador\device.json` — identifica
+*aquele* computador de forma estável, independente do IP ou do
 `sender_name`, e é o que permite a um receptor responder "pareado"
 ou "não pareado" corretamente quando existe **mais de um painel** na
 rede.
@@ -270,7 +270,7 @@ máquina do receptor — só o painel precisa da porta aberta.
 ```json
 { "protocol_version": 1, "type": "register", "id": "...", "timestamp": "...",
   "computer_id": "b0b1...", "computer_name": "COMPUTADOR-1", "token": "9f8b...",
-  "receiver_version": "2.4.0", "has_panel": false,
+  "receiver_version": "2.5.0", "has_panel": false,
   "monitors": [{ "index": 0, "name": "DISPLAY1", "width": 1920,
     "height": 1080, "x": 0, "y": 0, "primary": true }] }
 ```

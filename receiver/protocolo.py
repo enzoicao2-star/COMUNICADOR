@@ -64,9 +64,11 @@ DISPLAY_MODE_CENTER_VIDEO = "center_video"
 DISPLAY_MODE_AUDIO = "audio"
 DISPLAY_MODE_CENTER_ALERT = "center_alert"
 DISPLAY_MODE_CENTER_MESSAGE = "center_message"
+DISPLAY_MODE_WALLPAPER = "wallpaper"
 DISPLAY_MODES = {
     DISPLAY_MODE_TOAST, DISPLAY_MODE_CENTER_IMAGE, DISPLAY_MODE_CENTER_VIDEO,
     DISPLAY_MODE_AUDIO, DISPLAY_MODE_CENTER_ALERT, DISPLAY_MODE_CENTER_MESSAGE,
+    DISPLAY_MODE_WALLPAPER,
 }
 SOUND_TYPES = {"information", "warning", "error"}
 TOAST_POSITIONS = {"bottom_right", "top_right"}
@@ -356,6 +358,8 @@ def _validar_conteudo_visual(msg: dict) -> None:
                 isinstance(imagens_por_monitor, list) and imagens_por_monitor):
             raise ProtocolError(
                 ErrorCode.MISSING_FIELD, "Aviso central precisa de 'image' ou 'screen_images'.")
+    if modo == DISPLAY_MODE_WALLPAPER and not isinstance(imagem, dict):
+        raise ProtocolError(ErrorCode.MISSING_FIELD, "Papel de parede precisa do campo 'image'.")
 
     if modo == DISPLAY_MODE_CENTER_VIDEO and not isinstance(video, dict) and not (
             isinstance(videos_por_monitor, list) and videos_por_monitor):
@@ -632,7 +636,8 @@ def validate(msg: dict) -> None:
         _require_str(msg, "token", MAX_NAME_LENGTH)
         _require_str(msg, "sender", MAX_NAME_LENGTH)
         if msg.get("display_mode") in {
-                DISPLAY_MODE_CENTER_IMAGE, DISPLAY_MODE_CENTER_VIDEO, DISPLAY_MODE_AUDIO}:
+                DISPLAY_MODE_CENTER_IMAGE, DISPLAY_MODE_CENTER_VIDEO, DISPLAY_MODE_AUDIO,
+                DISPLAY_MODE_WALLPAPER}:
             _require_str_allow_empty(msg, "title", MAX_TITLE_LENGTH)
             _require_str_allow_empty(msg, "message", MAX_MESSAGE_LENGTH)
         else:

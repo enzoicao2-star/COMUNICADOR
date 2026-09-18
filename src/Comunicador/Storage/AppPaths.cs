@@ -15,6 +15,14 @@ public static class AppPaths
     public static string PerfisComputadoresFile => Path.Combine(RootDir, "perfis_computadores.json");
     public static string ConfiguracoesFile => Path.Combine(RootDir, "config.json");
     public static string LogFile => Path.Combine(RootDir, "comunicador.log");
+    public static string LocalSharedDir { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Comunicador");
+    public static string DeviceIdentityFile => Path.Combine(LocalSharedDir, "device.json");
+    public static string CloudSessionFile => Path.Combine(LocalSharedDir, "cloud_session.json");
 
-    public static void EnsureCreated() => Directory.CreateDirectory(RootDir);
+    public static void EnsureCreated()
+    {
+        Directory.CreateDirectory(RootDir);
+        Directory.CreateDirectory(LocalSharedDir);
+    }
 }

@@ -408,14 +408,6 @@ public sealed class EmbeddedReceptorServer : IDisposable
             return;
         }
 
-        if (!_settings.AceitarMensagensDeOutrosPaineis)
-        {
-            await EnviarAsync(stream, ComunicadorMessage.Error(
-                ProtocolConstants.ErrorCode.ContentBlocked,
-                "Este painel bloqueou o recebimento de mensagens.", msg.Id), ct).ConfigureAwait(false);
-            return;
-        }
-
         if ((msg.Image is not null || msg.ScreenImages is { Count: > 0 }
                 || msg.Video is not null || msg.ScreenVideos is { Count: > 0 }
                 || msg.Audio is not null)
@@ -446,6 +438,26 @@ public sealed class EmbeddedReceptorServer : IDisposable
             Status = StatusEnvio.Exibido,
         };
         _historico.Adicionar(entry);
+
+        if (msg.DisplayMode == ProtocolConstants.DisplayMode.Wallpaper && msg.Image is not null)
+        {
+            var ackWallpaper = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ack);
+            ackWallpaper.InReplyTo = msg.Id;
+            try
+            {
+                WallpaperService.Apply(msg.Image);
+                ackWallpaper.Status = "wallpaper_applied";
+            }
+            catch (Exception ex) when (ex is IOException or FormatException or System.ComponentModel.Win32Exception)
+            {
+                await EnviarAsync(stream, ComunicadorMessage.Error(
+                    ProtocolConstants.ErrorCode.InternalError,
+                    $"Não foi possível alterar o papel de parede: {ex.Message}", msg.Id), ct).ConfigureAwait(false);
+                return;
+            }
+            await EnviarAsync(stream, ackWallpaper, ct).ConfigureAwait(false);
+            return;
+        }
 
         var mostrarTask = NotificacaoRecebidaWindow.MostrarAsync(
             msg.Sender!, msg.Title!, msg.Message!, allowReply, msg.Buttons,

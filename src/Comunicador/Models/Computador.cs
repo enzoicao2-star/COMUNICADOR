@@ -37,6 +37,9 @@ public sealed class Computador : ObservableModel
     private string? _novoBadgeIconePersonalizadoBase64;
     private bool _novoBadgeBrilho = true;
     private bool _novoBadgeEfeitoMouse = true;
+    private bool _podeEditarPerfil;
+    private string? _badgeEmEdicaoId;
+    private bool _reduzirMovimento;
 
     public string Id { get => _id; set => SetField(ref _id, value); }
 
@@ -118,7 +121,14 @@ public sealed class Computador : ObservableModel
         }
     }
 
-    public bool EhOwner { get => _ehOwner; set => SetField(ref _ehOwner, value); }
+    public bool EhOwner
+    {
+        get => _ehOwner;
+        set
+        {
+            if (SetField(ref _ehOwner, value)) OnPropertyChanged(nameof(ExibirOwnerPadrao));
+        }
+    }
     public List<BadgeUsuario> Badges
     {
         get => _badges;
@@ -126,9 +136,33 @@ public sealed class Computador : ObservableModel
         {
             var badges = value ?? new();
             foreach (var badge in badges) badge.ComputerId = Id;
-            SetField(ref _badges, badges);
+            if (SetField(ref _badges, badges))
+            {
+                OnPropertyChanged(nameof(TemBadgeOwner));
+                OnPropertyChanged(nameof(ExibirOwnerPadrao));
+            }
         }
     }
+
+    [JsonIgnore] public bool TemBadgeOwner => Badges.Any(b => b.Id == "owner");
+    [JsonIgnore] public bool ExibirOwnerPadrao => EhOwner && !TemBadgeOwner;
+    [JsonIgnore] public bool PodeEditarPerfil { get => _podeEditarPerfil; set => SetField(ref _podeEditarPerfil, value); }
+    [JsonIgnore] public bool ReduzirMovimento { get => _reduzirMovimento; set => SetField(ref _reduzirMovimento, value); }
+    [JsonIgnore]
+    public string? BadgeEmEdicaoId
+    {
+        get => _badgeEmEdicaoId;
+        set
+        {
+            if (SetField(ref _badgeEmEdicaoId, value))
+            {
+                OnPropertyChanged(nameof(EditandoBadge));
+                OnPropertyChanged(nameof(AcaoBadgeTexto));
+            }
+        }
+    }
+    [JsonIgnore] public bool EditandoBadge => !string.IsNullOrWhiteSpace(BadgeEmEdicaoId);
+    [JsonIgnore] public string AcaoBadgeTexto => EditandoBadge ? "Salvar alterações" : "Salvar badge";
 
     [JsonIgnore]
     public bool PainelAtualizado => !TemPainel || VersaoPainel == ProtocolConstants.CurrentPanelVersion;

@@ -23,7 +23,7 @@ set "PORT_PANEL_TCP=57933"
 set "PORT_PANEL_UDP=57934"
 
 echo ===============================================
-echo   Comunicador 2.4.0 - configurar rede
+echo   Comunicador 2.5.0 - configurar rede
 echo ===============================================
 echo.
 
