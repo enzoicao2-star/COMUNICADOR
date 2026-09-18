@@ -43,7 +43,8 @@ $releaseNotes = @'
     "O admin pode definir remotamente uma imagem como papel de parede do computador escolhido.",
     "Foram adicionados controles num\u00e9ricos de dura\u00e7\u00e3o para imagem, v\u00eddeo e \u00e1udio.",
     "O editor de badges ganhou pr\u00e9via ao vivo, \u00edcone personalizado, brilho hologr\u00e1fico e aplica\u00e7\u00e3o sincronizada.",
-    "A interface ganhou fundos animados, transpar\u00eancia e blur ajust\u00e1veis, velocidade configur\u00e1vel e melhor contraste no modo escuro."
+    "A interface ganhou fundos animados, transpar\u00eancia e blur ajust\u00e1veis, velocidade configur\u00e1vel e melhor contraste no modo escuro.",
+    "A navega\u00e7\u00e3o foi otimizada: a troca m\u00e9dia de aba caiu de 115,03 ms para 4,23 ms nos testes da vers\u00e3o 2.5.0."
   ]
 }
 '@ | ConvertFrom-Json

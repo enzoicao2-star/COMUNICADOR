@@ -12,6 +12,7 @@
                     "O admin pode definir remotamente uma imagem como papel de parede do computador escolhido.",
                     "Foram adicionados controles numéricos de duração para imagem, vídeo e áudio.",
                     "O editor de badges ganhou prévia ao vivo, ícone personalizado, brilho holográfico e aplicação sincronizada.",
-                    "A interface ganhou fundos animados, transparência e blur ajustáveis, velocidade configurável e melhor contraste no modo escuro."
+                    "A interface ganhou fundos animados, transparência e blur ajustáveis, velocidade configurável e melhor contraste no modo escuro.",
+                    "A navegação foi otimizada: a troca média de aba caiu de 115,03 ms para 4,23 ms nos testes da versão 2.5.0."
                 ]
 }
