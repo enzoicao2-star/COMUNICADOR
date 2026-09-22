@@ -19,7 +19,9 @@ public sealed class CloudSyncService : IDisposable
 
     public event Action? StateChanged;
     public event Action<CloudDelivery>? ResponseReceived;
+    public event Action<CloudDelivery>? DeliveryReceived;
     public bool IsAdmin { get; private set; }
+    public bool IsDelegatedAdmin { get; private set; }
     public string? AdminDeviceId { get; private set; }
     public string Status { get; private set; } = "Conectando ao Supabase…";
 
@@ -76,8 +78,13 @@ public sealed class CloudSyncService : IDisposable
         await SynchronizeOnceAsync(ct).ConfigureAwait(false);
     }
 
-    public bool CanEdit(string deviceId) => IsAdmin ||
-        string.Equals(deviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase);
+    public bool CanEdit(string deviceId)
+    {
+        if (IsAdmin || string.Equals(deviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase)) return true;
+        if (!IsDelegatedAdmin || string.Equals(deviceId, AdminDeviceId, StringComparison.OrdinalIgnoreCase)) return false;
+        var target = _profiles.Obter(deviceId);
+        return target is null || target.Badges.All(b => b.Id != "admin");
+    }
 
     public Task QueueReminderAsync(
         string targetDeviceId, DateTime deliverAt, string title, string message,
@@ -93,11 +100,17 @@ public sealed class CloudSyncService : IDisposable
                 display_mode = ProtocolConstants.DisplayMode.Toast,
             }, ct);
 
+    public Task RespondToDeliveryAsync(string deliveryId, string response, CancellationToken ct = default) =>
+        _client.RespondToDeliveryAsync(deliveryId, response, ct);
+
     public async Task SynchronizeOnceAsync(CancellationToken ct = default)
     {
         var admin = await _client.GetAdminStateAsync(ct).ConfigureAwait(false);
         SetAdmin(admin.IsAdmin, admin.AdminDeviceId);
         var cloudProfiles = await _client.GetProfilesAsync(ct).ConfigureAwait(false);
+        IsDelegatedAdmin = cloudProfiles.FirstOrDefault(profile =>
+            string.Equals(profile.DeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
+            ?.Badges.Any(b => b.Id == "admin") == true;
         _profiles.Mesclar(cloudProfiles.Select(profile => new PerfilComputadorSincronizado
         {
             ComputerId = profile.DeviceId,
@@ -136,6 +149,8 @@ public sealed class CloudSyncService : IDisposable
                     }
                 }
                 await SynchronizeOnceAsync(ct).ConfigureAwait(false);
+                var deliveries = await _client.ClaimDueDeliveriesAsync(ct).ConfigureAwait(false);
+                foreach (var delivery in deliveries) DeliveryReceived?.Invoke(delivery);
                 var responses = await _client.GetResponsesAsync(_settings.PainelId, ct).ConfigureAwait(false);
                 foreach (var response in responses.OrderBy(r => r.RespondedAt))
                 {

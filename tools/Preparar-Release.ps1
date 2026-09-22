@@ -33,18 +33,17 @@ Copy-Item -LiteralPath $source -Destination $destination -Force
 $hash = (Get-Sha256 $destination).ToUpperInvariant()
 $releaseNotes = @'
 {
-  "summary": "A vers\u00e3o 2.5.0 adiciona identidade permanente, administra\u00e7\u00e3o central, sincroniza\u00e7\u00e3o pelo Supabase e entregas mesmo com o painel fechado.",
+  "summary": "A vers\u00e3o 2.5.1 corrige a interface de badges, libera GIFs animados e mant\u00e9m o painel recebendo avisos em segundo plano.",
   "changes": [
-    "Cada computador ganhou um identificador permanente compartilhado pelo painel e receptor.",
-    "Foi adicionado o admin global recuper\u00e1vel por senha, com OWNER exclusivo e edi\u00e7\u00e3o central de nomes e badges.",
-    "Nomes, badges, administrador, lembretes e respostas agora s\u00e3o sincronizados pelo Supabase.",
-    "O receptor entrega lembretes e respostas em segundo plano mesmo quando o painel est\u00e1 fechado.",
-    "Notifica\u00e7\u00f5es e lembretes permanecem obrigat\u00f3rios; o bloqueio local se aplica somente a m\u00eddias.",
-    "O admin pode definir remotamente uma imagem como papel de parede do computador escolhido.",
-    "Foram adicionados controles num\u00e9ricos de dura\u00e7\u00e3o para imagem, v\u00eddeo e \u00e1udio.",
-    "O editor de badges ganhou pr\u00e9via ao vivo, \u00edcone personalizado, brilho hologr\u00e1fico e aplica\u00e7\u00e3o sincronizada.",
-    "A interface ganhou fundos animados, transpar\u00eancia e blur ajust\u00e1veis, velocidade configur\u00e1vel e melhor contraste no modo escuro.",
-    "A navega\u00e7\u00e3o foi otimizada: a troca m\u00e9dia de aba caiu de 115,03 ms para 4,23 ms nos testes da vers\u00e3o 2.5.0."
+    "O \u00edcone Coroa agora mostra uma coroa real, em vez do carrinho de compras.",
+    "As badges ganharam a op\u00e7\u00e3o Flutuar suavemente, preservada na sincroniza\u00e7\u00e3o entre pain\u00e9is.",
+    "O OWNER pode conceder, retirar e personalizar a badge ADMIN; os demais usu\u00e1rios n\u00e3o podem alterar badges reservadas.",
+    "GIFs animados agora s\u00e3o reproduzidos no painel e no receptor, mantendo todos os quadros e tempos da anima\u00e7\u00e3o.",
+    "Ao fechar a janela, o Comunicador continua ativo na bandeja e recebe mensagens e lembretes obrigat\u00f3rios em segundo plano.",
+    "O atalho de administrador com dois ap\u00f3strofos foi corrigido para layouts de teclado diferentes.",
+    "A predefini\u00e7\u00e3o de cor deixou de exibir contornos encaixados e agora tem um \u00fanico cart\u00e3o.",
+    "A op\u00e7\u00e3o de papel de parede remoto deixou de aparecer duplicada e fica vis\u00edvel somente para o OWNER.",
+    "Entregas agendadas s\u00e3o reservadas de forma at\u00f4mica no Supabase, evitando exibi\u00e7\u00f5es duplicadas."
   ]
 }
 '@ | ConvertFrom-Json

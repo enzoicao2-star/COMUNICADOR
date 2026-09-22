@@ -1,18 +1,17 @@
 {
-    "version":  "2.5.0.0",
+    "version":  "2.5.1.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "DDD2D225148A79AF6BC584CC6459FB0E5129DE23324A45CE46690BF70C20026F",
-    "summary":  "A versão 2.5.0 adiciona identidade permanente, administração central, sincronização pelo Supabase e entregas mesmo com o painel fechado.",
+    "sha256":  "5746CC6F047E64EB6F420DEF2055AB7A0C96761AEC3F45350B59538703F808F8",
+    "summary":  "A versão 2.5.1 corrige a interface de badges, libera GIFs animados e mantém o painel recebendo avisos em segundo plano.",
     "changes":  [
-                    "Cada computador ganhou um identificador permanente compartilhado pelo painel e receptor.",
-                    "Foi adicionado o admin global recuperável por senha, com OWNER exclusivo e edição central de nomes e badges.",
-                    "Nomes, badges, administrador, lembretes e respostas agora são sincronizados pelo Supabase.",
-                    "O receptor entrega lembretes e respostas em segundo plano mesmo quando o painel está fechado.",
-                    "Notificações e lembretes permanecem obrigatórios; o bloqueio local se aplica somente a mídias.",
-                    "O admin pode definir remotamente uma imagem como papel de parede do computador escolhido.",
-                    "Foram adicionados controles numéricos de duração para imagem, vídeo e áudio.",
-                    "O editor de badges ganhou prévia ao vivo, ícone personalizado, brilho holográfico e aplicação sincronizada.",
-                    "A interface ganhou fundos animados, transparência e blur ajustáveis, velocidade configurável e melhor contraste no modo escuro.",
-                    "A navegação foi otimizada: a troca média de aba caiu de 115,03 ms para 4,23 ms nos testes da versão 2.5.0."
+                    "O ícone Coroa agora mostra uma coroa real, em vez do carrinho de compras.",
+                    "As badges ganharam a opção Flutuar suavemente, preservada na sincronização entre painéis.",
+                    "O OWNER pode conceder, retirar e personalizar a badge ADMIN; os demais usuários não podem alterar badges reservadas.",
+                    "GIFs animados agora são reproduzidos no painel e no receptor, mantendo todos os quadros e tempos da animação.",
+                    "Ao fechar a janela, o Comunicador continua ativo na bandeja e recebe mensagens e lembretes obrigatórios em segundo plano.",
+                    "O atalho de administrador com dois apóstrofos foi corrigido para layouts de teclado diferentes.",
+                    "A predefinição de cor deixou de exibir contornos encaixados e agora tem um único cartão.",
+                    "A opção de papel de parede remoto deixou de aparecer duplicada e fica visível somente para o OWNER.",
+                    "Entregas agendadas são reservadas de forma atômica no Supabase, evitando exibições duplicadas."
                 ]
 }

@@ -59,6 +59,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public ICommand CarregarIconeBadgeCommand { get; }
     public ICommand SalvarPerfilCommand { get; }
     public ICommand FecharEdicaoCommand { get; }
+    public ICommand AlternarAdminDelegadoCommand { get; }
 
     public IReadOnlyList<string> EstilosBadge { get; } = ["Holográfica", "Metal", "Pílula", "Contorno", "Selo"];
     public IReadOnlyList<string> IconesBadge { get; } =
@@ -163,6 +164,11 @@ public sealed class ComputadoresViewModel : ViewModelBase
             if (param is not BadgeUsuario badge) return;
             var computador = Computadores.FirstOrDefault(c => c.Id == badge.ComputerId || c.Badges.Contains(badge));
             if (computador is null || !PodeEditar(computador)) return;
+            if (badge.Id is "owner" or "admin" && !_cloud.IsAdmin)
+            {
+                StatusMensagem = "Somente o OWNER pode remover badges reservadas.";
+                return;
+            }
             computador.Badges = computador.Badges.Where(b => b.Id != badge.Id).ToList();
             if (computador.BadgeEmEdicaoId == badge.Id) ResetarEditorBadge(computador);
             StatusMensagem = $"Badge '{badge.Texto}' removida da prévia. Clique em Aplicar mudanças para sincronizar.";
@@ -187,6 +193,25 @@ public sealed class ComputadoresViewModel : ViewModelBase
             computador.EmEdicao = false;
             StatusMensagem = "Edição fechada. Alterações ainda não aplicadas foram descartadas.";
         });
+        AlternarAdminDelegadoCommand = new RelayCommand(param =>
+        {
+            if (!_cloud.IsAdmin || param is not Computador computador || computador.EhOwner) return;
+            if (computador.EhAdminDelegado)
+            {
+                computador.Badges = computador.Badges.Where(b => b.Id != "admin").ToList();
+                if (computador.BadgeEmEdicaoId == "admin") ResetarEditorBadge(computador);
+                StatusMensagem = $"Permissão de admin removida de {computador.NomeExibicao}. Clique em Aplicar mudanças.";
+            }
+            else
+            {
+                if (computador.Badges.Count >= ProtocolConstants.MaxBadgesPerComputer)
+                    computador.Badges = computador.Badges.Where(b => b.Id is "owner" or "admin")
+                        .Concat(computador.Badges.Where(b => b.Id is not ("owner" or "admin")).Take(3)).ToList();
+                computador.Badges = computador.Badges.Append(CriarBadgeAdmin(computador.Id)).ToList();
+                CarregarBadgeNoEditor(computador.Badges.First(b => b.Id == "admin"));
+                StatusMensagem = $"Admin concedido a {computador.NomeExibicao}. Personalize a tag e clique em Aplicar mudanças.";
+            }
+        }, param => _cloud.IsAdmin && param is Computador { EhOwner: false });
     }
 
     private void SalvarBadge(Computador computador)
@@ -199,6 +224,11 @@ public sealed class ComputadoresViewModel : ViewModelBase
         var existente = string.IsNullOrWhiteSpace(computador.BadgeEmEdicaoId)
             ? null
             : computador.Badges.FirstOrDefault(b => b.Id == computador.BadgeEmEdicaoId);
+        if (existente?.Id is "owner" or "admin" && !_cloud.IsAdmin)
+        {
+            StatusMensagem = "Somente o OWNER pode modificar badges reservadas.";
+            return;
+        }
         if (existente is null && computador.Badges.Count >= ProtocolConstants.MaxBadgesPerComputer)
         {
             StatusMensagem = "Cada computador pode ter até 4 badges.";
@@ -223,6 +253,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
             IconePersonalizadoBase64 = computador.NovoBadgeIconePersonalizadoBase64,
             Brilho = computador.NovoBadgeBrilho,
             EfeitoMouse = computador.NovoBadgeEfeitoMouse,
+            AnimacaoFlutuante = computador.NovoBadgeAnimacaoFlutuante,
         };
         computador.Badges = existente is null
             ? computador.Badges.Append(badge).ToList()
@@ -237,6 +268,11 @@ public sealed class ComputadoresViewModel : ViewModelBase
     {
         var computador = Computadores.FirstOrDefault(c => c.Id == badge.ComputerId || c.Badges.Contains(badge));
         if (computador is null || !computador.EmEdicao || !PodeEditar(computador)) return;
+        if (badge.Id is "owner" or "admin" && !_cloud.IsAdmin)
+        {
+            StatusMensagem = "Somente o OWNER pode modificar esta badge.";
+            return;
+        }
         computador.BadgeEmEdicaoId = badge.Id;
         computador.NovoBadgeTexto = badge.Texto;
         computador.NovoBadgeCor = badge.Cor;
@@ -245,6 +281,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         computador.NovoBadgeIconePersonalizadoBase64 = badge.IconePersonalizadoBase64;
         computador.NovoBadgeBrilho = badge.Brilho;
         computador.NovoBadgeEfeitoMouse = badge.EfeitoMouse;
+        computador.NovoBadgeAnimacaoFlutuante = badge.AnimacaoFlutuante;
         StatusMensagem = $"Editando a badge '{badge.Texto}'.";
     }
 
@@ -258,6 +295,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         computador.NovoBadgeIconePersonalizadoBase64 = null;
         computador.NovoBadgeBrilho = true;
         computador.NovoBadgeEfeitoMouse = true;
+        computador.NovoBadgeAnimacaoFlutuante = false;
     }
 
     private void CarregarIconePersonalizado(Computador computador)
@@ -330,6 +368,13 @@ public sealed class ComputadoresViewModel : ViewModelBase
         Estilo = "Holográfica", Icone = "Coroa", Brilho = true, EfeitoMouse = true,
     };
 
+    private static BadgeUsuario CriarBadgeAdmin(string computerId) => new()
+    {
+        Id = "admin", ComputerId = computerId, Texto = "ADMIN", Cor = "#6C63FF",
+        Estilo = "Holográfica", Icone = "Escudo", Brilho = true, EfeitoMouse = true,
+        AnimacaoFlutuante = true,
+    };
+
     private void AplicarPerfis() => UiDispatcher.Invoke(() =>
     {
         foreach (var computador in Computadores) AplicarPerfil(computador);
@@ -342,6 +387,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         computador.ReduzirMovimento = _settings.ReduzirMovimento;
         var ehAdmin = string.Equals(computador.Id, _cloud.AdminDeviceId, StringComparison.OrdinalIgnoreCase);
         computador.EhOwner = ehAdmin;
+        computador.PodeGerenciarAdmin = _cloud.IsAdmin && !ehAdmin;
         var perfil = _perfis.Obter(computador.Id);
         if (perfil is null)
         {

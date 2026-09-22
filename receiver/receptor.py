@@ -42,7 +42,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.0"
+RECEIVER_VERSION = "2.5.1"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -528,12 +528,8 @@ class CloudDeliveryWorker(threading.Thread):
         self._autorizado(f"/rest/v1/deliveries?id=eq.{filtro}", "PATCH", body)
 
     def _buscar_entregas(self):
-        agora = urllib.parse.quote(datetime.now(timezone.utc).isoformat(), safe="")
-        device = urllib.parse.quote(self.config.computer_id, safe="-")
-        caminho = ("/rest/v1/deliveries?select=id,payload&status=eq.pending"
-                   f"&target_device_id=eq.{device}&deliver_at=lte.{agora}"
-                   "&order=deliver_at.asc&limit=20")
-        return self._autorizado(caminho) or []
+        return self._autorizado(
+            "/rest/v1/rpc/claim_due_deliveries", "POST", {}) or []
 
     def _buscar_respostas(self):
         device = urllib.parse.quote(self.config.computer_id, safe="-")
@@ -550,10 +546,6 @@ class CloudDeliveryWorker(threading.Thread):
     def _mostrar_entrega(self, delivery):
         payload = delivery.get("payload") or {}
         delivery_id = delivery["id"]
-        # Reserva antes de enfileirar a janela para o polling seguinte não criar
-        # outra cópia enquanto a pessoa ainda está lendo.
-        self._atualizar_entrega(delivery_id, None)
-
         def concluir(resposta):
             if not resposta:
                 return
@@ -673,22 +665,26 @@ class NotificationUi:
                 "index": 0, "width": 1280, "height": 720, "x": 0, "y": 0, "primary": True})
 
     @staticmethod
-    def _foto_tk(imagem_obj, largura_maxima, altura_maxima):
-        from PIL import Image, ImageTk
+    def _fotos_tk(imagem_obj, largura_maxima, altura_maxima):
+        from PIL import Image, ImageSequence, ImageTk
 
         dados = base64.b64decode(imagem_obj["data_base64"], validate=True)
+        fotos = []
         with Image.open(io.BytesIO(dados)) as original:
-            imagem = original.copy()
-        filtro = getattr(Image, "Resampling", Image).LANCZOS
-        limite_largura = max(1, int(largura_maxima))
-        limite_altura = max(1, int(altura_maxima))
-        escala = min(limite_largura / max(1, imagem.width),
-                     limite_altura / max(1, imagem.height))
-        tamanho = (max(1, round(imagem.width * escala)),
-                   max(1, round(imagem.height * escala)))
-        if tamanho != imagem.size:
-            imagem = imagem.resize(tamanho, filtro)
-        return ImageTk.PhotoImage(imagem)
+            filtro = getattr(Image, "Resampling", Image).LANCZOS
+            limite_largura = max(1, int(largura_maxima))
+            limite_altura = max(1, int(altura_maxima))
+            escala = min(limite_largura / max(1, original.width),
+                         limite_altura / max(1, original.height))
+            tamanho = (max(1, round(original.width * escala)),
+                       max(1, round(original.height * escala)))
+            for quadro in ImageSequence.Iterator(original):
+                imagem = quadro.convert("RGBA")
+                if tamanho != imagem.size:
+                    imagem = imagem.resize(tamanho, filtro)
+                duracao = max(20, int(quadro.info.get("duration", original.info.get("duration", 100))))
+                fotos.append((ImageTk.PhotoImage(imagem), duracao))
+        return fotos
 
     def _exibir_janela(
             self, sender, title, message, allow_reply, on_result, buttons=None,
@@ -973,15 +969,17 @@ class NotificationUi:
                     monitor["width"] * item.get("width_percent", 70) / 100,
                     largura_celula)
                 max_altura = altura_celula
-                foto = self._foto_tk(item["image"], max_largura, max_altura)
-                fotos.append((posicao, foto))
+                quadros = self._fotos_tk(item["image"], max_largura, max_altura)
+                if quadros:
+                    fotos.append((posicao, quadros))
 
             largura_grade = colunas * largura_celula + espaco * (colunas - 1)
             altura_grade = linhas * altura_celula + espaco * (linhas - 1)
             origem_x = monitor["x"] + (monitor["width"] - largura_grade) // 2
             origem_y = monitor["y"] + (monitor["height"] - altura_grade) // 2
 
-            for posicao, foto in fotos:
+            for posicao, quadros in fotos:
+                foto = quadros[0][0]
                 largura = foto.width()
                 altura = foto.height()
                 coluna = posicao % colunas
@@ -1004,7 +1002,22 @@ class NotificationUi:
                 label = tk.Label(win, image=foto, bg=chave_transparente,
                                  bd=0, relief="flat", highlightthickness=0)
                 label.pack()
-                win._image_refs = [foto]  # mantém PhotoImage viva
+                win._image_refs = [quadro for quadro, _ in quadros]
+                if len(quadros) > 1:
+                    estado_animacao = {"indice": 0}
+
+                    def criar_animacao(rotulo, frames, estado, janela):
+                        def proximo_quadro():
+                            if finalizado["done"] or not janela.winfo_exists():
+                                return
+                            estado["indice"] = (estado["indice"] + 1) % len(frames)
+                            imagem_atual, atraso = frames[estado["indice"]]
+                            rotulo.configure(image=imagem_atual)
+                            janela.after(atraso, proximo_quadro)
+                        return proximo_quadro
+
+                    animar = criar_animacao(label, quadros, estado_animacao, win)
+                    win.after(quadros[0][1], animar)
                 win.geometry(f"{largura}x{altura}{x:+d}{y:+d}")
                 if manual_close:
                     label.configure(cursor="hand2")

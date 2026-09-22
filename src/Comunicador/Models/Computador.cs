@@ -37,9 +37,11 @@ public sealed class Computador : ObservableModel
     private string? _novoBadgeIconePersonalizadoBase64;
     private bool _novoBadgeBrilho = true;
     private bool _novoBadgeEfeitoMouse = true;
+    private bool _novoBadgeAnimacaoFlutuante;
     private bool _podeEditarPerfil;
     private string? _badgeEmEdicaoId;
     private bool _reduzirMovimento;
+    private bool _podeGerenciarAdmin;
 
     public string Id { get => _id; set => SetField(ref _id, value); }
 
@@ -140,13 +142,18 @@ public sealed class Computador : ObservableModel
             {
                 OnPropertyChanged(nameof(TemBadgeOwner));
                 OnPropertyChanged(nameof(ExibirOwnerPadrao));
+                OnPropertyChanged(nameof(EhAdminDelegado));
+                OnPropertyChanged(nameof(TextoAcaoAdmin));
             }
         }
     }
 
     [JsonIgnore] public bool TemBadgeOwner => Badges.Any(b => b.Id == "owner");
+    [JsonIgnore] public bool EhAdminDelegado => Badges.Any(b => b.Id == "admin");
     [JsonIgnore] public bool ExibirOwnerPadrao => EhOwner && !TemBadgeOwner;
     [JsonIgnore] public bool PodeEditarPerfil { get => _podeEditarPerfil; set => SetField(ref _podeEditarPerfil, value); }
+    [JsonIgnore] public bool PodeGerenciarAdmin { get => _podeGerenciarAdmin; set => SetField(ref _podeGerenciarAdmin, value); }
+    [JsonIgnore] public string TextoAcaoAdmin => EhAdminDelegado ? "Remover admin" : "Conceder admin";
     [JsonIgnore] public bool ReduzirMovimento { get => _reduzirMovimento; set => SetField(ref _reduzirMovimento, value); }
     [JsonIgnore]
     public string? BadgeEmEdicaoId
@@ -187,6 +194,7 @@ public sealed class Computador : ObservableModel
     }
     [JsonIgnore] public bool NovoBadgeBrilho { get => _novoBadgeBrilho; set => SetField(ref _novoBadgeBrilho, value); }
     [JsonIgnore] public bool NovoBadgeEfeitoMouse { get => _novoBadgeEfeitoMouse; set => SetField(ref _novoBadgeEfeitoMouse, value); }
+    [JsonIgnore] public bool NovoBadgeAnimacaoFlutuante { get => _novoBadgeAnimacaoFlutuante; set => SetField(ref _novoBadgeAnimacaoFlutuante, value); }
 
     [JsonIgnore]
     public bool AtualizandoReceptor

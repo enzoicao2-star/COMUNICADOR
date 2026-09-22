@@ -168,7 +168,8 @@
                                                         <controls:InteractiveBadge Text="{Binding Texto}" Color="{Binding Cor}"
                                                                                    Icon="{Binding Icone}" BadgeStyle="{Binding Estilo}"
                                                                                    CustomIconBase64="{Binding IconePersonalizadoBase64}"
-                                                                                   Glow="{Binding Brilho}" Interactive="{Binding EfeitoMouse}" />
+                                                                                   Glow="{Binding Brilho}" Interactive="{Binding EfeitoMouse}"
+                                                                                   FloatAnimation="{Binding AnimacaoFlutuante}" />
                                                     </Button>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
@@ -180,6 +181,12 @@
                                                 Margin="0,3,12,8">
                                         <Grid Margin="0,0,0,7">
                                             <TextBlock Text="Editar este painel" Style="{StaticResource TituloCard}" VerticalAlignment="Center" />
+                                            <Button HorizontalAlignment="Right" Margin="0,0,40,0" Height="32"
+                                                    Style="{StaticResource BotaoSecundario}"
+                                                    Content="{Binding TextoAcaoAdmin}"
+                                                    Visibility="{Binding PodeGerenciarAdmin, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                    Command="{Binding ElementName=Raiz, Path=DataContext.AlternarAdminDelegadoCommand}"
+                                                    CommandParameter="{Binding}" />
                                             <Button HorizontalAlignment="Right" Width="32" Height="32" Padding="0"
                                                     Style="{StaticResource BotaoSecundario}" ToolTip="Fechar sem aplicar"
                                                     Command="{Binding ElementName=Raiz, Path=DataContext.FecharEdicaoCommand}"
@@ -202,7 +209,8 @@
                                                                 CommandParameter="{Binding}">
                                                             <controls:InteractiveBadge Text="{Binding Texto}" Color="{Binding Cor}" Icon="{Binding Icone}"
                                                                                        BadgeStyle="{Binding Estilo}" CustomIconBase64="{Binding IconePersonalizadoBase64}"
-                                                                                       Glow="{Binding Brilho}" Interactive="{Binding EfeitoMouse}" />
+                                                                                       Glow="{Binding Brilho}" Interactive="{Binding EfeitoMouse}"
+                                                                                       FloatAnimation="{Binding AnimacaoFlutuante}" />
                                                         </Button>
                                                         <Button Content="×" Margin="4,0,0,0" Width="28" Style="{StaticResource BotaoSecundario}"
                                                                 Command="{Binding ElementName=Raiz, Path=DataContext.RemoverBadgeCommand}"
@@ -220,6 +228,7 @@
                                                                            Icon="{Binding NovoBadgeIcone}" BadgeStyle="{Binding NovoBadgeEstilo}"
                                                                            CustomIconBase64="{Binding NovoBadgeIconePersonalizadoBase64}"
                                                                            Glow="{Binding NovoBadgeBrilho}" Interactive="{Binding NovoBadgeEfeitoMouse}"
+                                                                           FloatAnimation="{Binding NovoBadgeAnimacaoFlutuante}"
                                                                            HorizontalAlignment="Left" Margin="0,2,0,2" />
                                             </StackPanel>
                                         </Border>
@@ -237,7 +246,8 @@
                                         </WrapPanel>
                                         <WrapPanel Margin="0,1,0,6">
                                             <CheckBox Content="Brilho" IsChecked="{Binding NovoBadgeBrilho}" Margin="0,0,18,0" />
-                                            <CheckBox Content="Efeito ao passar o mouse" IsChecked="{Binding NovoBadgeEfeitoMouse}" />
+                                            <CheckBox Content="Efeito ao passar o mouse" IsChecked="{Binding NovoBadgeEfeitoMouse}" Margin="0,0,18,0" />
+                                            <CheckBox Content="Flutuar suavemente" IsChecked="{Binding NovoBadgeAnimacaoFlutuante}" />
                                         </WrapPanel>
                                         <WrapPanel>
                                             <Button Style="{StaticResource BotaoPrimario}" Content="{Binding AcaoBadgeTexto}" Margin="0,0,8,0"

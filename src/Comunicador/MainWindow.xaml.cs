@@ -9,6 +9,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Comunicador.ViewModels;
 using Comunicador.Views;
+using Forms = System.Windows.Forms;
 
 namespace Comunicador;
 
@@ -19,13 +20,35 @@ public partial class MainWindow : Window
     private readonly Grid _sectionHost = new();
     private MainViewModel? _viewModel;
     private int _warmupGeneration;
+    private readonly Forms.NotifyIcon _trayIcon;
+    private bool _allowExit;
 
     public MainWindow()
     {
         InitializeComponent();
+        _trayIcon = new Forms.NotifyIcon
+        {
+            Text = "Comunicador — recebendo notificações",
+            Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!),
+            Visible = true,
+        };
         DataContextChanged += OnDataContextChanged;
         ContentRendered += OnContentRendered;
-        Closed += (_, _) => DesconectarViewModel();
+        Closing += OnWindowClosing;
+        Closed += (_, _) =>
+        {
+            _trayIcon.Dispose();
+            DesconectarViewModel();
+        };
+        var menu = new Forms.ContextMenuStrip();
+        menu.Items.Add("Abrir Comunicador", null, (_, _) => RestaurarDaBandeja());
+        menu.Items.Add("Encerrar", null, (_, _) =>
+        {
+            _allowExit = true;
+            Close();
+        });
+        _trayIcon.ContextMenuStrip = menu;
+        _trayIcon.DoubleClick += (_, _) => RestaurarDaBandeja();
     }
 
     private async void OnContentRendered(object? sender, EventArgs e)
@@ -65,6 +88,7 @@ public partial class MainWindow : Window
         Directory.CreateDirectory(Path.GetDirectoryName(benchmarkPath)!);
         await File.WriteAllTextAsync(benchmarkPath,
             JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
+        _allowExit = true;
         Application.Current.Shutdown();
     }
 
@@ -236,6 +260,23 @@ public partial class MainWindow : Window
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
+
+    private void OnWindowClosing(object? sender, CancelEventArgs e)
+    {
+        if (_allowExit || !string.IsNullOrWhiteSpace(App.BenchmarkFile)) return;
+        e.Cancel = true;
+        Hide();
+        _trayIcon.ShowBalloonTip(2500, "Comunicador",
+            "O painel continua recebendo mensagens e lembretes em segundo plano.",
+            Forms.ToolTipIcon.Info);
+    }
+
+    private void RestaurarDaBandeja()
+    {
+        Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+    }
 
     private void OnWindowStateChanged(object? sender, EventArgs e) => AtualizarMoldura();
 

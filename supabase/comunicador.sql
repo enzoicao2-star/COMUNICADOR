@@ -44,6 +44,29 @@ as $$ select d.device_id from public.devices d where d.auth_user_id=(select auth
 create or replace function public.current_device_is_admin()
 returns boolean language sql stable security definer set search_path=''
 as $$ select exists(select 1 from public.system_settings s where s.singleton and s.admin_device_id=public.current_device_id()) $$;
+create or replace function public.profile_has_badge(p_device_id uuid,p_badge_id text)
+returns boolean language sql stable security definer set search_path=''
+as $$
+  select exists(
+    select 1 from public.panel_profiles p,
+      jsonb_array_elements(p.badges) badge
+    where p.device_id=p_device_id and badge->>'id'=p_badge_id
+  )
+$$;
+create or replace function public.current_device_is_delegated_admin()
+returns boolean language sql stable security definer set search_path=''
+as $$ select public.profile_has_badge(public.current_device_id(),'admin') $$;
+create or replace function public.can_manage_profile(p_device_id uuid)
+returns boolean language sql stable security definer set search_path=''
+as $$
+  select p_device_id=public.current_device_id()
+    or public.current_device_is_admin()
+    or (
+      public.current_device_is_delegated_admin()
+      and not public.profile_has_badge(p_device_id,'owner')
+      and not public.profile_has_badge(p_device_id,'admin')
+    )
+$$;
 
 create or replace function public.register_device(p_device_id uuid,p_machine_name text,p_panel_version text,p_receiver_version text)
 returns table(device_id uuid,is_admin boolean,admin_device_id uuid)
@@ -100,11 +123,71 @@ begin
   update public.deliveries set sender_notified_at=now()
   where id=p_delivery_id and sender_device_id=public.current_device_id() and status='responded';
 end $$;
+create or replace function public.claim_due_deliveries()
+returns table(id uuid,sender_device_id uuid,target_device_id uuid,payload jsonb,status text)
+language sql volatile security definer set search_path=''
+as $$
+  with claimed as (
+    select d.id from public.deliveries d
+    where d.target_device_id=public.current_device_id()
+      and d.status='pending' and d.deliver_at<=now()
+    order by d.deliver_at asc limit 20 for update skip locked
+  ), updated as (
+    update public.deliveries d set status='delivered',delivered_at=now()
+    from claimed c where d.id=c.id
+    returning d.id,d.sender_device_id,d.target_device_id,d.payload,d.status
+  )
+  select u.id,u.sender_device_id,u.target_device_id,u.payload,u.status from updated u
+$$;
+create or replace function public.respond_to_delivery(p_delivery_id uuid,p_response text)
+returns void language plpgsql security definer set search_path=''
+as $$
+begin
+  update public.deliveries set status='responded',response_text=left(p_response,1000),responded_at=now()
+  where id=p_delivery_id and target_device_id=public.current_device_id()
+    and status in ('delivered','responded');
+end $$;
 create or replace function public.set_updated_at()
 returns trigger language plpgsql security invoker set search_path=''
 as $$ begin new.updated_at=now(); return new; end $$;
+create or replace function public.protect_reserved_badges()
+returns trigger language plpgsql security definer set search_path=''
+as $$
+declare preserved_admin jsonb; clean_badges jsonb; regular_limit integer:=4;
+begin
+  if public.current_device_is_admin() then
+    if new.device_id<>public.current_device_id() then
+      select coalesce(jsonb_agg(item order by ordinal),'[]'::jsonb) into clean_badges
+      from (
+        select value item,ordinality ordinal
+        from jsonb_array_elements(new.badges) with ordinality
+        where value->>'id'<>'owner' order by ordinality limit 4
+      ) allowed;
+      new.badges:=clean_badges;
+    end if;
+    return new;
+  end if;
+
+  if tg_op='UPDATE' then
+    select value into preserved_admin from jsonb_array_elements(old.badges)
+      where value->>'id'='admin' limit 1;
+  end if;
+  if preserved_admin is not null then regular_limit:=3; end if;
+  select coalesce(jsonb_agg(item order by ordinal),'[]'::jsonb) into clean_badges
+  from (
+    select value item,ordinality ordinal
+    from jsonb_array_elements(new.badges) with ordinality
+    where value->>'id' not in ('owner','admin') order by ordinality limit regular_limit
+  ) allowed;
+  new.badges:=case when preserved_admin is null then clean_badges
+    else jsonb_build_array(preserved_admin)||clean_badges end;
+  return new;
+end $$;
 drop trigger if exists panel_profiles_updated_at on public.panel_profiles;
 create trigger panel_profiles_updated_at before update on public.panel_profiles for each row execute function public.set_updated_at();
+drop trigger if exists panel_profiles_protect_reserved_badges on public.panel_profiles;
+create trigger panel_profiles_protect_reserved_badges before insert or update on public.panel_profiles
+for each row execute function public.protect_reserved_badges();
 
 alter table public.devices enable row level security;
 alter table public.system_settings enable row level security;
@@ -116,16 +199,27 @@ grant insert,update,delete on public.panel_profiles to authenticated;
 grant select,insert,update on public.deliveries to authenticated;
 revoke execute on function public.current_device_id() from public,anon;
 revoke execute on function public.current_device_is_admin() from public,anon;
+revoke execute on function public.profile_has_badge(uuid,text) from public,anon;
+revoke execute on function public.current_device_is_delegated_admin() from public,anon;
+revoke execute on function public.can_manage_profile(uuid) from public,anon;
+revoke execute on function public.protect_reserved_badges() from public,anon,authenticated;
 revoke execute on function public.register_device(uuid,text,text,text) from public,anon;
 revoke execute on function public.admin_login_toggle(text) from public,anon;
 revoke execute on function public.get_admin_state() from public,anon;
 revoke execute on function public.acknowledge_response(uuid) from public,anon;
+revoke execute on function public.claim_due_deliveries() from public,anon;
+revoke execute on function public.respond_to_delivery(uuid,text) from public,anon;
 grant execute on function public.current_device_id() to authenticated;
 grant execute on function public.current_device_is_admin() to authenticated;
+grant execute on function public.profile_has_badge(uuid,text) to authenticated;
+grant execute on function public.current_device_is_delegated_admin() to authenticated;
+grant execute on function public.can_manage_profile(uuid) to authenticated;
 grant execute on function public.register_device(uuid,text,text,text) to authenticated;
 grant execute on function public.admin_login_toggle(text) to authenticated;
 grant execute on function public.get_admin_state() to authenticated;
 grant execute on function public.acknowledge_response(uuid) to authenticated;
+grant execute on function public.claim_due_deliveries() to authenticated;
+grant execute on function public.respond_to_delivery(uuid,text) to authenticated;
 
 drop policy if exists "system settings denied" on public.system_settings;
 create policy "system settings denied" on public.system_settings for all to authenticated
@@ -137,11 +231,11 @@ drop policy if exists "profiles readable" on public.panel_profiles;
 create policy "profiles readable" on public.panel_profiles for select to authenticated using(true);
 drop policy if exists "profile insert own or admin" on public.panel_profiles;
 create policy "profile insert own or admin" on public.panel_profiles for insert to authenticated
-with check(device_id=public.current_device_id() or public.current_device_is_admin());
+with check(public.can_manage_profile(device_id));
 drop policy if exists "profile update own or admin" on public.panel_profiles;
 create policy "profile update own or admin" on public.panel_profiles for update to authenticated
-using(device_id=public.current_device_id() or public.current_device_is_admin())
-with check(device_id=public.current_device_id() or public.current_device_is_admin());
+using(public.can_manage_profile(device_id))
+with check(public.can_manage_profile(device_id));
 drop policy if exists "profile delete admin" on public.panel_profiles;
 create policy "profile delete admin" on public.panel_profiles for delete to authenticated using(public.current_device_is_admin());
 drop policy if exists "delivery participants read" on public.deliveries;

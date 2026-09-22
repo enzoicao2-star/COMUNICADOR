@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using Comunicador.Services;
@@ -44,6 +45,9 @@ public sealed class InteractiveBadge : FrameworkElement
     public static readonly DependencyProperty ReduceMotionProperty = DependencyProperty.Register(
         nameof(ReduceMotion), typeof(bool), typeof(InteractiveBadge),
         new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty FloatAnimationProperty = DependencyProperty.Register(
+        nameof(FloatAnimation), typeof(bool), typeof(InteractiveBadge),
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnFloatAnimationChanged));
 
     public string Text { get => (string)GetValue(TextProperty); set => SetValue(TextProperty, value); }
     public string Color { get => (string)GetValue(ColorProperty); set => SetValue(ColorProperty, value); }
@@ -53,6 +57,7 @@ public sealed class InteractiveBadge : FrameworkElement
     public bool Glow { get => (bool)GetValue(GlowProperty); set => SetValue(GlowProperty, value); }
     public bool Interactive { get => (bool)GetValue(InteractiveProperty); set => SetValue(InteractiveProperty, value); }
     public bool ReduceMotion { get => (bool)GetValue(ReduceMotionProperty); set => SetValue(ReduceMotionProperty, value); }
+    public bool FloatAnimation { get => (bool)GetValue(FloatAnimationProperty); set => SetValue(FloatAnimationProperty, value); }
 
     public InteractiveBadge()
     {
@@ -81,6 +86,7 @@ public sealed class InteractiveBadge : FrameworkElement
         ApplyGlow();
         _lastRenderTime = TimeSpan.Zero;
         UpdateRenderingSubscription();
+        UpdateFloatAnimation();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -88,11 +94,45 @@ public sealed class InteractiveBadge : FrameworkElement
         if (!_renderingSubscribed) return;
         CompositionTarget.Rendering -= OnRendering;
         _renderingSubscribed = false;
+        if (RenderTransform is TranslateTransform translate)
+            translate.BeginAnimation(TranslateTransform.XProperty, null);
     }
 
     private static void OnAnimationModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is InteractiveBadge badge) badge.UpdateRenderingSubscription();
+    }
+
+    private static void OnFloatAnimationChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is InteractiveBadge badge) badge.UpdateFloatAnimation();
+    }
+
+    private void UpdateFloatAnimation()
+    {
+        if (!IsLoaded || !FloatAnimation)
+        {
+            if (RenderTransform is TranslateTransform current)
+            {
+                current.BeginAnimation(TranslateTransform.XProperty, null);
+                current.X = 0;
+            }
+            return;
+        }
+
+        var reduced = ReduceMotion || ThemeService.ReduceMotion;
+        var translate = RenderTransform as TranslateTransform ?? new TranslateTransform();
+        RenderTransform = translate;
+        RenderTransformOrigin = new Point(.5, .5);
+        translate.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation
+        {
+            From = reduced ? -1.5 : -3.5,
+            To = reduced ? 1.5 : 3.5,
+            Duration = TimeSpan.FromSeconds(reduced ? 5.5 : 3.2),
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+        });
     }
 
     private void UpdateRenderingSubscription()
@@ -270,9 +310,10 @@ public sealed class InteractiveBadge : FrameworkElement
             return;
         }
         var glyph = IconGlyph(Icon);
+        var iconFont = Icon == "Coroa" ? "Segoe UI Symbol" : "Segoe MDL2 Assets";
         var formatted = new FormattedText(glyph, System.Globalization.CultureInfo.CurrentUICulture,
             FlowDirection.LeftToRight,
-            new Typeface(new FontFamily("Segoe MDL2 Assets"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
+            new Typeface(new FontFamily(iconFont), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal),
             15, new SolidColorBrush(Luminance(color) > 155 && BadgeStyle != "Contorno" ? Colors.Black : Colors.White),
             VisualTreeHelper.GetDpi(this).PixelsPerDip);
         dc.DrawText(formatted, new Point(target.Left + (target.Width - formatted.Width) / 2,
@@ -281,7 +322,7 @@ public sealed class InteractiveBadge : FrameworkElement
 
     private static string IconGlyph(string? name) => name switch
     {
-        "Coroa" => "\uE7BF", "Estrela" => "\uE734", "Escudo" => "\uEA18",
+        "Coroa" => "\u265B", "Estrela" => "\uE734", "Escudo" => "\uEA18",
         "Raio" => "\uE945", "Diamante" => "\uE735", "Fogo" => "\uE9CA",
         "Coração" => "\uEB52", "Usuário" => "\uE77B", "Código" => "\uE943",
         "Música" => "\uE8D6", "Jogo" => "\uE7FC", "Casa" => "\uE80F",

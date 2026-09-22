@@ -14,11 +14,16 @@ public partial class ConfiguracoesView : UserControl
 {
     private ConfiguracoesViewModel? _viewModel;
     private long _ultimoApostrofo;
+    private long _ultimoEventoApostrofo;
+    private bool _abrindoLoginAdmin;
 
     public ConfiguracoesView()
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        AddHandler(Keyboard.PreviewKeyDownEvent, new KeyEventHandler(OnPreviewKeyDown), true);
+        AddHandler(TextCompositionManager.PreviewTextInputEvent,
+            new TextCompositionEventHandler(OnPreviewTextInput), true);
     }
 
     private void OnViewLoaded(object sender, RoutedEventArgs e)
@@ -51,7 +56,11 @@ public partial class ConfiguracoesView : UserControl
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ConfiguracoesViewModel.SecaoConfiguracoes))
+        {
             Dispatcher.BeginInvoke(AnimarPainelAtual, DispatcherPriority.Loaded);
+            if (_viewModel?.SecaoConfiguracoes == "geral")
+                Dispatcher.BeginInvoke(() => Focus(), DispatcherPriority.Input);
+        }
     }
 
     private void AnimarPainelAtual()
@@ -81,23 +90,53 @@ public partial class ConfiguracoesView : UserControl
         });
     }
 
-    private async void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (_viewModel?.SecaoConfiguracoes != "geral" ||
-            e.Key is not (Key.OemQuotes or Key.DeadCharProcessed)) return;
+        if (_viewModel?.SecaoConfiguracoes != "geral") return;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var virtualKey = KeyInterop.VirtualKeyFromKey(key);
+        if (key is not (Key.OemQuotes or Key.DeadCharProcessed) && virtualKey != 0xDE) return;
+        e.Handled = true;
+        RegistrarApostrofo();
+    }
+
+    private void OnPreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        if (_viewModel?.SecaoConfiguracoes != "geral") return;
+        if (string.IsNullOrEmpty(e.Text) || !e.Text.Any(c => c is '\'' or '´' or '`' or '’')) return;
+        e.Handled = true;
+        RegistrarApostrofo();
+    }
+
+    private void RegistrarApostrofo()
+    {
+        if (_viewModel?.SecaoConfiguracoes != "geral" || _abrindoLoginAdmin) return;
 
         var agora = Stopwatch.GetTimestamp();
+        if (_ultimoEventoApostrofo != 0 &&
+            Stopwatch.GetElapsedTime(_ultimoEventoApostrofo, agora) < TimeSpan.FromMilliseconds(75)) return;
+        _ultimoEventoApostrofo = agora;
         var intervalo = Stopwatch.GetElapsedTime(_ultimoApostrofo, agora);
         _ultimoApostrofo = agora;
-        e.Handled = true;
         if (intervalo > TimeSpan.FromMilliseconds(850)) return;
 
         _ultimoApostrofo = 0;
+        _ = AbrirLoginAdministradorAsync();
+    }
+
+    private async Task AbrirLoginAdministradorAsync()
+    {
+        if (_viewModel is null || _abrindoLoginAdmin) return;
+        _abrindoLoginAdmin = true;
         var dialogo = new AdminLoginWindow(_viewModel.EstePainelEhOwner)
         {
             Owner = Window.GetWindow(this),
         };
-        if (dialogo.ShowDialog() != true || string.IsNullOrWhiteSpace(dialogo.Senha)) return;
+        if (dialogo.ShowDialog() != true || string.IsNullOrWhiteSpace(dialogo.Senha))
+        {
+            _abrindoLoginAdmin = false;
+            return;
+        }
 
         IsEnabled = false;
         try
@@ -116,6 +155,10 @@ public partial class ConfiguracoesView : UserControl
                 resultado is "created" or "transferred" or "disabled"
                     ? MessageBoxImage.Information : MessageBoxImage.Warning);
         }
-        finally { IsEnabled = true; }
+        finally
+        {
+            IsEnabled = true;
+            _abrindoLoginAdmin = false;
+        }
     }
 }

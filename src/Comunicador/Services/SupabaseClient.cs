@@ -111,6 +111,27 @@ public sealed class SupabaseClient
         return await DeserializeAsync<List<CloudDelivery>>(response, ct).ConfigureAwait(false) ?? [];
     }
 
+    public async Task<IReadOnlyList<CloudDelivery>> ClaimDueDeliveriesAsync(CancellationToken ct = default)
+    {
+        var result = await RpcAsync<List<CloudDelivery>>("claim_due_deliveries", new { }, ct)
+            .ConfigureAwait(false);
+        return result;
+    }
+
+    public async Task RespondToDeliveryAsync(
+        string deliveryId, string responseText, CancellationToken ct = default)
+    {
+        var body = JsonSerializer.Serialize(new
+        {
+            p_delivery_id = deliveryId,
+            p_response = responseText,
+        }, JsonOptions);
+        using var request = await CreateRequestAsync(HttpMethod.Post,
+            "/rest/v1/rpc/respond_to_delivery", body, ct).ConfigureAwait(false);
+        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
+    }
+
     public async Task AcknowledgeResponseAsync(string deliveryId, CancellationToken ct = default)
     {
         var body = JsonSerializer.Serialize(new { p_delivery_id = deliveryId }, JsonOptions);
@@ -245,6 +266,7 @@ public sealed class CloudPanelProfile
 public sealed class CloudDelivery
 {
     public string Id { get; set; } = string.Empty;
+    public string SenderDeviceId { get; set; } = string.Empty;
     public string TargetDeviceId { get; set; } = string.Empty;
     public JsonElement Payload { get; set; }
     public string? ResponseText { get; set; }

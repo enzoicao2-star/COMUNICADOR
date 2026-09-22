@@ -272,34 +272,22 @@
                                     <Button Style="{StaticResource BotaoSecundario}" Content="Remover"
                                             Command="{Binding RemoverImagemCommand}" IsEnabled="{Binding TemMidia}" Margin="0,0,0,6" />
                                 </WrapPanel>
-                                <TextBlock Text="Imagem até 4 MB · vídeo MP4/WMV até 24 MB · áudio MP3/WAV até 12 MB"
+                                <TextBlock Text="Imagem PNG/JPEG/GIF/BMP até 4 MB · vídeo MP4/WMV até 24 MB · áudio MP3/WAV até 12 MB"
                                            Style="{StaticResource Subtitulo}" FontSize="11" />
                                 <CheckBox IsChecked="{Binding DefinirComoPapelDeParede}"
-                                          IsEnabled="{Binding PodeAlterarPapelParede}"
-                                          Content="Definir esta imagem como papel de parede remoto (somente admin)"
+                                          Content="Definir esta imagem como papel de parede remoto"
                                           Margin="0,9,0,0">
                                     <CheckBox.Style>
                                         <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding TemImagem}" Value="True">
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding TemImagem}" Value="True" />
+                                                        <Condition Binding="{Binding PodeAlterarPapelParede}" Value="True" />
+                                                    </MultiDataTrigger.Conditions>
                                                     <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </CheckBox.Style>
-                                </CheckBox>
-                                <CheckBox IsChecked="{Binding DefinirComoPapelDeParede}"
-                                          IsEnabled="{Binding PodeAlterarPapelParede}"
-                                          Content="Definir esta imagem como papel de parede remoto (somente admin)"
-                                          Margin="0,9,0,0">
-                                    <CheckBox.Style>
-                                        <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding TemImagem}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
+                                                </MultiDataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </CheckBox.Style>

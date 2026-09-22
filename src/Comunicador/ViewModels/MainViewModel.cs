@@ -103,6 +103,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
         _cloudSync = new CloudSyncService(new SupabaseClient(), Settings, perfis);
         _cloudSync.ResponseReceived += OnCloudResponseReceived;
+        _cloudSync.DeliveryReceived += OnCloudDeliveryReceived;
 
         var client = new ReceptorClient(Settings.PainelId, Settings.NomePainel);
         _discovery = new DiscoveryService(Settings);
@@ -197,6 +198,34 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             allowReply: false);
     });
 
+    private void OnCloudDeliveryReceived(CloudDelivery delivery) =>
+        UiDispatcher.Invoke(() => _ = HandleCloudDeliveryAsync(delivery));
+
+    private async Task HandleCloudDeliveryAsync(CloudDelivery delivery)
+    {
+        var payload = delivery.Payload;
+        var sender = payload.TryGetProperty("sender", out var senderNode)
+            ? senderNode.GetString() ?? delivery.SenderDeviceId : delivery.SenderDeviceId;
+        var title = payload.TryGetProperty("title", out var titleNode)
+            ? titleNode.GetString() ?? "Lembrete" : "Lembrete";
+        var message = payload.TryGetProperty("message", out var messageNode)
+            ? messageNode.GetString() ?? string.Empty : string.Empty;
+        var allowReply = payload.TryGetProperty("allow_reply", out var replyNode) && replyNode.GetBoolean();
+        var result = await Views.NotificacaoRecebidaWindow.MostrarAsync(
+            sender, title, message, allowReply).ConfigureAwait(true);
+        _historicoRepositorio.Adicionar(new HistoricoEntry
+        {
+            ComputadorId = delivery.SenderDeviceId,
+            ComputadorNome = sender,
+            Titulo = title,
+            Mensagem = message,
+            Status = result is null ? StatusEnvio.Exibido : StatusEnvio.Respondido,
+            RespostaTexto = result,
+        });
+        if (result is not null)
+            await _cloudSync.RespondToDeliveryAsync(delivery.Id, result).ConfigureAwait(true);
+    }
+
     public void Start()
     {
         _cloudSync.Start();
@@ -217,6 +246,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     {
         Computadores.PingMedioAtualizado -= AtualizarPingMedio;
         _cloudSync.ResponseReceived -= OnCloudResponseReceived;
+        _cloudSync.DeliveryReceived -= OnCloudDeliveryReceived;
         _discovery.Dispose();
         _statusMonitor.Dispose();
         _scheduler.Dispose();

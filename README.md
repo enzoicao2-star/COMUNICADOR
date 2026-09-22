@@ -1,4 +1,4 @@
-# Comunicador 2.5.0
+# Comunicador 2.5.1
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
@@ -39,7 +39,7 @@ bloqueio local também vale quando apenas o receptor estiver aberto.
 - Ping médio em tempo real com indicador verde, amarelo, vermelho ou sem conexão.
 - Avisos comuns, alertas centrais, imagens e vídeos por monitor, além de áudio invisível em segundo plano.
 - Identidade permanente por computador, nomes públicos e badges sincronizados pelo Supabase.
-- Um único admin global com badge OWNER exclusiva e permissão para editar os demais computadores.
+- Um admin global com badge OWNER exclusiva pode conceder badges ADMIN personalizadas a outros painéis.
 - Lembretes e respostas entregues em segundo plano, inclusive com o painel fechado.
 - Alteração remota do papel de parede pelo admin em computadores pareados.
 - Histórico separado por computador e logs sincronizados entre painéis, com respostas e exportação para TXT.
@@ -85,8 +85,10 @@ Na primeira utilização administrativa, abra **Configurações → Painel e red
 e pressione a tecla `'` duas vezes. A primeira senha com pelo menos oito
 caracteres torna esse computador o admin global. Repetir o gesto e a mesma
 senha no admin remove o acesso; fazer isso em outro computador transfere o
-admin para ele. Somente o admin global recebe a badge OWNER e pode definir o
-papel de parede remoto.
+admin para ele. Somente o admin global recebe a badge OWNER, pode definir o
+papel de parede remoto e pode conceder, retirar ou personalizar a badge ADMIN.
+Administradores delegados podem editar perfis comuns, mas não alteram o OWNER,
+outros admins ou as próprias badges reservadas.
 
 O esquema executado no Supabase está em `supabase/comunicador.sql`. O painel e
 o receptor usam sessões anônimas autenticadas separadas por dispositivo; as
@@ -116,7 +118,7 @@ verifica/instala o Python automaticamente, baixa `receptor.py`,
 instala as dependências e configura a tarefa **"Comunicador
 Receptor"** no Agendador de Tarefas do Windows para iniciar com o
 login do usuário (via `pythonw.exe`, sem janela de console). O arquivo
-sempre baixa e valida a versão 2.5.0 publicada no GitHub antes de
+sempre baixa e valida a versão 2.5.1 publicada no GitHub antes de
 substituir uma instalação existente. Ao concluir com sucesso, fecha
 sozinho. Para remover o receptor, use
 `receiver/DESINSTALAR_RECEPTOR.bat`. O desinstalador preserva as regras

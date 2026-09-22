@@ -470,7 +470,8 @@ public partial class NotificacaoRecebidaWindow : Window
 
         return new ImagemRenderizada
         {
-            Source = bitmap,
+            DataBase64 = item.Image.DataBase64,
+            MimeType = item.Image.MimeType,
             Width = Math.Max(1, bitmap.PixelWidth * escala),
             Height = Math.Max(1, bitmap.PixelHeight * escala),
         };
@@ -494,7 +495,8 @@ public partial class NotificacaoRecebidaWindow : Window
 
     private sealed class ImagemRenderizada
     {
-        public BitmapImage Source { get; init; } = null!;
+        public string DataBase64 { get; init; } = string.Empty;
+        public string MimeType { get; init; } = string.Empty;
         public double Width { get; init; }
         public double Height { get; init; }
     }
