@@ -99,10 +99,10 @@ begin
       return query select 'password_too_short'::text,false,settings.admin_device_id; return;
     end if;
     if settings.admin_password_hash is null then
-      update public.system_settings set admin_password_hash=crypt(p_password,gen_salt('bf',12)),admin_device_id=current_id,updated_at=now() where singleton;
+      update public.system_settings set admin_password_hash=extensions.crypt(p_password,extensions.gen_salt('bf'::text,12)),admin_device_id=current_id,updated_at=now() where singleton;
       return query select 'created'::text,true,current_id; return;
     end if;
-    if crypt(p_password,settings.admin_password_hash)<>settings.admin_password_hash then
+    if extensions.crypt(p_password,settings.admin_password_hash)<>settings.admin_password_hash then
       return query select 'invalid_password'::text,false,settings.admin_device_id; return;
     end if;
     if settings.admin_device_id=current_id then
