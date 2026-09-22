@@ -13,6 +13,7 @@ public sealed class AppSettings
     public string NomePainel { get; set; } = Environment.MachineName;
     public bool EstePainelEhOwner { get; set; }
     public bool IniciarComWindows { get; set; }
+    public bool EntradaPainelHabilitada { get; set; } = true;
 
     /// <summary>Compatibilidade com configurações antigas. Mensagens e lembretes são
     /// obrigatórios; somente mídias e links podem ser bloqueados.</summary>

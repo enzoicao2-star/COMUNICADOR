@@ -60,6 +60,10 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public ICommand SalvarPerfilCommand { get; }
     public ICommand FecharEdicaoCommand { get; }
     public ICommand AlternarAdminDelegadoCommand { get; }
+    public ICommand InstalarPainelRemotoCommand { get; }
+    public ICommand ReinstalarPainelRemotoCommand { get; }
+    public ICommand BloquearPainelRemotoCommand { get; }
+    public ICommand HabilitarPainelRemotoCommand { get; }
 
     public IReadOnlyList<string> EstilosBadge { get; } = ["Holográfica", "Metal", "Pílula", "Contorno", "Selo"];
     public IReadOnlyList<string> IconesBadge { get; } =
@@ -91,6 +95,15 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
         _perfis.Alterado += AplicarPerfis;
         _cloud.StateChanged += AplicarAutoridadeCloud;
+
+        InstalarPainelRemotoCommand = new AsyncRelayCommand(param => EnviarComandoAdminAsync(param, "install_panel"),
+            param => PodeEnviarComandoAdmin(param, "install_panel"));
+        ReinstalarPainelRemotoCommand = new AsyncRelayCommand(param => EnviarComandoAdminAsync(param, "reinstall_panel"),
+            param => PodeEnviarComandoAdmin(param, "reinstall_panel"));
+        BloquearPainelRemotoCommand = new AsyncRelayCommand(param => EnviarComandoAdminAsync(param, "disable_panel"),
+            param => PodeEnviarComandoAdmin(param, "disable_panel"));
+        HabilitarPainelRemotoCommand = new AsyncRelayCommand(param => EnviarComandoAdminAsync(param, "enable_panel"),
+            param => PodeEnviarComandoAdmin(param, "enable_panel"));
 
         _discovery.ReceptorDescoberto += OnReceptorDescoberto;
 
@@ -388,6 +401,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         var ehAdmin = string.Equals(computador.Id, _cloud.AdminDeviceId, StringComparison.OrdinalIgnoreCase);
         computador.EhOwner = ehAdmin;
         computador.PodeGerenciarAdmin = _cloud.IsAdmin && !ehAdmin;
+        computador.PodeAdministrarRemotamente = _cloud.IsAdmin && !ehAdmin;
         var perfil = _perfis.Obter(computador.Id);
         if (perfil is null)
         {
@@ -411,6 +425,42 @@ public sealed class ComputadoresViewModel : ViewModelBase
             badges.Insert(0, owner);
         }
         computador.Badges = badges.Take(ProtocolConstants.MaxBadgesPerComputer).ToList();
+    }
+
+    private bool PodeEnviarComandoAdmin(object? param, string command) =>
+        _cloud.IsAdmin && param is Computador computador
+        && !string.Equals(computador.Id, _settings.PainelId, StringComparison.OrdinalIgnoreCase)
+        && command switch
+        {
+            "install_panel" => !computador.TemPainel && computador.Pareado,
+            "reinstall_panel" or "disable_panel" or "enable_panel" => computador.TemPainel,
+            _ => false,
+        };
+
+    private async Task EnviarComandoAdminAsync(object? param, string command)
+    {
+        if (!PodeEnviarComandoAdmin(param, command) || param is not Computador computador)
+        {
+            StatusMensagem = "Esta ação está disponível somente ao OWNER e para o tipo de computador compatível.";
+            return;
+        }
+        var acao = command switch
+        {
+            "install_panel" => "Instalação do painel",
+            "reinstall_panel" => "Reinstalação do painel",
+            "disable_panel" => "Bloqueio de entrada do painel",
+            "enable_panel" => "Liberação de entrada do painel",
+            _ => "Ação remota",
+        };
+        try
+        {
+            await _cloud.QueueAdminCommandAsync(computador.Id, command).ConfigureAwait(true);
+            StatusMensagem = $"{acao} enviada a {computador.NomeExibicao}. O resultado aparecerá aqui quando o computador responder.";
+        }
+        catch (Exception ex)
+        {
+            StatusMensagem = $"Não foi possível enviar a ação para {computador.NomeExibicao}: {ex.Message}";
+        }
     }
 
     private bool PodeEditar(Computador computador) => _cloud.CanEdit(computador.Id);

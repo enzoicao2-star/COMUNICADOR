@@ -4,6 +4,30 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Comunicador.Controls">
     <UserControl.Resources>
+        <Style x:Key="OwnerPanelAction" TargetType="MenuItem">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding PlacementTarget.DataContext.PodeAdministrarRemotamente, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="True" />
+                        <Condition Binding="{Binding PlacementTarget.DataContext.TemPainel, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible" />
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="OwnerReceiverAction" TargetType="MenuItem">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding PlacementTarget.DataContext.PodeAdministrarRemotamente, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="True" />
+                        <Condition Binding="{Binding PlacementTarget.DataContext.TemPainel, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Value="False" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible" />
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="BadgeButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -293,38 +317,47 @@
                                     </StackPanel>
                                 </StackPanel>
 
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding EmEdicao}" Value="True">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
-                                    <Button Style="{StaticResource BotaoPrimario}" Margin="0,0,8,0"
-                                            Content="Atualizar receptor"
-                                            Visibility="{Binding PodeAtualizarReceptor, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                            Command="{Binding ElementName=Raiz, Path=DataContext.AtualizarReceptorCommand}"
-                                            CommandParameter="{Binding}" />
-                                    <Button Style="{StaticResource BotaoSecundario}" Margin="0,0,8,0" Padding="10,0"
-                                            ToolTip="Renomear esta máquina"
-                                            Visibility="{Binding PodeEditarPerfil, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                            Command="{Binding ElementName=Raiz, Path=DataContext.RenomearCommand}"
-                                            CommandParameter="{Binding}">
-                                        <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14" />
-                                    </Button>
-                                    <Button Style="{StaticResource BotaoSecundario}" Margin="0,0,8,0"
-                                            Content="{Binding Pareado, Converter={StaticResource PareadoToTextoConverter}}"
-                                            Command="{Binding ElementName=Raiz, Path=DataContext.PairearCommand}"
-                                            CommandParameter="{Binding}" />
-                                    <Button Style="{StaticResource BotaoSecundario}" Padding="10,0" ToolTip="Remover da lista"
-                                            Command="{Binding ElementName=Raiz, Path=DataContext.RemoverCommand}"
-                                            CommandParameter="{Binding}">
-                                        <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="14" />
-                                    </Button>
-                                </StackPanel>
+                                <Button Grid.Column="2" Width="38" Height="36" Padding="0"
+                                        Style="{StaticResource BotaoSecundario}" ToolTip="Configurações adicionais"
+                                        Tag="{Binding ElementName=Raiz, Path=DataContext}">
+                                    <TextBlock Text="&#xE10C;" FontFamily="Segoe MDL2 Assets" FontSize="16" />
+                                    <Button.ContextMenu>
+                                        <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
+                                                     Tag="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                            <MenuItem Header="Alterar nome do computador"
+                                                Command="{Binding PlacementTarget.Tag.RenomearCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <MenuItem Header="Parear novamente"
+                                                Command="{Binding PlacementTarget.Tag.PairearCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <MenuItem Header="Reinstalar receptor"
+                                                Visibility="{Binding PlacementTarget.DataContext.PodeAtualizarReceptor, Converter={StaticResource BooleanToVisibilityConverter}, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                Command="{Binding PlacementTarget.Tag.AtualizarReceptorCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <Separator Visibility="{Binding PlacementTarget.DataContext.PodeAdministrarRemotamente, Converter={StaticResource BooleanToVisibilityConverter}, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <MenuItem Header="Instalar painel neste computador"
+                                                Style="{StaticResource OwnerReceiverAction}"
+                                                Command="{Binding PlacementTarget.Tag.InstalarPainelRemotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <MenuItem Header="Reinstalar painel"
+                                                Style="{StaticResource OwnerPanelAction}"
+                                                Command="{Binding PlacementTarget.Tag.ReinstalarPainelRemotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <MenuItem Header="Bloquear entrada do painel"
+                                                Style="{StaticResource OwnerPanelAction}"
+                                                Command="{Binding PlacementTarget.Tag.BloquearPainelRemotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <MenuItem Header="Permitir entrada do painel"
+                                                Style="{StaticResource OwnerPanelAction}"
+                                                Command="{Binding PlacementTarget.Tag.HabilitarPainelRemotoCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <Separator />
+                                            <MenuItem Header="Remover da lista"
+                                                Command="{Binding PlacementTarget.Tag.RemoverCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                </Button>
                             </Grid>
                         </Border>
                     </DataTemplate>

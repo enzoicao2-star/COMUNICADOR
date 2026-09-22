@@ -204,6 +204,13 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     private async Task HandleCloudDeliveryAsync(CloudDelivery delivery)
     {
         var payload = delivery.Payload;
+        if (payload.ValueKind == System.Text.Json.JsonValueKind.Object
+            && payload.TryGetProperty("kind", out var kindNode)
+            && kindNode.GetString() == "admin_command")
+        {
+            await HandleAdminCommandAsync(delivery).ConfigureAwait(true);
+            return;
+        }
         var sender = payload.TryGetProperty("sender", out var senderNode)
             ? senderNode.GetString() ?? delivery.SenderDeviceId : delivery.SenderDeviceId;
         var title = payload.TryGetProperty("title", out var titleNode)
@@ -226,13 +233,64 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             await _cloudSync.RespondToDeliveryAsync(delivery.Id, result).ConfigureAwait(true);
     }
 
+    private async Task HandleAdminCommandAsync(CloudDelivery delivery)
+    {
+        var payload = delivery.Payload;
+        var command = payload.TryGetProperty("command", out var commandNode) ? commandNode.GetString() : null;
+        var trustedOwner = !string.IsNullOrWhiteSpace(_cloudSync.AdminDeviceId)
+            && string.Equals(delivery.SenderDeviceId, _cloudSync.AdminDeviceId, StringComparison.OrdinalIgnoreCase);
+        string result;
+        if (!trustedOwner)
+        {
+            result = "Comando recusado: o remetente não é o OWNER atual.";
+        }
+        else
+        {
+            switch (command)
+            {
+                case "disable_panel":
+                    Settings.EntradaPainelHabilitada = false;
+                    SettingsStore.Save(Settings);
+                    _embeddedReceptorServer.Stop();
+                    result = "A entrada de conexões locais do painel foi bloqueada.";
+                    break;
+                case "enable_panel":
+                    Settings.EntradaPainelHabilitada = true;
+                    SettingsStore.Save(Settings);
+                    _embeddedReceptorServer.AtualizarDisponibilidade();
+                    result = "A entrada de conexões locais do painel foi habilitada.";
+                    break;
+                case "reinstall_panel":
+                    result = "Reinstalação do painel solicitada; ela começará após esta confirmação.";
+                    await _cloudSync.RespondToDeliveryAsync(delivery.Id, result).ConfigureAwait(true);
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var info = await _panelUpdate.CheckAsync().ConfigureAwait(false);
+                            await _panelUpdate.StartUpdateAsync(info).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Error("Não foi possível reinstalar o painel remotamente.", "atualizacao", ex.Message);
+                        }
+                    });
+                    return;
+                default:
+                    result = "Comando desconhecido ou incompatível com este painel.";
+                    break;
+            }
+        }
+        await _cloudSync.RespondToDeliveryAsync(delivery.Id, result).ConfigureAwait(true);
+    }
+
     public void Start()
     {
         _cloudSync.Start();
         _discovery.Start();
         _statusMonitor.Start();
         _scheduler.Start();
-        _embeddedReceptorServer.AtualizarDisponibilidade();
+        if (Settings.EntradaPainelHabilitada) _embeddedReceptorServer.AtualizarDisponibilidade();
         _sync.Start();
         Configuracoes.AtualizarStatusReceptor();
         _ = Configuracoes.VerificarAtualizacaoPainelAsync();

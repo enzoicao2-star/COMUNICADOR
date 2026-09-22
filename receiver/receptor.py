@@ -42,7 +42,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.1"
+RECEIVER_VERSION = "2.5.2"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -546,6 +546,11 @@ class CloudDeliveryWorker(threading.Thread):
     def _mostrar_entrega(self, delivery):
         payload = delivery.get("payload") or {}
         delivery_id = delivery["id"]
+        if payload.get("kind") == "admin_command":
+            threading.Thread(target=self._executar_comando_admin,
+                             args=(delivery,), daemon=True,
+                             name=f"comando-admin-{delivery_id[:8]}").start()
+            return
         def concluir(resposta):
             if not resposta:
                 return
@@ -560,6 +565,41 @@ class CloudDeliveryWorker(threading.Thread):
             buttons=payload.get("buttons"),
             display_mode=payload.get("display_mode", "toast"),
             appearance=payload.get("appearance") or {})
+
+    def _executar_comando_admin(self, delivery):
+        """Executa apenas os comandos remotos explicitamente liberados ao OWNER pelo RLS."""
+        payload = delivery.get("payload") or {}
+        command = payload.get("command")
+        base = "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main"
+        relative = {
+            "install_panel": "ABRIR_COMUNICADOR.bat",
+            "reinstall_receiver": "receiver/INSTALAR_RECEPTOR.bat",
+        }.get(command)
+        if not relative:
+            self._atualizar_entrega(delivery["id"], "Comando incompatível com uma máquina somente receptora.")
+            return
+        try:
+            request = urllib.request.Request(
+                f"{base}/{relative}?t={int(time.time())}",
+                headers={"User-Agent": "Comunicador-Receiver"})
+            with urllib.request.urlopen(request, timeout=30) as response:
+                content = response.read(2 * 1024 * 1024 + 1)
+            if not content or len(content) > 2 * 1024 * 1024:
+                raise ValueError("O instalador baixado está vazio ou excede o limite permitido.")
+            installer = Path(tempfile.gettempdir()) / f"Comunicador-{command}-{uuid.uuid4().hex[:8]}.bat"
+            installer.write_bytes(content)
+            if b"REPO_RAW" not in content and command == "install_panel":
+                raise ValueError("O arquivo recebido não parece ser o instalador oficial do painel.")
+            subprocess.Popen(["cmd.exe", "/d", "/c", str(installer)],
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                             close_fds=True)
+            resposta = "Instalador oficial iniciado neste computador."
+            logging.info("Comando administrativo %s iniciado por %s", command,
+                         delivery.get("sender_device_id", "remetente"))
+            self._atualizar_entrega(delivery["id"], resposta)
+        except (OSError, ValueError, urllib.error.URLError, subprocess.SubprocessError) as exc:
+            logging.exception("Falha no comando administrativo %s", command)
+            self._atualizar_entrega(delivery["id"], f"Falha ao iniciar o instalador: {exc}"[:1000])
 
     def _mostrar_resposta(self, delivery):
         self._confirmar_resposta(delivery["id"])

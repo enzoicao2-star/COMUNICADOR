@@ -270,7 +270,7 @@ máquina do receptor — só o painel precisa da porta aberta.
 ```json
 { "protocol_version": 1, "type": "register", "id": "...", "timestamp": "...",
   "computer_id": "b0b1...", "computer_name": "COMPUTADOR-1", "token": "9f8b...",
-  "receiver_version": "2.5.1", "has_panel": false,
+  "receiver_version": "2.5.2", "has_panel": false,
   "monitors": [{ "index": 0, "name": "DISPLAY1", "width": 1920,
     "height": 1080, "x": 0, "y": 0, "primary": true }] }
 ```

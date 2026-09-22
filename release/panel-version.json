@@ -1,8 +1,8 @@
 {
-    "version":  "2.5.1.0",
+    "version":  "2.5.2.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "5746CC6F047E64EB6F420DEF2055AB7A0C96761AEC3F45350B59538703F808F8",
-    "summary":  "A versão 2.5.1 corrige a interface de badges, libera GIFs animados e mantém o painel recebendo avisos em segundo plano.",
+    "sha256":  "B1B664C76D75624D22DC8A8DA8623E2DEC584BC7FCA5458D839F456E5CA52D59",
+    "summary":  "A versão 2.5.2 adiciona ações de administração remota e corrige o instalador do receptor.",
     "changes":  [
                     "O ícone Coroa agora mostra uma coroa real, em vez do carrinho de compras.",
                     "As badges ganharam a opção Flutuar suavemente, preservada na sincronização entre painéis.",
@@ -12,6 +12,9 @@
                     "O atalho de administrador com dois apóstrofos foi corrigido para layouts de teclado diferentes.",
                     "A predefinição de cor deixou de exibir contornos encaixados e agora tem um único cartão.",
                     "A opção de papel de parede remoto deixou de aparecer duplicada e fica visível somente para o OWNER.",
-                    "Entregas agendadas são reservadas de forma atômica no Supabase, evitando exibições duplicadas."
+                    "O menu de três pontos permite renomear, parear novamente, reinstalar o receptor e remover um computador da lista.",
+                    "O OWNER pode instalar ou reinstalar o painel em outro PC e ativar ou bloquear a entrada de conexões locais.",
+                    "Comandos remotos administrativos só podem ser enviados pelo OWNER e têm confirmação pelo histórico de respostas.",
+                    "O instalador, o receptor e o painel passam a informar a versão 2.5.2."
                 ]
 }

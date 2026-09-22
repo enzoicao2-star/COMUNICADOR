@@ -242,7 +242,9 @@ drop policy if exists "delivery participants read" on public.deliveries;
 create policy "delivery participants read" on public.deliveries for select to authenticated
 using(sender_device_id=public.current_device_id() or target_device_id=public.current_device_id() or public.current_device_is_admin());
 drop policy if exists "sender creates delivery" on public.deliveries;
-create policy "sender creates delivery" on public.deliveries for insert to authenticated with check(sender_device_id=public.current_device_id());
+create policy "sender creates delivery" on public.deliveries for insert to authenticated
+with check(sender_device_id=public.current_device_id()
+  and ((payload->>'kind') is distinct from 'admin_command' or public.current_device_is_admin()));
 drop policy if exists "target updates delivery" on public.deliveries;
 create policy "target updates delivery" on public.deliveries for update to authenticated
 using(target_device_id=public.current_device_id() or public.current_device_is_admin())

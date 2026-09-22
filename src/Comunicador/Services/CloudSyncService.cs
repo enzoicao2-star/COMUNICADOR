@@ -100,6 +100,17 @@ public sealed class CloudSyncService : IDisposable
                 display_mode = ProtocolConstants.DisplayMode.Toast,
             }, ct);
 
+    public Task QueueAdminCommandAsync(string targetDeviceId, string command, CancellationToken ct = default)
+    {
+        if (!IsAdmin) throw new UnauthorizedAccessException("Somente o OWNER pode administrar outros computadores.");
+        if (string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Escolha outro computador para esta ação.");
+        if (command is not ("install_panel" or "reinstall_panel" or "disable_panel" or "enable_panel" or "reinstall_receiver"))
+            throw new ArgumentOutOfRangeException(nameof(command));
+        return _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
+            new { kind = "admin_command", command, sender = _settings.NomePainel }, ct);
+    }
+
     public Task RespondToDeliveryAsync(string deliveryId, string response, CancellationToken ct = default) =>
         _client.RespondToDeliveryAsync(deliveryId, response, ct);
 

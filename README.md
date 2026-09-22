@@ -1,4 +1,4 @@
-# Comunicador 2.5.1
+# Comunicador 2.5.2
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
@@ -118,13 +118,16 @@ verifica/instala o Python automaticamente, baixa `receptor.py`,
 instala as dependências e configura a tarefa **"Comunicador
 Receptor"** no Agendador de Tarefas do Windows para iniciar com o
 login do usuário (via `pythonw.exe`, sem janela de console). O arquivo
-sempre baixa e valida a versão 2.5.1 publicada no GitHub antes de
+sempre baixa e valida a versão 2.5.2 publicada no GitHub antes de
 substituir uma instalação existente. Ao concluir com sucesso, fecha
 sozinho. Para remover o receptor, use
 `receiver/DESINSTALAR_RECEPTOR.bat`. O desinstalador preserva as regras
 e configurações compartilhadas quando há um painel na mesma máquina.
 Para conferir antecipadamente todos os alvos sem alterar nada, execute
 `receiver/DESINSTALAR_RECEPTOR.bat --verificar`.
+
+O menu de ações por computador reúne as opções de pareamento, atualização e
+administração remota. Os comandos administrativos são reservados ao OWNER.
 
 Rodar os testes do receptor localmente:
 

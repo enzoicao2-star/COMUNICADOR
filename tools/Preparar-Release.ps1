@@ -33,7 +33,7 @@ Copy-Item -LiteralPath $source -Destination $destination -Force
 $hash = (Get-Sha256 $destination).ToUpperInvariant()
 $releaseNotes = @'
 {
-  "summary": "A vers\u00e3o 2.5.1 corrige a interface de badges, libera GIFs animados e mant\u00e9m o painel recebendo avisos em segundo plano.",
+  "summary": "A vers\u00e3o 2.5.2 adiciona a\u00e7\u00f5es de administra\u00e7\u00e3o remota e corrige o instalador do receptor.",
   "changes": [
     "O \u00edcone Coroa agora mostra uma coroa real, em vez do carrinho de compras.",
     "As badges ganharam a op\u00e7\u00e3o Flutuar suavemente, preservada na sincroniza\u00e7\u00e3o entre pain\u00e9is.",
@@ -43,7 +43,10 @@ $releaseNotes = @'
     "O atalho de administrador com dois ap\u00f3strofos foi corrigido para layouts de teclado diferentes.",
     "A predefini\u00e7\u00e3o de cor deixou de exibir contornos encaixados e agora tem um \u00fanico cart\u00e3o.",
     "A op\u00e7\u00e3o de papel de parede remoto deixou de aparecer duplicada e fica vis\u00edvel somente para o OWNER.",
-    "Entregas agendadas s\u00e3o reservadas de forma at\u00f4mica no Supabase, evitando exibi\u00e7\u00f5es duplicadas."
+    "O menu de tr\u00eas pontos permite renomear, parear novamente, reinstalar o receptor e remover um computador da lista.",
+    "O OWNER pode instalar ou reinstalar o painel em outro PC e ativar ou bloquear a entrada de conex\u00f5es locais.",
+    "Comandos remotos administrativos s\u00f3 podem ser enviados pelo OWNER e t\u00eam confirma\u00e7\u00e3o pelo hist\u00f3rico de respostas.",
+    "O instalador, o receptor e o painel passam a informar a vers\u00e3o 2.5.2."
   ]
 }
 '@ | ConvertFrom-Json
