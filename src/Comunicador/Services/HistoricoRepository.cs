@@ -10,23 +10,25 @@ public sealed class HistoricoRepository
 {
     private const int MaxStoredEntries = 10_000;
     private readonly JsonStore<HistoricoEntry> _store;
+    private readonly BatchObservableCollection<HistoricoEntry> _itens = new();
+    private readonly Dictionary<string, HistoricoEntry> _porId = new(StringComparer.Ordinal);
 
-    public ObservableCollection<HistoricoEntry> Itens { get; } = new();
+    public ObservableCollection<HistoricoEntry> Itens => _itens;
 
     public HistoricoRepository(JsonStore<HistoricoEntry> store)
     {
         _store = store;
-        foreach (var item in _store.Load().OrderByDescending(i => i.Timestamp))
-        {
-            Itens.Add(item);
-        }
+        _itens.ReplaceWith(_store.Load().OrderByDescending(i => i.Timestamp).Take(MaxStoredEntries));
+        Reindexar();
     }
 
     public void Adicionar(HistoricoEntry entry)
     {
         UiDispatcher.Invoke(() =>
         {
+            if (_porId.ContainsKey(entry.Id)) return;
             InserirOrdenado(entry);
+            _porId.Add(entry.Id, entry);
             Aparar();
             Persist();
         });
@@ -36,8 +38,7 @@ public sealed class HistoricoRepository
     {
         UiDispatcher.Invoke(() =>
         {
-            var item = Itens.FirstOrDefault(i => i.Id == id);
-            if (item is not null)
+            if (_porId.TryGetValue(id, out var item))
             {
                 aplicar(item);
                 Persist();
@@ -50,6 +51,7 @@ public sealed class HistoricoRepository
         UiDispatcher.Invoke(() =>
         {
             Itens.Clear();
+            _porId.Clear();
             Persist();
         });
     }
@@ -59,12 +61,13 @@ public sealed class HistoricoRepository
         var alterados = 0;
         UiDispatcher.Invoke(() =>
         {
+            var novos = new List<HistoricoEntry>();
             foreach (var remoto in entries.Where(e => !string.IsNullOrWhiteSpace(e.Id)))
             {
-                var local = Itens.FirstOrDefault(i => i.Id == remoto.Id);
-                if (local is null)
+                if (!_porId.TryGetValue(remoto.Id, out var local))
                 {
-                    InserirOrdenado(remoto);
+                    _porId.Add(remoto.Id, remoto);
+                    novos.Add(remoto);
                     alterados++;
                     continue;
                 }
@@ -83,7 +86,11 @@ public sealed class HistoricoRepository
 
             if (alterados > 0)
             {
-                Aparar();
+                if (novos.Count > 0)
+                {
+                    _itens.ReplaceWith(MesclarOrdenado(Itens, novos));
+                    Reindexar();
+                }
                 Persist();
             }
         });
@@ -91,18 +98,58 @@ public sealed class HistoricoRepository
     }
 
     public IReadOnlyList<HistoricoEntry> Snapshot(int max = 500) =>
-        Itens.OrderByDescending(i => i.Timestamp).Take(max).ToList();
+        Itens.Take(max).ToList();
 
     private void InserirOrdenado(HistoricoEntry entry)
     {
-        var index = 0;
-        while (index < Itens.Count && Itens[index].Timestamp >= entry.Timestamp) index++;
-        Itens.Insert(index, entry);
+        var low = 0;
+        var high = Itens.Count;
+        while (low < high)
+        {
+            var middle = low + (high - low) / 2;
+            if (Itens[middle].Timestamp >= entry.Timestamp) low = middle + 1;
+            else high = middle;
+        }
+        Itens.Insert(low, entry);
     }
 
     private void Aparar()
     {
-        while (Itens.Count > MaxStoredEntries) Itens.RemoveAt(Itens.Count - 1);
+        var changed = false;
+        while (Itens.Count > MaxStoredEntries)
+        {
+            Itens.RemoveAt(Itens.Count - 1);
+            changed = true;
+        }
+        if (changed) Reindexar();
+    }
+
+    private static IReadOnlyList<HistoricoEntry> MesclarOrdenado(
+        IReadOnlyList<HistoricoEntry> atuais, List<HistoricoEntry> novos)
+    {
+        novos.Sort((left, right) => right.Timestamp.CompareTo(left.Timestamp));
+        var resultado = new List<HistoricoEntry>(Math.Min(MaxStoredEntries, atuais.Count + novos.Count));
+        var atualIndex = 0;
+        var novoIndex = 0;
+        while (resultado.Count < MaxStoredEntries && (atualIndex < atuais.Count || novoIndex < novos.Count))
+        {
+            if (novoIndex >= novos.Count || atualIndex < atuais.Count
+                && atuais[atualIndex].Timestamp >= novos[novoIndex].Timestamp)
+            {
+                resultado.Add(atuais[atualIndex++]);
+            }
+            else
+            {
+                resultado.Add(novos[novoIndex++]);
+            }
+        }
+        return resultado;
+    }
+
+    private void Reindexar()
+    {
+        _porId.Clear();
+        foreach (var item in Itens) _porId.TryAdd(item.Id, item);
     }
 
     private static int Prioridade(StatusEnvio status) => status switch

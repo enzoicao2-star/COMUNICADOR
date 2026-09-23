@@ -1,0 +1,62 @@
+{
+  "measured_at": "2026-09-23T13:01:17.9076232-03:00",
+  "application": {
+    "configuration": "Release",
+    "runs": 3,
+    "scenario": "second monitor, 24 tab switches, then hidden-window sample",
+    "reference": {
+      "process_to_window_ms": 1501.26,
+      "window_ready_ms": 2271.03,
+      "tab_average_ms": 12.13,
+      "tab_p95_ms": 73.56,
+      "tab_max_ms": 145.35,
+      "working_set_mb": 239.95
+    },
+    "current": {
+      "process_to_window_ms": 1175.95,
+      "window_ready_ms": 1878.26,
+      "tab_average_ms": 11.52,
+      "tab_p95_ms": 67.89,
+      "tab_max_ms": 133.62,
+      "working_set_mb": 252.76,
+      "hide_transition_cpu_ms": 52.08,
+      "hidden_cpu_ms_per_1s": 916.67,
+      "hidden_window_visible": false,
+      "hidden_backdrop_visible": false,
+      "hidden_backdrop_paused": true,
+      "known_render_callbacks": 0,
+      "known_gif_timers": 0
+    },
+    "notes": [
+      "Startup and tab timings improved against the initial three-run reference; working set increased 5.3%.",
+      "CPU remained high while hidden; Windows performance tracing was unavailable under the local system policy, so its source is not identified."
+    ]
+  },
+  "repositories": {
+    "workload": {
+      "existing_entries": 10000,
+      "snapshot_count": 250,
+      "remote_entries_merged": 500
+    },
+    "historico_snapshot_ms": {
+      "reference": 74.38,
+      "current": 20.54,
+      "reduction_percent": 72.4
+    },
+    "logs_snapshot_ms": {
+      "reference": 67.53,
+      "current": 21.35,
+      "reduction_percent": 68.4
+    },
+    "historico_merge_ms": {
+      "reference": 256.76,
+      "current": 47.06,
+      "reduction_percent": 81.7
+    },
+    "logs_merge_ms": {
+      "reference": 137.32,
+      "current": 32.37,
+      "reduction_percent": 76.4
+    }
+  }
+}

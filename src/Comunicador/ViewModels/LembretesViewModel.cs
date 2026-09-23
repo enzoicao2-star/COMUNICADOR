@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Windows.Input;
@@ -64,9 +65,12 @@ public sealed class LembretesViewModel : ViewModelBase
         get => _horaTexto;
         set
         {
-            if (!TimeSpan.TryParse(value, out var hora) || hora < TimeSpan.Zero || hora >= TimeSpan.FromDays(1)) return;
             if (!SetField(ref _horaTexto, value, nameof(HoraTexto))) return;
-            AtualizarDataHora();
+            if (TentarObterHora(value, out var hora) && DataSelecionada.HasValue)
+            {
+                DataHora = DataSelecionada.Value.Date + hora;
+            }
+            CommandManager.InvalidateRequerySuggested();
         }
     }
 
@@ -176,15 +180,17 @@ public sealed class LembretesViewModel : ViewModelBase
         !string.IsNullOrWhiteSpace(Titulo)
         && !string.IsNullOrWhiteSpace(Mensagem)
         && Destinatarios.Any(d => d.Selecionado)
-        && DataHora > DateTime.Now;
+        && TentarObterDataHora(out _);
 
     private async Task CriarAsync()
     {
+        if (!TentarObterDataHora(out var dataHora)) return;
+
         var lembrete = new Lembrete
         {
             Titulo = Titulo,
             Mensagem = Mensagem,
-            DataHora = DataHora,
+            DataHora = dataHora,
             PermitirResposta = PermitirResposta,
             ComputadorIds = Destinatarios.Where(d => d.Selecionado).Select(d => d.Computador.Id).ToList(),
         };
@@ -218,10 +224,27 @@ public sealed class LembretesViewModel : ViewModelBase
 
     private void AtualizarDataHora()
     {
-        if (DataSelecionada.HasValue && TimeSpan.TryParse(_horaTexto, out var hora))
+        if (DataSelecionada.HasValue && TentarObterHora(_horaTexto, out var hora))
         {
             DataHora = DataSelecionada.Value.Date + hora;
         }
+    }
+
+    private bool TentarObterDataHora(out DateTime dataHora)
+    {
+        dataHora = default;
+        if (!DataSelecionada.HasValue || !TentarObterHora(HoraTexto, out var hora)) return false;
+        dataHora = DataSelecionada.Value.Date + hora;
+        return dataHora > DateTime.Now;
+    }
+
+    private static bool TentarObterHora(string? texto, out TimeSpan hora)
+    {
+        hora = default;
+        return TimeSpan.TryParse(texto, CultureInfo.CurrentCulture, out hora)
+            && hora >= TimeSpan.Zero
+            && hora < TimeSpan.FromDays(1)
+            && hora.Seconds == 0;
     }
 
     private static DateTime ArredondarParaProximoIntervalo(DateTime valor) =>

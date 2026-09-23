@@ -33,11 +33,31 @@ public sealed class AnimatedImage : Image
         set => SetValue(MimeTypeProperty, value);
     }
 
+    internal bool IsPlaybackTimerEnabled => _timer.IsEnabled;
+
     public AnimatedImage()
     {
         _timer.Tick += (_, _) => AdvanceFrame();
-        Loaded += (_, _) => StartIfAnimated();
-        Unloaded += (_, _) => _timer.Stop();
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        IsVisibleChanged += OnIsVisibleChanged;
+        StartIfAnimated();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        IsVisibleChanged -= OnIsVisibleChanged;
+        _timer.Stop();
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsVisible) StartIfAnimated();
+        else _timer.Stop();
     }
 
     private static void OnImageChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -103,7 +123,7 @@ public sealed class AnimatedImage : Image
 
     private void StartIfAnimated()
     {
-        if (!IsLoaded || _frames.Count <= 1) return;
+        if (!IsLoaded || !IsVisible || _frames.Count <= 1) return;
         _timer.Interval = _durations[0];
         _timer.Start();
     }

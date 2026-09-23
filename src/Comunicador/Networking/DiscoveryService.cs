@@ -149,6 +149,7 @@ public sealed class DiscoveryService : IDisposable
             return;
         }
 
+        var receiveErrorDelay = TimeSpan.FromMilliseconds(100);
         while (!ct.IsCancellationRequested)
         {
             UdpReceiveResult result;
@@ -166,9 +167,20 @@ public sealed class DiscoveryService : IDisposable
             }
             catch (SocketException)
             {
+                try
+                {
+                    await Task.Delay(receiveErrorDelay, ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                receiveErrorDelay = TimeSpan.FromMilliseconds(
+                    Math.Min(receiveErrorDelay.TotalMilliseconds * 2, 2_000));
                 continue;
             }
 
+            receiveErrorDelay = TimeSpan.FromMilliseconds(100);
             HandleDatagram(result.Buffer, result.RemoteEndPoint);
         }
     }

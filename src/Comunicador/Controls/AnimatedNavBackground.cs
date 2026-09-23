@@ -14,6 +14,7 @@ public sealed class AnimatedNavBackground : FrameworkElement
     private double _startIndex;
     private double _targetIndex;
     private DateTime _animationStarted;
+    private bool _renderingSubscribed;
 
     public static readonly DependencyProperty ActiveIndexProperty = DependencyProperty.Register(
         nameof(ActiveIndex), typeof(int), typeof(AnimatedNavBackground),
@@ -30,6 +31,7 @@ public sealed class AnimatedNavBackground : FrameworkElement
     public int ActiveIndex { get => (int)GetValue(ActiveIndexProperty); set => SetValue(ActiveIndexProperty, value); }
     public int ItemCount { get => (int)GetValue(ItemCountProperty); set => SetValue(ItemCountProperty, value); }
     public bool ReduceMotion { get => (bool)GetValue(ReduceMotionProperty); set => SetValue(ReduceMotionProperty, value); }
+    internal bool IsRenderingSubscribed => _renderingSubscribed;
 
     public AnimatedNavBackground()
     {
@@ -42,14 +44,15 @@ public sealed class AnimatedNavBackground : FrameworkElement
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         _displayIndex = _targetIndex = Math.Max(0, ActiveIndex);
-        CompositionTarget.Rendering += OnRendering;
         ThemeService.ThemeChanged += OnThemeChanged;
+        IsVisibleChanged += OnIsVisibleChanged;
         InvalidateVisual();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        CompositionTarget.Rendering -= OnRendering;
+        IsVisibleChanged -= OnIsVisibleChanged;
+        SetRenderingSubscribed(false);
         ThemeService.ThemeChanged -= OnThemeChanged;
     }
 
@@ -63,11 +66,42 @@ public sealed class AnimatedNavBackground : FrameworkElement
         {
             control._displayIndex = control._targetIndex;
         }
+        else
+        {
+            control.UpdateRenderingSubscription();
+        }
         control.InvalidateVisual();
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsVisible)
+        {
+            _startIndex = _displayIndex;
+            _animationStarted = DateTime.UtcNow;
+        }
+        UpdateRenderingSubscription();
+    }
+
+    private void UpdateRenderingSubscription() =>
+        SetRenderingSubscribed(IsLoaded && IsVisible && Math.Abs(_displayIndex - _targetIndex) >= .001);
+
+    private void SetRenderingSubscribed(bool subscribe)
+    {
+        if (_renderingSubscribed == subscribe) return;
+        _renderingSubscribed = subscribe;
+        if (subscribe) CompositionTarget.Rendering += OnRendering;
+        else CompositionTarget.Rendering -= OnRendering;
     }
 
     private void OnRendering(object? sender, EventArgs e)
     {
+        if (!IsVisible)
+        {
+            SetRenderingSubscribed(false);
+            return;
+        }
+
         var elapsed = (DateTime.UtcNow - _animationStarted).TotalMilliseconds;
         var duration = ReduceMotion ? 620d : 340d;
         if (elapsed >= duration || Math.Abs(_displayIndex - _targetIndex) < .001)
@@ -77,6 +111,7 @@ public sealed class AnimatedNavBackground : FrameworkElement
                 _displayIndex = _targetIndex;
                 InvalidateVisual();
             }
+            SetRenderingSubscribed(false);
             return;
         }
 

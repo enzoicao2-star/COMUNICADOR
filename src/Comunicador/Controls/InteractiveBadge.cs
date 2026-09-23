@@ -44,7 +44,7 @@ public sealed class InteractiveBadge : FrameworkElement
         new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
     public static readonly DependencyProperty ReduceMotionProperty = DependencyProperty.Register(
         nameof(ReduceMotion), typeof(bool), typeof(InteractiveBadge),
-        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnReduceMotionChanged));
     public static readonly DependencyProperty FloatAnimationProperty = DependencyProperty.Register(
         nameof(FloatAnimation), typeof(bool), typeof(InteractiveBadge),
         new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnFloatAnimationChanged));
@@ -58,15 +58,22 @@ public sealed class InteractiveBadge : FrameworkElement
     public bool Interactive { get => (bool)GetValue(InteractiveProperty); set => SetValue(InteractiveProperty, value); }
     public bool ReduceMotion { get => (bool)GetValue(ReduceMotionProperty); set => SetValue(ReduceMotionProperty, value); }
     public bool FloatAnimation { get => (bool)GetValue(FloatAnimationProperty); set => SetValue(FloatAnimationProperty, value); }
+    internal bool IsRenderingSubscribed => _renderingSubscribed;
 
     public InteractiveBadge()
     {
         Cursor = Cursors.Arrow;
-        MouseEnter += (_, _) => { _hovered = true; InvalidateVisual(); };
+        MouseEnter += (_, _) =>
+        {
+            _hovered = true;
+            UpdateRenderingSubscription();
+            InvalidateVisual();
+        };
         MouseLeave += (_, _) =>
         {
             _hovered = false;
             _pointerX = _pointerY = .5;
+            UpdateRenderingSubscription();
             InvalidateVisual();
         };
         MouseMove += (_, e) =>
@@ -85,17 +92,35 @@ public sealed class InteractiveBadge : FrameworkElement
     {
         ApplyGlow();
         _lastRenderTime = TimeSpan.Zero;
+        IsVisibleChanged += OnIsVisibleChanged;
+        ThemeService.ThemeChanged += OnThemeChanged;
         UpdateRenderingSubscription();
         UpdateFloatAnimation();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        if (!_renderingSubscribed) return;
-        CompositionTarget.Rendering -= OnRendering;
-        _renderingSubscribed = false;
-        if (RenderTransform is TranslateTransform translate)
-            translate.BeginAnimation(TranslateTransform.XProperty, null);
+        IsVisibleChanged -= OnIsVisibleChanged;
+        ThemeService.ThemeChanged -= OnThemeChanged;
+        SetRenderingSubscribed(false);
+        StopFloatAnimation();
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        UpdateRenderingSubscription();
+        UpdateFloatAnimation();
+    }
+
+    private void OnThemeChanged()
+    {
+        UpdateFloatAnimation();
+        InvalidateVisual();
+    }
+
+    private static void OnReduceMotionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is InteractiveBadge badge) badge.UpdateFloatAnimation();
     }
 
     private static void OnAnimationModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -110,13 +135,9 @@ public sealed class InteractiveBadge : FrameworkElement
 
     private void UpdateFloatAnimation()
     {
-        if (!IsLoaded || !FloatAnimation)
+        if (!IsLoaded || !IsVisible || !FloatAnimation)
         {
-            if (RenderTransform is TranslateTransform current)
-            {
-                current.BeginAnimation(TranslateTransform.XProperty, null);
-                current.X = 0;
-            }
+            StopFloatAnimation();
             return;
         }
 
@@ -137,11 +158,29 @@ public sealed class InteractiveBadge : FrameworkElement
 
     private void UpdateRenderingSubscription()
     {
-        var shouldSubscribe = IsLoaded && BadgeStyle == "Holográfica";
-        if (shouldSubscribe == _renderingSubscribed) return;
-        if (shouldSubscribe) CompositionTarget.Rendering += OnRendering;
-        else CompositionTarget.Rendering -= OnRendering;
-        _renderingSubscribed = shouldSubscribe;
+        SetRenderingSubscribed(IsLoaded && IsVisible && !_hovered && BadgeStyle == "Holográfica");
+    }
+
+    private void SetRenderingSubscribed(bool subscribe)
+    {
+        if (subscribe == _renderingSubscribed) return;
+        _renderingSubscribed = subscribe;
+        if (subscribe)
+        {
+            _lastRenderTime = TimeSpan.Zero;
+            CompositionTarget.Rendering += OnRendering;
+        }
+        else
+        {
+            CompositionTarget.Rendering -= OnRendering;
+        }
+    }
+
+    private void StopFloatAnimation()
+    {
+        if (RenderTransform is not TranslateTransform translate) return;
+        translate.BeginAnimation(TranslateTransform.XProperty, null);
+        translate.X = 0;
     }
 
     private void OnRendering(object? sender, EventArgs e)

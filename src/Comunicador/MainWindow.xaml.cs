@@ -7,6 +7,8 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using System.Runtime.InteropServices;
+using Comunicador.Controls;
 using Comunicador.ViewModels;
 using Comunicador.Views;
 using Forms = System.Windows.Forms;
@@ -15,11 +17,16 @@ namespace Comunicador;
 
 public partial class MainWindow : Window
 {
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
     private readonly Dictionary<object, FrameworkElement> _sectionViews =
         new(ReferenceEqualityComparer.Instance);
     private readonly Grid _sectionHost = new();
     private MainViewModel? _viewModel;
     private int _warmupGeneration;
+    private int _navigationPauseGeneration;
+    private bool _navigationTransitionActive;
     private readonly Forms.NotifyIcon _trayIcon;
     private bool _allowExit;
 
@@ -35,6 +42,7 @@ public partial class MainWindow : Window
         DataContextChanged += OnDataContextChanged;
         ContentRendered += OnContentRendered;
         Closing += OnWindowClosing;
+        IsVisibleChanged += OnWindowVisibilityChanged;
         Closed += (_, _) =>
         {
             _trayIcon.Dispose();
@@ -74,6 +82,30 @@ public partial class MainWindow : Window
 
         samples.Sort();
         var process = Process.GetCurrentProcess();
+        var cpuBeforeHide = process.TotalProcessorTime;
+        Hide();
+        process.Refresh();
+        var hideTransitionCpuMs = (process.TotalProcessorTime - cpuBeforeHide).TotalMilliseconds;
+        var hiddenWindowVisible = IsVisible;
+        var hiddenBackdropVisible = AnimatedBackdrop.IsVisible;
+        var hiddenBackdropPaused = AnimatedBackdrop.PauseAnimation;
+        var hiddenVisuals = EnumerateVisuals(this).ToArray();
+        var hiddenDiagnostics = new
+        {
+            ui_thread_id = GetCurrentThreadId(),
+            animated_background_subscribers = hiddenVisuals.OfType<AnimatedBackground>().Count(control => control.IsRenderingSubscribed),
+            nav_background_subscribers = hiddenVisuals.OfType<AnimatedNavBackground>().Count(control => control.IsRenderingSubscribed),
+            badge_subscribers = hiddenVisuals.OfType<InteractiveBadge>().Count(control => control.IsRenderingSubscribed),
+            animated_image_timers = hiddenVisuals.OfType<AnimatedImage>().Count(control => control.IsPlaybackTimerEnabled),
+        };
+        await Task.Delay(1000);
+        process.Refresh();
+        var cpuBeforeHiddenIdle = process.TotalProcessorTime;
+        await Task.Delay(1000);
+        process.Refresh();
+        var hiddenCpuMs = (process.TotalProcessorTime - cpuBeforeHiddenIdle).TotalMilliseconds;
+        Show();
+        await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
         var result = new
         {
             window_ready_ms = Math.Round(readyMs, 2),
@@ -82,6 +114,12 @@ public partial class MainWindow : Window
             tab_max_ms = Math.Round(samples[^1], 2),
             working_set_mb = Math.Round(process.WorkingSet64 / 1024d / 1024d, 2),
             cpu_ms = Math.Round(process.TotalProcessorTime.TotalMilliseconds, 2),
+            hide_transition_cpu_ms = Math.Round(hideTransitionCpuMs, 2),
+            hidden_cpu_ms = Math.Round(hiddenCpuMs, 2),
+            hidden_window_visible = hiddenWindowVisible,
+            hidden_backdrop_visible = hiddenBackdropVisible,
+            hidden_backdrop_paused = hiddenBackdropPaused,
+            hidden_diagnostics = hiddenDiagnostics,
             samples = samples.Select(value => Math.Round(value, 2)).ToArray(),
         };
         var benchmarkPath = Path.GetFullPath(App.BenchmarkFile);
@@ -99,6 +137,17 @@ public partial class MainWindow : Window
         AnimarSecao();
         AtualizarMoldura();
         _ = PreaquecerSecoesAsync(++_warmupGeneration);
+    }
+
+    private static IEnumerable<DependencyObject> EnumerateVisuals(DependencyObject root)
+    {
+        var childCount = VisualTreeHelper.GetChildrenCount(root);
+        for (var index = 0; index < childCount; index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            yield return child;
+            foreach (var descendant in EnumerateVisuals(child)) yield return descendant;
+        }
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -136,10 +185,11 @@ public partial class MainWindow : Window
         if (e.PropertyName != nameof(MainViewModel.SecaoAtual)) return;
         Dispatcher.BeginInvoke(() =>
         {
-            AnimatedBackdrop.PauseAnimation = true;
+            _navigationTransitionActive = true;
+            AtualizarAnimacaoFundo();
             MostrarSecaoAtual();
             AnimarSecao();
-            _ = RetomarFundoAsync();
+            _ = RetomarFundoAsync(++_navigationPauseGeneration);
         }, DispatcherPriority.Render);
     }
 
@@ -194,10 +244,12 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task RetomarFundoAsync()
+    private async Task RetomarFundoAsync(int generation)
     {
         await Task.Delay(230);
-        if (AnimatedBackdrop is not null) AnimatedBackdrop.PauseAnimation = false;
+        if (generation != _navigationPauseGeneration) return;
+        _navigationTransitionActive = false;
+        AtualizarAnimacaoFundo();
     }
 
     private void AnimarSecao()
@@ -278,7 +330,21 @@ public partial class MainWindow : Window
         Activate();
     }
 
-    private void OnWindowStateChanged(object? sender, EventArgs e) => AtualizarMoldura();
+    private void OnWindowStateChanged(object? sender, EventArgs e)
+    {
+        AtualizarMoldura();
+        AtualizarAnimacaoFundo();
+    }
+
+    private void OnWindowVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e) => AtualizarAnimacaoFundo();
+
+    private void AtualizarAnimacaoFundo()
+    {
+        if (AnimatedBackdrop is not null)
+            AnimatedBackdrop.PauseAnimation = _navigationTransitionActive
+                || !IsVisible
+                || WindowState == WindowState.Minimized;
+    }
 
     private void AtualizarMoldura()
     {

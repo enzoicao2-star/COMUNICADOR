@@ -58,6 +58,8 @@ $summary = [ordered]@{
     tab_max_ms = [Math]::Round(($results.tab_max_ms | Measure-Object -Maximum).Maximum, 2)
     working_set_mb = [Math]::Round(($results.working_set_mb | Measure-Object -Average).Average, 2)
     cpu_ms = [Math]::Round(($results.cpu_ms | Measure-Object -Average).Average, 2)
+    hide_transition_cpu_ms = [Math]::Round(($results.hide_transition_cpu_ms | Measure-Object -Average).Average, 2)
+    hidden_cpu_ms = [Math]::Round(($results.hidden_cpu_ms | Measure-Object -Average).Average, 2)
     details = $results
 }
 $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $output -Encoding UTF8

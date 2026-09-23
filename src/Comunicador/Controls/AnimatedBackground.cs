@@ -23,6 +23,10 @@ public sealed class AnimatedBackground : FrameworkElement
     private Brush[]? _fluidBrushes;
     private Pen[]? _fluidPens;
     private string? _fluidBrushSignature;
+    private Pen? _topographicPen;
+    private Color _topographicPenColor;
+    private double _topographicPenOpacity = -1;
+    private bool _renderingSubscribed;
 
     public static readonly DependencyProperty ModeProperty = DependencyProperty.Register(
         nameof(Mode), typeof(string), typeof(AnimatedBackground),
@@ -35,7 +39,7 @@ public sealed class AnimatedBackground : FrameworkElement
         new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
     public static readonly DependencyProperty PauseAnimationProperty = DependencyProperty.Register(
         nameof(PauseAnimation), typeof(bool), typeof(AnimatedBackground),
-        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnPauseAnimationChanged));
     public static readonly DependencyProperty SpeedProperty = DependencyProperty.Register(
         nameof(Speed), typeof(double), typeof(AnimatedBackground),
         new FrameworkPropertyMetadata(100d, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -45,6 +49,7 @@ public sealed class AnimatedBackground : FrameworkElement
     public bool ReduceMotion { get => (bool)GetValue(ReduceMotionProperty); set => SetValue(ReduceMotionProperty, value); }
     public bool PauseAnimation { get => (bool)GetValue(PauseAnimationProperty); set => SetValue(PauseAnimationProperty, value); }
     public double Speed { get => (double)GetValue(SpeedProperty); set => SetValue(SpeedProperty, value); }
+    internal bool IsRenderingSubscribed => _renderingSubscribed;
 
     public AnimatedBackground()
     {
@@ -56,14 +61,34 @@ public sealed class AnimatedBackground : FrameworkElement
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        CompositionTarget.Rendering += OnRendering;
         ThemeService.ThemeChanged += OnThemeChanged;
+        IsVisibleChanged += OnIsVisibleChanged;
+        UpdateRenderingSubscription();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        CompositionTarget.Rendering -= OnRendering;
+        IsVisibleChanged -= OnIsVisibleChanged;
+        SetRenderingSubscribed(false);
         ThemeService.ThemeChanged -= OnThemeChanged;
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e) => UpdateRenderingSubscription();
+
+    private static void OnPauseAnimationChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is AnimatedBackground background) background.UpdateRenderingSubscription();
+    }
+
+    private void UpdateRenderingSubscription() =>
+        SetRenderingSubscribed(IsLoaded && IsVisible && !PauseAnimation && Mode != "Sem fundo");
+
+    private void SetRenderingSubscribed(bool subscribe)
+    {
+        if (_renderingSubscribed == subscribe) return;
+        _renderingSubscribed = subscribe;
+        if (subscribe) CompositionTarget.Rendering += OnRendering;
+        else CompositionTarget.Rendering -= OnRendering;
     }
 
     private void OnThemeChanged() => InvalidateVisual();
@@ -71,7 +96,10 @@ public sealed class AnimatedBackground : FrameworkElement
     private static void OnModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is AnimatedBackground background && e.NewValue is string mode)
+        {
             background.EnsureModeData(mode);
+            background.UpdateRenderingSubscription();
+        }
     }
 
     private void EnsureModeData(string mode)
@@ -152,24 +180,29 @@ public sealed class AnimatedBackground : FrameworkElement
         var aspect = pixelWidth / (double)pixelHeight;
         var tanHalfFov = Math.Tan(75d * Math.PI / 360d);
         var particle = background == 0 ? (byte)255 : (byte)0;
+        var cameraWaveOffset = Math.Cos(shaderTime) * .2;
 
         for (var ix = 0; ix < amountX; ix++)
         {
             var baseX = ix * gap - amountX * gap / 2d;
+            // Estes valores só dependem da coluna e do tempo. Calculá-los para
+            // cada uma das 200 linhas repetia seno e cosseno sem necessidade.
+            var y = Math.Sin(baseX + shaderTime) * .5 + cameraWaveOffset;
+            var x = baseX + Math.Sin(y + shaderTime) * .5;
+            var scale = 1d + Math.Sin(x + shaderTime) * .5 + Math.Cos(y + shaderTime) * .2;
+            var relativeY = y - cameraY;
+            var depthFromY = relativeY * forwardY;
+            var cameraUpFromY = relativeY * upY;
+
             for (var iy = 0; iy < amountY; iy++)
             {
                 var z = iy * gap - amountX * gap / 2d;
-                var y = Math.Sin(baseX + shaderTime) * .5
-                        + Math.Cos(shaderTime) * .2;
-                var x = baseX + Math.Sin(y + shaderTime) * .5;
-
                 // Equivalente ao lookAt(scene.position) da câmera Three.js.
-                var relativeY = y - cameraY;
                 var relativeZ = z - cameraZ;
-                var depth = relativeY * forwardY + relativeZ * forwardZ;
+                var depth = depthFromY + relativeZ * forwardZ;
                 if (depth <= .01) continue;
 
-                var cameraUp = relativeY * upY + relativeZ * upZ;
+                var cameraUp = cameraUpFromY + relativeZ * upZ;
                 var normalizedX = (x / depth) / (tanHalfFov * aspect);
                 var normalizedY = (cameraUp / depth) / tanHalfFov;
                 if (normalizedX < -1.04 || normalizedX > 1.04 || normalizedY < -1.04 || normalizedY > 1.04)
@@ -179,9 +212,6 @@ public sealed class AnimatedBackground : FrameworkElement
                 var screenY = (int)Math.Round((1 - normalizedY) * .5 * (pixelHeight - 1));
 
                 // Mesmo cálculo de scale e gl_PointSize usado no vertex shader.
-                var scale = 1d
-                            + Math.Sin(x + shaderTime) * .5
-                            + Math.Cos(y + shaderTime) * .2;
                 var pointSize = Math.Clamp(scale * 15d / depth, .45, 9);
                 DrawParticleSquare(_particleWavePixels, pixelWidth, pixelHeight,
                     screenX, screenY, pointSize, particle);
@@ -243,8 +273,18 @@ public sealed class AnimatedBackground : FrameworkElement
 
     private void DrawTopographic(DrawingContext dc, double time, double opacity)
     {
-        var pen = FrozenPen("BackgroundLineBrush", opacity * .36, .9);
+        var lineColor = ThemeColor("BackgroundLineBrush", Colors.White);
+        var lineOpacity = Math.Clamp(opacity * .36, 0, 1);
+        if (_topographicPen is null || _topographicPenColor != lineColor || _topographicPenOpacity != lineOpacity)
+        {
+            _topographicPenColor = lineColor;
+            _topographicPenOpacity = lineOpacity;
+            _topographicPen = new Pen(new SolidColorBrush(lineColor) { Opacity = lineOpacity }, .9);
+            _topographicPen.Freeze();
+        }
+        var pen = _topographicPen;
         var spacing = Math.Max(30, ActualHeight / 20d);
+        var travel = time * 26;
         for (var line = -3; line < ActualHeight / spacing + 4; line++)
         {
             var geometry = new StreamGeometry();
@@ -253,7 +293,6 @@ public sealed class AnimatedBackground : FrameworkElement
                 var first = true;
                 for (var x = -30d; x <= ActualWidth + 30; x += 16)
                 {
-                    var travel = time * 26;
                     var y = line * spacing
                         + Math.Sin((x + travel) * .008 + line * .52) * 24
                         + Math.Sin((x - travel * .6) * .021 - line * .31) * 10
