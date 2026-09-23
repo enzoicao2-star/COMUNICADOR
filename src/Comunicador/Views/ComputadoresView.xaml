@@ -287,7 +287,7 @@
                                         </TextBlock>
                                         <TextBlock Style="{StaticResource Subtitulo}" FontSize="11" Margin="8,0,0,0">
                                             <Run Text="·  " />
-                                            <Run Text="{Binding Monitores.Count, Mode=OneWay}" />
+                                            <Run Text="{Binding QuantidadeMonitores, Mode=OneWay}" />
                                             <Run Text=" monitor(es)" />
                                         </TextBlock>
                                     </StackPanel>

@@ -25,7 +25,7 @@
                         <TextBlock Style="{StaticResource Subtitulo}" Margin="0,5,0,0">
                             <Run Text="{Binding ComputadorGerenciado.StatusVersaoPainel, Mode=OneWay}" /><Run Text="  ·  " />
                             <Run Text="{Binding ComputadorGerenciado.StatusVersaoReceptor, Mode=OneWay}" /><Run Text="  ·  " />
-                            <Run Text="{Binding ComputadorGerenciado.Monitores.Count, Mode=OneWay}" /><Run Text=" monitor(es)" />
+                            <Run Text="{Binding ComputadorGerenciado.QuantidadeMonitores, Mode=OneWay}" /><Run Text=" monitor(es)" />
                         </TextBlock>
                     </StackPanel>
                 </Border>

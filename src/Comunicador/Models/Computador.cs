@@ -96,7 +96,18 @@ public sealed class Computador : ObservableModel
             }
         }
     }
-    public List<MonitorInfo> Monitores { get => _monitores; set => SetField(ref _monitores, value ?? new()); }
+    public List<MonitorInfo> Monitores
+    {
+        get => _monitores;
+        set
+        {
+            if (SetField(ref _monitores, value ?? new()))
+                OnPropertyChanged(nameof(QuantidadeMonitores));
+        }
+    }
+
+    [JsonIgnore]
+    public int QuantidadeMonitores => Monitores.Count;
 
     public string? VersaoReceptor
     {

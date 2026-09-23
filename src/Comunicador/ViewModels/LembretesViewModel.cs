@@ -20,14 +20,13 @@ public sealed class LembretesViewModel : ViewModelBase
     private string _titulo = string.Empty;
     private string _mensagem = string.Empty;
     private DateTime _dataHora = DateTime.Now.AddMinutes(5);
-    private DateTime? _dataSelecionada = DateTime.Today;
+    private string _dataTexto = DateTime.Today.ToString("dd/MM/yyyy", CultureInfo.GetCultureInfo("pt-BR"));
     private string _horaTexto = DateTime.Now.AddMinutes(5).ToString("HH:mm");
     private bool _permitirResposta = true;
     private string? _statusOperacao;
 
     public ObservableCollection<Lembrete> Lembretes { get; } = new();
     public ObservableCollection<ComputadorSelecionavel> Destinatarios { get; } = new();
-    public DateTime DataMinima => DateTime.Today;
 
     public string Titulo
     {
@@ -47,16 +46,14 @@ public sealed class LembretesViewModel : ViewModelBase
         set => SetField(ref _dataHora, value);
     }
 
-    public DateTime? DataSelecionada
+    public string DataTexto
     {
-        get => _dataSelecionada;
+        get => _dataTexto;
         set
         {
-            if (SetField(ref _dataSelecionada, value))
-            {
-                AtualizarDataHora();
-                CommandManager.InvalidateRequerySuggested();
-            }
+            if (!SetField(ref _dataTexto, value)) return;
+            AtualizarDataHora();
+            CommandManager.InvalidateRequerySuggested();
         }
     }
 
@@ -66,9 +63,9 @@ public sealed class LembretesViewModel : ViewModelBase
         set
         {
             if (!SetField(ref _horaTexto, value, nameof(HoraTexto))) return;
-            if (TentarObterHora(value, out var hora) && DataSelecionada.HasValue)
+            if (TentarObterData(DataTexto, out var data) && TentarObterHora(value, out var hora))
             {
-                DataHora = DataSelecionada.Value.Date + hora;
+                DataHora = data.Date + hora;
             }
             CommandManager.InvalidateRequerySuggested();
         }
@@ -100,7 +97,7 @@ public sealed class LembretesViewModel : ViewModelBase
         _cloud = cloud;
 
         var proximoHorario = ArredondarParaProximoIntervalo(DateTime.Now.AddMinutes(5));
-        _dataSelecionada = proximoHorario.Date;
+        _dataTexto = proximoHorario.ToString("dd/MM/yyyy", CultureInfo.GetCultureInfo("pt-BR"));
         _horaTexto = proximoHorario.ToString("HH:mm");
         _dataHora = proximoHorario;
 
@@ -215,8 +212,8 @@ public sealed class LembretesViewModel : ViewModelBase
         Titulo = string.Empty;
         Mensagem = string.Empty;
         var proximo = ArredondarParaProximoIntervalo(DateTime.Now.AddMinutes(5));
-        _dataSelecionada = proximo.Date;
-        OnPropertyChanged(nameof(DataSelecionada));
+        _dataTexto = proximo.ToString("dd/MM/yyyy", CultureInfo.GetCultureInfo("pt-BR"));
+        OnPropertyChanged(nameof(DataTexto));
         _horaTexto = proximo.ToString("HH:mm");
         OnPropertyChanged(nameof(HoraTexto));
         AtualizarDataHora();
@@ -224,19 +221,23 @@ public sealed class LembretesViewModel : ViewModelBase
 
     private void AtualizarDataHora()
     {
-        if (DataSelecionada.HasValue && TentarObterHora(_horaTexto, out var hora))
+        if (TentarObterData(DataTexto, out var data) && TentarObterHora(_horaTexto, out var hora))
         {
-            DataHora = DataSelecionada.Value.Date + hora;
+            DataHora = data.Date + hora;
         }
     }
 
     private bool TentarObterDataHora(out DateTime dataHora)
     {
         dataHora = default;
-        if (!DataSelecionada.HasValue || !TentarObterHora(HoraTexto, out var hora)) return false;
-        dataHora = DataSelecionada.Value.Date + hora;
+        if (!TentarObterData(DataTexto, out var data) || !TentarObterHora(HoraTexto, out var hora)) return false;
+        dataHora = data.Date + hora;
         return dataHora > DateTime.Now;
     }
+
+    private static bool TentarObterData(string? texto, out DateTime data) =>
+        DateTime.TryParseExact(texto, ["dd/MM/yyyy", "d/M/yyyy"],
+            CultureInfo.GetCultureInfo("pt-BR"), DateTimeStyles.None, out data);
 
     private static bool TentarObterHora(string? texto, out TimeSpan hora)
     {

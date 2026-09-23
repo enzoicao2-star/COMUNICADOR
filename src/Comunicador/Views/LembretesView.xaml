@@ -29,11 +29,10 @@
                                  Height="90" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
                                  VerticalContentAlignment="Top" Padding="11,8" Margin="0,0,0,16" />
 
-                        <TextBlock Text="Data" Style="{StaticResource RotuloCampo}" />
-                        <DatePicker SelectedDate="{Binding DataSelecionada, Mode=TwoWay}"
-                                    DisplayDateStart="{Binding DataMinima}"
-                                    SelectedDateFormat="Short" Language="pt-BR"
-                                    Margin="0,0,0,14" />
+                        <TextBlock Text="Data (DD/MM/AAAA)" Style="{StaticResource RotuloCampo}" />
+                        <TextBox Text="{Binding DataTexto, UpdateSourceTrigger=PropertyChanged}"
+                                 MaxLength="10" Margin="0,0,0,14"
+                                 ToolTip="Digite a data no formato 23/09/2026" />
 
                         <TextBlock Text="Hora (HH:mm)" Style="{StaticResource RotuloCampo}" />
                         <TextBox Text="{Binding HoraTexto, UpdateSourceTrigger=PropertyChanged}"
