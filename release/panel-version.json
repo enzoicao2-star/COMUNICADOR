@@ -1,14 +1,16 @@
 {
-    "version":  "2.5.4.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "2066733B780728CFBA803014BFC87C311D8821E5FCAAAC1C79020D7B322F26F0",
-    "summary":  "GIFs de até 16 MB, atualização confirmada ao iniciar e correções de reinstalação remota.",
-    "changes":  [
-                    "GIFs de até 16 MB podem ser selecionados e enviados; PNG, JPEG e BMP continuam limitados a 4 MB.",
-                    "A prévia identifica o arquivo como GIF e reproduz sua animação antes do envio.",
-                    "A abertura direta do executável verifica atualizações e pede confirmação antes de instalar.",
-                    "Reinstalar painel força a substituição da cópia instalada e informa se não conseguiu iniciar.",
-                    "O receptor sobe para 2.5.3 para aceitar GIFs maiores; os instaladores e diagnósticos foram alinhados.",
-                    "O painel sobe para a versão 2.5.4."
-                ]
+  "version": "2.5.5.0",
+  "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
+  "sha256": "32D69DC2DAA6B2DE4D343337AE0D0502C76F3C795E45550A89C8AEB89EC27D24",
+  "summary": "Um único Comunicador na bandeja, envios com prévia e reenvio, grupos e modelos compartilhados e atualização mais segura.",
+  "changes": [
+    "Em Mensagens, teste a prévia neste PC antes de enviar ao computador escolhido.",
+    "Em Histórico, filtre os resultados por estado e reenvie mensagens que falharam.",
+    "Em Mensagens, o OWNER cria grupos de computadores e modelos de texto para todos os painéis.",
+    "Em Configurações > Administrador, o OWNER vê as mudanças globais e os comandos remotos recentes.",
+    "A atualização restaura a versão anterior se o novo painel não confirmar a inicialização.",
+    "Abrir outra cópia do painel traz a janela existente e não cria outro ícone na bandeja.",
+    "Após instalar o receptor com sucesso, o instalador usado se apaga e não reaparece nas atualizações comuns.",
+    "O painel passa para a versão 2.5.5."
+  ]
 }

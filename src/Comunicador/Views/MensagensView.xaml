@@ -61,13 +61,17 @@
                     <TextBlock Text="Pronto para enviar" FontWeight="SemiBold" FontSize="13" />
                     <TextBlock Text="{Binding StatusOperacao}" Style="{StaticResource Subtitulo}" FontSize="12" />
                 </StackPanel>
-                <Button Grid.Column="1" Style="{StaticResource BotaoPrimario}" Command="{Binding EnviarCommand}"
-                        Height="40" Padding="26,0">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xE724;" FontFamily="Segoe MDL2 Assets" FontSize="15" VerticalAlignment="Center" />
-                        <TextBlock Text="Enviar agora" Margin="9,0,0,0" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Style="{StaticResource BotaoSecundario}" Command="{Binding PrevisualizarCommand}"
+                            Content="Testar no meu PC" Height="40" Margin="0,0,8,0" />
+                    <Button Style="{StaticResource BotaoPrimario}" Command="{Binding EnviarCommand}"
+                            Height="40" Padding="26,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE724;" FontFamily="Segoe MDL2 Assets" FontSize="15" VerticalAlignment="Center" />
+                            <TextBlock Text="Enviar agora" Margin="9,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -96,6 +100,28 @@
                                 <TextBlock Text="O que aparecerá no computador escolhido" Style="{StaticResource Subtitulo}" FontSize="12" />
                             </StackPanel>
                         </StackPanel>
+                        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="10" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="Modelos compartilhados" Style="{StaticResource RotuloCampo}" />
+                                <ComboBox ItemsSource="{Binding ModelosMensagem}" SelectedItem="{Binding ModeloSelecionado}"
+                                          DisplayMemberPath="Nome" Margin="0,4,0,7" />
+                                <WrapPanel>
+                                    <Button Content="Usar modelo" Style="{StaticResource BotaoSecundario}"
+                                            Command="{Binding AplicarModeloCommand}" Margin="0,0,6,6" />
+                                    <Button Content="Excluir modelo" Style="{StaticResource BotaoSecundario}"
+                                            Command="{Binding RemoverModeloCommand}" IsEnabled="{Binding PodeGerenciarBiblioteca}" Margin="0,0,0,6" />
+                                </WrapPanel>
+                                <Grid IsEnabled="{Binding PodeGerenciarBiblioteca}">
+                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBox Text="{Binding NovoModeloNome, UpdateSourceTrigger=PropertyChanged}" MaxLength="60"
+                                             ToolTip="Nome do modelo; deixe vazio para atualizar o selecionado" />
+                                    <Button Grid.Column="1" Content="Salvar aviso" Style="{StaticResource BotaoSecundario}"
+                                            Command="{Binding SalvarModeloCommand}" Margin="7,0,0,0" />
+                                </Grid>
+                                <TextBlock Text="O OWNER salva texto, formato e botões; todos os painéis podem usar."
+                                           Style="{StaticResource Subtitulo}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
+                            </StackPanel>
+                        </Border>
                         <TextBlock Text="Título" Style="{StaticResource RotuloCampo}" />
                         <TextBox Text="{Binding Titulo, UpdateSourceTrigger=PropertyChanged}" MaxLength="200" Margin="0,0,0,13" />
                         <TextBlock Text="Mensagem" Style="{StaticResource RotuloCampo}" />
@@ -110,6 +136,28 @@
                         <TextBlock Text="Enviar para" Style="{StaticResource TituloCard}" />
                         <TextBlock Text="Marque um ou mais computadores conectados."
                                    Style="{StaticResource Subtitulo}" Margin="0,2,0,10" />
+                        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="10" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Grupos compartilhados" Style="{StaticResource RotuloCampo}" />
+                                <ComboBox ItemsSource="{Binding GruposComputadores}" SelectedItem="{Binding GrupoSelecionado}"
+                                          DisplayMemberPath="Nome" Margin="0,4,0,7" />
+                                <WrapPanel>
+                                    <Button Content="Selecionar grupo" Style="{StaticResource BotaoSecundario}"
+                                            Command="{Binding AplicarGrupoCommand}" Margin="0,0,6,6" />
+                                    <Button Content="Excluir grupo" Style="{StaticResource BotaoSecundario}"
+                                            Command="{Binding RemoverGrupoCommand}" IsEnabled="{Binding PodeGerenciarBiblioteca}" Margin="0,0,0,6" />
+                                </WrapPanel>
+                                <Grid IsEnabled="{Binding PodeGerenciarBiblioteca}">
+                                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBox Text="{Binding NovoGrupoNome, UpdateSourceTrigger=PropertyChanged}" MaxLength="60"
+                                             ToolTip="Nome do grupo; deixe vazio para atualizar o selecionado" />
+                                    <Button Grid.Column="1" Content="Salvar seleção" Style="{StaticResource BotaoSecundario}"
+                                            Command="{Binding SalvarGrupoCommand}" Margin="7,0,0,0" />
+                                </Grid>
+                                <TextBlock Text="O OWNER define grupos; todos podem escolher um grupo para enviar."
+                                           Style="{StaticResource Subtitulo}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
+                            </StackPanel>
+                        </Border>
                         <ScrollViewer MaxHeight="205" VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding Destinatarios}">
                                 <ItemsControl.ItemTemplate>

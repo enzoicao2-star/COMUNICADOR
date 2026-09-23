@@ -19,6 +19,7 @@ public static class AppPaths
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Comunicador");
     public static string DeviceIdentityFile => Path.Combine(LocalSharedDir, "device.json");
     public static string CloudSessionFile => Path.Combine(LocalSharedDir, "cloud_session.json");
+    public static string ReenviosDir => Path.Combine(RootDir, "reenvios");
 
     public static void EnsureCreated()
     {

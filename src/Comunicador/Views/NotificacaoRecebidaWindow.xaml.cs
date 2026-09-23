@@ -24,6 +24,7 @@ public partial class NotificacaoRecebidaWindow : Window
     private readonly bool _bloquearFechamentoManual;
     private readonly int? _monitorIndex;
     private readonly string _posicaoToast;
+    private readonly bool _previewMode;
     private bool _fechamentoConfirmado;
 
     public string? Resultado { get; private set; }
@@ -37,11 +38,13 @@ public partial class NotificacaoRecebidaWindow : Window
         int? duracaoImagemSegundos = null,
         bool? permitirFecharManualmente = null,
         AparenciaNotificacao? aparencia = null,
-        int? monitorIndex = null)
+        int? monitorIndex = null,
+        bool previewMode = false)
     {
         InitializeComponent();
 
         aparencia ??= new AparenciaNotificacao();
+        _previewMode = previewMode;
         _monitorIndex = monitorIndex;
         _posicaoToast = aparencia.ToastPosition;
 
@@ -67,7 +70,7 @@ public partial class NotificacaoRecebidaWindow : Window
         if (modoExibicao is ProtocolConstants.DisplayMode.CenterAlert or ProtocolConstants.DisplayMode.CenterMessage)
         {
             _avisoCentral = true;
-            _avisoObrigatorio = modoExibicao == ProtocolConstants.DisplayMode.CenterAlert;
+            _avisoObrigatorio = modoExibicao == ProtocolConstants.DisplayMode.CenterAlert && !previewMode;
             DeSenderText.Text = sender;
             SizeToContent = SizeToContent.Manual;
             PlanoFundo.Background = new SolidColorBrush(Color.FromArgb(224, 14, 14, 14));
@@ -108,7 +111,7 @@ public partial class NotificacaoRecebidaWindow : Window
                 ImagemPanel.Visibility = Visibility.Visible;
                 _avisoCentral = true;
                 _imagemCentral = true;
-                _bloquearFechamentoManual = permitirFecharManualmente == false;
+                _bloquearFechamentoManual = permitirFecharManualmente == false && !previewMode;
 
                 // Modo imagem puro: nenhum cartão, cabeçalho, texto, botão,
                 // borda ou fundo fica visível ao redor do arquivo.
@@ -154,7 +157,7 @@ public partial class NotificacaoRecebidaWindow : Window
         }
 
         var interacaoPermitida = !_avisoObrigatorio && !_imagemCentral;
-        if (!interacaoPermitida)
+        if (!interacaoPermitida && !previewMode)
         {
             FecharX.Visibility = Visibility.Collapsed;
         }
@@ -283,7 +286,7 @@ public partial class NotificacaoRecebidaWindow : Window
             return;
         }
 
-        if (botao.TemLink)
+        if (botao.TemLink && !_previewMode)
         {
             if (BotaoResposta.UrlPermitida(botao.Url))
             {
@@ -321,14 +324,15 @@ public partial class NotificacaoRecebidaWindow : Window
         IReadOnlyList<VideoMonitor>? videosPorMonitor = null,
         bool? repetirVideo = null,
         ConteudoAudio? audio = null,
-        bool? repetirAudio = null)
+        bool? repetirAudio = null,
+        bool previewMode = false)
     {
         if (modoExibicao is ProtocolConstants.DisplayMode.CenterVideo or ProtocolConstants.DisplayMode.Audio)
         {
             return MidiaRecebidaWindow.MostrarAsync(
                 video, videosPorMonitor, repetirVideo == true,
                 audio, repetirAudio == true, duracaoImagemSegundos,
-                permitirFecharManualmente != false);
+                previewMode || permitirFecharManualmente != false);
         }
 
         var tipoSom = aparencia?.SoundType;
@@ -374,7 +378,7 @@ public partial class NotificacaoRecebidaWindow : Window
                 var window = new NotificacaoRecebidaWindow(
                     sender, title, message, allowReply, botoes, modoExibicao, imagem,
                     grupo.Imagens, duracaoImagemSegundos, permitirFecharManualmente,
-                    aparencia, grupo.MonitorIndex)
+                    aparencia, grupo.MonitorIndex, previewMode)
                 {
                     WindowStartupLocation = WindowStartupLocation.Manual,
                 };

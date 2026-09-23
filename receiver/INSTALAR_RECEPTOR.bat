@@ -336,6 +336,14 @@ rem aberta, para a mensagem poder ser lida.
 echo Esta janela fecha sozinha em 5 segundos...
 rem ping em vez de timeout: timeout falha quando a entrada esta redirecionada.
 ping -n 6 127.0.0.1 >nul 2>nul
+rem Apaga o BAT que acabou de ser executado somente apos o sucesso confirmado.
+rem O atualizador nao o restaura enquanto o receptor continuar instalado.
+call :agendar_autoexclusao
+exit /b 0
+
+:agendar_autoexclusao
+set "COMUNICADOR_SELF_DELETE=%~f0"
+powershell -NoProfile -NonInteractive -Command "$cleanup='Start-Sleep -Seconds 2; Remove-Item -LiteralPath $env:COMUNICADOR_SELF_DELETE -Force -ErrorAction SilentlyContinue'; $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cleanup)); Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-NonInteractive','-WindowStyle','Hidden','-EncodedCommand',$encoded) -WindowStyle Hidden"
 exit /b 0
 
 :validar_python

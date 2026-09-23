@@ -35,6 +35,12 @@ public sealed class CloudSyncService : IDisposable
         ApplyGlobalConfig(config);
     }
 
+    public Task<IReadOnlyList<AdminAuditEntry>> GetAdminAuditAsync(CancellationToken ct = default)
+    {
+        if (!IsAdmin) throw new UnauthorizedAccessException("Somente o OWNER pode ver a auditoria administrativa.");
+        return _client.GetAdminAuditAsync(ct);
+    }
+
     public CloudSyncService(SupabaseClient client, AppSettings settings, PerfilComputadorRepository profiles)
     {
         _client = client;

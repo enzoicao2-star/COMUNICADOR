@@ -28,6 +28,30 @@ function Get-Sha256([string]$Path) {
     finally { $stream.Dispose() }
 }
 
+function Read-JsonOrNull([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+    try { return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json }
+    catch { return $null }
+}
+
+function Restore-PreviousPanel([string]$TargetPath, [string]$BackupPath,
+    [string]$PendingPath, [string]$HealthPath, [string]$FailurePath, [object]$Pending) {
+    if (-not (Test-Path -LiteralPath $BackupPath -PathType Leaf)) { return $false }
+    Get-CimInstance Win32_Process -Filter "Name='Comunicador.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.ExecutablePath -and [IO.Path]::GetFullPath($_.ExecutablePath) -eq $TargetPath } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    Remove-Item -LiteralPath $TargetPath -Force -ErrorAction SilentlyContinue
+    Move-Item -LiteralPath $BackupPath -Destination $TargetPath -Force -ErrorAction Stop
+    if ($null -ne $Pending) {
+        [ordered]@{ version = [string]$Pending.version; sha256 = [string]$Pending.sha256;
+            failed_at = [DateTimeOffset]::UtcNow.ToString('o') } |
+            ConvertTo-Json | Set-Content -LiteralPath $FailurePath -Encoding UTF8
+    }
+    Remove-Item -LiteralPath $PendingPath,$HealthPath -Force -ErrorAction SilentlyContinue
+    Write-Host 'A nova versao nao iniciou corretamente. A versao anterior foi restaurada.'
+    return $true
+}
+
 function Add-CacheBuster([string]$Url, [string]$Name, [string]$Value) {
     $separator = if ($Url.Contains('?')) { '&' } else { '?' }
     return $Url + $separator + $Name + '=' + [Uri]::EscapeDataString($Value)
@@ -54,6 +78,12 @@ function Get-InstallInventory([object]$Metadata) {
     return @($Metadata.files | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 }
 
+function Test-ReceiverInstalled {
+    $appDirectory = Join-Path $env:LOCALAPPDATA 'Comunicador\Receptor\app'
+    return (Test-Path -LiteralPath (Join-Path $appDirectory 'receptor.py') -PathType Leaf) -and
+        (Test-Path -LiteralPath (Join-Path $appDirectory 'protocolo.py') -PathType Leaf)
+}
+
 function Test-CompleteInstall([string]$Root, [object]$Metadata) {
     $required = @(
         'ABRIR_COMUNICADOR.bat',
@@ -70,6 +100,7 @@ function Test-CompleteInstall([string]$Root, [object]$Metadata) {
     $inventory = Get-InstallInventory $Metadata
     if ($null -eq $Metadata -or $inventory.Count -eq 0) { return $false }
     foreach ($relativePath in @($required + $inventory)) {
+        if ($relativePath -eq 'receiver\INSTALAR_RECEPTOR.bat' -and (Test-ReceiverInstalled)) { continue }
         try { $path = Get-SafeInstallPath $Root $relativePath }
         catch { return $false }
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
@@ -135,6 +166,10 @@ function Install-RepositorySnapshot(
         foreach ($sourceFile in $sourceFiles) {
             $relativePath = $sourceFile.FullName.Substring($sourceRoot.Length).TrimStart('\')
             $destinationPath = Get-SafeInstallPath $Root $relativePath
+            if ($relativePath -eq 'receiver\INSTALAR_RECEPTOR.bat' -and (Test-ReceiverInstalled)) {
+                Remove-Item -LiteralPath $destinationPath -Force -ErrorAction SilentlyContinue
+                continue
+            }
             $destinationDirectory = Split-Path -Parent $destinationPath
             New-Item -ItemType Directory -Force -Path $destinationDirectory | Out-Null
 
@@ -247,6 +282,10 @@ function Install-Shortcuts([string]$Root, [string]$ExePath) {
 
 $target = [IO.Path]::GetFullPath($ExecutablePath)
 $targetDirectory = Split-Path -Parent $target
+$backupPath = Join-Path $targetDirectory 'Comunicador.anterior.exe'
+$pendingPath = Join-Path $targetDirectory 'Comunicador.atualizacao-pendente.json'
+$healthPath = Join-Path $targetDirectory 'Comunicador.inicializacao-ok.json'
+$failurePath = Join-Path $targetDirectory 'Comunicador.atualizacao-falhou.json'
 $managedRoot = $null
 if (-not [string]::IsNullOrWhiteSpace($InstallRoot)) {
     $managedRoot = [IO.Path]::GetFullPath($InstallRoot).TrimEnd('\')
@@ -254,6 +293,33 @@ if (-not [string]::IsNullOrWhiteSpace($InstallRoot)) {
     if (-not $target.Equals($expectedTarget, [StringComparison]::OrdinalIgnoreCase)) {
         Write-Host 'Falha na instalacao: o executavel nao pertence a pasta de instalacao informada.'
         exit 5
+    }
+}
+
+$previousPending = Read-JsonOrNull $pendingPath
+if ($null -ne $previousPending) {
+    $previousHealth = Read-JsonOrNull $healthPath
+    $confirmed = $null -ne $previousHealth -and
+        [string]$previousHealth.token -eq [string]$previousPending.token -and
+        [string]$previousHealth.version -eq [string]$previousPending.version -and
+        (Test-Path -LiteralPath $target -PathType Leaf)
+    if ($confirmed) {
+        $confirmed = (Get-Sha256 $target).ToUpperInvariant() -eq [string]$previousPending.sha256
+    }
+    if ($confirmed) {
+        Remove-Item -LiteralPath $backupPath,$pendingPath,$healthPath -Force -ErrorAction SilentlyContinue
+    }
+    elseif (Test-Path -LiteralPath $backupPath -PathType Leaf) {
+        $started = [DateTimeOffset]::MinValue
+        if ([DateTimeOffset]::TryParse([string]$previousPending.started_at, [ref]$started) -and
+            [DateTimeOffset]::UtcNow - $started -lt [TimeSpan]::FromSeconds(45)) {
+            Write-Host 'A nova versao ainda esta iniciando; mantendo a copia anterior ate a confirmacao.'
+            exit 0
+        }
+        Restore-PreviousPanel $target $backupPath $pendingPath $healthPath $failurePath $previousPending | Out-Null
+    }
+    elseif ($null -ne $previousHealth) {
+        Remove-Item -LiteralPath $pendingPath,$healthPath -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -313,7 +379,12 @@ if (Test-Path -LiteralPath $target) {
     }
 }
 
-$isCurrent = -not $ForceReinstall -and (Test-Path -LiteralPath $target) -and (
+$previousFailure = Read-JsonOrNull $failurePath
+$skipKnownFailure = -not $RestartAfterUpdate -and -not $ForceReinstall -and
+    $null -ne $previousFailure -and
+    [string]$previousFailure.version -eq $latestVersion.ToString() -and
+    [string]$previousFailure.sha256 -eq $expectedHash
+$isCurrent = $skipKnownFailure -or -not $ForceReinstall -and (Test-Path -LiteralPath $target) -and (
     $currentVersion -gt $latestVersion -or
     ($currentVersion -eq $latestVersion -and ($null -eq $managedRoot -or $currentHash -eq $expectedHash))
 )
@@ -323,7 +394,8 @@ if ($isCurrent) {
         Write-InstallMetadata $managedRoot $currentVersion $inventory $metadata
         Install-Shortcuts $managedRoot $target
     }
-    Write-Host ('Comunicador ' + $currentVersion + ' ja esta atualizado.')
+    if ($skipKnownFailure) { Write-Host ('A versao ' + $latestVersion + ' falhou antes; mantendo a versao ' + $currentVersion + '.') }
+    else { Write-Host ('Comunicador ' + $currentVersion + ' ja esta atualizado.') }
     exit 0
 }
 
@@ -331,7 +403,6 @@ Write-Host ('Nova versao encontrada no GitHub: ' + $latestVersion + '.')
 Write-Host 'Baixando e validando antes de substituir a copia instalada...'
 New-Item -ItemType Directory -Force -Path $targetDirectory | Out-Null
 $downloadPath = Join-Path $targetDirectory 'Comunicador.download.exe'
-$backupPath = Join-Path $targetDirectory 'Comunicador.anterior.exe'
 
 try {
     Remove-Item -LiteralPath $downloadPath -Force -ErrorAction SilentlyContinue
@@ -355,7 +426,14 @@ try {
     if (Test-Path -LiteralPath $target) { Move-Item -LiteralPath $target -Destination $backupPath -Force }
     try {
         Move-Item -LiteralPath $downloadPath -Destination $target -Force
-        Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $healthPath -Force -ErrorAction SilentlyContinue
+        $pending = [ordered]@{
+            version = $latestVersion.ToString()
+            sha256 = $expectedHash
+            token = [guid]::NewGuid().ToString('N')
+            started_at = [DateTimeOffset]::UtcNow.ToString('o')
+        }
+        $pending | ConvertTo-Json | Set-Content -LiteralPath $pendingPath -Encoding UTF8
     }
     catch {
         if (Test-Path -LiteralPath $backupPath) {
@@ -382,13 +460,36 @@ try {
             $notice | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $noticeDirectory 'ultima-atualizacao.json') -Encoding UTF8
         }
         catch { Write-Host ('AVISO: nao foi possivel salvar o resumo da atualizacao: ' + $_.Exception.Message) }
-        Start-Process -FilePath $target -WorkingDirectory $targetDirectory
+        $startedPanel = Start-Process -FilePath $target -WorkingDirectory $targetDirectory -PassThru
+        $healthy = $false
+        for ($attempt = 0; $attempt -lt 90; $attempt++) {
+            $health = Read-JsonOrNull $healthPath
+            if ($null -ne $health -and [string]$health.token -eq [string]$pending.token -and
+                [string]$health.version -eq $latestVersion.ToString()) {
+                $healthy = $true
+                break
+            }
+            $startedPanel.Refresh()
+            if ($startedPanel.HasExited) { break }
+            Start-Sleep -Milliseconds 500
+        }
+        if (-not $healthy) {
+            if (-not $startedPanel.HasExited) { Stop-Process -Id $startedPanel.Id -Force -ErrorAction SilentlyContinue }
+            Restore-PreviousPanel $target $backupPath $pendingPath $healthPath $failurePath $pending | Out-Null
+            Remove-Item -LiteralPath (Join-Path $env:APPDATA 'Comunicador\ultima-atualizacao.json') -Force -ErrorAction SilentlyContinue
+            if (Test-Path -LiteralPath $target) { Start-Process -FilePath $target -WorkingDirectory $targetDirectory | Out-Null }
+            throw 'A nova versao nao confirmou a inicializacao em 45 segundos.'
+        }
+        Remove-Item -LiteralPath $backupPath,$pendingPath,$healthPath,$failurePath -Force -ErrorAction SilentlyContinue
     }
     exit 0
 }
 catch {
     Remove-Item -LiteralPath $downloadPath -Force -ErrorAction SilentlyContinue
+    if ((Test-Path -LiteralPath $pendingPath) -and (Test-Path -LiteralPath $backupPath)) {
+        Restore-PreviousPanel $target $backupPath $pendingPath $healthPath $failurePath (Read-JsonOrNull $pendingPath) | Out-Null
+    }
     Write-Host ('Falha na atualizacao automatica: ' + $_.Exception.Message)
-    if (Test-Path -LiteralPath $target) { exit 0 }
+    if (Test-Path -LiteralPath $target) { exit 3 }
     exit 3
 }

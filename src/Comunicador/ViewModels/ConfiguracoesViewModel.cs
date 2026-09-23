@@ -55,6 +55,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     private bool _globalPermitirPapelParede = true;
     private string _globalPoliticaInicializacaoWindows = "local";
     private string? _statusGlobal;
+    private string _statusAuditoria = "Abra a administração para carregar as ações recentes.";
     private PanelUpdateInfo? _ultimaVerificacaoPainel;
 
     public ObservableCollection<PainelPareado> PaineisPareados { get; }
@@ -108,6 +109,8 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     public bool ExibirPoliticaInicializacaoGlobal => !PodeAlterarInicializacaoLocal;
     public string StatusGlobal { get => _statusGlobal ?? "Carregando configurações globais…"; private set => SetField(ref _statusGlobal, value); }
     public ObservableCollection<ModeloBadgeGlobal> ModelosBadgeGlobal { get; } = [];
+    public ObservableCollection<AdminAuditEntry> AuditoriaAdmin { get; } = [];
+    public string StatusAuditoria { get => _statusAuditoria; private set => SetField(ref _statusAuditoria, value); }
     public string GlobalTema { get => _globalTema; set => SetField(ref _globalTema, value); }
     public string GlobalPaleta { get => _globalPaleta; set => SetField(ref _globalPaleta, value); }
     public string GlobalFundo { get => _globalFundo; set => SetField(ref _globalFundo, value); }
@@ -122,6 +125,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     public ICommand SalvarConfiguracoesGlobaisCommand { get; }
     public ICommand AdicionarModeloBadgeGlobalCommand { get; }
     public ICommand RemoverModeloBadgeGlobalCommand { get; }
+    public ICommand AtualizarAuditoriaCommand { get; }
 
     public int PortaTcp
     {
@@ -388,6 +392,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
                 && (secao != "administrador" || _cloud.IsAdmin))
             {
                 SecaoConfiguracoes = secao;
+                if (secao == "administrador") _ = CarregarAuditoriaAsync();
             }
         });
         RemoverPainelPareadoCommand = new RelayCommand(param =>
@@ -402,6 +407,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         VerificarAtualizacaoPainelCommand = new AsyncRelayCommand(_ => VerificarAtualizacaoPainelAsync());
         AtualizarPainelCommand = new AsyncRelayCommand(_ => AtualizarPainelAsync(),
             _ => AtualizacaoPainelDisponivel);
+        AtualizarAuditoriaCommand = new AsyncRelayCommand(CarregarAuditoriaAsync, () => _cloud.IsAdmin);
         SalvarConfiguracoesGlobaisCommand = new AsyncRelayCommand(_ => SalvarConfiguracoesGlobaisAsync(), _ => _cloud.IsAdmin);
         AdicionarModeloBadgeGlobalCommand = new RelayCommand(_ =>
         {
@@ -412,6 +418,25 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         {
             if (_cloud.IsAdmin && param is ModeloBadgeGlobal model) ModelosBadgeGlobal.Remove(model);
         }, param => _cloud.IsAdmin && param is ModeloBadgeGlobal);
+    }
+
+    private async Task CarregarAuditoriaAsync()
+    {
+        if (!_cloud.IsAdmin) return;
+        try
+        {
+            StatusAuditoria = "Carregando ações administrativas…";
+            var entries = await _cloud.GetAdminAuditAsync().ConfigureAwait(true);
+            AuditoriaAdmin.Clear();
+            foreach (var entry in entries) AuditoriaAdmin.Add(entry);
+            StatusAuditoria = entries.Count == 0 ? "Nenhuma ação administrativa registrada."
+                : $"{entries.Count} ação(ões) recente(s).";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException
+            or UnauthorizedAccessException)
+        {
+            StatusAuditoria = $"Não foi possível carregar a auditoria: {ex.Message}";
+        }
     }
 
     public async Task<PanelUpdateInfo?> VerificarAtualizacaoPainelAsync()
@@ -578,6 +603,8 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
             PermitirLinks = GlobalPermitirLinks, PermitirPapelParedeRemoto = GlobalPermitirPapelParede,
             PoliticaInicializacaoWindows = GlobalPoliticaInicializacaoWindows,
             ModelosBadge = ModelosBadgeGlobal.ToList(),
+            GruposComputadores = _cloud.GlobalConfig?.GruposComputadores.ToList() ?? [],
+            ModelosMensagem = _cloud.GlobalConfig?.ModelosMensagem.ToList() ?? [],
         };
         try
         {

@@ -62,6 +62,16 @@ public sealed class SupabaseClient
     public Task SaveGlobalConfigAsync(ConfiguracaoGlobalPrograma config, CancellationToken ct = default) =>
         RpcAsync<bool>("save_global_config", new { p_config = config }, ct);
 
+    public async Task<IReadOnlyList<AdminAuditEntry>> GetAdminAuditAsync(CancellationToken ct = default)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Get,
+            "/rest/v1/admin_audit?select=id,created_at,action,actor_name,target_name,summary" +
+            "&order=created_at.desc&limit=200", null, ct).ConfigureAwait(false);
+        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
+        return await DeserializeAsync<List<AdminAuditEntry>>(response, ct).ConfigureAwait(false) ?? [];
+    }
+
     public async Task<IReadOnlyList<CloudPanelProfile>> GetProfilesAsync(CancellationToken ct = default)
     {
         using var request = await CreateRequestAsync(HttpMethod.Get,

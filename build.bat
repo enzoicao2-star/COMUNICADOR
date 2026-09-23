@@ -6,7 +6,7 @@ set "COMUNICADOR_BUILD_ROOT=%~dp0"
 cd /d "%ROOT%"
 
 echo ===============================================
-echo   Comunicador 2.5.4 - build completo
+echo   Comunicador 2.5.5 - build completo
 echo ===============================================
 
 echo.
@@ -41,7 +41,7 @@ dotnet test tests\Comunicador.Tests\Comunicador.Tests.csproj -c Release --no-res
 if errorlevel 1 goto :erro
 
 echo.
-echo [6/8] Compilando o painel 2.5.4 em Release...
+echo [6/8] Compilando o painel 2.5.5 em Release...
 dotnet build src\Comunicador\Comunicador.csproj -c Release --no-restore
 if errorlevel 1 goto :erro
 
@@ -58,13 +58,18 @@ if errorlevel 1 goto :erro
 
 echo.
 echo [8/8] Verificando executavel e versao...
+if defined COMUNICADOR_SIGNING_THUMBPRINT (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "tools\Assinar-Comunicador.ps1" ^
+        -ExecutablePath "dist\Comunicador.exe" -Thumbprint "!COMUNICADOR_SIGNING_THUMBPRINT!"
+    if errorlevel 1 goto :erro
+)
 if not exist "dist\Comunicador.exe" (
     echo ERRO: dist\Comunicador.exe nao foi gerado.
     goto :erro
 )
 for /f "delims=" %%V in ('powershell -NoProfile -Command "(Get-Item -LiteralPath 'dist\Comunicador.exe').VersionInfo.FileVersion"') do set "VERSAO_GERADA=%%V"
-if not "!VERSAO_GERADA!"=="2.5.4.0" (
-    echo ERRO: versao gerada !VERSAO_GERADA!, esperada 2.5.4.0.
+if not "!VERSAO_GERADA!"=="2.5.5.0" (
+    echo ERRO: versao gerada !VERSAO_GERADA!, esperada 2.5.5.0.
     goto :erro
 )
 

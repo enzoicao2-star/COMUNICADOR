@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.Net.Http;
 using System.Windows.Input;
 using Comunicador.Models;
 using Comunicador.Networking;
@@ -16,6 +17,7 @@ public sealed class MensagensViewModel : ViewModelBase
     private readonly EnviadorNotificacoes _enviador;
     private readonly HistoricoRepository _historico;
     private readonly CloudSyncService _cloud;
+    private readonly ReenvioRepository _reenvios;
     private readonly Dictionary<string, List<MidiaMonitorEditavel>> _midiasPorMonitor = new(StringComparer.Ordinal);
     private readonly HashSet<Computador> _computadoresObservados = new();
 
@@ -50,9 +52,29 @@ public sealed class MensagensViewModel : ViewModelBase
     private bool _limitarDuracaoAudio;
     private bool _definirComoPapelDeParede;
     private string? _statusOperacao;
+    private string _novoGrupoNome = string.Empty;
+    private string _novoModeloNome = string.Empty;
+    private GrupoComputadoresGlobal? _grupoSelecionado;
+    private ModeloMensagemGlobal? _modeloSelecionado;
 
     public ObservableCollection<ComputadorSelecionavel> Destinatarios { get; } = new();
     public ObservableCollection<DestinoMonitor> MonitoresDestino { get; } = new();
+    public ObservableCollection<GrupoComputadoresGlobal> GruposComputadores { get; } = new();
+    public ObservableCollection<ModeloMensagemGlobal> ModelosMensagem { get; } = new();
+
+    public GrupoComputadoresGlobal? GrupoSelecionado
+    {
+        get => _grupoSelecionado;
+        set => SetField(ref _grupoSelecionado, value);
+    }
+    public ModeloMensagemGlobal? ModeloSelecionado
+    {
+        get => _modeloSelecionado;
+        set => SetField(ref _modeloSelecionado, value);
+    }
+    public string NovoGrupoNome { get => _novoGrupoNome; set => SetField(ref _novoGrupoNome, value); }
+    public string NovoModeloNome { get => _novoModeloNome; set => SetField(ref _novoModeloNome, value); }
+    public bool PodeGerenciarBiblioteca => _cloud.IsAdmin && _cloud.GlobalConfig is not null;
 
     /// <summary>Botões de resposta rápida que vão junto com o aviso.</summary>
     public ObservableCollection<BotaoRespostaEditavel> Botoes { get; } = new();
@@ -283,6 +305,13 @@ public sealed class MensagensViewModel : ViewModelBase
     }
 
     public ICommand EnviarCommand { get; }
+    public ICommand PrevisualizarCommand { get; }
+    public ICommand AplicarGrupoCommand { get; }
+    public ICommand SalvarGrupoCommand { get; }
+    public ICommand RemoverGrupoCommand { get; }
+    public ICommand AplicarModeloCommand { get; }
+    public ICommand SalvarModeloCommand { get; }
+    public ICommand RemoverModeloCommand { get; }
     public ICommand AtualizarDestinatariosCommand { get; }
     public ICommand SelecionarImagemCommand { get; }
     public ICommand SelecionarVideoCommand { get; }
@@ -295,25 +324,42 @@ public sealed class MensagensViewModel : ViewModelBase
 
     public MensagensViewModel(
         ComputadoresViewModel computadores, EnviadorNotificacoes enviador,
-        HistoricoRepository historico, CloudSyncService cloud)
+        HistoricoRepository historico, CloudSyncService cloud, ReenvioRepository reenvios)
     {
         _computadores = computadores;
         _enviador = enviador;
         _historico = historico;
         _cloud = cloud;
+        _reenvios = reenvios;
         _cloud.StateChanged += () => UiDispatcher.Invoke(() =>
         {
             if (!_cloud.IsAdmin) DefinirComoPapelDeParede = false;
             OnPropertyChanged(nameof(PodeAlterarPapelParede));
+            OnPropertyChanged(nameof(PodeGerenciarBiblioteca));
         });
         _cloud.GlobalConfigReceived += config => UiDispatcher.Invoke(() =>
         {
             if (!config.PermitirPapelParedeRemoto) DefinirComoPapelDeParede = false;
             OnPropertyChanged(nameof(PodeAlterarPapelParede));
+            AtualizarBiblioteca(config);
+            OnPropertyChanged(nameof(PodeGerenciarBiblioteca));
             CommandManager.InvalidateRequerySuggested();
         });
 
         EnviarCommand = new AsyncRelayCommand(EnviarAsync, PodeEnviar);
+        PrevisualizarCommand = new AsyncRelayCommand(PrevisualizarAsync,
+            () => PodeEnviar());
+        AplicarGrupoCommand = new RelayCommand(_ => AplicarGrupo(), _ => GrupoSelecionado is not null);
+        SalvarGrupoCommand = new AsyncRelayCommand(SalvarGrupoAsync,
+            () => PodeGerenciarBiblioteca && Destinatarios.Any(d => d.Selecionado));
+        RemoverGrupoCommand = new AsyncRelayCommand(RemoverGrupoAsync,
+            () => PodeGerenciarBiblioteca && GrupoSelecionado is not null);
+        AplicarModeloCommand = new RelayCommand(_ => AplicarModelo(), _ => ModeloSelecionado is not null);
+        SalvarModeloCommand = new AsyncRelayCommand(SalvarModeloAsync,
+            () => PodeGerenciarBiblioteca && !string.IsNullOrWhiteSpace(Titulo)
+                && !string.IsNullOrWhiteSpace(Mensagem) && !ExibirImagemCentral);
+        RemoverModeloCommand = new AsyncRelayCommand(RemoverModeloAsync,
+            () => PodeGerenciarBiblioteca && ModeloSelecionado is not null);
         AtualizarDestinatariosCommand = new RelayCommand(_ => AtualizarDestinatarios());
         SelecionarImagemCommand = new RelayCommand(_ => SelecionarImagem());
         SelecionarVideoCommand = new RelayCommand(_ => SelecionarVideo());
@@ -368,6 +414,148 @@ public sealed class MensagensViewModel : ViewModelBase
 
         _computadores.Computadores.CollectionChanged += (_, _) => AtualizarDestinatarios();
         AtualizarDestinatarios();
+        if (_cloud.GlobalConfig is { } globalConfig) AtualizarBiblioteca(globalConfig);
+    }
+
+    private void AtualizarBiblioteca(ConfiguracaoGlobalPrograma config)
+    {
+        var grupoId = GrupoSelecionado?.Id;
+        var modeloId = ModeloSelecionado?.Id;
+        GruposComputadores.Clear();
+        foreach (var grupo in config.GruposComputadores.OrderBy(g => g.Nome)) GruposComputadores.Add(grupo);
+        ModelosMensagem.Clear();
+        foreach (var modelo in config.ModelosMensagem.OrderBy(m => m.Nome)) ModelosMensagem.Add(modelo);
+        GrupoSelecionado = GruposComputadores.FirstOrDefault(g => g.Id == grupoId);
+        ModeloSelecionado = ModelosMensagem.FirstOrDefault(m => m.Id == modeloId);
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private void AplicarGrupo()
+    {
+        if (GrupoSelecionado is null) return;
+        var ids = GrupoSelecionado.ComputadorIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var destino in Destinatarios) destino.Selecionado = ids.Contains(destino.Computador.Id);
+        var selecionados = Destinatarios.Count(d => d.Selecionado);
+        StatusOperacao = $"Grupo '{GrupoSelecionado.Nome}': {selecionados} computador(es) disponível(is) selecionado(s).";
+    }
+
+    private async Task SalvarGrupoAsync()
+    {
+        var nome = string.IsNullOrWhiteSpace(NovoGrupoNome) ? GrupoSelecionado?.Nome : NovoGrupoNome.Trim();
+        if (string.IsNullOrWhiteSpace(nome) || nome.Length > 60)
+        {
+            StatusOperacao = "Informe um nome de grupo com até 60 caracteres.";
+            return;
+        }
+        var ids = Destinatarios.Where(d => d.Selecionado).Select(d => d.Computador.Id).Distinct().ToList();
+        if (ids.Count == 0) { StatusOperacao = "Selecione pelo menos um computador."; return; }
+        var config = _cloud.GlobalConfig?.Clone();
+        if (config is null) return;
+        if (GrupoSelecionado is null && config.GruposComputadores.Count >= 30)
+        { StatusOperacao = "Limite de 30 grupos compartilhados."; return; }
+        var grupo = new GrupoComputadoresGlobal
+        {
+            Id = GrupoSelecionado?.Id ?? Guid.NewGuid().ToString("N"),
+            Nome = nome,
+            ComputadorIds = ids,
+        };
+        config.GruposComputadores.RemoveAll(g => g.Id == grupo.Id);
+        config.GruposComputadores.Add(grupo);
+        if (await SalvarBibliotecaAsync(config))
+        {
+            GrupoSelecionado = GruposComputadores.FirstOrDefault(g => g.Id == grupo.Id);
+            NovoGrupoNome = string.Empty;
+            StatusOperacao = $"Grupo '{nome}' sincronizado com os painéis.";
+        }
+    }
+
+    private async Task RemoverGrupoAsync()
+    {
+        if (GrupoSelecionado is null || _cloud.GlobalConfig?.Clone() is not { } config) return;
+        var nome = GrupoSelecionado.Nome;
+        config.GruposComputadores.RemoveAll(g => g.Id == GrupoSelecionado.Id);
+        if (await SalvarBibliotecaAsync(config)) StatusOperacao = $"Grupo '{nome}' removido dos painéis.";
+    }
+
+    private void AplicarModelo()
+    {
+        if (ModeloSelecionado is null) return;
+        var modelo = ModeloSelecionado;
+        Titulo = modelo.Titulo;
+        Mensagem = modelo.Mensagem;
+        PermitirResposta = modelo.PermitirResposta;
+        ExibirImagemCentral = false;
+        ExibirAvisoObrigatorio = modelo.ModoExibicao == ProtocolConstants.DisplayMode.CenterAlert;
+        ExibirMensagemCentral = modelo.ModoExibicao == ProtocolConstants.DisplayMode.CenterMessage;
+        CorDestaque = modelo.Aparencia.AccentColor;
+        EscalaTexto = modelo.Aparencia.FontScalePercent;
+        TocarSom = modelo.Aparencia.PlaySound;
+        TipoSom = modelo.Aparencia.SoundType;
+        TempoAvisoSegundos = modelo.Aparencia.ToastDurationSeconds;
+        PosicaoAviso = modelo.Aparencia.ToastPosition;
+        Botoes.Clear();
+        foreach (var botao in modelo.Botoes.Take(ProtocolConstants.MaxBotoes))
+            Botoes.Add(new BotaoRespostaEditavel { Rotulo = botao.Label, Url = botao.Url });
+        StatusOperacao = $"Modelo '{modelo.Nome}' carregado. Confira a prévia antes de enviar.";
+    }
+
+    private async Task SalvarModeloAsync()
+    {
+        var nome = string.IsNullOrWhiteSpace(NovoModeloNome) ? ModeloSelecionado?.Nome : NovoModeloNome.Trim();
+        if (string.IsNullOrWhiteSpace(nome) || nome.Length > 60)
+        { StatusOperacao = "Informe um nome de modelo com até 60 caracteres."; return; }
+        if (string.IsNullOrWhiteSpace(Titulo) || string.IsNullOrWhiteSpace(Mensagem) || ExibirImagemCentral)
+        { StatusOperacao = "Modelos compartilhados guardam avisos de texto e botões."; return; }
+        var config = _cloud.GlobalConfig?.Clone();
+        if (config is null) return;
+        if (ModeloSelecionado is null && config.ModelosMensagem.Count >= 50)
+        { StatusOperacao = "Limite de 50 modelos compartilhados."; return; }
+        var modelo = new ModeloMensagemGlobal
+        {
+            Id = ModeloSelecionado?.Id ?? Guid.NewGuid().ToString("N"),
+            Nome = nome,
+            Titulo = Titulo.Trim(), Mensagem = Mensagem.Trim(), PermitirResposta = PermitirResposta,
+            ModoExibicao = ExibirAvisoObrigatorio ? ProtocolConstants.DisplayMode.CenterAlert
+                : ExibirMensagemCentral ? ProtocolConstants.DisplayMode.CenterMessage : ProtocolConstants.DisplayMode.Toast,
+            Botoes = Botoes.Select(b => b.ParaProtocolo()).ToList(),
+            Aparencia = new AparenciaNotificacao
+            {
+                AccentColor = CorDestaque.Trim(), FontScalePercent = (int)EscalaTexto,
+                PlaySound = TocarSom, SoundType = TipoSom,
+                ToastDurationSeconds = (int)TempoAvisoSegundos, ToastPosition = PosicaoAviso,
+            },
+        };
+        config.ModelosMensagem.RemoveAll(m => m.Id == modelo.Id);
+        config.ModelosMensagem.Add(modelo);
+        if (await SalvarBibliotecaAsync(config))
+        {
+            ModeloSelecionado = ModelosMensagem.FirstOrDefault(m => m.Id == modelo.Id);
+            NovoModeloNome = string.Empty;
+            StatusOperacao = $"Modelo '{nome}' sincronizado com os painéis.";
+        }
+    }
+
+    private async Task RemoverModeloAsync()
+    {
+        if (ModeloSelecionado is null || _cloud.GlobalConfig?.Clone() is not { } config) return;
+        var nome = ModeloSelecionado.Nome;
+        config.ModelosMensagem.RemoveAll(m => m.Id == ModeloSelecionado.Id);
+        if (await SalvarBibliotecaAsync(config)) StatusOperacao = $"Modelo '{nome}' removido dos painéis.";
+    }
+
+    private async Task<bool> SalvarBibliotecaAsync(ConfiguracaoGlobalPrograma config)
+    {
+        try
+        {
+            await _cloud.SaveGlobalConfigAsync(config).ConfigureAwait(true);
+            return true;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException
+            or UnauthorizedAccessException)
+        {
+            StatusOperacao = $"Não foi possível sincronizar: {ex.Message}";
+            return false;
+        }
     }
 
     private void AtualizarDestinatarios()
@@ -975,6 +1163,55 @@ public sealed class MensagensViewModel : ViewModelBase
         };
     }
 
+    private async Task PrevisualizarAsync()
+    {
+        var computador = Destinatarios.FirstOrDefault(d => d.Selecionado)?.Computador;
+        if (computador is null)
+        {
+            StatusOperacao = "Selecione um computador para testar o aviso antes do envio.";
+            return;
+        }
+        var imagens = CriarImagensPorMonitor(computador.Id);
+        var videos = CriarVideosPorMonitor(computador.Id);
+        var imagem = CriarConteudoImagem();
+        var video = CriarConteudoVideo();
+        var audio = CriarConteudoAudio();
+        var modo = DefinirComoPapelDeParede ? ProtocolConstants.DisplayMode.CenterImage
+            : !ExibirImagemCentral ? ExibirAvisoObrigatorio ? ProtocolConstants.DisplayMode.CenterAlert
+                : ExibirMensagemCentral ? ProtocolConstants.DisplayMode.CenterMessage : ProtocolConstants.DisplayMode.Toast
+            : audio is not null ? ProtocolConstants.DisplayMode.Audio
+            : videos.Count > 0 || video is not null ? ProtocolConstants.DisplayMode.CenterVideo
+            : ProtocolConstants.DisplayMode.CenterImage;
+        var permiteInteracao = !ExibirAvisoObrigatorio && !ExibirImagemCentral && !DefinirComoPapelDeParede;
+        var aparencia = new AparenciaNotificacao
+        {
+            AccentColor = CorDestaque.Trim(),
+            FontScalePercent = (int)EscalaTexto,
+            PlaySound = TocarSom && !TemAudio,
+            SoundType = TipoSom,
+            ToastDurationSeconds = (int)TempoAvisoSegundos,
+            ToastPosition = PosicaoAviso,
+        };
+        StatusOperacao = $"Mostrando prévia de {computador.NomeExibicao} neste computador…";
+        await Views.NotificacaoRecebidaWindow.MostrarAsync(
+            $"Prévia · {computador.NomeExibicao}", Titulo, Mensagem,
+            allowReply: PermitirResposta && permiteInteracao,
+            botoes: permiteInteracao ? Botoes.Select(b => b.ParaProtocolo()).ToList() : [],
+            modoExibicao: modo,
+            imagem: imagens.Count > 0 ? null : imagem,
+            imagensPorMonitor: imagens,
+            duracaoImagemSegundos: (int)TempoImagemSegundos,
+            permitirFecharManualmente: true,
+            aparencia: aparencia,
+            video: videos.Count > 0 ? null : video,
+            videosPorMonitor: videos,
+            repetirVideo: RepetirVideo,
+            audio: audio,
+            repetirAudio: RepetirAudio,
+            previewMode: true).ConfigureAwait(true);
+        StatusOperacao = "Prévia encerrada. Nenhuma mensagem foi enviada.";
+    }
+
     private async Task EnviarAsync()
     {
         var selecionados = Destinatarios.Where(d => d.Selecionado).ToList();
@@ -1061,24 +1298,28 @@ public sealed class MensagensViewModel : ViewModelBase
             };
             _historico.Adicionar(entry);
 
-            var resultado = await _enviador
-                .EnviarAsync(
-                    computador, Titulo, Mensagem, permitirRespostaEfetiva, botoesProtocolo,
-                    modoExibicao: modoExibicao,
-                    imagem: imagemParaEsteComputador,
-                    imagensPorMonitor: imagensPorMonitor,
-                    duracaoImagemSegundos: duracaoMidia,
-                    permitirFecharManualmente: permitirFechar,
-                    aparencia: aparencia,
-                    video: videoParaEsteComputador,
-                    videosPorMonitor: videosPorMonitor,
-                    repetirVideo: modoExibicao == ProtocolConstants.DisplayMode.CenterVideo ? RepetirVideo : null,
-                    audio: modoExibicao == ProtocolConstants.DisplayMode.Audio ? audio : null,
-                    repetirAudio: modoExibicao == ProtocolConstants.DisplayMode.Audio ? RepetirAudio : null)
-                .ConfigureAwait(true);
+            var envio = new EnvioPendente
+            {
+                Titulo = Titulo,
+                Mensagem = Mensagem,
+                PermitirResposta = permitirRespostaEfetiva,
+                Botoes = botoesProtocolo,
+                ModoExibicao = modoExibicao,
+                Imagem = imagemParaEsteComputador,
+                ImagensPorMonitor = imagensPorMonitor,
+                Video = videoParaEsteComputador,
+                VideosPorMonitor = videosPorMonitor,
+                Audio = modoExibicao == ProtocolConstants.DisplayMode.Audio ? audio : null,
+                DuracaoSegundos = duracaoMidia,
+                PermitirFecharManualmente = permitirFechar,
+                RepetirVideo = modoExibicao == ProtocolConstants.DisplayMode.CenterVideo ? RepetirVideo : null,
+                RepetirAudio = modoExibicao == ProtocolConstants.DisplayMode.Audio ? RepetirAudio : null,
+                Aparencia = aparencia,
+            };
+            var resultado = await envio.EnviarAsync(_enviador, computador).ConfigureAwait(true);
 
             _historico.AtualizarExistente(
-                entry.Id, item => AplicarResultado(item, resultado, permitirRespostaEfetiva));
+                entry.Id, item => EnvioPendente.AtualizarHistorico(item, resultado, permitirRespostaEfetiva));
             if (resultado.GotReply)
             {
                 _ = Views.NotificacaoRecebidaWindow.MostrarAsync(
@@ -1091,6 +1332,11 @@ public sealed class MensagensViewModel : ViewModelBase
             }
             else
             {
+                try { _reenvios.Salvar(entry.Id, envio); CommandManager.InvalidateRequerySuggested(); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Logger.Error($"Não foi possível guardar o envio para repetir: {ex.Message}", "envio");
+                }
                 var detalhe = resultado.ErrorMessage ?? "falha sem detalhe";
                 erros.Add($"{computador.Nome}: {detalhe}");
                 Logger.Error(
@@ -1109,29 +1355,4 @@ public sealed class MensagensViewModel : ViewModelBase
         DefinirComoPapelDeParede = false;
     }
 
-    private static void AplicarResultado(HistoricoEntry item, NotificationResult resultado, bool permitirResposta)
-    {
-        if (!resultado.Delivered)
-        {
-            item.Status = StatusEnvio.Erro;
-            item.ErroDetalhe = resultado.ErrorMessage;
-        }
-        else if (resultado.GotReply)
-        {
-            item.Status = StatusEnvio.Respondido;
-            item.RespostaTexto = resultado.ReplyText;
-        }
-        else if (permitirResposta)
-        {
-            item.Status = StatusEnvio.SemResposta;
-        }
-        else if (resultado.WasShown)
-        {
-            item.Status = StatusEnvio.Exibido;
-        }
-        else
-        {
-            item.Status = StatusEnvio.Entregue;
-        }
-    }
 }

@@ -14,6 +14,7 @@ public sealed class HistoricoRepository
     private readonly Dictionary<string, HistoricoEntry> _porId = new(StringComparer.Ordinal);
 
     public ObservableCollection<HistoricoEntry> Itens => _itens;
+    public event Action? Changed;
 
     public HistoricoRepository(JsonStore<HistoricoEntry> store)
     {
@@ -31,6 +32,7 @@ public sealed class HistoricoRepository
             _porId.Add(entry.Id, entry);
             Aparar();
             Persist();
+            Changed?.Invoke();
         });
     }
 
@@ -42,6 +44,7 @@ public sealed class HistoricoRepository
             {
                 aplicar(item);
                 Persist();
+                Changed?.Invoke();
             }
         });
     }
@@ -53,6 +56,7 @@ public sealed class HistoricoRepository
             Itens.Clear();
             _porId.Clear();
             Persist();
+            Changed?.Invoke();
         });
     }
 
@@ -92,6 +96,7 @@ public sealed class HistoricoRepository
                     Reindexar();
                 }
                 Persist();
+                Changed?.Invoke();
             }
         });
         return alterados;

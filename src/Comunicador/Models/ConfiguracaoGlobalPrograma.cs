@@ -1,3 +1,5 @@
+using Comunicador.Protocol;
+
 namespace Comunicador.Models;
 
 public sealed class ConfiguracaoGlobalPrograma
@@ -14,6 +16,40 @@ public sealed class ConfiguracaoGlobalPrograma
     public bool PermitirPapelParedeRemoto { get; set; } = true;
     public string PoliticaInicializacaoWindows { get; set; } = "local";
     public List<ModeloBadgeGlobal> ModelosBadge { get; set; } = [];
+    public List<GrupoComputadoresGlobal> GruposComputadores { get; set; } = [];
+    public List<ModeloMensagemGlobal> ModelosMensagem { get; set; } = [];
+
+    public ConfiguracaoGlobalPrograma Clone() => new()
+    {
+        Tema = Tema, Paleta = Paleta, FundoPainel = FundoPainel,
+        ReduzirMovimento = ReduzirMovimento, TransparenciaCards = TransparenciaCards,
+        BlurCards = BlurCards, VelocidadeFundo = VelocidadeFundo,
+        PermitirMidias = PermitirMidias, PermitirLinks = PermitirLinks,
+        PermitirPapelParedeRemoto = PermitirPapelParedeRemoto,
+        PoliticaInicializacaoWindows = PoliticaInicializacaoWindows,
+        ModelosBadge = ModelosBadge.ToList(),
+        GruposComputadores = GruposComputadores.ToList(),
+        ModelosMensagem = ModelosMensagem.ToList(),
+    };
+}
+
+public sealed class GrupoComputadoresGlobal
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Nome { get; set; } = string.Empty;
+    public List<string> ComputadorIds { get; set; } = [];
+}
+
+public sealed class ModeloMensagemGlobal
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Nome { get; set; } = string.Empty;
+    public string Titulo { get; set; } = string.Empty;
+    public string Mensagem { get; set; } = string.Empty;
+    public bool PermitirResposta { get; set; } = true;
+    public string ModoExibicao { get; set; } = ProtocolConstants.DisplayMode.Toast;
+    public List<BotaoResposta> Botoes { get; set; } = [];
+    public AparenciaNotificacao Aparencia { get; set; } = new();
 }
 
 public sealed class ModeloBadgeGlobal : ObservableModel

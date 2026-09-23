@@ -9,7 +9,12 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .codex-pytest-*/
+.codex-pytest/
 .pytest-temp-*/
+.pytest-gif-*/
+.pytest-run-*/
+.pytest-run/
+.test-temp/
 test-temp/
 *.egg-info/
 

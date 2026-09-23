@@ -112,15 +112,16 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         Logger.Configure(_logsRepositorio, Settings.PainelId, Settings.NomePainel);
         _conexoesReversas = new RegistroConexoesReversas();
         var enviador = new EnviadorNotificacoes(client, _conexoesReversas, Settings);
+        var reenvios = new ReenvioRepository();
         var atualizador = new AtualizadorReceptor(client, _conexoesReversas);
 
         Computadores = new ComputadoresViewModel(
             computadoresStore, _discovery, client, atualizador, Settings, perfis, _cloudSync);
         _sync = new SyncCoordinatorService(
             Computadores.Snapshot, client, _conexoesReversas, _historicoRepositorio, _logsRepositorio, perfis);
-        Historico = new HistoricoViewModel(_historicoRepositorio);
+        Historico = new HistoricoViewModel(_historicoRepositorio, reenvios, Computadores, enviador);
         Logs = new LogsViewModel(_logsRepositorio, _sync);
-        Mensagens = new MensagensViewModel(Computadores, enviador, _historicoRepositorio, _cloudSync);
+        Mensagens = new MensagensViewModel(Computadores, enviador, _historicoRepositorio, _cloudSync, reenvios);
 
         _statusMonitor = new StatusMonitorService(Computadores.Snapshot, enviador, Settings);
         _statusMonitor.StatusAtualizado += Computadores.AtualizarStatus;

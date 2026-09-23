@@ -70,6 +70,42 @@ public sealed class PanelUpdateService
         if (started is null) throw new InvalidOperationException("O atualizador não pôde ser iniciado.");
     }
 
+    /// <summary>Confirma ao atualizador que a nova interface continuou ativa após abrir.
+    /// A confirmação é ligada à instalação pendente por um token exclusivo.</summary>
+    public static async Task ReportHealthyStartupAsync()
+    {
+        var executable = Environment.ProcessPath;
+        var directory = executable is null ? null : Path.GetDirectoryName(executable);
+        if (directory is null) return;
+        var pendingPath = Path.Combine(directory, "Comunicador.atualizacao-pendente.json");
+        if (!File.Exists(pendingPath)) return;
+        await Task.Delay(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        try
+        {
+            if (!File.Exists(pendingPath)) return;
+            using var pending = JsonDocument.Parse(await File.ReadAllTextAsync(pendingPath).ConfigureAwait(false));
+            var root = pending.RootElement;
+            var token = root.GetProperty("token").GetString();
+            var version = root.GetProperty("version").GetString();
+            var current = Assembly.GetExecutingAssembly().GetName().Version?.ToString();
+            if (string.IsNullOrWhiteSpace(token) || version != current) return;
+            var healthPath = Path.Combine(directory, "Comunicador.inicializacao-ok.json");
+            var temporary = healthPath + ".tmp";
+            await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(new
+            {
+                token,
+                version,
+                process_id = Environment.ProcessId,
+                confirmed_at = DateTimeOffset.UtcNow,
+            })).ConfigureAwait(false);
+            File.Move(temporary, healthPath, true);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"Não foi possível confirmar a abertura após a atualização: {ex.Message}");
+        }
+    }
+
     public string? ConsumeUpdateSummary()
     {
         var path = Path.Combine(AppPaths.RootDir, "ultima-atualizacao.json");

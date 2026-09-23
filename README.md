@@ -1,4 +1,4 @@
-# Comunicador 2.5.4
+# Comunicador 2.5.5
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
@@ -120,7 +120,8 @@ Receptor"** no Agendador de Tarefas do Windows para iniciar com o
 login do usuário (via `pythonw.exe`, sem janela de console). O arquivo
 sempre baixa e valida a versão 2.5.3 publicada no GitHub antes de
 substituir uma instalação existente. Ao concluir com sucesso, fecha
-sozinho. Para remover o receptor, use
+sozinho e apaga o próprio `INSTALAR_RECEPTOR.bat` que foi executado. Para
+reinstalar, baixe uma nova cópia do GitHub. Para remover o receptor, use
 `receiver/DESINSTALAR_RECEPTOR.bat`. O desinstalador preserva as regras
 e configurações compartilhadas quando há um painel na mesma máquina.
 Para conferir antecipadamente todos os alvos sem alterar nada, execute
@@ -128,6 +129,19 @@ Para conferir antecipadamente todos os alvos sem alterar nada, execute
 
 O menu de ações por computador reúne as opções de pareamento, atualização e
 administração remota. Os comandos administrativos são reservados ao OWNER.
+Abrir outro executável ou BAT apenas reativa o painel já aberto, sem criar
+outro ícone na bandeja.
+
+Em **Mensagens**, a prévia mostra localmente o aviso para o primeiro computador
+selecionado, sem enviar nada. O OWNER pode salvar grupos de destinatários e
+modelos de mensagem no Supabase para todos os painéis. Em **Histórico**, os
+envios podem ser filtrados por estado e os que falharam podem ser reenviados
+do painel de origem. Em **Configurações > Administrador**, o OWNER consulta as
+ações administrativas registradas pelo banco.
+
+O `build.bat` assina o executável se `COMUNICADOR_SIGNING_THUMBPRINT` apontar
+para um certificado válido de assinatura de código instalado neste Windows,
+com chave privada acessível. Sem ele, a compilação continua sem assinatura.
 
 Rodar os testes do receptor localmente:
 

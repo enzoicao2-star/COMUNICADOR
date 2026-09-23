@@ -84,7 +84,8 @@ public sealed class MensagensViewModelTests
             computadores,
             new EnviadorNotificacoes(client, conexoes, settings),
             new HistoricoRepository(new JsonStore<HistoricoEntry>(Path.Combine(pasta, "historico.json"))),
-            cloud);
+            cloud,
+            new ReenvioRepository(Path.Combine(pasta, "reenvios")));
         return new Contexto(pasta, discovery, computadores, mensagens, cloud);
     }
 

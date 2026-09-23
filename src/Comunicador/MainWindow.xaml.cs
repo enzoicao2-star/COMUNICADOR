@@ -63,6 +63,7 @@ public partial class MainWindow : Window
     {
         ContentRendered -= OnContentRendered;
         if (_viewModel is null) return;
+        _ = Services.PanelUpdateService.ReportHealthyStartupAsync();
         if (string.IsNullOrWhiteSpace(App.BenchmarkFile))
         {
             await VerificarAtualizacaoAoIniciarAsync(_viewModel);
@@ -340,7 +341,7 @@ public partial class MainWindow : Window
             Forms.ToolTipIcon.Info);
     }
 
-    private void RestaurarDaBandeja()
+    internal void RestaurarDaBandeja()
     {
         Show();
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
