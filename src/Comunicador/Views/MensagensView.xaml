@@ -230,8 +230,9 @@
                             <Border Grid.Column="0" Height="150" CornerRadius="9" Background="{DynamicResource BackgroundBrush}"
                                     BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" Padding="7">
                                 <Grid>
-                                    <Image Source="{Binding CaminhoImagem}" Stretch="Uniform"
-                                           Visibility="{Binding TemImagem, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    <controls:AnimatedImage DataBase64="{Binding ImagemPreviewBase64}"
+                                                            MimeType="{Binding MimeImagem}" Stretch="Uniform"
+                                                            Visibility="{Binding TemImagem, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                         <StackPanel.Style>
                                             <Style TargetType="StackPanel">
@@ -252,6 +253,8 @@
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="{Binding NomeMidia, TargetNullValue=Nenhuma mídia selecionada}"
                                            FontSize="12" TextTrimming="CharacterEllipsis" Margin="0,0,0,8" />
+                                <TextBlock Text="{Binding TipoMidiaTexto}" Style="{StaticResource Subtitulo}"
+                                           FontSize="11" Margin="0,0,0,8" />
                                 <WrapPanel Margin="0,0,0,7">
                                     <Button Style="{StaticResource BotaoSecundario}" Content="Imagem"
                                             Command="{Binding SelecionarImagemCommand}" Margin="0,0,7,6" />
@@ -262,7 +265,7 @@
                                     <Button Style="{StaticResource BotaoSecundario}" Content="Remover"
                                             Command="{Binding RemoverImagemCommand}" IsEnabled="{Binding TemMidia}" Margin="0,0,0,6" />
                                 </WrapPanel>
-                                <TextBlock Text="Imagem PNG/JPEG/GIF/BMP até 4 MB · vídeo MP4/WMV até 24 MB · áudio MP3/WAV até 12 MB"
+                                <TextBlock Text="Imagem PNG/JPEG/BMP até 4 MB · GIF até 16 MB · vídeo MP4/WMV até 24 MB · áudio MP3/WAV até 12 MB"
                                            Style="{StaticResource Subtitulo}" FontSize="11" />
                                 <CheckBox IsChecked="{Binding DefinirComoPapelDeParede}"
                                           IsEnabled="{Binding PodeAlterarPapelParede}"
@@ -399,14 +402,16 @@
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
                                                             <Grid Width="{Binding PreviewWidth}" MaxHeight="130" Margin="3">
-                                                                <Image Source="{Binding Caminho}" MaxHeight="130" Stretch="Uniform">
-                                                                    <Image.Style>
-                                                                        <Style TargetType="Image">
+                                                                <controls:AnimatedImage DataBase64="{Binding DadosBase64}"
+                                                                                        MimeType="{Binding MimeType}"
+                                                                                        MaxHeight="130" Stretch="Uniform">
+                                                                    <controls:AnimatedImage.Style>
+                                                                        <Style TargetType="controls:AnimatedImage">
                                                                             <Setter Property="Visibility" Value="Collapsed" />
                                                                             <Style.Triggers><DataTrigger Binding="{Binding EhImagem}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
                                                                         </Style>
-                                                                    </Image.Style>
-                                                                </Image>
+                                                                    </controls:AnimatedImage.Style>
+                                                                </controls:AnimatedImage>
                                                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                                                     <StackPanel.Style>
                                                                         <Style TargetType="StackPanel">

@@ -28,11 +28,13 @@ public enum TipoMidiaMonitor
 public sealed class MidiaMonitorEditavel : ViewModelBase
 {
     private double _tamanhoPercentual = 70;
+    private string? _dadosBase64;
 
     public string Caminho { get; init; } = string.Empty;
     public string Nome { get; init; } = string.Empty;
     public string MimeType { get; init; } = string.Empty;
     public byte[] Dados { get; init; } = Array.Empty<byte>();
+    public string DadosBase64 => _dadosBase64 ??= Convert.ToBase64String(Dados);
     public TipoMidiaMonitor Tipo { get; init; }
     public bool EhImagem => Tipo == TipoMidiaMonitor.Imagem;
     public bool EhVideo => Tipo == TipoMidiaMonitor.Video;

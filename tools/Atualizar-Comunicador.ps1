@@ -6,7 +6,8 @@ param(
     [string]$ManifestUrl = 'https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/panel-version.json',
     [string]$RepositoryArchiveUrl = 'https://github.com/enzoicao2-star/COMUNICADOR/archive/refs/heads/main.zip',
     [switch]$SkipShortcuts,
-    [switch]$RestartAfterUpdate
+    [switch]$RestartAfterUpdate,
+    [switch]$ForceReinstall
 )
 
 $ErrorActionPreference = 'Stop'
@@ -312,7 +313,7 @@ if (Test-Path -LiteralPath $target) {
     }
 }
 
-$isCurrent = (Test-Path -LiteralPath $target) -and (
+$isCurrent = -not $ForceReinstall -and (Test-Path -LiteralPath $target) -and (
     $currentVersion -gt $latestVersion -or
     ($currentVersion -eq $latestVersion -and ($null -eq $managedRoot -or $currentHash -eq $expectedHash))
 )

@@ -75,7 +75,7 @@
                 <Style TargetType="StackPanel">
                     <Setter Property="Visibility" Value="Collapsed" />
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding Computadores.Count}" Value="0">
+                        <DataTrigger Binding="{Binding Computadores.Count, Mode=OneWay}" Value="0">
                             <Setter Property="Visibility" Value="Visible" />
                         </DataTrigger>
                     </Style.Triggers>
@@ -272,11 +272,11 @@
                                         <TextBlock FontSize="11" FontWeight="SemiBold">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
-                                                    <Setter Property="Text" Value="{Binding StatusVersaoReceptor}" />
+                                                    <Setter Property="Text" Value="{Binding StatusVersaoReceptor, Mode=OneWay}" />
                                                     <Setter Property="Foreground" Value="#A15C00" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding TemPainel}" Value="True">
-                                                            <Setter Property="Text" Value="{Binding StatusVersaoPainel}" />
+                                                            <Setter Property="Text" Value="{Binding StatusVersaoPainel, Mode=OneWay}" />
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding ReceptorAtualizado}" Value="True">
                                                             <Setter Property="Foreground" Value="#107C10" />

@@ -3,8 +3,8 @@ namespace Comunicador.Protocol;
 public static class ProtocolConstants
 {
     public const int Version = 1;
-    public const string CurrentReceiverVersion = "2.5.2";
-    public const string CurrentPanelVersion = "2.5.3";
+    public const string CurrentReceiverVersion = "2.5.3";
+    public const string CurrentPanelVersion = "2.5.4";
     public const string MinimumManagedReceiverVersion = "2.1.0";
 
     public static bool SupportsRemoteManagement(string? receiverVersion) =>
@@ -17,8 +17,8 @@ public static class ProtocolConstants
     public const int PanelFallbackTcpPort = 57933;
     public const int PanelFallbackUdpDiscoveryPort = 57934;
 
-    // Uma imagem de 4 MiB vira aproximadamente 5,4 MiB em Base64. O limite do
-    // quadro inclui esse crescimento e ainda deixa margem para o restante do JSON.
+    // GIFs de 16 MiB viram aproximadamente 21,4 MiB em Base64. O quadro TCP
+    // comporta esse crescimento, inclusive quando imagens são destinadas a monitores.
     public const int MaxTcpMessageBytes = 64 * 1024 * 1024;
     public const int MaxUdpMessageBytes = 2048;
 
@@ -31,8 +31,10 @@ public static class ProtocolConstants
     public const int MaxBotaoUrlLength = 500;
 
     public const int MaxImageBytes = 4 * 1024 * 1024;
+    public const int MaxGifBytes = 16 * 1024 * 1024;
     public const int MaxImageNameLength = 255;
     public const int MaxImageBase64Length = ((MaxImageBytes + 2) / 3) * 4;
+    public const int MaxGifBase64Length = ((MaxGifBytes + 2) / 3) * 4;
     public const int MinImageDurationSeconds = 3;
     public const int MaxImageDurationSeconds = 3600;
     public const int MaxMonitors = 12;
@@ -60,6 +62,16 @@ public static class ProtocolConstants
     public const int MaxToastDurationSeconds = 300;
     public const int MinFontScalePercent = 80;
     public const int MaxFontScalePercent = 160;
+
+    public static int MaxImageBytesForMime(string? mimeType) =>
+        string.Equals(mimeType, "image/gif", StringComparison.OrdinalIgnoreCase)
+            ? MaxGifBytes
+            : MaxImageBytes;
+
+    public static int MaxImageBase64LengthForMime(string? mimeType) =>
+        string.Equals(mimeType, "image/gif", StringComparison.OrdinalIgnoreCase)
+            ? MaxGifBase64Length
+            : MaxImageBase64Length;
 
     public static class SoundType
     {

@@ -62,7 +62,12 @@ public partial class MainWindow : Window
     private async void OnContentRendered(object? sender, EventArgs e)
     {
         ContentRendered -= OnContentRendered;
-        if (string.IsNullOrWhiteSpace(App.BenchmarkFile) || _viewModel is null) return;
+        if (_viewModel is null) return;
+        if (string.IsNullOrWhiteSpace(App.BenchmarkFile))
+        {
+            await VerificarAtualizacaoAoIniciarAsync(_viewModel);
+            return;
+        }
 
         await Task.Delay(900);
         var readyMs = App.StartupWatch.Elapsed.TotalMilliseconds;
@@ -128,6 +133,18 @@ public partial class MainWindow : Window
             JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
         _allowExit = true;
         Application.Current.Shutdown();
+    }
+
+    private async Task VerificarAtualizacaoAoIniciarAsync(MainViewModel viewModel)
+    {
+        var info = await viewModel.Configuracoes.VerificarAtualizacaoPainelAsync();
+        if (info is not { IsAvailable: true }) return;
+
+        var resposta = MessageBox.Show(this,
+            $"A versão {info.LatestVersion} do Comunicador está disponível.\n\n{info.Summary}\n\nDeseja atualizar agora?",
+            "Atualização do Comunicador", MessageBoxButton.YesNo, MessageBoxImage.Information);
+        if (resposta == MessageBoxResult.Yes)
+            await viewModel.Configuracoes.AtualizarPainelAsync();
     }
 
     private void OnWindowLoaded(object sender, RoutedEventArgs e)

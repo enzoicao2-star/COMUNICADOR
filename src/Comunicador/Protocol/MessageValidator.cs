@@ -555,9 +555,10 @@ public static class MessageValidator
             return ValidationResult.Fail(ErrorCode.MissingField, "Campo obrigatório ausente: image.data_base64");
         }
 
-        if (imagem.DataBase64.Length > MaxImageBase64Length)
+        var limiteImagem = ProtocolConstants.MaxImageBytesForMime(imagem.MimeType);
+        if (imagem.DataBase64.Length > ProtocolConstants.MaxImageBase64LengthForMime(imagem.MimeType))
         {
-            return ValidationResult.Fail(ErrorCode.PayloadTooLarge, $"Imagem excede {MaxImageBytes} bytes.");
+            return ValidationResult.Fail(ErrorCode.PayloadTooLarge, $"Imagem excede {limiteImagem} bytes.");
         }
 
         byte[] dados;
@@ -570,9 +571,9 @@ public static class MessageValidator
             return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Campo 'image.data_base64' não é Base64 válido.");
         }
 
-        if (dados.Length == 0 || dados.Length > MaxImageBytes)
+        if (dados.Length == 0 || dados.Length > limiteImagem)
         {
-            return ValidationResult.Fail(ErrorCode.PayloadTooLarge, $"Imagem precisa ter entre 1 e {MaxImageBytes} bytes.");
+            return ValidationResult.Fail(ErrorCode.PayloadTooLarge, $"Imagem precisa ter entre 1 e {limiteImagem} bytes.");
         }
 
         if (!ConteudoImagem.AssinaturaCorresponde(imagem.MimeType, dados))

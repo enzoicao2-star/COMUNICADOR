@@ -42,7 +42,8 @@ delimitador.
 - `title`: até 200 caracteres.
 - `message` / `reply_text`: até 4000 caracteres.
 - `sender` / `panel_name` / `computer_name`: até 100 caracteres.
-- Uma imagem: até **4 MiB**; todas as imagens de uma mensagem: até **16 MiB**.
+- PNG, JPEG e BMP: até **4 MiB** por arquivo. GIF: até **16 MiB** por arquivo.
+  A soma de todas as imagens em uma mensagem continua limitada a **16 MiB**.
 - Um vídeo MP4/WMV: até **24 MiB**; até 4 vídeos por notificação.
 - Um áudio MP3/WAV: até **12 MiB**.
 - O conjunto de mídias de uma mensagem: até **40 MiB**.
@@ -270,7 +271,7 @@ máquina do receptor — só o painel precisa da porta aberta.
 ```json
 { "protocol_version": 1, "type": "register", "id": "...", "timestamp": "...",
   "computer_id": "b0b1...", "computer_name": "COMPUTADOR-1", "token": "9f8b...",
-  "receiver_version": "2.5.2", "has_panel": false,
+  "receiver_version": "2.5.3", "has_panel": false,
   "monitors": [{ "index": 0, "name": "DISPLAY1", "width": 1920,
     "height": 1080, "x": 0, "y": 0, "primary": true }] }
 ```

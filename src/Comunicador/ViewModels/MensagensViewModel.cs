@@ -128,6 +128,12 @@ public sealed class MensagensViewModel : ViewModelBase
         private set => SetField(ref _nomeImagem, value);
     }
 
+    public string? MimeImagem => _mimeImagem;
+
+    public string? ImagemPreviewBase64 => _dadosImagem is { Length: > 0 }
+        ? Convert.ToBase64String(_dadosImagem)
+        : null;
+
     public bool TemImagem => _dadosImagem is { Length: > 0 };
     public bool TemVideo => _dadosVideo is { Length: > 0 };
     public bool TemAudio => _dadosAudio is { Length: > 0 };
@@ -136,7 +142,8 @@ public sealed class MensagensViewModel : ViewModelBase
     public bool PodeConfigurarMonitores => !TemAudio;
     public string? CaminhoMidia => CaminhoImagem ?? _caminhoVideo ?? _caminhoAudio;
     public string? NomeMidia => NomeImagem ?? _nomeVideo ?? _nomeAudio;
-    public string TipoMidiaTexto => TemImagem ? "Imagem" : TemVideo ? "Vídeo" : TemAudio ? "Áudio" : "Mídia";
+    public string TipoMidiaTexto => TemAudio ? "Áudio" : TemVideo ? "Vídeo"
+        : TemImagem ? (_mimeImagem == "image/gif" ? "GIF" : "Imagem") : "Mídia";
     public bool PodeAlterarPapelParede => _cloud.IsAdmin
         && _cloud.GlobalConfig?.PermitirPapelParedeRemoto != false;
     public bool DefinirComoPapelDeParede
@@ -518,13 +525,14 @@ public sealed class MensagensViewModel : ViewModelBase
             try
             {
                 var arquivo = new FileInfo(caminho);
-                if (arquivo.Length <= 0 || arquivo.Length > ProtocolConstants.MaxImageBytes)
+                var mime = MimeImagemPelaExtensao(caminho);
+                var limiteBytes = ProtocolConstants.MaxImageBytesForMime(mime);
+                if (arquivo.Length <= 0 || arquivo.Length > limiteBytes)
                 {
-                    StatusOperacao = $"{arquivo.Name}: cada imagem pode ter no máximo 4 MB.";
+                    StatusOperacao = $"{arquivo.Name}: o limite é {limiteBytes / 1024 / 1024} MB para este formato.";
                     continue;
                 }
 
-                var mime = MimeImagemPelaExtensao(caminho);
                 var dados = File.ReadAllBytes(caminho);
                 if (!ConteudoImagem.MimePermitido(mime) || !ConteudoImagem.AssinaturaCorresponde(mime, dados))
                 {
@@ -701,13 +709,14 @@ public sealed class MensagensViewModel : ViewModelBase
         try
         {
             var arquivo = new FileInfo(dialog.FileName);
-            if (arquivo.Length <= 0 || arquivo.Length > ProtocolConstants.MaxImageBytes)
+            var mime = MimeImagemPelaExtensao(dialog.FileName);
+            var limiteBytes = ProtocolConstants.MaxImageBytesForMime(mime);
+            if (arquivo.Length <= 0 || arquivo.Length > limiteBytes)
             {
-                StatusOperacao = "A imagem precisa ter no máximo 4 MB.";
+                StatusOperacao = $"O limite para este formato é {limiteBytes / 1024 / 1024} MB.";
                 return;
             }
 
-            var mime = MimeImagemPelaExtensao(dialog.FileName);
             var dados = File.ReadAllBytes(dialog.FileName);
             if (!ConteudoImagem.MimePermitido(mime) || !ConteudoImagem.AssinaturaCorresponde(mime, dados))
             {
@@ -721,7 +730,8 @@ public sealed class MensagensViewModel : ViewModelBase
             _caminhoImagem = dialog.FileName;
             _nomeImagem = arquivo.Name;
             ExibirImagemCentral = true;
-            StatusOperacao = $"Imagem selecionada: {arquivo.Name} ({arquivo.Length / 1024d:0.#} KB).";
+            var tipoSelecionado = mime == "image/gif" ? "GIF" : "Imagem";
+            StatusOperacao = $"{tipoSelecionado} selecionado: {arquivo.Name} ({arquivo.Length / 1024d:0.#} KB).";
             NotificarMidiaAlterada();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -901,6 +911,8 @@ public sealed class MensagensViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(CaminhoImagem));
         OnPropertyChanged(nameof(NomeImagem));
+        OnPropertyChanged(nameof(MimeImagem));
+        OnPropertyChanged(nameof(ImagemPreviewBase64));
         OnPropertyChanged(nameof(TemImagem));
         OnPropertyChanged(nameof(TemVideo));
         OnPropertyChanged(nameof(TemAudio));

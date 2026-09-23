@@ -268,21 +268,18 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
                     result = "A entrada de conexões locais do painel foi habilitada.";
                     break;
                 case "reinstall_panel":
-                    result = "Reinstalação do painel solicitada; ela começará após esta confirmação.";
-                    await _cloudSync.RespondToDeliveryAsync(delivery.Id, result).ConfigureAwait(true);
-                    _ = Task.Run(async () =>
+                    try
                     {
-                        try
-                        {
-                            var info = await _panelUpdate.CheckAsync().ConfigureAwait(false);
-                            await _panelUpdate.StartUpdateAsync(info).ConfigureAwait(false);
-                        }
-                        catch (Exception ex)
-                        {
-                            Logger.Error("Não foi possível reinstalar o painel remotamente.", "atualizacao", ex.Message);
-                        }
-                    });
-                    return;
+                        var info = await _panelUpdate.CheckAsync().ConfigureAwait(true);
+                        await _panelUpdate.StartUpdateAsync(info, forceReinstall: true).ConfigureAwait(true);
+                        result = $"Reinstalação do painel {info.LatestVersion} iniciada. O Comunicador será reaberto ao terminar.";
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error("Não foi possível reinstalar o painel remotamente.", "atualizacao", ex.Message);
+                        result = $"Não foi possível iniciar a reinstalação do painel: {ex.Message}";
+                    }
+                    break;
                 default:
                     result = "Comando desconhecido ou incompatível com este painel.";
                     break;
@@ -300,7 +297,6 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         if (Settings.EntradaPainelHabilitada) _embeddedReceptorServer.AtualizarDisponibilidade();
         _sync.Start();
         Configuracoes.AtualizarStatusReceptor();
-        _ = Configuracoes.VerificarAtualizacaoPainelAsync();
         var resumo = _panelUpdate.ConsumeUpdateSummary();
         if (!string.IsNullOrWhiteSpace(resumo))
             System.Windows.MessageBox.Show(resumo, "Atualização concluída",

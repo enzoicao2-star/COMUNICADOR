@@ -32,7 +32,8 @@ public sealed class PanelUpdateService
             manifest.Summary ?? string.Empty, manifest.Changes ?? Array.Empty<string>());
     }
 
-    public async Task StartUpdateAsync(PanelUpdateInfo info, CancellationToken cancellationToken = default)
+    public async Task StartUpdateAsync(
+        PanelUpdateInfo info, CancellationToken cancellationToken = default, bool forceReinstall = false)
     {
         var executable = Environment.ProcessPath
             ?? throw new InvalidOperationException("Não foi possível localizar o executável atual.");
@@ -64,6 +65,7 @@ public sealed class PanelUpdateService
             process.ArgumentList.Add(root);
         }
         process.ArgumentList.Add("-RestartAfterUpdate");
+        if (forceReinstall) process.ArgumentList.Add("-ForceReinstall");
         var started = Process.Start(process);
         if (started is null) throw new InvalidOperationException("O atualizador não pôde ser iniciado.");
     }

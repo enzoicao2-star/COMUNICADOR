@@ -1,3 +1,4 @@
+import base64
 import sys
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import protocolo  # noqa: E402
 from protocolo import ErrorCode, MessageType, ProtocolError  # noqa: E402
 
 PNG_UM_PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+GIF_UM_PIXEL = "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
 
 
 def imagem():
@@ -27,6 +29,40 @@ def notificacao():
 
 def test_imagem_central_valida():
     protocolo.validate(notificacao())
+
+
+def test_gif_central_valido_e_preservado_no_transporte():
+    msg = notificacao()
+    msg["image"] = {
+        "name": "animacao.gif", "mime_type": "image/gif", "data_base64": GIF_UM_PIXEL,
+    }
+
+    protocolo.validate(msg)
+    recebida = protocolo.parse(protocolo.frame(msg).rstrip(b"\n"))
+    assert recebida["image"]["mime_type"] == "image/gif"
+    assert recebida["image"]["data_base64"] == GIF_UM_PIXEL
+
+
+def test_gif_maior_que_quatro_mb_e_aceito_ate_o_novo_limite():
+    dados = b"GIF89a" + bytes(protocolo.MAX_IMAGE_BYTES - 5)
+    msg = notificacao()
+    msg["image"] = {
+        "name": "animacao.gif",
+        "mime_type": "image/gif",
+        "data_base64": base64.b64encode(dados).decode("ascii"),
+    }
+
+    protocolo.validate(msg)
+
+
+def test_png_maior_que_quatro_mb_continua_sendo_recusado():
+    dados = b"\x89PNG\r\n\x1a\n" + bytes(protocolo.MAX_IMAGE_BYTES - 7)
+    msg = notificacao()
+    msg["image"]["data_base64"] = base64.b64encode(dados).decode("ascii")
+
+    with pytest.raises(ProtocolError) as exc:
+        protocolo.validate(msg)
+    assert exc.value.code == ErrorCode.PAYLOAD_TOO_LARGE
 
 
 def test_imagem_central_sem_titulo_nem_mensagem():

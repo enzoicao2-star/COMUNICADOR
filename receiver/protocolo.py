@@ -32,8 +32,10 @@ MAX_BOTAO_LABEL_LENGTH = 40
 MAX_BOTAO_URL_LENGTH = 500
 
 MAX_IMAGE_BYTES = 4 * 1024 * 1024
+MAX_GIF_BYTES = 16 * 1024 * 1024
 MAX_IMAGE_NAME_LENGTH = 255
 MAX_IMAGE_BASE64_LENGTH = ((MAX_IMAGE_BYTES + 2) // 3) * 4
+MAX_GIF_BASE64_LENGTH = ((MAX_GIF_BYTES + 2) // 3) * 4
 MIN_IMAGE_DURATION_SECONDS = 3
 MAX_IMAGE_DURATION_SECONDS = 3600
 MAX_MONITORS = 12
@@ -273,16 +275,18 @@ def _validar_imagem(imagem: dict) -> int:
         raise ProtocolError(
             ErrorCode.INVALID_FIELD_TYPE, "Formato de imagem não permitido. Use PNG, JPEG, GIF ou BMP.")
 
-    data_base64 = _require_str(imagem, "data_base64", MAX_IMAGE_BASE64_LENGTH)
+    limite_bytes = MAX_GIF_BYTES if mime_type == "image/gif" else MAX_IMAGE_BYTES
+    limite_base64 = MAX_GIF_BASE64_LENGTH if mime_type == "image/gif" else MAX_IMAGE_BASE64_LENGTH
+    data_base64 = _require_str(imagem, "data_base64", limite_base64)
     try:
         dados = base64.b64decode(data_base64, validate=True)
     except (ValueError, binascii.Error) as exc:
         raise ProtocolError(
             ErrorCode.INVALID_FIELD_TYPE, "Campo 'image.data_base64' não é Base64 válido.") from exc
 
-    if not dados or len(dados) > MAX_IMAGE_BYTES:
+    if not dados or len(dados) > limite_bytes:
         raise ProtocolError(
-            ErrorCode.PAYLOAD_TOO_LARGE, f"Imagem precisa ter entre 1 e {MAX_IMAGE_BYTES} bytes.")
+            ErrorCode.PAYLOAD_TOO_LARGE, f"Imagem precisa ter entre 1 e {limite_bytes} bytes.")
     if not _assinatura_imagem_valida(mime_type, dados):
         raise ProtocolError(
             ErrorCode.INVALID_FIELD_TYPE,

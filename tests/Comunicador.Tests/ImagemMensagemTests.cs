@@ -7,6 +7,7 @@ public sealed class ImagemMensagemTests
 {
     private const string PngUmPixel =
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    private const string GifUmPixel = "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
     private static ConteudoImagem Imagem() => new()
     {
@@ -34,6 +35,54 @@ public sealed class ImagemMensagemTests
     public void ImagemCentralValida_Passa()
     {
         Assert.True(MessageValidator.Validate(NotificacaoCentral()).IsValid);
+    }
+
+    [Fact]
+    public void GifCentralValido_PassaEPermaneceGifNoTransporte()
+    {
+        var mensagem = NotificacaoCentral();
+        mensagem.Image = new ConteudoImagem
+        {
+            Name = "animacao.gif",
+            MimeType = "image/gif",
+            DataBase64 = GifUmPixel,
+        };
+
+        Assert.True(MessageValidator.Validate(mensagem).IsValid);
+        var quadro = MessageValidator.Frame(mensagem)[..^1];
+        Assert.True(MessageValidator.TryParse(quadro, out var recebida, out _));
+        Assert.Equal("image/gif", recebida!.Image!.MimeType);
+        Assert.Equal(GifUmPixel, recebida.Image.DataBase64);
+    }
+
+    [Fact]
+    public void GifMaiorQueQuatroMb_PassaAteDezesseisMb()
+    {
+        var dados = new byte[ProtocolConstants.MaxImageBytes + 1];
+        "GIF89a"u8.CopyTo(dados);
+        var mensagem = NotificacaoCentral();
+        mensagem.Image = new ConteudoImagem
+        {
+            Name = "animacao.gif",
+            MimeType = "image/gif",
+            DataBase64 = Convert.ToBase64String(dados),
+        };
+
+        Assert.True(MessageValidator.Validate(mensagem).IsValid);
+    }
+
+    [Fact]
+    public void PngMaiorQueQuatroMb_ContinuaSendoRecusado()
+    {
+        var dados = new byte[ProtocolConstants.MaxImageBytes + 1];
+        new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }.CopyTo(dados, 0);
+        var mensagem = NotificacaoCentral();
+        mensagem.Image!.DataBase64 = Convert.ToBase64String(dados);
+
+        var resultado = MessageValidator.Validate(mensagem);
+
+        Assert.False(resultado.IsValid);
+        Assert.Equal(ProtocolConstants.ErrorCode.PayloadTooLarge, resultado.Code);
     }
 
     [Fact]

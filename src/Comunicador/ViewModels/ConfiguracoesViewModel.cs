@@ -414,7 +414,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         }, param => _cloud.IsAdmin && param is ModeloBadgeGlobal);
     }
 
-    public async Task VerificarAtualizacaoPainelAsync()
+    public async Task<PanelUpdateInfo?> VerificarAtualizacaoPainelAsync()
     {
         StatusAtualizacaoPainel = "Verificando a versão publicada…";
         try
@@ -425,14 +425,16 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
                 ? $"Versão {_ultimaVerificacaoPainel.LatestVersion} disponível."
                 : "Este painel já está atualizado.";
             CommandManager.InvalidateRequerySuggested();
+            return _ultimaVerificacaoPainel;
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or InvalidDataException)
         {
             StatusAtualizacaoPainel = $"Não foi possível verificar agora: {ex.Message}";
+            return null;
         }
     }
 
-    private async Task AtualizarPainelAsync()
+    public async Task AtualizarPainelAsync()
     {
         if (_ultimaVerificacaoPainel is not { IsAvailable: true } info) return;
         StatusAtualizacaoPainel = "Baixando a atualização. O painel reiniciará sozinho…";
