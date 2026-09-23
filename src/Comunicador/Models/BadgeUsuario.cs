@@ -16,6 +16,7 @@ public sealed class BadgeUsuario : ObservableModel
     private bool _efeitoMouse = true;
     private bool _animacaoFlutuante;
     private string? _computerId;
+    private string? _roleId;
 
     public string Id { get => _id; set => SetField(ref _id, value); }
     public string Texto { get => _texto; set => SetField(ref _texto, value); }
@@ -30,6 +31,7 @@ public sealed class BadgeUsuario : ObservableModel
     public bool Brilho { get => _brilho; set => SetField(ref _brilho, value); }
     public bool EfeitoMouse { get => _efeitoMouse; set => SetField(ref _efeitoMouse, value); }
     public bool AnimacaoFlutuante { get => _animacaoFlutuante; set => SetField(ref _animacaoFlutuante, value); }
+    public string? RoleId { get => _roleId; set => SetField(ref _roleId, value); }
 
     [JsonIgnore]
     public string? ComputerId { get => _computerId; set => SetField(ref _computerId, value); }
@@ -48,5 +50,6 @@ public sealed class BadgeUsuario : ObservableModel
         Brilho = Brilho,
         EfeitoMouse = EfeitoMouse,
         AnimacaoFlutuante = AnimacaoFlutuante,
+        RoleId = RoleId,
     };
 }

@@ -275,6 +275,7 @@
                                 <TextBlock Text="Imagem PNG/JPEG/GIF/BMP até 4 MB · vídeo MP4/WMV até 24 MB · áudio MP3/WAV até 12 MB"
                                            Style="{StaticResource Subtitulo}" FontSize="11" />
                                 <CheckBox IsChecked="{Binding DefinirComoPapelDeParede}"
+                                          IsEnabled="{Binding PodeAlterarPapelParede}"
                                           Content="Definir esta imagem como papel de parede remoto"
                                           Margin="0,9,0,0">
                                     <CheckBox.Style>

@@ -33,7 +33,7 @@ Copy-Item -LiteralPath $source -Destination $destination -Force
 $hash = (Get-Sha256 $destination).ToUpperInvariant()
 $releaseNotes = @'
 {
-  "summary": "A vers\u00e3o 2.5.2 adiciona a\u00e7\u00f5es de administra\u00e7\u00e3o remota e corrige o instalador do receptor.",
+  "summary": "A vers\u00e3o 2.5.3 corrige o menu de a\u00e7\u00f5es dos computadores e melhora o contraste.",
   "changes": [
     "O \u00edcone Coroa agora mostra uma coroa real, em vez do carrinho de compras.",
     "As badges ganharam a op\u00e7\u00e3o Flutuar suavemente, preservada na sincroniza\u00e7\u00e3o entre pain\u00e9is.",
@@ -46,7 +46,9 @@ $releaseNotes = @'
     "O menu de tr\u00eas pontos permite renomear, parear novamente, reinstalar o receptor e remover um computador da lista.",
     "O OWNER pode instalar ou reinstalar o painel em outro PC e ativar ou bloquear a entrada de conex\u00f5es locais.",
     "Comandos remotos administrativos s\u00f3 podem ser enviados pelo OWNER e t\u00eam confirma\u00e7\u00e3o pelo hist\u00f3rico de respostas.",
-    "O instalador, o receptor e o painel passam a informar a vers\u00e3o 2.5.2."
+    "O bot\u00e3o de tr\u00eas pontos abre o menu com um clique e os comandos voltam a ser acion\u00e1veis.",
+    "O menu acompanha o tema claro ou escuro com texto leg\u00edvel.",
+    "O painel passa para a vers\u00e3o 2.5.3."
   ]
 }
 '@ | ConvertFrom-Json

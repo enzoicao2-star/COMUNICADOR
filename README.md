@@ -1,4 +1,4 @@
-# Comunicador 2.5.2
+# Comunicador 2.5.3
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem

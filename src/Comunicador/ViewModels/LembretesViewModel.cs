@@ -26,6 +26,7 @@ public sealed class LembretesViewModel : ViewModelBase
 
     public ObservableCollection<Lembrete> Lembretes { get; } = new();
     public ObservableCollection<ComputadorSelecionavel> Destinatarios { get; } = new();
+    public DateTime DataMinima => DateTime.Today;
 
     public string Titulo
     {
@@ -53,6 +54,7 @@ public sealed class LembretesViewModel : ViewModelBase
             if (SetField(ref _dataSelecionada, value))
             {
                 AtualizarDataHora();
+                CommandManager.InvalidateRequerySuggested();
             }
         }
     }
@@ -62,10 +64,9 @@ public sealed class LembretesViewModel : ViewModelBase
         get => _horaTexto;
         set
         {
-            if (SetField(ref _horaTexto, value))
-            {
-                AtualizarDataHora();
-            }
+            if (!TimeSpan.TryParse(value, out var hora) || hora < TimeSpan.Zero || hora >= TimeSpan.FromDays(1)) return;
+            if (!SetField(ref _horaTexto, value, nameof(HoraTexto))) return;
+            AtualizarDataHora();
         }
     }
 
@@ -94,6 +95,11 @@ public sealed class LembretesViewModel : ViewModelBase
         _historico = historico;
         _cloud = cloud;
 
+        var proximoHorario = ArredondarParaProximoIntervalo(DateTime.Now.AddMinutes(5));
+        _dataSelecionada = proximoHorario.Date;
+        _horaTexto = proximoHorario.ToString("HH:mm");
+        _dataHora = proximoHorario;
+
         foreach (var lembrete in _store.Load())
         {
             Lembretes.Add(lembrete);
@@ -112,7 +118,6 @@ public sealed class LembretesViewModel : ViewModelBase
             }
         });
         AtualizarDestinatariosCommand = new RelayCommand(_ => AtualizarDestinatarios());
-
         _computadores.Computadores.CollectionChanged += (_, _) => AtualizarDestinatarios();
         AtualizarDestinatarios();
     }
@@ -203,19 +208,24 @@ public sealed class LembretesViewModel : ViewModelBase
 
         Titulo = string.Empty;
         Mensagem = string.Empty;
-        var proximo = DateTime.Now.AddMinutes(5);
+        var proximo = ArredondarParaProximoIntervalo(DateTime.Now.AddMinutes(5));
         _dataSelecionada = proximo.Date;
         OnPropertyChanged(nameof(DataSelecionada));
-        HoraTexto = proximo.ToString("HH:mm");
+        _horaTexto = proximo.ToString("HH:mm");
+        OnPropertyChanged(nameof(HoraTexto));
+        AtualizarDataHora();
     }
 
     private void AtualizarDataHora()
     {
-        if (DataSelecionada.HasValue && TimeSpan.TryParse(HoraTexto, out var hora))
+        if (DataSelecionada.HasValue && TimeSpan.TryParse(_horaTexto, out var hora))
         {
             DataHora = DataSelecionada.Value.Date + hora;
         }
     }
+
+    private static DateTime ArredondarParaProximoIntervalo(DateTime valor) =>
+        new DateTime(valor.Year, valor.Month, valor.Day, valor.Hour, 0, 0).AddMinutes(((valor.Minute / 30) + 1) * 30);
 
     private void Persist() => _store.Save(Lembretes);
 }

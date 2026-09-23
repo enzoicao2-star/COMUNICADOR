@@ -16,14 +16,24 @@ public sealed class CloudSyncService : IDisposable
     private readonly HashSet<string> _responsesSeen = new(StringComparer.OrdinalIgnoreCase);
     private Task? _loop;
     private string? _lastUploadedProfile;
+    private string? _lastGlobalConfigJson;
 
     public event Action? StateChanged;
     public event Action<CloudDelivery>? ResponseReceived;
     public event Action<CloudDelivery>? DeliveryReceived;
+    public event Action<ConfiguracaoGlobalPrograma>? GlobalConfigReceived;
     public bool IsAdmin { get; private set; }
     public bool IsDelegatedAdmin { get; private set; }
     public string? AdminDeviceId { get; private set; }
     public string Status { get; private set; } = "Conectando ao Supabase…";
+    public ConfiguracaoGlobalPrograma? GlobalConfig { get; private set; }
+
+    public async Task SaveGlobalConfigAsync(ConfiguracaoGlobalPrograma config, CancellationToken ct = default)
+    {
+        if (!IsAdmin) throw new UnauthorizedAccessException("Somente o OWNER pode alterar as configurações globais.");
+        await _client.SaveGlobalConfigAsync(config, ct).ConfigureAwait(false);
+        ApplyGlobalConfig(config);
+    }
 
     public CloudSyncService(SupabaseClient client, AppSettings settings, PerfilComputadorRepository profiles)
     {
@@ -81,9 +91,22 @@ public sealed class CloudSyncService : IDisposable
     public bool CanEdit(string deviceId)
     {
         if (IsAdmin || string.Equals(deviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase)) return true;
-        if (!IsDelegatedAdmin || string.Equals(deviceId, AdminDeviceId, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!(HasPermission("manage_profiles") || HasPermission("manage_badges"))
+            || string.Equals(deviceId, AdminDeviceId, StringComparison.OrdinalIgnoreCase)) return false;
         var target = _profiles.Obter(deviceId);
         return target is null || target.Badges.All(b => b.Id != "admin");
+    }
+
+    public bool HasPermission(string permission) => IsAdmin || HasPermissionForDevice(_settings.PainelId, permission);
+
+    public bool HasPermissionForDevice(string deviceId, string permission)
+    {
+        if (string.Equals(deviceId, AdminDeviceId, StringComparison.OrdinalIgnoreCase)) return true;
+        var profile = _profiles.Obter(deviceId);
+        if (permission == "manage_profiles" && profile?.Badges.Any(b => b.Id == "admin") == true) return true;
+        if (GlobalConfig?.ModelosBadge is not { } roles || profile is null) return false;
+        return profile.Badges.Any(b => b.RoleId is not null
+            && roles.Any(role => role.Id == b.RoleId && role.Permissoes.Contains(permission)));
     }
 
     public Task QueueReminderAsync(
@@ -102,11 +125,16 @@ public sealed class CloudSyncService : IDisposable
 
     public Task QueueAdminCommandAsync(string targetDeviceId, string command, CancellationToken ct = default)
     {
-        if (!IsAdmin) throw new UnauthorizedAccessException("Somente o OWNER pode administrar outros computadores.");
+        var permission = command switch
+        {
+            "install_panel" or "reinstall_panel" => "remote_install",
+            "disable_panel" or "enable_panel" => "remote_panel_access",
+            "reinstall_receiver" => "remote_receiver",
+            _ => throw new ArgumentOutOfRangeException(nameof(command)),
+        };
+        if (!HasPermission(permission)) throw new UnauthorizedAccessException("Esta conta não tem permissão para esta ação.");
         if (string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Escolha outro computador para esta ação.");
-        if (command is not ("install_panel" or "reinstall_panel" or "disable_panel" or "enable_panel" or "reinstall_receiver"))
-            throw new ArgumentOutOfRangeException(nameof(command));
         return _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
             new { kind = "admin_command", command, sender = _settings.NomePainel }, ct);
     }
@@ -119,9 +147,20 @@ public sealed class CloudSyncService : IDisposable
         var admin = await _client.GetAdminStateAsync(ct).ConfigureAwait(false);
         SetAdmin(admin.IsAdmin, admin.AdminDeviceId);
         var cloudProfiles = await _client.GetProfilesAsync(ct).ConfigureAwait(false);
+        ConfiguracaoGlobalPrograma? globalConfig = null;
+        try
+        {
+            globalConfig = await _client.GetGlobalConfigAsync(ct).ConfigureAwait(false);
+            if (globalConfig is not null) ApplyGlobalConfig(globalConfig);
+        }
+        catch (HttpRequestException ex) when (!ct.IsCancellationRequested)
+        {
+            Logger.Warning($"Configuração global indisponível; mantendo sincronização normal: {ex.Message}");
+        }
         IsDelegatedAdmin = cloudProfiles.FirstOrDefault(profile =>
             string.Equals(profile.DeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
-            ?.Badges.Any(b => b.Id == "admin") == true;
+            ?.Badges.Any(b => b.Id == "admin" || b.RoleId is not null && globalConfig?.ModelosBadge
+                .Any(role => role.Id == b.RoleId && role.Permissoes.Contains("manage_profiles")) == true) == true;
         _profiles.Mesclar(cloudProfiles.Select(profile => new PerfilComputadorSincronizado
         {
             ComputerId = profile.DeviceId,
@@ -133,6 +172,15 @@ public sealed class CloudSyncService : IDisposable
         }));
         Status = "Sincronização Supabase ativa.";
         StateChanged?.Invoke();
+    }
+
+    private void ApplyGlobalConfig(ConfiguracaoGlobalPrograma config)
+    {
+        var fingerprint = JsonSerializer.Serialize(config);
+        if (string.Equals(fingerprint, _lastGlobalConfigJson, StringComparison.Ordinal)) return;
+        _lastGlobalConfigJson = fingerprint;
+        GlobalConfig = config;
+        GlobalConfigReceived?.Invoke(config);
     }
 
     private async Task RunAsync(CancellationToken ct)

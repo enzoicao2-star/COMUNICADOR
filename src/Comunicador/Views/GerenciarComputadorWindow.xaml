@@ -1,0 +1,121 @@
+<Window x:Class="Comunicador.Views.GerenciarComputadorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Comunicador.Controls"
+        Title="Gerenciar computador" Width="900" Height="760" MinWidth="700" MinHeight="600"
+        WindowStartupLocation="CenterOwner" Background="{DynamicResource BackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}">
+    <Grid Margin="22">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <StackPanel Margin="0,0,0,16">
+            <TextBlock Text="Gerenciar computador" Style="{StaticResource TituloSecao}" />
+            <TextBlock Text="Configurações, permissões e ações para este computador." Style="{StaticResource Subtitulo}" Margin="0,4,0,0" />
+        </StackPanel>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Border Style="{StaticResource CardBorder}" Padding="18" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Identificação e estado" Style="{StaticResource TituloCard}" />
+                        <TextBlock Text="{Binding ComputadorGerenciado.NomeExibicao}" FontSize="18" FontWeight="SemiBold" Margin="0,10,0,2" />
+                        <TextBlock Style="{StaticResource Subtitulo}">
+                            <Run Text="{Binding ComputadorGerenciado.Nome}" /><Run Text="  ·  " />
+                            <Run Text="{Binding ComputadorGerenciado.EnderecoIp}" /><Run Text="  ·  " />
+                            <Run Text="{Binding ComputadorGerenciado.Status}" />
+                        </TextBlock>
+                        <TextBlock Style="{StaticResource Subtitulo}" Margin="0,5,0,0">
+                            <Run Text="{Binding ComputadorGerenciado.StatusVersaoPainel}" /><Run Text="  ·  " />
+                            <Run Text="{Binding ComputadorGerenciado.StatusVersaoReceptor}" /><Run Text="  ·  " />
+                            <Run Text="{Binding ComputadorGerenciado.Monitores.Count}" /><Run Text=" monitor(es)" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardBorder}" Padding="18" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Nome público" Style="{StaticResource TituloCard}" />
+                        <TextBox Margin="0,9,0,0" MaxLength="60"
+                                 Text="{Binding ComputadorGerenciado.Apelido, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardBorder}" Padding="18" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Badges e permissões" Style="{StaticResource TituloCard}" />
+                        <TextBlock Text="As permissões administrativas continuam controladas pelo OWNER." Style="{StaticResource Subtitulo}" Margin="0,4,0,10" />
+                        <ItemsControl ItemsSource="{Binding ComputadorGerenciado.Badges}">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate><DataTemplate>
+                                <Button Margin="0,0,8,6" Padding="0" Background="Transparent" BorderThickness="0"
+                                        Command="{Binding DataContext.EditarBadgeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}">
+                                    <controls:InteractiveBadge Text="{Binding Texto}" Color="{Binding Cor}" Icon="{Binding Icone}"
+                                        BadgeStyle="{Binding Estilo}" CustomIconBase64="{Binding IconePersonalizadoBase64}"
+                                        Glow="{Binding Brilho}" Interactive="{Binding EfeitoMouse}" FloatAnimation="{Binding AnimacaoFlutuante}" />
+                                </Button>
+                            </DataTemplate></ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <WrapPanel Margin="0,8,0,0">
+                            <TextBox Width="140" Margin="0,0,8,7" Text="{Binding ComputadorGerenciado.NovoBadgeTexto, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBox Width="95" Margin="0,0,8,7" Text="{Binding ComputadorGerenciado.NovoBadgeCor, UpdateSourceTrigger=PropertyChanged}" />
+                            <ComboBox Width="125" Margin="0,0,8,7" ItemsSource="{Binding EstilosBadge}" SelectedItem="{Binding ComputadorGerenciado.NovoBadgeEstilo}" />
+                            <ComboBox Width="125" Margin="0,0,8,7" ItemsSource="{Binding IconesBadge}" SelectedItem="{Binding ComputadorGerenciado.NovoBadgeIcone}" />
+                            <ComboBox Width="170" Margin="0,0,8,7" ItemsSource="{Binding ModelosBadgeGlobal}" DisplayMemberPath="Nome" SelectedValuePath="Id" SelectedValue="{Binding ComputadorGerenciado.NovoBadgeRoleId}" ToolTip="Tag padrão e permissões" />
+                            <Button Content="Ícone próprio" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,7"
+                                    Command="{Binding CarregarIconeBadgeCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+                        </WrapPanel>
+                        <WrapPanel>
+                            <CheckBox Content="Brilho" IsChecked="{Binding ComputadorGerenciado.NovoBadgeBrilho}" Margin="0,0,14,7" />
+                            <CheckBox Content="Efeito ao passar o mouse" IsChecked="{Binding ComputadorGerenciado.NovoBadgeEfeitoMouse}" Margin="0,0,14,7" />
+                            <CheckBox Content="Flutuação suave" IsChecked="{Binding ComputadorGerenciado.NovoBadgeAnimacaoFlutuante}" Margin="0,0,14,7" />
+                        </WrapPanel>
+                        <WrapPanel>
+                            <Button Content="Adicionar / aplicar badge" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,0"
+                                    Command="{Binding AdicionarBadgeCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+                            <Button Content="Nova badge" Style="{StaticResource BotaoSecundario}"
+                                    Command="{Binding NovaBadgeCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+                        </WrapPanel>
+                        <Button Content="Conceder / remover admin delegado" Style="{StaticResource BotaoSecundario}"
+                                HorizontalAlignment="Left" Margin="0,10,0,0"
+                                Visibility="{Binding ComputadorGerenciado.PodeGerenciarAdmin, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                Command="{Binding AlternarAdminDelegadoCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardBorder}" Padding="18" Margin="0,0,0,12"
+                        Visibility="{Binding ComputadorGerenciado.PodeAdministrarRemotamente, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Text="Ações remotas do OWNER" Style="{StaticResource TituloCard}" />
+                        <WrapPanel Margin="0,9,0,0">
+                            <Button Content="Instalar painel" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,8"
+                                    Command="{Binding InstalarPainelRemotoCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+                            <Button Content="Reinstalar painel" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,8"
+                                    Command="{Binding ReinstalarPainelRemotoCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+                            <Button Content="Atualizar receptor" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,8"
+                                    Command="{Binding AtualizarReceptorCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+                            <Button Content="Bloquear entrada do painel" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,8"
+                                    Command="{Binding BloquearPainelRemotoCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+                            <Button Content="Habilitar entrada do painel" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,8"
+                                    Command="{Binding HabilitarPainelRemotoCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardBorder}" Padding="18">
+                    <StackPanel>
+                        <TextBlock Text="Lista de computadores" Style="{StaticResource TituloCard}" />
+                        <WrapPanel Margin="0,9,0,0">
+                            <Button Content="Parear novamente" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,0"
+                                    Command="{Binding PairearCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+                            <Button Content="Remover da lista" Style="{StaticResource BotaoSecundario}"
+                                    Command="{Binding RemoverCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+        <DockPanel Grid.Row="2" Margin="0,14,0,0">
+            <TextBlock Text="{Binding StatusMensagem}" Style="{StaticResource Subtitulo}" VerticalAlignment="Center" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Fechar" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,0" Click="Fechar_Click" />
+                <Button Content="Aplicar mudanças e sincronizar" Style="{StaticResource BotaoPrimario}"
+                        Command="{Binding SalvarPerfilCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

@@ -237,12 +237,19 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     {
         var payload = delivery.Payload;
         var command = payload.TryGetProperty("command", out var commandNode) ? commandNode.GetString() : null;
-        var trustedOwner = !string.IsNullOrWhiteSpace(_cloudSync.AdminDeviceId)
-            && string.Equals(delivery.SenderDeviceId, _cloudSync.AdminDeviceId, StringComparison.OrdinalIgnoreCase);
-        string result;
-        if (!trustedOwner)
+        var requiredPermission = command switch
         {
-            result = "Comando recusado: o remetente não é o OWNER atual.";
+            "install_panel" or "reinstall_panel" => "remote_install",
+            "disable_panel" or "enable_panel" => "remote_panel_access",
+            "reinstall_receiver" => "remote_receiver",
+            _ => string.Empty,
+        };
+        var trustedSender = !string.IsNullOrWhiteSpace(requiredPermission)
+            && _cloudSync.HasPermissionForDevice(delivery.SenderDeviceId, requiredPermission);
+        string result;
+        if (!trustedSender)
+        {
+            result = "Comando recusado: o remetente não tem a permissão necessária.";
         }
         else
         {

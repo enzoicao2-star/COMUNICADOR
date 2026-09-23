@@ -24,8 +24,17 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private string? _statusMensagem;
     private string _novoIp = string.Empty;
     private string _novaPorta = ProtocolConstants.TcpPort.ToString();
+    private Computador? _computadorGerenciado;
 
     public ObservableCollection<Computador> Computadores { get; } = new();
+
+    public Computador? ComputadorGerenciado
+    {
+        get => _computadorGerenciado;
+        set => SetField(ref _computadorGerenciado, value);
+    }
+
+    public bool PodeGerenciarGlobalmente => _cloud.IsAdmin;
 
     public string? StatusMensagem
     {
@@ -68,6 +77,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public IReadOnlyList<string> EstilosBadge { get; } = ["Holográfica", "Metal", "Pílula", "Contorno", "Selo"];
     public IReadOnlyList<string> IconesBadge { get; } =
         ["Coroa", "Estrela", "Escudo", "Raio", "Diamante", "Fogo", "Coração", "Usuário", "Código", "Música", "Jogo", "Casa", "Medalha", "Chave", "Globo"];
+    public IReadOnlyList<ModeloBadgeGlobal> ModelosBadgeGlobal => _cloud.GlobalConfig?.ModelosBadge ?? [];
 
     public ComputadoresViewModel(
         JsonStore<Computador> store, DiscoveryService discovery, ReceptorClient client,
@@ -267,6 +277,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
             Brilho = computador.NovoBadgeBrilho,
             EfeitoMouse = computador.NovoBadgeEfeitoMouse,
             AnimacaoFlutuante = computador.NovoBadgeAnimacaoFlutuante,
+            RoleId = computador.NovoBadgeRoleId,
         };
         computador.Badges = existente is null
             ? computador.Badges.Append(badge).ToList()
@@ -280,7 +291,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private void CarregarBadgeNoEditor(BadgeUsuario badge)
     {
         var computador = Computadores.FirstOrDefault(c => c.Id == badge.ComputerId || c.Badges.Contains(badge));
-        if (computador is null || !computador.EmEdicao || !PodeEditar(computador)) return;
+        if (computador is null || !PodeEditar(computador)) return;
         if (badge.Id is "owner" or "admin" && !_cloud.IsAdmin)
         {
             StatusMensagem = "Somente o OWNER pode modificar esta badge.";
@@ -295,6 +306,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         computador.NovoBadgeBrilho = badge.Brilho;
         computador.NovoBadgeEfeitoMouse = badge.EfeitoMouse;
         computador.NovoBadgeAnimacaoFlutuante = badge.AnimacaoFlutuante;
+        computador.NovoBadgeRoleId = badge.RoleId;
         StatusMensagem = $"Editando a badge '{badge.Texto}'.";
     }
 
@@ -309,6 +321,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         computador.NovoBadgeBrilho = true;
         computador.NovoBadgeEfeitoMouse = true;
         computador.NovoBadgeAnimacaoFlutuante = false;
+        computador.NovoBadgeRoleId = null;
     }
 
     private void CarregarIconePersonalizado(Computador computador)
@@ -401,7 +414,9 @@ public sealed class ComputadoresViewModel : ViewModelBase
         var ehAdmin = string.Equals(computador.Id, _cloud.AdminDeviceId, StringComparison.OrdinalIgnoreCase);
         computador.EhOwner = ehAdmin;
         computador.PodeGerenciarAdmin = _cloud.IsAdmin && !ehAdmin;
-        computador.PodeAdministrarRemotamente = _cloud.IsAdmin && !ehAdmin;
+        computador.PodeAdministrarRemotamente = !_cloud.IsAdmin
+            ? new[] { "remote_install", "remote_panel_access", "remote_receiver" }.Any(_cloud.HasPermission)
+            : !ehAdmin;
         var perfil = _perfis.Obter(computador.Id);
         if (perfil is null)
         {
@@ -428,12 +443,14 @@ public sealed class ComputadoresViewModel : ViewModelBase
     }
 
     private bool PodeEnviarComandoAdmin(object? param, string command) =>
-        _cloud.IsAdmin && param is Computador computador
+        param is Computador computador
         && !string.Equals(computador.Id, _settings.PainelId, StringComparison.OrdinalIgnoreCase)
         && command switch
         {
-            "install_panel" => !computador.TemPainel && computador.Pareado,
-            "reinstall_panel" or "disable_panel" or "enable_panel" => computador.TemPainel,
+            "install_panel" => _cloud.HasPermission("remote_install") && !computador.TemPainel && computador.Pareado,
+            "reinstall_panel" => _cloud.HasPermission("remote_install") && computador.TemPainel,
+            "disable_panel" or "enable_panel" => _cloud.HasPermission("remote_panel_access") && computador.TemPainel,
+            "reinstall_receiver" => _cloud.HasPermission("remote_receiver") && computador.Pareado,
             _ => false,
         };
 
@@ -468,6 +485,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private void AplicarAutoridadeCloud() => UiDispatcher.Invoke(() =>
     {
         foreach (var computador in Computadores) AplicarPerfil(computador);
+        OnPropertyChanged(nameof(ModelosBadgeGlobal));
         CommandManager.InvalidateRequerySuggested();
         Persist();
     });

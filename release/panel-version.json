@@ -1,8 +1,8 @@
 {
-    "version":  "2.5.2.0",
+    "version":  "2.5.3.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "B1B664C76D75624D22DC8A8DA8623E2DEC584BC7FCA5458D839F456E5CA52D59",
-    "summary":  "A versão 2.5.2 adiciona ações de administração remota e corrige o instalador do receptor.",
+    "sha256":  "C729F5A7371782D44A4AE8405DD8E998117C62A52AE29C6ED6C6349B06EB81F1",
+    "summary":  "A versão 2.5.3 corrige o menu de ações dos computadores e melhora o contraste.",
     "changes":  [
                     "O ícone Coroa agora mostra uma coroa real, em vez do carrinho de compras.",
                     "As badges ganharam a opção Flutuar suavemente, preservada na sincronização entre painéis.",
@@ -15,6 +15,8 @@
                     "O menu de três pontos permite renomear, parear novamente, reinstalar o receptor e remover um computador da lista.",
                     "O OWNER pode instalar ou reinstalar o painel em outro PC e ativar ou bloquear a entrada de conexões locais.",
                     "Comandos remotos administrativos só podem ser enviados pelo OWNER e têm confirmação pelo histórico de respostas.",
-                    "O instalador, o receptor e o painel passam a informar a versão 2.5.2."
+                    "O botão de três pontos abre o menu com um clique e os comandos voltam a ser acionáveis.",
+                    "O menu acompanha o tema claro ou escuro com texto legível.",
+                    "O painel passa para a versão 2.5.3."
                 ]
 }

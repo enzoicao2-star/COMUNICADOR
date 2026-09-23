@@ -40,6 +40,7 @@ public sealed class Computador : ObservableModel
     private bool _novoBadgeAnimacaoFlutuante;
     private bool _podeEditarPerfil;
     private string? _badgeEmEdicaoId;
+    private string? _novoBadgeRoleId;
     private bool _reduzirMovimento;
     private bool _podeGerenciarAdmin;
     private bool _podeAdministrarRemotamente;
@@ -172,6 +173,7 @@ public sealed class Computador : ObservableModel
     }
     [JsonIgnore] public bool EditandoBadge => !string.IsNullOrWhiteSpace(BadgeEmEdicaoId);
     [JsonIgnore] public string AcaoBadgeTexto => EditandoBadge ? "Salvar alterações" : "Salvar badge";
+    [JsonIgnore] public string? NovoBadgeRoleId { get => _novoBadgeRoleId; set => SetField(ref _novoBadgeRoleId, value); }
 
     [JsonIgnore]
     public bool PainelAtualizado => !TemPainel || VersaoPainel == ProtocolConstants.CurrentPanelVersion;

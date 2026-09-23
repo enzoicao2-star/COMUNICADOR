@@ -43,12 +43,27 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     private string _secaoConfiguracoes = "personalizacao";
     private string? _statusOperacao;
     private string? _statusAtualizacaoPainel;
+    private string _globalTema = "Escuro";
+    private string _globalPaleta = "Azul";
+    private string _globalFundo = "Topográfico";
+    private int _globalTransparencia = 70;
+    private int _globalBlur = 18;
+    private int _globalVelocidade = 100;
+    private bool _globalReduzirMovimento;
+    private bool _globalPermitirMidias = true;
+    private bool _globalPermitirLinks = true;
+    private bool _globalPermitirPapelParede = true;
+    private string _globalPoliticaInicializacaoWindows = "local";
+    private string? _statusGlobal;
     private PanelUpdateInfo? _ultimaVerificacaoPainel;
 
     public ObservableCollection<PainelPareado> PaineisPareados { get; }
     public ObservableCollection<PaletaPersonalizada> PaletasPersonalizadas { get; }
     public IReadOnlyList<string> Temas { get; } = ["Escuro", "Claro"];
     public IReadOnlyList<string> Paletas { get; } = ["Azul", "Violeta", "Verde", "Coral"];
+    public IReadOnlyList<string> PoliticasInicializacaoWindows { get; } = ["local", "always", "never"];
+    public IReadOnlyList<string> EstilosBadge { get; } = ["Holográfica", "Metal", "Pílula", "Contorno", "Selo"];
+    public IReadOnlyList<string> IconesBadge { get; } = ["Coroa", "Estrela", "Escudo", "Raio", "Diamante", "Fogo", "Coração", "Usuário", "Código", "Música", "Jogo", "Casa", "Medalha", "Chave", "Globo"];
     public IReadOnlyList<string> Fundos { get; } =
         ["Sem fundo", "Topográfico", "Caminhos flutuantes", "Vórtice", "Ondas luminosas", "Constelação", "Grade fluida", "Partículas fluidas", "Onda de partículas"];
 
@@ -87,6 +102,26 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
             ? "Nenhum administrador definido"
             : "Administrador definido em outro computador";
     public string StatusSincronizacao => _cloud.Status;
+    public bool PodeEditarConfiguracaoGlobal => _cloud.IsAdmin;
+    public bool PodeEditarPersonalizacaoLocal => _cloud.IsAdmin || _cloud.GlobalConfig is null;
+    public bool PodeAlterarInicializacaoLocal => _cloud.GlobalConfig?.PoliticaInicializacaoWindows is null or "local";
+    public bool ExibirPoliticaInicializacaoGlobal => !PodeAlterarInicializacaoLocal;
+    public string StatusGlobal { get => _statusGlobal ?? "Carregando configurações globais…"; private set => SetField(ref _statusGlobal, value); }
+    public ObservableCollection<ModeloBadgeGlobal> ModelosBadgeGlobal { get; } = [];
+    public string GlobalTema { get => _globalTema; set => SetField(ref _globalTema, value); }
+    public string GlobalPaleta { get => _globalPaleta; set => SetField(ref _globalPaleta, value); }
+    public string GlobalFundo { get => _globalFundo; set => SetField(ref _globalFundo, value); }
+    public int GlobalTransparencia { get => _globalTransparencia; set => SetField(ref _globalTransparencia, Math.Clamp(value, 0, 90)); }
+    public int GlobalBlur { get => _globalBlur; set => SetField(ref _globalBlur, Math.Clamp(value, 0, 40)); }
+    public int GlobalVelocidade { get => _globalVelocidade; set => SetField(ref _globalVelocidade, Math.Clamp(value, 5, 100)); }
+    public bool GlobalReduzirMovimento { get => _globalReduzirMovimento; set => SetField(ref _globalReduzirMovimento, value); }
+    public bool GlobalPermitirMidias { get => _globalPermitirMidias; set => SetField(ref _globalPermitirMidias, value); }
+    public bool GlobalPermitirLinks { get => _globalPermitirLinks; set => SetField(ref _globalPermitirLinks, value); }
+    public bool GlobalPermitirPapelParede { get => _globalPermitirPapelParede; set => SetField(ref _globalPermitirPapelParede, value); }
+    public string GlobalPoliticaInicializacaoWindows { get => _globalPoliticaInicializacaoWindows; set => SetField(ref _globalPoliticaInicializacaoWindows, value); }
+    public ICommand SalvarConfiguracoesGlobaisCommand { get; }
+    public ICommand AdicionarModeloBadgeGlobalCommand { get; }
+    public ICommand RemoverModeloBadgeGlobalCommand { get; }
 
     public int PortaTcp
     {
@@ -298,6 +333,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         _intervaloDescoberta = settings.IntervaloDescobertaSegundos;
         _intervaloPing = settings.IntervaloPingSegundos;
         _iniciarComWindows = StartupManager.EstaHabilitado();
+        _settings.PreferenciaInicializacaoComWindows ??= _iniciarComWindows;
         _aceitarMensagensDeOutrosPaineis = settings.AceitarMensagensDeOutrosPaineis;
         _aceitarImagensDeOutrosPaineis = settings.AceitarImagensDeOutrosPaineis;
         _aceitarBotoesComLinks = settings.AceitarBotoesComLinks;
@@ -312,6 +348,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         _statusReceptorEmbutido = CalcularStatusReceptor();
         AtualizarSelecaoPaletas();
         _cloud.StateChanged += OnCloudStateChanged;
+        _cloud.GlobalConfigReceived += OnGlobalConfigReceived;
 
         _autoSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
         _autoSaveTimer.Tick += (_, _) =>
@@ -347,7 +384,8 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         NavegarConfiguracaoCommand = new RelayCommand(param =>
         {
             if (param is string secao
-                && secao is "personalizacao" or "recebimento" or "geral")
+                && (secao is "personalizacao" or "recebimento" or "geral" or "administrador")
+                && (secao != "administrador" || _cloud.IsAdmin))
             {
                 SecaoConfiguracoes = secao;
             }
@@ -364,6 +402,16 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         VerificarAtualizacaoPainelCommand = new AsyncRelayCommand(_ => VerificarAtualizacaoPainelAsync());
         AtualizarPainelCommand = new AsyncRelayCommand(_ => AtualizarPainelAsync(),
             _ => AtualizacaoPainelDisponivel);
+        SalvarConfiguracoesGlobaisCommand = new AsyncRelayCommand(_ => SalvarConfiguracoesGlobaisAsync(), _ => _cloud.IsAdmin);
+        AdicionarModeloBadgeGlobalCommand = new RelayCommand(_ =>
+        {
+            if (!_cloud.IsAdmin || ModelosBadgeGlobal.Count >= 20) return;
+            ModelosBadgeGlobal.Add(new ModeloBadgeGlobal());
+        }, _ => _cloud.IsAdmin && ModelosBadgeGlobal.Count < 20);
+        RemoverModeloBadgeGlobalCommand = new RelayCommand(param =>
+        {
+            if (_cloud.IsAdmin && param is ModeloBadgeGlobal model) ModelosBadgeGlobal.Remove(model);
+        }, param => _cloud.IsAdmin && param is ModeloBadgeGlobal);
     }
 
     public async Task VerificarAtualizacaoPainelAsync()
@@ -423,8 +471,124 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         OnPropertyChanged(nameof(EstePainelEhOwner));
         OnPropertyChanged(nameof(StatusAdministrador));
         OnPropertyChanged(nameof(StatusSincronizacao));
+        OnPropertyChanged(nameof(PodeEditarConfiguracaoGlobal));
+        OnPropertyChanged(nameof(PodeEditarPersonalizacaoLocal));
+        CommandManager.InvalidateRequerySuggested();
         StatusOperacao = _cloud.Status;
     });
+
+    private void OnGlobalConfigReceived(ConfiguracaoGlobalPrograma config) => UiDispatcher.Invoke(() =>
+    {
+        _globalTema = config.Tema;
+        _globalPaleta = config.Paleta;
+        _globalFundo = config.FundoPainel;
+        _globalReduzirMovimento = config.ReduzirMovimento;
+        _globalTransparencia = Math.Clamp(config.TransparenciaCards, 0, 90);
+        _globalBlur = Math.Clamp(config.BlurCards, 0, 40);
+        _globalVelocidade = Math.Clamp(config.VelocidadeFundo, 5, 100);
+        _globalPermitirMidias = config.PermitirMidias;
+        _globalPermitirLinks = config.PermitirLinks;
+        _globalPermitirPapelParede = config.PermitirPapelParedeRemoto;
+        _globalPoliticaInicializacaoWindows = config.PoliticaInicializacaoWindows;
+        ModelosBadgeGlobal.Clear();
+        foreach (var model in config.ModelosBadge) ModelosBadgeGlobal.Add(model);
+        OnPropertyChanged(nameof(GlobalTema)); OnPropertyChanged(nameof(GlobalPaleta));
+        OnPropertyChanged(nameof(GlobalFundo)); OnPropertyChanged(nameof(GlobalReduzirMovimento));
+        OnPropertyChanged(nameof(GlobalTransparencia)); OnPropertyChanged(nameof(GlobalBlur));
+        OnPropertyChanged(nameof(GlobalVelocidade)); OnPropertyChanged(nameof(GlobalPermitirMidias));
+        OnPropertyChanged(nameof(GlobalPermitirLinks)); OnPropertyChanged(nameof(GlobalPermitirPapelParede));
+        OnPropertyChanged(nameof(GlobalPoliticaInicializacaoWindows));
+        AplicarConfiguracaoGlobalLocal(config);
+        StatusGlobal = "Configurações globais sincronizadas.";
+        OnPropertyChanged(nameof(PodeEditarPersonalizacaoLocal));
+    });
+
+    private void AplicarConfiguracaoGlobalLocal(ConfiguracaoGlobalPrograma config)
+    {
+        _settings.Tema = config.Tema;
+        _settings.Paleta = config.Paleta;
+        _settings.FundoPainel = config.FundoPainel;
+        _settings.ReduzirMovimento = config.ReduzirMovimento;
+        _settings.TransparenciaCards = Math.Clamp(config.TransparenciaCards, 0, 90);
+        _settings.BlurCards = Math.Clamp(config.BlurCards, 0, 40);
+        _settings.VelocidadeFundo = Math.Clamp(config.VelocidadeFundo, 5, 100);
+        _settings.MidiasPermitidasGlobalmente = config.PermitirMidias;
+        _settings.LinksPermitidosGlobalmente = config.PermitirLinks;
+        _settings.PapelParedeRemotoPermitidoGlobalmente = config.PermitirPapelParedeRemoto;
+        var politicaAnterior = _cloud.GlobalConfig?.PoliticaInicializacaoWindows ?? "local";
+        var politicaAtual = config.PoliticaInicializacaoWindows is "always" or "never"
+            ? config.PoliticaInicializacaoWindows : "local";
+        _settings.IniciarComWindows = politicaAtual switch
+        {
+            "always" => true,
+            "never" => false,
+            _ => _settings.PreferenciaInicializacaoComWindows ?? StartupManager.EstaHabilitado(),
+        };
+        if (politicaAnterior != politicaAtual || StartupManager.EstaHabilitado() != _settings.IniciarComWindows)
+            StartupManager.Aplicar(_settings.IniciarComWindows);
+        _iniciarComWindows = _settings.IniciarComWindows;
+        _tema = config.Tema; _paleta = config.Paleta; _fundoPainel = config.FundoPainel;
+        _reduzirMovimento = config.ReduzirMovimento;
+        _transparenciaCards = _settings.TransparenciaCards; _blurCards = _settings.BlurCards;
+        _velocidadeFundo = _settings.VelocidadeFundo;
+        OnPropertyChanged(nameof(Tema)); OnPropertyChanged(nameof(Paleta)); OnPropertyChanged(nameof(FundoPainel));
+        OnPropertyChanged(nameof(ReduzirMovimento)); OnPropertyChanged(nameof(TransparenciaCards));
+        OnPropertyChanged(nameof(BlurCards)); OnPropertyChanged(nameof(VelocidadeFundo));
+        OnPropertyChanged(nameof(ExibirFundoAnimado));
+        OnPropertyChanged(nameof(IniciarComWindows));
+        OnPropertyChanged(nameof(PodeAlterarInicializacaoLocal));
+        OnPropertyChanged(nameof(ExibirPoliticaInicializacaoGlobal));
+        AtualizarSelecaoPaletas();
+        SettingsStore.Save(_settings);
+        ThemeService.Apply(_settings);
+        ThemeService.ApplyCardAppearance(_settings);
+        ThemeService.SetReduceMotion(_settings.ReduzirMovimento);
+    }
+
+    private async Task SalvarConfiguracoesGlobaisAsync()
+    {
+        if (!_cloud.IsAdmin) return;
+        if (!Fundos.Contains(GlobalFundo) || GlobalTema is not ("Escuro" or "Claro")
+            || GlobalPaleta is not ("Azul" or "Violeta" or "Verde" or "Coral")
+            || !PoliticasInicializacaoWindows.Contains(GlobalPoliticaInicializacaoWindows))
+        {
+            StatusGlobal = "Revise tema, paleta e fundo antes de aplicar.";
+            return;
+        }
+        foreach (var model in ModelosBadgeGlobal)
+        {
+            if (model.Id is "owner" or "admin" || string.IsNullOrWhiteSpace(model.Nome)
+                || model.Nome.Length > 40 || string.IsNullOrWhiteSpace(model.Texto) || model.Texto.Length > 28
+                || !ThemeService.TryNormalizeColor(model.Cor, out var cor)
+                || !EstilosBadge.Contains(model.Estilo) || !IconesBadge.Contains(model.Icone))
+            {
+                StatusGlobal = "Revise nome, texto, cor, estilo e ícone das tags antes de aplicar.";
+                return;
+            }
+            model.Cor = cor;
+        }
+        var config = new ConfiguracaoGlobalPrograma
+        {
+            Tema = GlobalTema, Paleta = GlobalPaleta, FundoPainel = GlobalFundo,
+            ReduzirMovimento = GlobalReduzirMovimento,
+            TransparenciaCards = GlobalTransparencia, BlurCards = GlobalBlur,
+            VelocidadeFundo = GlobalVelocidade, PermitirMidias = GlobalPermitirMidias,
+            PermitirLinks = GlobalPermitirLinks, PermitirPapelParedeRemoto = GlobalPermitirPapelParede,
+            PoliticaInicializacaoWindows = GlobalPoliticaInicializacaoWindows,
+            ModelosBadge = ModelosBadgeGlobal.ToList(),
+        };
+        try
+        {
+            StatusGlobal = "Aplicando nos painéis…";
+            await _cloud.SaveGlobalConfigAsync(config).ConfigureAwait(true);
+            OnGlobalConfigReceived(config);
+            StatusGlobal = "Configurações globais aplicadas. Os outros painéis recebem na próxima sincronização.";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or UnauthorizedAccessException)
+        {
+            StatusGlobal = $"Não foi possível salvar no Supabase: {ex.Message}";
+        }
+    }
 
     private void AgendarSalvamento()
     {
@@ -453,6 +617,8 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         _settings.IntervaloDescobertaSegundos = IntervaloDescobertaSegundos;
         _settings.IntervaloPingSegundos = IntervaloPingSegundos;
         _settings.IniciarComWindows = IniciarComWindows;
+        if (_cloud.GlobalConfig?.PoliticaInicializacaoWindows is null or "local")
+            _settings.PreferenciaInicializacaoComWindows = IniciarComWindows;
         _settings.AceitarMensagensDeOutrosPaineis = true;
         _settings.AceitarImagensDeOutrosPaineis = AceitarImagensDeOutrosPaineis;
         _settings.AceitarBotoesComLinks = AceitarBotoesComLinks;

@@ -120,13 +120,17 @@
                 <Button Style="{StaticResource ConfigTabButton}" Content="Painel e rede"
                         Command="{Binding NavegarConfiguracaoCommand}" CommandParameter="geral"
                         Tag="{Binding SecaoConfiguracoes, ConverterParameter=geral, Converter={StaticResource SecaoAtivaConverter}}" />
+                <Button Style="{StaticResource ConfigTabButton}" Content="Administração global"
+                        Visibility="{Binding PodeEditarConfiguracaoGlobal, Converter={StaticResource BooleanToVisibilityConverter}}"
+                        Command="{Binding NavegarConfiguracaoCommand}" CommandParameter="administrador"
+                        Tag="{Binding SecaoConfiguracoes, ConverterParameter=administrador, Converter={StaticResource SecaoAtivaConverter}}" />
             </StackPanel>
         </Border>
 
         <Grid>
             <!-- PERSONALIZAÇÃO -->
             <ScrollViewer x:Name="PersonalizacaoPanel" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                          HorizontalContentAlignment="Stretch">
+                          HorizontalContentAlignment="Stretch" IsEnabled="{Binding PodeEditarPersonalizacaoLocal}">
                 <ScrollViewer.Style>
                     <Style TargetType="ScrollViewer">
                         <Setter Property="Visibility" Value="Collapsed" />
@@ -422,7 +426,11 @@
                     <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,0,0,12">
                         <StackPanel>
                             <TextBlock Text="Inicialização" Style="{StaticResource TituloCard}" Margin="0,0,0,10" />
-                            <CheckBox IsChecked="{Binding IniciarComWindows}" Content="Abrir o Comunicador junto com o Windows" />
+                            <CheckBox IsChecked="{Binding IniciarComWindows}" IsEnabled="{Binding PodeAlterarInicializacaoLocal}"
+                                      Content="Abrir o Comunicador junto com o Windows" />
+                            <TextBlock Text="A inicialização está definida pelo admin global." Style="{StaticResource Subtitulo}"
+                                       Margin="0,5,0,0" TextWrapping="Wrap"
+                                       Visibility="{Binding ExibirPoliticaInicializacaoGlobal, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource CardBorder}" Padding="20">
@@ -466,6 +474,94 @@
                     </StackPanel>
                 </Border>
                 </controls:ResponsiveColumnsPanel>
+            </ScrollViewer>
+
+            <!-- ADMINISTRAÇÃO GLOBAL -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ScrollViewer.Style>
+                    <Style TargetType="ScrollViewer"><Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers><DataTrigger Binding="{Binding SecaoConfiguracoes}" Value="administrador"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                    </Style>
+                </ScrollViewer.Style>
+                <StackPanel Margin="0,0,8,12">
+                    <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="Configurações para todos os painéis" Style="{StaticResource TituloCard}" />
+                            <TextBlock Text="As opções publicadas pelo OWNER são sincronizadas pelo Supabase e aplicadas nos outros computadores." Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,4,0,14" />
+                            <UniformGrid Columns="2">
+                                <StackPanel Margin="0,0,12,8"><TextBlock Text="Tema" Style="{StaticResource RotuloCampo}" /><ComboBox ItemsSource="{Binding Temas}" SelectedItem="{Binding GlobalTema}" /></StackPanel>
+                                <StackPanel Margin="0,0,0,8"><TextBlock Text="Paleta" Style="{StaticResource RotuloCampo}" /><ComboBox ItemsSource="{Binding Paletas}" SelectedItem="{Binding GlobalPaleta}" /></StackPanel>
+                                <StackPanel Margin="0,0,12,8"><TextBlock Text="Plano de fundo" Style="{StaticResource RotuloCampo}" /><ComboBox ItemsSource="{Binding Fundos}" SelectedItem="{Binding GlobalFundo}" /></StackPanel>
+                                <StackPanel Margin="0,0,0,8"><TextBlock Text="Transparência dos cards" Style="{StaticResource RotuloCampo}" /><Slider Minimum="0" Maximum="90" Value="{Binding GlobalTransparencia}" Tag="%" /></StackPanel>
+                                <StackPanel Margin="0,0,12,8"><TextBlock Text="Desfoque dos cards" Style="{StaticResource RotuloCampo}" /><Slider Minimum="0" Maximum="40" Value="{Binding GlobalBlur}" Tag=" px" /></StackPanel>
+                                <StackPanel Margin="0,0,0,8"><TextBlock Text="Velocidade das animações" Style="{StaticResource RotuloCampo}" /><Slider Minimum="5" Maximum="100" Value="{Binding GlobalVelocidade}" Tag="%" /></StackPanel>
+                                <StackPanel Margin="0,0,12,8"><TextBlock Text="Inicialização do Windows" Style="{StaticResource RotuloCampo}" />
+                                    <ComboBox SelectedValue="{Binding GlobalPoliticaInicializacaoWindows}" SelectedValuePath="Tag">
+                                        <ComboBoxItem Content="Cada computador escolhe" Tag="local" />
+                                        <ComboBoxItem Content="Obrigar a iniciar com o Windows" Tag="always" />
+                                        <ComboBoxItem Content="Impedir iniciar com o Windows" Tag="never" />
+                                    </ComboBox>
+                                </StackPanel>
+                            </UniformGrid>
+                            <WrapPanel Margin="0,6,0,0">
+                                <CheckBox Content="Reduzir movimento em todos os painéis" IsChecked="{Binding GlobalReduzirMovimento}" Margin="0,0,18,8" />
+                                <CheckBox Content="Permitir recebimento de mídias" IsChecked="{Binding GlobalPermitirMidias}" Margin="0,0,18,8" />
+                                <CheckBox Content="Permitir botões com links" IsChecked="{Binding GlobalPermitirLinks}" Margin="0,0,18,8" />
+                                <CheckBox Content="Permitir papel de parede remoto" IsChecked="{Binding GlobalPermitirPapelParede}" Margin="0,0,18,8" />
+                            </WrapPanel>
+                            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="7" Padding="10,8" Margin="0,3,0,0">
+                                <TextBlock Text="Mensagens e lembretes continuam obrigatórios em todos os painéis. Esta política não pode ser desativada."
+                                           Style="{StaticResource Subtitulo}" TextWrapping="Wrap" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource CardBorder}" Padding="20">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,10">
+                                <StackPanel><TextBlock Text="Tags padrão e permissões" Style="{StaticResource TituloCard}" /><TextBlock Text="Crie modelos de badge e selecione o que cada tag pode fazer." Style="{StaticResource Subtitulo}" Margin="0,3,0,0" /></StackPanel>
+                                <Button Content="Adicionar tag" Style="{StaticResource BotaoSecundario}" HorizontalAlignment="Right"
+                                        Command="{Binding AdicionarModeloBadgeGlobalCommand}" />
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding ModelosBadgeGlobal}">
+                                <ItemsControl.ItemTemplate><DataTemplate>
+                                    <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="13" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <Grid><TextBox Width="220" HorizontalAlignment="Left" Text="{Binding Nome, UpdateSourceTrigger=PropertyChanged}" MaxLength="40" />
+                                                <Button Content="Remover" Style="{StaticResource BotaoSecundario}" HorizontalAlignment="Right"
+                                                        Command="{Binding DataContext.RemoverModeloBadgeGlobalCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                            </Grid>
+                                            <WrapPanel Margin="0,8,0,4">
+                                                <TextBox Width="140" Margin="0,0,8,6" ToolTip="Texto da badge" Text="{Binding Texto, UpdateSourceTrigger=PropertyChanged}" />
+                                                <TextBox Width="96" Margin="0,0,8,6" ToolTip="Cor hexadecimal" Text="{Binding Cor, UpdateSourceTrigger=PropertyChanged}" />
+                                                <ComboBox Width="125" Margin="0,0,8,6" ItemsSource="{Binding DataContext.IconesBadge, RelativeSource={RelativeSource AncestorType=UserControl}}" SelectedItem="{Binding Icone}" />
+                                                <ComboBox Width="125" Margin="0,0,8,6" ItemsSource="{Binding DataContext.EstilosBadge, RelativeSource={RelativeSource AncestorType=UserControl}}" SelectedItem="{Binding Estilo}" />
+                                            </WrapPanel>
+                                            <WrapPanel>
+                                                <CheckBox Content="Brilho" IsChecked="{Binding Brilho}" Margin="0,0,12,5" />
+                                                <CheckBox Content="Interação com mouse" IsChecked="{Binding EfeitoMouse}" Margin="0,0,12,5" />
+                                                <CheckBox Content="Flutuação" IsChecked="{Binding AnimacaoFlutuante}" Margin="0,0,12,5" />
+                                            </WrapPanel>
+                                            <TextBlock Text="Permissões da tag" Style="{StaticResource RotuloCampo}" Margin="0,4,0,3" />
+                                            <WrapPanel>
+                                                <CheckBox Content="Gerenciar perfis" IsChecked="{Binding GerenciarPerfis}" Margin="0,0,12,5" />
+                                                <CheckBox Content="Gerenciar badges" IsChecked="{Binding GerenciarBadges}" Margin="0,0,12,5" />
+                                                <CheckBox Content="Enviar mídias" IsChecked="{Binding EnviarMidias}" Margin="0,0,12,5" />
+                                                <CheckBox Content="Instalar painel" IsChecked="{Binding InstalarPainel}" Margin="0,0,12,5" />
+                                                <CheckBox Content="Bloquear / liberar painel" IsChecked="{Binding ControlarAcessoRemoto}" Margin="0,0,12,5" />
+                                                <CheckBox Content="Atualizar receptor" IsChecked="{Binding AtualizarReceptor}" Margin="0,0,12,5" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate></ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <DockPanel Margin="0,4,0,0">
+                                <TextBlock Text="{Binding StatusGlobal}" Style="{StaticResource Subtitulo}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <Button Content="Aplicar para todos" Style="{StaticResource BotaoPrimario}" HorizontalAlignment="Right"
+                                        Command="{Binding SalvarConfiguracoesGlobaisCommand}" />
+                            </DockPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
             </ScrollViewer>
         </Grid>
     </DockPanel>

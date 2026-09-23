@@ -53,6 +53,15 @@ public sealed class SupabaseClient
         return result.FirstOrDefault() ?? new CloudAdminState();
     }
 
+    public async Task<ConfiguracaoGlobalPrograma?> GetGlobalConfigAsync(CancellationToken ct = default)
+    {
+        var result = await RpcAsync<List<GlobalConfigResult>>("get_global_config", new { }, ct).ConfigureAwait(false);
+        return result.FirstOrDefault()?.Config;
+    }
+
+    public Task SaveGlobalConfigAsync(ConfiguracaoGlobalPrograma config, CancellationToken ct = default) =>
+        RpcAsync<bool>("save_global_config", new { p_config = config }, ct);
+
     public async Task<IReadOnlyList<CloudPanelProfile>> GetProfilesAsync(CancellationToken ct = default)
     {
         using var request = await CreateRequestAsync(HttpMethod.Get,
@@ -262,6 +271,10 @@ public sealed class CloudPanelProfile
     public string DisplayName { get; set; } = string.Empty;
     public List<BadgeUsuario> Badges { get; set; } = [];
     public DateTime UpdatedAt { get; set; }
+}
+public sealed class GlobalConfigResult
+{
+    public ConfiguracaoGlobalPrograma Config { get; set; } = new();
 }
 public sealed class CloudDelivery
 {

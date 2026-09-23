@@ -411,7 +411,7 @@ public sealed class EmbeddedReceptorServer : IDisposable
         if ((msg.Image is not null || msg.ScreenImages is { Count: > 0 }
                 || msg.Video is not null || msg.ScreenVideos is { Count: > 0 }
                 || msg.Audio is not null)
-            && !_settings.AceitarImagensDeOutrosPaineis)
+            && (!_settings.AceitarImagensDeOutrosPaineis || !_settings.MidiasPermitidasGlobalmente))
         {
             await EnviarAsync(stream, ComunicadorMessage.Error(
                 ProtocolConstants.ErrorCode.ContentBlocked,
@@ -419,7 +419,8 @@ public sealed class EmbeddedReceptorServer : IDisposable
             return;
         }
 
-        if (msg.Buttons?.Any(b => b.TemLink) == true && !_settings.AceitarBotoesComLinks)
+        if (msg.Buttons?.Any(b => b.TemLink) == true
+            && (!_settings.AceitarBotoesComLinks || !_settings.LinksPermitidosGlobalmente))
         {
             await EnviarAsync(stream, ComunicadorMessage.Error(
                 ProtocolConstants.ErrorCode.ContentBlocked,
@@ -441,6 +442,14 @@ public sealed class EmbeddedReceptorServer : IDisposable
 
         if (msg.DisplayMode == ProtocolConstants.DisplayMode.Wallpaper && msg.Image is not null)
         {
+            if (!_settings.PapelParedeRemotoPermitidoGlobalmente)
+            {
+                await EnviarAsync(stream, ComunicadorMessage.Error(
+                    ProtocolConstants.ErrorCode.ContentBlocked,
+                    "O admin desativou a alteração remota do papel de parede.", msg.Id), ct).ConfigureAwait(false);
+                return;
+            }
+
             var ackWallpaper = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ack);
             ackWallpaper.InReplyTo = msg.Id;
             try

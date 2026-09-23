@@ -137,7 +137,8 @@ public sealed class MensagensViewModel : ViewModelBase
     public string? CaminhoMidia => CaminhoImagem ?? _caminhoVideo ?? _caminhoAudio;
     public string? NomeMidia => NomeImagem ?? _nomeVideo ?? _nomeAudio;
     public string TipoMidiaTexto => TemImagem ? "Imagem" : TemVideo ? "Vídeo" : TemAudio ? "Áudio" : "Mídia";
-    public bool PodeAlterarPapelParede => _cloud.IsAdmin;
+    public bool PodeAlterarPapelParede => _cloud.IsAdmin
+        && _cloud.GlobalConfig?.PermitirPapelParedeRemoto != false;
     public bool DefinirComoPapelDeParede
     {
         get => _definirComoPapelDeParede;
@@ -297,6 +298,12 @@ public sealed class MensagensViewModel : ViewModelBase
         {
             if (!_cloud.IsAdmin) DefinirComoPapelDeParede = false;
             OnPropertyChanged(nameof(PodeAlterarPapelParede));
+        });
+        _cloud.GlobalConfigReceived += config => UiDispatcher.Invoke(() =>
+        {
+            if (!config.PermitirPapelParedeRemoto) DefinirComoPapelDeParede = false;
+            OnPropertyChanged(nameof(PodeAlterarPapelParede));
+            CommandManager.InvalidateRequerySuggested();
         });
 
         EnviarCommand = new AsyncRelayCommand(EnviarAsync, PodeEnviar);
