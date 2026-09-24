@@ -1,7 +1,7 @@
 {
     "version":  "2.5.6.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "2F208A63A750DD6B9B5CEB24F1C3F474B7B95FE2ACB3F0D1A3C96EC82AACD263",
+    "sha256":  "8495E709595520DB0FC655D232B978D8183C52E4C4EAB5E65CB51EDB6B6038C7",
     "summary":  "Executável do Comunicador assinado com certificado de desenvolvimento.",
     "changes":  [
                     "O painel 2.5.6 traz assinatura digital de desenvolvimento e carimbo de data.",
