@@ -1,4 +1,4 @@
-# Comunicador 2.5.5
+# Comunicador 2.5.6
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
@@ -144,9 +144,15 @@ para um certificado válido de assinatura de código instalado neste Windows,
 com chave privada acessível. A assinatura usa o SignTool do Windows SDK, SHA-256
 e carimbo de data RFC 3161; `Preparar-Release.ps1` recusa publicar uma cópia
 sem a assinatura esperada quando essa variável está definida. Sem certificado,
-a compilação continua sem assinatura. Certificados autoassinados servem para
-testes ou computadores gerenciados que confiam explicitamente neles; para
-distribuição comum, use um certificado de assinatura confiável do publicador.
+a compilação continua sem assinatura. Para assinar com um certificado de
+desenvolvimento autoassinado, defina também `COMUNICADOR_SIGNING_MODE=development`.
+Esse modo verifica a integridade e aceita exclusivamente a falta de confiança
+na raiz do certificado. A chave privada permanece no armazenamento de
+certificados do Windows neste computador; ela não é enviada ao Git. O
+certificado público está em `release/Comunicador-Dev.cer` (sem chave privada).
+Ele pode ser instalado manualmente nos PCs controlados, mas
+nenhum BAT adiciona confiança ao Windows automaticamente. Certificados
+autoassinados não eliminam os avisos de segurança em PCs que não confiam neles.
 
 Rodar os testes do receptor localmente:
 

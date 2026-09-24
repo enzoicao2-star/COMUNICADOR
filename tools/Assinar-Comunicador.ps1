@@ -1,9 +1,11 @@
 param(
     [Parameter(Mandatory = $true)][string]$ExecutablePath,
-    [Parameter(Mandatory = $true)][string]$Thumbprint
+    [Parameter(Mandatory = $true)][string]$Thumbprint,
+    [switch]$Development
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Assinatura-Comunicador.ps1')
 $path = [IO.Path]::GetFullPath($ExecutablePath)
 if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
     throw 'Executavel para assinatura nao encontrado.'
@@ -15,37 +17,31 @@ $certificate = @(Get-ChildItem Cert:\CurrentUser\My, Cert:\LocalMachine\My -Erro
     Where-Object { $_.Thumbprint.ToUpperInvariant() -eq $wanted -and $_.HasPrivateKey } |
     Select-Object -First 1)[0]
 if ($null -eq $certificate) {
-    throw 'Certificado de assinatura com chave privada nao encontrado no Windows.'
+    throw ('Certificado de assinatura com chave privada nao encontrado no Windows: ' + $wanted)
 }
 $codeSigningOid = '1.3.6.1.5.5.7.3.3'
 if (-not @($certificate.EnhancedKeyUsageList | Where-Object { $_.ObjectId -eq $codeSigningOid }).Count) {
     throw 'O certificado nao permite assinatura de codigo.'
 }
 if ($certificate.NotAfter -le [datetime]::UtcNow) { throw 'O certificado de assinatura expirou.' }
-
-$signTool = @(Get-Command signtool.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source)[0]
-if (-not $signTool) {
-    $sdkBin = Join-Path ([Environment]::GetEnvironmentVariable('ProgramFiles(x86)')) 'Windows Kits\10\bin'
-    $signTool = @(Get-ChildItem -LiteralPath $sdkBin -Directory -ErrorAction SilentlyContinue |
-        Sort-Object { try { [version]$_.Name } catch { [version]'0.0' } } -Descending |
-        ForEach-Object { Join-Path $_.FullName 'x64\signtool.exe' } |
-        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
-        Select-Object -First 1)[0]
+if ($Development -and $certificate.Subject -ne $certificate.Issuer) {
+    throw 'O modo de desenvolvimento exige um certificado autoassinado.'
 }
-if (-not $signTool) { throw 'SignTool do Windows SDK nao encontrado. Instale o Windows SDK para assinar a release.' }
+
+$signTool = Get-ComunicadorSignTool
 
 $storeArgs = if ($certificate.PSParentPath -like '*LocalMachine*') { @('/sm') } else { @() }
-$signOutput = & $signTool sign /sha1 $wanted /s My @storeArgs /fd SHA256 `
-    /tr 'http://timestamp.digicert.com' /td SHA256 /v $path 2>&1
-if ($LASTEXITCODE -ne 0) {
+$previousErrorPreference = $ErrorActionPreference
+try {
+    $ErrorActionPreference = 'Continue'
+    $signOutput = & $signTool sign /sha1 $wanted /s My @storeArgs /fd SHA256 `
+        /tr 'http://timestamp.digicert.com' /td SHA256 /v $path 2>&1
+    $signExitCode = $LASTEXITCODE
+}
+finally { $ErrorActionPreference = $previousErrorPreference }
+if ($signExitCode -ne 0) {
     throw ('Falha ao assinar ou carimbar a data: ' + ($signOutput -join [Environment]::NewLine))
 }
-$verifyOutput = & $signTool verify /pa /all /v $path 2>&1
-if ($LASTEXITCODE -ne 0) {
-    throw ('A assinatura nao passou na verificacao de confianca: ' + ($verifyOutput -join [Environment]::NewLine))
-}
-$verified = Get-AuthenticodeSignature -LiteralPath $path
-if ($verified.Status -ne 'Valid' -or $verified.SignerCertificate.Thumbprint.ToUpperInvariant() -ne $wanted) {
-    throw 'A assinatura nao passou na verificacao final.'
-}
-Write-Host ('Assinatura valida: ' + $verified.SignerCertificate.Subject)
+$verified = Assert-ComunicadorSignature -ExecutablePath $path -Thumbprint $wanted -Development:$Development
+$mode = if ($Development -and $verified.Status -ne 'Valid') { 'desenvolvimento (raiz nao confiavel)' } else { 'confiavel' }
+Write-Host ('Assinatura ' + $mode + ': ' + $verified.SignerCertificate.Subject)
