@@ -20,6 +20,7 @@ test-temp/
 
 # arquivos locais de conexão
 supabase.txt
+tools/Assinatura-Dev.local.cmd
 
 # editores / SO
 .vs/

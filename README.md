@@ -154,6 +154,20 @@ Ele pode ser instalado manualmente nos PCs controlados, mas
 nenhum BAT adiciona confiança ao Windows automaticamente. Certificados
 autoassinados não eliminam os avisos de segurança em PCs que não confiam neles.
 
+Se o PC usado para compilar for formatado, rode no novo checkout:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\Cadastrar-Assinatura-Dev.ps1
+```
+
+O script cadastra uma nova chave se a anterior não existir, exporta somente o
+certificado público, configura a assinatura local e prepara o próximo número de
+versão quando a chave muda. Depois, rode `SUBIR_GITHUB.bat` para testar, compilar
+e publicar a nova versão. Nenhuma chave antiga ou backup é necessário. Para
+trocar voluntariamente a chave ainda disponível, use `-NovaChave`. O arquivo
+`tools/Assinatura-Dev.local.cmd` é ignorado pelo Git e contém apenas o
+identificador público da chave; a chave privada fica no Windows.
+
 Rodar os testes do receptor localmente:
 
 ```bash

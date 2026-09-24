@@ -3,6 +3,7 @@ setlocal enabledelayedexpansion
 
 set "ROOT=%~dp0"
 cd /d "%ROOT%"
+if exist "tools\Assinatura-Dev.local.cmd" call "tools\Assinatura-Dev.local.cmd"
 
 echo ===============================================
 echo   Comunicador 2.5.6 - validar e subir ao GitHub

@@ -4,6 +4,7 @@ setlocal enabledelayedexpansion
 set "ROOT=%~dp0"
 set "COMUNICADOR_BUILD_ROOT=%~dp0"
 cd /d "%ROOT%"
+if exist "tools\Assinatura-Dev.local.cmd" call "tools\Assinatura-Dev.local.cmd"
 
 echo ===============================================
 echo   Comunicador 2.5.6 - build completo
