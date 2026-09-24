@@ -183,7 +183,9 @@ function Install-RepositorySnapshot(
             $isBatchFile = $sourceFile.Extension.Equals('.bat', [StringComparison]::OrdinalIgnoreCase)
             $isUpdater = $relativePath.Equals(
                 'tools\Atualizar-Comunicador.ps1', [StringComparison]::OrdinalIgnoreCase)
-            if ($FreshInstall -or $isBatchFile -or $isUpdater `
+            $isManifest = $relativePath.Equals(
+                'release\panel-version.json', [StringComparison]::OrdinalIgnoreCase)
+            if ($FreshInstall -or $isBatchFile -or $isUpdater -or $isManifest `
                 -or -not (Test-Path -LiteralPath $destinationPath -PathType Leaf)) {
                 Copy-Item -LiteralPath $sourceFile.FullName -Destination $destinationPath -Force
             }
@@ -328,6 +330,7 @@ try {
     $manifestRequest = Add-CacheBuster $ManifestUrl 't' ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString())
     $manifest = Invoke-RestMethod -UseBasicParsing -Headers @{ 'Cache-Control' = 'no-cache' } -Uri $manifestRequest
     $latestVersion = Get-VersionOrZero ([string]$manifest.version)
+    $rollbackFromVersion = Get-VersionOrZero ([string]$manifest.rollback_from_version)
     $downloadUrl = [string]$manifest.download_url
     $expectedHash = ([string]$manifest.sha256).Trim().ToUpperInvariant()
     if ($latestVersion -eq [version]'0.0.0.0' -or [string]::IsNullOrWhiteSpace($downloadUrl) `
@@ -380,12 +383,13 @@ if (Test-Path -LiteralPath $target) {
 }
 
 $previousFailure = Read-JsonOrNull $failurePath
+$rollbackRequested = $rollbackFromVersion -eq $currentVersion -and $latestVersion -lt $currentVersion
 $skipKnownFailure = -not $RestartAfterUpdate -and -not $ForceReinstall -and
     $null -ne $previousFailure -and
     [string]$previousFailure.version -eq $latestVersion.ToString() -and
     [string]$previousFailure.sha256 -eq $expectedHash
 $isCurrent = $skipKnownFailure -or -not $ForceReinstall -and (Test-Path -LiteralPath $target) -and (
-    $currentVersion -gt $latestVersion -or
+    ($currentVersion -gt $latestVersion -and -not $rollbackRequested) -or
     ($currentVersion -eq $latestVersion -and ($null -eq $managedRoot -or $currentHash -eq $expectedHash))
 )
 if ($isCurrent) {
@@ -399,7 +403,10 @@ if ($isCurrent) {
     exit 0
 }
 
-Write-Host ('Nova versao encontrada no GitHub: ' + $latestVersion + '.')
+if ($rollbackRequested) {
+    Write-Host ('Revertendo a versao bloqueada ' + $currentVersion + ' para a versao compativel ' + $latestVersion + '.')
+}
+else { Write-Host ('Nova versao encontrada no GitHub: ' + $latestVersion + '.') }
 Write-Host 'Baixando e validando antes de substituir a copia instalada...'
 New-Item -ItemType Directory -Force -Path $targetDirectory | Out-Null
 $downloadPath = Join-Path $targetDirectory 'Comunicador.download.exe'

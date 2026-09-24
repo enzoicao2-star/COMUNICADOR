@@ -1,12 +1,12 @@
 {
-    "version":  "2.5.6.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "8495E709595520DB0FC655D232B978D8183C52E4C4EAB5E65CB51EDB6B6038C7",
-    "summary":  "Executável do Comunicador assinado com certificado de desenvolvimento.",
-    "changes":  [
-                    "O painel 2.5.6 traz assinatura digital de desenvolvimento e carimbo de data.",
-                    "A confiança neste certificado deve ser configurada manualmente em cada PC; o Windows ainda pode mostrar avisos."
-                ],
-    "signing_thumbprint":  "40B3DA8BFE23636D9C726FA5FAA7D24195FD8CA2",
-    "signing_mode":  "development"
+  "version": "2.5.5.0",
+  "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
+  "sha256": "32D69DC2DAA6B2DE4D343337AE0D0502C76F3C795E45550A89C8AEB89EC27D24",
+  "rollback_from_version": "2.5.6.0",
+  "summary": "Restaurado o executável 2.5.5 que abre nos PCs onde a assinatura de desenvolvimento foi bloqueada.",
+  "changes": [
+    "A versão 2.5.6 introduziu apenas a assinatura de desenvolvimento; a 2.5.5 mantém as funções anteriores.",
+    "Ao iniciar pelo .bat, o painel 2.5.6 será substituído pelo executável 2.5.5 já testado neste Windows.",
+    "A publicação do executável antigo fica preservada até existir uma forma confiável de publicar novas builds."
+  ]
 }

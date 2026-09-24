@@ -1,4 +1,4 @@
-# Comunicador 2.5.6
+# Comunicador 2.5.5
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
@@ -139,34 +139,19 @@ envios podem ser filtrados por estado e os que falharam podem ser reenviados
 do painel de origem. Em **Configurações > Administrador**, o OWNER consulta as
 ações administrativas registradas pelo banco.
 
-O `build.bat` assina o executável se `COMUNICADOR_SIGNING_THUMBPRINT` apontar
-para um certificado válido de assinatura de código instalado neste Windows,
-com chave privada acessível. A assinatura usa o SignTool do Windows SDK, SHA-256
-e carimbo de data RFC 3161; `Preparar-Release.ps1` recusa publicar uma cópia
-sem a assinatura esperada quando essa variável está definida. Sem certificado,
-a compilação continua sem assinatura. Para assinar com um certificado de
-desenvolvimento autoassinado, defina também `COMUNICADOR_SIGNING_MODE=development`.
-Esse modo verifica a integridade e aceita exclusivamente a falta de confiança
-na raiz do certificado. A chave privada permanece no armazenamento de
-certificados do Windows neste computador; ela não é enviada ao Git. O
-certificado público está em `release/Comunicador-Dev.cer` (sem chave privada).
-Ele pode ser instalado manualmente nos PCs controlados, mas
-nenhum BAT adiciona confiança ao Windows automaticamente. Certificados
-autoassinados não eliminam os avisos de segurança em PCs que não confiam neles.
+### Reversão da assinatura de desenvolvimento
 
-Se o PC usado para compilar for formatado, rode no novo checkout:
+A versão 2.5.6 assinada com certificado autoassinado foi bloqueada pelo Controle
+Inteligente de Aplicativos em alguns computadores. A release publicada voltou ao
+executável **2.5.5 sem assinatura** (SHA-256
+`32D69DC2DAA6B2DE4D343337AE0D0502C76F3C795E45550A89C8AEB89EC27D24`),
+testado neste Windows. O `ABRIR_COMUNICADOR.bat` consulta o GitHub e reverte
+especificamente a 2.5.6 para a 2.5.5. Em clones Git, ele abre a release antiga
+durante esta reversão; `COMUNICADOR_USE_DIST=1` força o build local.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\Cadastrar-Assinatura-Dev.ps1
-```
-
-O script cadastra uma nova chave se a anterior não existir, exporta somente o
-certificado público, configura a assinatura local e prepara o próximo número de
-versão quando a chave muda. Depois, rode `SUBIR_GITHUB.bat` para testar, compilar
-e publicar a nova versão. Nenhuma chave antiga ou backup é necessário. Para
-trocar voluntariamente a chave ainda disponível, use `-NovaChave`. O arquivo
-`tools/Assinatura-Dev.local.cmd` é ignorado pelo Git e contém apenas o
-identificador público da chave; a chave privada fica no Windows.
+O `build.bat` não assina mais automaticamente. Uma compilação nova sem
+assinatura gera outro hash e pode ser bloqueada, por isso a release antiga fica
+preservada até que a distribuição de novas versões seja resolvida.
 
 Rodar os testes do receptor localmente:
 
