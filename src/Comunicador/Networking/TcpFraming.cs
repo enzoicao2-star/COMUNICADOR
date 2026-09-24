@@ -77,10 +77,24 @@ public static class TcpFraming
         }
     }
 
-    public static async Task WriteMessageAsync(Stream stream, ComunicadorMessage message, CancellationToken ct = default)
+    public static async Task WriteMessageAsync(Stream stream, ComunicadorMessage message,
+        CancellationToken ct = default, Action<long, long>? transferProgress = null)
     {
         var framed = MessageValidator.Frame(message);
-        await stream.WriteAsync(framed, ct).ConfigureAwait(false);
+        if (transferProgress is null)
+        {
+            await stream.WriteAsync(framed, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            const int chunkSize = 32 * 1024;
+            for (var offset = 0; offset < framed.Length; offset += chunkSize)
+            {
+                var length = Math.Min(chunkSize, framed.Length - offset);
+                await stream.WriteAsync(framed.AsMemory(offset, length), ct).ConfigureAwait(false);
+                transferProgress(offset + length, framed.Length);
+            }
+        }
         await stream.FlushAsync(ct).ConfigureAwait(false);
     }
 }

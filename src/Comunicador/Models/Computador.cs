@@ -26,6 +26,8 @@ public sealed class Computador : ObservableModel
     private List<MonitorInfo> _monitores = new();
     private string? _versaoReceptor;
     private bool _atualizandoReceptor;
+    private int _progressoAtualizacaoReceptor;
+    private string _etapaAtualizacaoReceptor = string.Empty;
     private double? _pingMs;
     private string? _versaoPainel;
     private bool _ehOwner;
@@ -226,11 +228,33 @@ public sealed class Computador : ObservableModel
     }
 
     [JsonIgnore]
+    public int ProgressoAtualizacaoReceptor
+    {
+        get => _progressoAtualizacaoReceptor;
+        set
+        {
+            if (SetField(ref _progressoAtualizacaoReceptor, Math.Clamp(value, 0, 100)))
+                OnPropertyChanged(nameof(StatusVersaoReceptor));
+        }
+    }
+
+    [JsonIgnore]
+    public string EtapaAtualizacaoReceptor
+    {
+        get => _etapaAtualizacaoReceptor;
+        set
+        {
+            if (SetField(ref _etapaAtualizacaoReceptor, value))
+                OnPropertyChanged(nameof(StatusVersaoReceptor));
+        }
+    }
+
+    [JsonIgnore]
     public bool ReceptorAtualizado => VersaoReceptor == ProtocolConstants.CurrentReceiverVersion;
 
     [JsonIgnore]
     public string StatusVersaoReceptor => AtualizandoReceptor
-        ? "Atualizando receptor..."
+        ? $"{EtapaAtualizacaoReceptor} ({ProgressoAtualizacaoReceptor}%)"
         : ReceptorAtualizado
         ? $"Receptor {VersaoReceptor} atualizado"
         : string.IsNullOrWhiteSpace(VersaoReceptor)

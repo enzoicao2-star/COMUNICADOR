@@ -126,14 +126,16 @@ public sealed class ConexaoReversa : IDisposable
     }
 
     public async Task<ReceiverUpdateResult> SolicitarAtualizacaoAsync(
-        ComunicadorMessage solicitacao, CancellationToken ct)
+        ComunicadorMessage solicitacao, CancellationToken ct,
+        Action<long, long>? transferProgress = null)
     {
         await _envioLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(45));
-            await TcpFraming.WriteMessageAsync(_stream, solicitacao, cts.Token).ConfigureAwait(false);
+            await TcpFraming.WriteMessageAsync(_stream, solicitacao, cts.Token,
+                transferProgress).ConfigureAwait(false);
             var resposta = await LerAsync(cts.Token).ConfigureAwait(false);
             if (resposta is null)
             {

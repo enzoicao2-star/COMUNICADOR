@@ -5,7 +5,7 @@ set "ROOT=%~dp0"
 cd /d "%ROOT%"
 
 echo ===============================================
-echo   Comunicador 2.5.5 - validar e subir ao GitHub
+echo   Comunicador 2.5.7 - validar e subir ao GitHub
 echo ===============================================
 echo.
 
@@ -21,38 +21,14 @@ if errorlevel 1 (
     goto :erro
 )
 
-set "RELEASE_EM_ROLLBACK=0"
-findstr /C:"rollback_from_version" "release\panel-version.json" >nul 2>nul
-if not errorlevel 1 set "RELEASE_EM_ROLLBACK=1"
-
-if "!RELEASE_EM_ROLLBACK!"=="1" (
-    echo [1/5] Testando sem reconstruir o executavel 2.5.5 que abre neste Windows...
-    git diff --quiet 687e6d5 -- src/Comunicador receiver
-    if errorlevel 1 (
-        echo ERRO: a fonte do painel ou receptor mudou desde a release compativel.
-        echo       Uma nova build teria outro hash e pode ser bloqueada pelo Windows.
-        goto :erro
-    )
-    python -m pytest receiver\tests -q -p no:cacheprovider
-    if errorlevel 1 goto :erro
-    dotnet test tests\Comunicador.Tests\Comunicador.Tests.csproj -c Release
-    if errorlevel 1 goto :erro
-) else (
-    echo [1/5] Compilando, testando e publicando...
-    call "%ROOT%build.bat"
-    if errorlevel 1 goto :erro
-)
+echo [1/5] Compilando, testando e publicando...
+call "%ROOT%build.bat"
+if errorlevel 1 goto :erro
 
 echo.
-if "!RELEASE_EM_ROLLBACK!"=="1" (
-    echo [2/5] Validando a release antiga sem alterar seus bytes...
-    powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%tools\Validar-Release-Rollback.ps1"
-    if errorlevel 1 goto :erro
-) else (
-    echo [2/5] Preparando o executavel da atualizacao automatica...
-    powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%tools\Preparar-Release.ps1" -Version "2.5.5.0"
-    if errorlevel 1 goto :erro
-)
+echo [2/5] Preparando o executavel da atualizacao automatica...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%tools\Preparar-Release.ps1" -Version "2.5.7.0"
+if errorlevel 1 goto :erro
 
 echo.
 echo [3/5] Preparando as alteracoes...
@@ -61,7 +37,7 @@ if errorlevel 1 goto :erro
 
 git diff --cached --quiet
 if errorlevel 1 (
-    set "MENSAGEM=Comunicador 2.5.5 - restaurar release sem assinatura de desenvolvimento"
+    set "MENSAGEM=Comunicador 2.5.7 - GIF completo e progresso da atualizacao do receptor"
     if not "%~1"=="" set "MENSAGEM=%~1"
     git commit -m "!MENSAGEM!"
     if errorlevel 1 goto :erro
@@ -87,7 +63,7 @@ echo.
 echo ===============================================
 echo   Tudo enviado ao GitHub com sucesso.
 echo   Receptor publicado: 2.5.3
-echo   Painel publicado:    2.5.5
+echo   Painel publicado:    2.5.7
 echo ===============================================
 echo Esta janela fecha sozinha em 5 segundos...
 ping -n 6 127.0.0.1 >nul 2>nul

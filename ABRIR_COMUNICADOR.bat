@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 set "ROOT=%~dp0"
 set "COMUNICADOR_ROOT=%~dp0"
-set "VERSAO_ESPERADA=2.5.5.0"
+set "VERSAO_ESPERADA=2.5.7.0"
 set "REPO_RAW=https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main"
 cd /d "%ROOT%"
 
@@ -13,13 +13,6 @@ set "MODO_DEV=0"
 if exist "%ROOT%.git" set "MODO_DEV=1"
 if "!MODO_DEV!"=="1" (
     set "PAINEL_EXE=%ROOT%dist\Comunicador.exe"
-    rem Durante a reversao, preserva o executavel antigo cujo hash ja e aceito
-    rem pelo Controle Inteligente de Aplicativos. Build local pode ser forcado
-    rem com COMUNICADOR_USE_DIST=1 para desenvolvimento.
-    if not "%COMUNICADOR_USE_DIST%"=="1" if exist "%ROOT%release\Comunicador.exe" if exist "%ROOT%release\panel-version.json" (
-        findstr /C:"rollback_from_version" "%ROOT%release\panel-version.json" >nul 2>nul
-        if not errorlevel 1 set "PAINEL_EXE=%ROOT%release\Comunicador.exe"
-    )
 ) else (
     set "INSTALL_ROOT=%USERPROFILE%\Documents\P5"
     set "PAINEL_EXE=!INSTALL_ROOT!\release\Comunicador.exe"
@@ -42,7 +35,7 @@ if "!MODO_DEV!"=="1" if /I "!PAINEL_EXE!"=="%ROOT%dist\Comunicador.exe" (
             "if($atual -lt $expected -or $novo -gt $item.LastWriteTimeUtc){'1'}else{'0'}"') do set "PRECISA_COMPILAR=%%I"
     )
     if "!PRECISA_COMPILAR!"=="1" (
-        echo A fonte local mudou. Compilando a versao 2.5.5...
+        echo A fonte local mudou. Compilando a versao 2.5.7...
         call "%ROOT%build.bat"
         if errorlevel 1 (
             echo.

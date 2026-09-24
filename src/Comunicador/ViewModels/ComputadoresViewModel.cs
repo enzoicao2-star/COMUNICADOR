@@ -761,18 +761,26 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
     private async Task AtualizarReceptorAsync(Computador computador)
     {
+        computador.ProgressoAtualizacaoReceptor = 0;
+        computador.EtapaAtualizacaoReceptor = "Iniciando atualização";
         computador.AtualizandoReceptor = true;
-        StatusMensagem = $"Enviando a atualização oficial para {computador.NomeExibicao}...";
+        StatusMensagem = $"Iniciando a atualização de {computador.NomeExibicao}...";
+        CommandManager.InvalidateRequerySuggested();
         try
         {
-            var resultado = await _atualizador.AtualizarAsync(computador).ConfigureAwait(true);
+            var resultado = await _atualizador.AtualizarAsync(computador, progress => UiDispatcher.Invoke(() =>
+            {
+                computador.ProgressoAtualizacaoReceptor = progress.Percent;
+                computador.EtapaAtualizacaoReceptor = progress.Stage;
+                StatusMensagem = $"{computador.NomeExibicao}: {progress.Stage} ({progress.Percent}%).";
+            })).ConfigureAwait(true);
             if (resultado.Success)
             {
                 computador.VersaoReceptor = string.IsNullOrWhiteSpace(resultado.ReceiverVersion)
                     ? ProtocolConstants.CurrentReceiverVersion
                     : resultado.ReceiverVersion;
                 Persist();
-                StatusMensagem = $"{computador.NomeExibicao} foi atualizado. O receptor vai reconectar automaticamente.";
+                StatusMensagem = $"{computador.NomeExibicao} foi atualizado e reconectou na versão {computador.VersaoReceptor}.";
                 Logger.Info(
                     $"Receptor de {computador.NomeExibicao} atualizado para {computador.VersaoReceptor}.",
                     "atualizacao");
@@ -789,9 +797,16 @@ public sealed class ComputadoresViewModel : ViewModelBase
                     "atualizacao", detalhe);
             }
         }
+        catch (Exception ex)
+        {
+            StatusMensagem = $"Não foi possível atualizar {computador.NomeExibicao}: {ex.Message}";
+            Logger.Error($"Falha inesperada na atualização de {computador.NomeExibicao}.",
+                "atualizacao", ex.ToString());
+        }
         finally
         {
             computador.AtualizandoReceptor = false;
+            CommandManager.InvalidateRequerySuggested();
         }
     }
 

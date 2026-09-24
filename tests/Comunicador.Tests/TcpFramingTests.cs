@@ -28,6 +28,23 @@ public class TcpFramingTests
     }
 
     [Fact]
+    public async Task WriteMessageAsync_ReportsTransferredBytesUntilComplete()
+    {
+        var msg = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ping);
+        msg.Token = new string('x', 100_000);
+        var progress = new List<(long Sent, long Total)>();
+        using var stream = new MemoryStream();
+
+        await TcpFraming.WriteMessageAsync(stream, msg, transferProgress: (sent, total) =>
+            progress.Add((sent, total)));
+
+        Assert.True(progress.Count > 1);
+        Assert.Equal(stream.Length, progress[^1].Sent);
+        Assert.All(progress, item => Assert.Equal(stream.Length, item.Total));
+        Assert.True(progress.Zip(progress.Skip(1)).All(pair => pair.First.Sent < pair.Second.Sent));
+    }
+
+    [Fact]
     public async Task Read_ReturnsNull_OnEmptyStream()
     {
         using var stream = new MemoryStream();

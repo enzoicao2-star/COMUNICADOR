@@ -10,9 +10,7 @@ namespace Comunicador.Controls;
 public sealed class AnimatedImage : Image
 {
     private readonly DispatcherTimer _timer = new();
-    private readonly List<BitmapSource> _frames = [];
-    private readonly List<TimeSpan> _durations = [];
-    private int _frameIndex;
+    private GifFrameCompositor? _gif;
 
     public static readonly DependencyProperty DataBase64Property = DependencyProperty.Register(
         nameof(DataBase64), typeof(string), typeof(AnimatedImage),
@@ -68,9 +66,7 @@ public sealed class AnimatedImage : Image
     private void LoadImage()
     {
         _timer.Stop();
-        _frames.Clear();
-        _durations.Clear();
-        _frameIndex = 0;
+        _gif = null;
         Source = null;
         if (string.IsNullOrWhiteSpace(DataBase64)) return;
 
@@ -82,12 +78,8 @@ public sealed class AnimatedImage : Image
             {
                 var decoder = new GifBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat,
                     BitmapCacheOption.OnLoad);
-                foreach (var frame in decoder.Frames)
-                {
-                    frame.Freeze();
-                    _frames.Add(frame);
-                    _durations.Add(ReadDelay(frame));
-                }
+                _gif = new GifFrameCompositor(decoder);
+                Source = _gif.Bitmap;
             }
             else
             {
@@ -97,42 +89,28 @@ public sealed class AnimatedImage : Image
                 bitmap.StreamSource = stream;
                 bitmap.EndInit();
                 bitmap.Freeze();
-                _frames.Add(bitmap);
-                _durations.Add(TimeSpan.Zero);
+                Source = bitmap;
             }
-            if (_frames.Count > 0) Source = _frames[0];
             StartIfAnimated();
         }
-        catch (Exception ex) when (ex is FormatException or NotSupportedException or IOException)
+        catch (Exception ex) when (ex is FormatException or NotSupportedException or IOException or OverflowException)
         {
             Source = null;
+            _gif = null;
         }
-    }
-
-    private static TimeSpan ReadDelay(BitmapFrame frame)
-    {
-        try
-        {
-            if (frame.Metadata is BitmapMetadata metadata &&
-                metadata.GetQuery("/grctlext/Delay") is ushort hundredths)
-                return TimeSpan.FromMilliseconds(Math.Max(20, hundredths * 10));
-        }
-        catch (NotSupportedException) { }
-        return TimeSpan.FromMilliseconds(100);
     }
 
     private void StartIfAnimated()
     {
-        if (!IsLoaded || !IsVisible || _frames.Count <= 1) return;
-        _timer.Interval = _durations[0];
+        if (!IsLoaded || !IsVisible || _gif is not { FrameCount: > 1 } gif) return;
+        _timer.Interval = gif.CurrentDelay;
         _timer.Start();
     }
 
     private void AdvanceFrame()
     {
-        if (_frames.Count <= 1) { _timer.Stop(); return; }
-        _frameIndex = (_frameIndex + 1) % _frames.Count;
-        Source = _frames[_frameIndex];
-        _timer.Interval = _durations[_frameIndex];
+        if (_gif is not { FrameCount: > 1 } gif) { _timer.Stop(); return; }
+        gif.ShowNextFrame();
+        _timer.Interval = gif.CurrentDelay;
     }
 }

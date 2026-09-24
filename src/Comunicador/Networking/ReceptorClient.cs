@@ -74,6 +74,32 @@ public sealed class ReceptorClient
         }
     }
 
+    /// <summary>Consulta a versão que está efetivamente rodando após um reinício.</summary>
+    public async Task<string?> GetReceiverVersionAsync(
+        string ipAddress, int tcpPort, string token, CancellationToken ct = default)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(PingTimeout);
+            using var client = await ConnectAsync(ipAddress, tcpPort, ConnectTimeout, cts.Token)
+                .ConfigureAwait(false);
+            await using var stream = client.GetStream();
+            var ping = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ping);
+            ping.Token = token;
+            await TcpFraming.WriteMessageAsync(stream, ping, cts.Token).ConfigureAwait(false);
+            var response = await ReadValidatedAsync(stream, cts.Token).ConfigureAwait(false);
+            return response.Type == ProtocolConstants.MessageType.Pong
+                ? response.ReceiverVersion
+                : null;
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException
+            or ReceptorComunicacaoException or ObjectDisposedException)
+        {
+            return null;
+        }
+    }
+
     public async Task<NotificationResult> SendNotificationAsync(
         string ipAddress, int tcpPort, string token, string title, string message, bool allowReply,
         List<BotaoResposta>? botoes = null,
@@ -174,7 +200,7 @@ public sealed class ReceptorClient
 
     public async Task<ReceiverUpdateResult> UpdateReceiverAsync(
         string ipAddress, int tcpPort, string token, IReadOnlyList<ArquivoAtualizacao> arquivos,
-        CancellationToken ct = default)
+        CancellationToken ct = default, Action<long, long>? transferProgress = null)
     {
         try
         {
@@ -194,7 +220,8 @@ public sealed class ReceptorClient
                 return new(false, "invalid_package", string.Empty, validation.Message);
             }
 
-            await TcpFraming.WriteMessageAsync(stream, request, cts.Token).ConfigureAwait(false);
+            await TcpFraming.WriteMessageAsync(stream, request, cts.Token,
+                transferProgress).ConfigureAwait(false);
             var response = await ReadValidatedAsync(stream, cts.Token).ConfigureAwait(false);
             if (response.Type == ProtocolConstants.MessageType.Error)
             {

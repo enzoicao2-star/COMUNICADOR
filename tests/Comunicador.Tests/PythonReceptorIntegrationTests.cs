@@ -303,13 +303,17 @@ public class PythonReceptorIntegrationTests : IClassFixture<PythonReceptorFixtur
     {
         var client = NovoCliente();
         var par = await client.PairAsync("127.0.0.1", _tcpPort);
+        var transfer = new List<(long Sent, long Total)>();
 
         var resultado = await client.UpdateReceiverAsync(
-            "127.0.0.1", _tcpPort, par.Token, ReceiverUpdatePackage.Create());
+            "127.0.0.1", _tcpPort, par.Token, ReceiverUpdatePackage.Create(),
+            transferProgress: (sent, total) => transfer.Add((sent, total)));
 
         Assert.True(resultado.Success, resultado.Message);
         Assert.Equal("updated", resultado.Status);
         Assert.Equal(ProtocolConstants.CurrentReceiverVersion, resultado.ReceiverVersion);
+        Assert.NotEmpty(transfer);
+        Assert.Equal(transfer[^1].Total, transfer[^1].Sent);
     }
 
     [Fact]

@@ -1,12 +1,12 @@
 {
-  "version": "2.5.5.0",
-  "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-  "sha256": "32D69DC2DAA6B2DE4D343337AE0D0502C76F3C795E45550A89C8AEB89EC27D24",
-  "rollback_from_version": "2.5.6.0",
-  "summary": "Restaurado o executável 2.5.5 que abre nos PCs onde a assinatura de desenvolvimento foi bloqueada.",
-  "changes": [
-    "A versão 2.5.6 introduziu apenas a assinatura de desenvolvimento; a 2.5.5 mantém as funções anteriores.",
-    "Ao iniciar pelo .bat, o painel 2.5.6 será substituído pelo executável 2.5.5 já testado neste Windows.",
-    "A publicação do executável antigo fica preservada até existir uma forma confiável de publicar novas builds."
-  ]
+    "version":  "2.5.7.0",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
+    "sha256":  "4C6D33FB1561261603E1485D939FB60E3456A802A4A7FB65C56A221FA90E423C",
+    "summary":  "GIFs completos e estáveis; atualização do receptor com progresso e confirmação de reconexão.",
+    "changes":  [
+                    "Em Mensagens e nas notificações recebidas, GIFs animados mantêm todos os pixels no lugar durante a reprodução.",
+                    "Em Computadores \u003e Gerenciar computador, a atualização do receptor mostra o envio dos arquivos em porcentagem.",
+                    "O painel só confirma a atualização depois que o receptor reinicia e volta à rede na versão esperada.",
+                    "O painel passa para a versão 2.5.7 sem assinatura de desenvolvimento."
+                ]
 }

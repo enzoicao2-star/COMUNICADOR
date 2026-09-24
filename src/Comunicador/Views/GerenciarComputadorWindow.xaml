@@ -94,6 +94,13 @@
                             <Button Content="Habilitar entrada do painel" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,8"
                                     Command="{Binding HabilitarPainelRemotoCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
                         </WrapPanel>
+                        <StackPanel Margin="0,8,0,0"
+                                    Visibility="{Binding ComputadorGerenciado.AtualizandoReceptor, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock Text="{Binding ComputadorGerenciado.StatusVersaoReceptor, Mode=OneWay}"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,5" />
+                            <ProgressBar Minimum="0" Maximum="100" Height="12"
+                                         Value="{Binding ComputadorGerenciado.ProgressoAtualizacaoReceptor, Mode=OneWay}" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource CardBorder}" Padding="18">

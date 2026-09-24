@@ -1,4 +1,4 @@
-# Comunicador 2.5.5
+# Comunicador 2.5.7
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
@@ -139,19 +139,19 @@ envios podem ser filtrados por estado e os que falharam podem ser reenviados
 do painel de origem. Em **Configurações > Administrador**, o OWNER consulta as
 ações administrativas registradas pelo banco.
 
-### Reversão da assinatura de desenvolvimento
+GIFs enviados ou vistos na prévia agora compõem corretamente os quadros parciais
+da animação. Em **Computadores > Gerenciar computador**, a atualização de um
+receptor mostra o envio dos arquivos e aguarda sua reconexão antes de informar
+que terminou.
+
+### Assinatura e atualização do executável
 
 A versão 2.5.6 assinada com certificado autoassinado foi bloqueada pelo Controle
-Inteligente de Aplicativos em alguns computadores. A release publicada voltou ao
-executável **2.5.5 sem assinatura** (SHA-256
-`32D69DC2DAA6B2DE4D343337AE0D0502C76F3C795E45550A89C8AEB89EC27D24`),
-testado neste Windows. O `ABRIR_COMUNICADOR.bat` consulta o GitHub e reverte
-especificamente a 2.5.6 para a 2.5.5. Em clones Git, ele abre a release antiga
-durante esta reversão; `COMUNICADOR_USE_DIST=1` força o build local.
-
-O `build.bat` não assina mais automaticamente. Uma compilação nova sem
-assinatura gera outro hash e pode ser bloqueada, por isso a release antiga fica
-preservada até que a distribuição de novas versões seja resolvida.
+Inteligente de Aplicativos em alguns computadores. A 2.5.7 volta a ser
+distribuída sem assinatura de desenvolvimento e foi aberta em teste no Windows
+do projeto. O `ABRIR_COMUNICADOR.bat` baixa a nova versão e sincroniza os BATs
+do GitHub. O atualizador guarda a versão anterior e a restaura se a nova não
+confirmar a inicialização.
 
 Rodar os testes do receptor localmente:
 

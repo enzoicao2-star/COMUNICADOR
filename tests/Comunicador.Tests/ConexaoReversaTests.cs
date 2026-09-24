@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using Comunicador.Models;
 using Comunicador.Networking;
 using Comunicador.Protocol;
 using Xunit;
@@ -150,6 +151,63 @@ public class ConexaoReversaTests
             ladoReceptor.Dispose();
             ladoPainel.Dispose();
             listener.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task Atualizador_AguardaNovaConexaoAntesDeConcluir()
+    {
+        var (ladoPainel, ladoReceptor, listener) = await ParConectadoAsync();
+        var (novoPainel, novoReceptor, novoListener) = await ParConectadoAsync();
+        var registro = new RegistroConexoesReversas();
+        try
+        {
+            registro.Registrar(new ConexaoReversa(ladoPainel, ladoPainel.GetStream(),
+                "pc-quarto", "PC-QUARTO", "127.0.0.1", "tok-teste",
+                receiverVersion: ProtocolConstants.CurrentReceiverVersion));
+            var computador = new Computador
+            {
+                Id = "pc-quarto", Nome = "PC-QUARTO", EnderecoIp = "127.0.0.1",
+                Pareado = true, Token = "tok-teste",
+                VersaoReceptor = ProtocolConstants.CurrentReceiverVersion,
+            };
+            var progress = new List<ReceiverUpdateProgress>();
+            var installed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var updater = new AtualizadorReceptor(new ReceptorClient("painel", "PAINEL"), registro);
+            var updating = updater.AtualizarAsync(computador, value =>
+            {
+                progress.Add(value);
+                if (value.Percent == 85) installed.TrySetResult();
+            });
+
+            var payload = await TcpFraming.ReadMessageAsync(ladoReceptor.GetStream());
+            Assert.True(MessageValidator.TryParse(payload!, out var request, out _));
+            var status = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.UpdateStatus);
+            status.InReplyTo = request!.Id;
+            status.Success = true;
+            status.Status = "updated";
+            status.ReceiverVersion = ProtocolConstants.CurrentReceiverVersion;
+            await TcpFraming.WriteMessageAsync(ladoReceptor.GetStream(), status);
+
+            await installed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(updating.IsCompleted);
+            registro.Registrar(new ConexaoReversa(novoPainel, novoPainel.GetStream(),
+                "pc-quarto", "PC-QUARTO", "127.0.0.1", "tok-teste",
+                receiverVersion: ProtocolConstants.CurrentReceiverVersion));
+
+            var result = await updating.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.True(result.Success, result.Message);
+            Assert.Equal(100, progress[^1].Percent);
+            Assert.Contains(progress, value => value.Percent > 12 && value.Percent <= 78);
+            Assert.Contains(progress, value => value.Percent == 85);
+        }
+        finally
+        {
+            registro.Remover("pc-quarto");
+            ladoReceptor.Dispose();
+            novoReceptor.Dispose();
+            listener.Stop();
+            novoListener.Stop();
         }
     }
 

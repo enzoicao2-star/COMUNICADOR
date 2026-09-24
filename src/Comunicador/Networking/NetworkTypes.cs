@@ -15,6 +15,8 @@ public sealed record NotificationResult(bool Delivered, bool WasShown, bool GotR
 public sealed record ReceiverUpdateResult(
     bool Success, string Status, string ReceiverVersion, string? Message);
 
+public sealed record ReceiverUpdateProgress(int Percent, string Stage);
+
 public sealed record SyncResult(
     bool Success,
     IReadOnlyList<Protocol.HistoricoSincronizado> HistoryEntries,

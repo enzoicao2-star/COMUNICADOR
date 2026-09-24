@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)]
     [string]$Version,
     [string]$SourcePath = ''
@@ -17,8 +17,8 @@ $manifestPath = Join-Path $releaseDirectory 'panel-version.json'
 
 if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
     $existingManifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-    if (-not [string]::IsNullOrWhiteSpace([string]$existingManifest.rollback_from_version)) {
-        throw 'Release 2.5.5 preservada para restaurar os PCs bloqueados. Remova rollback_from_version somente ao publicar um executavel novo que funcione nesses PCs.'
+    if ([version]$Version -lt [version]$existingManifest.version) {
+        throw 'Publique com uma versao maior que a release atual para nao substituir uma atualizacao existente.'
     }
 }
 
@@ -40,20 +40,28 @@ if ([version]$actualVersion -ne [version]$Version) {
     throw "Versao do executavel: $actualVersion; versao pedida: $Version."
 }
 
+if ($null -ne $existingManifest -and [version]$Version -eq [version]$existingManifest.version) {
+    $sourceHash = (Get-Sha256 $source).ToUpperInvariant()
+    $releaseHash = if (Test-Path -LiteralPath $destination -PathType Leaf) {
+        (Get-Sha256 $destination).ToUpperInvariant()
+    } else { '' }
+    if ($sourceHash -eq [string]$existingManifest.sha256 -and $releaseHash -eq $sourceHash) {
+        Write-Host "Release local $Version ja preparada. SHA-256: $sourceHash"
+        exit 0
+    }
+    throw 'O executavel mudou sem aumento de versao. Atualize a versao antes de publicar outra release.'
+}
+
 New-Item -ItemType Directory -Force -Path $releaseDirectory | Out-Null
 Copy-Item -LiteralPath $source -Destination $destination -Force
 $hash = (Get-Sha256 $destination).ToUpperInvariant()
 $releaseNotes = @{
-    summary = 'Um único Comunicador na bandeja, envios com prévia e reenvio, grupos e modelos compartilhados e atualização mais segura.'
+    summary = 'GIFs completos e estáveis; atualização do receptor com progresso e confirmação de reconexão.'
     changes = @(
-        'Em Mensagens, teste a prévia neste PC antes de enviar ao computador escolhido.',
-        'Em Histórico, filtre os resultados por estado e reenvie mensagens que falharam.',
-        'Em Mensagens, o OWNER cria grupos de computadores e modelos de texto para todos os painéis.',
-        'Em Configurações > Administrador, o OWNER vê as mudanças globais e os comandos remotos recentes.',
-        'A atualização restaura a versão anterior se o novo painel não confirmar a inicialização.',
-        'Abrir outra cópia do painel traz a janela existente e não cria outro ícone na bandeja.',
-        'Após instalar o receptor com sucesso, o instalador usado se apaga e não reaparece nas atualizações comuns.',
-        'O painel passa para a versão 2.5.5.'
+        'Em Mensagens e nas notificações recebidas, GIFs animados mantêm todos os pixels no lugar durante a reprodução.',
+        'Em Computadores > Gerenciar computador, a atualização do receptor mostra o envio dos arquivos em porcentagem.',
+        'O painel só confirma a atualização depois que o receptor reinicia e volta à rede na versão esperada.',
+        'O painel passa para a versão 2.5.7 sem assinatura de desenvolvimento.'
     )
 }
 $manifest = [ordered]@{
