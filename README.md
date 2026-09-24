@@ -141,7 +141,12 @@ ações administrativas registradas pelo banco.
 
 O `build.bat` assina o executável se `COMUNICADOR_SIGNING_THUMBPRINT` apontar
 para um certificado válido de assinatura de código instalado neste Windows,
-com chave privada acessível. Sem ele, a compilação continua sem assinatura.
+com chave privada acessível. A assinatura usa o SignTool do Windows SDK, SHA-256
+e carimbo de data RFC 3161; `Preparar-Release.ps1` recusa publicar uma cópia
+sem a assinatura esperada quando essa variável está definida. Sem certificado,
+a compilação continua sem assinatura. Certificados autoassinados servem para
+testes ou computadores gerenciados que confiam explicitamente neles; para
+distribuição comum, use um certificado de assinatura confiável do publicador.
 
 Rodar os testes do receptor localmente:
 

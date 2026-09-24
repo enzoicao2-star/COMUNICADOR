@@ -33,6 +33,20 @@ if ([version]$actualVersion -ne [version]$Version) {
     throw "Versao do executavel: $actualVersion; versao pedida: $Version."
 }
 
+$requestedSigner = ([string]$env:COMUNICADOR_SIGNING_THUMBPRINT -replace '[^A-Fa-f0-9]', '').ToUpperInvariant()
+if ($requestedSigner -and $requestedSigner -notmatch '^[A-F0-9]{40}$') {
+    throw 'COMUNICADOR_SIGNING_THUMBPRINT deve conter o thumbprint SHA-1 de 40 caracteres do certificado.'
+}
+$sourceSignature = Get-AuthenticodeSignature -LiteralPath $source
+if ($requestedSigner -and ($sourceSignature.Status -ne 'Valid' -or
+        $null -eq $sourceSignature.SignerCertificate -or
+        $sourceSignature.SignerCertificate.Thumbprint.ToUpperInvariant() -ne $requestedSigner)) {
+    throw 'O executavel nao possui a assinatura valida do certificado configurado. Release preservada.'
+}
+if ($sourceSignature.Status -notin @('Valid', 'NotSigned')) {
+    throw ('Assinatura do executavel invalida: ' + $sourceSignature.StatusMessage)
+}
+
 New-Item -ItemType Directory -Force -Path $releaseDirectory | Out-Null
 Copy-Item -LiteralPath $source -Destination $destination -Force
 $hash = (Get-Sha256 $destination).ToUpperInvariant()
@@ -57,6 +71,10 @@ $manifest = [ordered]@{
     changes = @($releaseNotes.changes)
 }
 $signature = Get-AuthenticodeSignature -LiteralPath $destination
+if ($signature.Status -ne $sourceSignature.Status -or
+    ($signature.Status -eq 'Valid' -and $signature.SignerCertificate.Thumbprint -ne $sourceSignature.SignerCertificate.Thumbprint)) {
+    throw 'A assinatura mudou durante a copia da release.'
+}
 if ($signature.Status -eq 'Valid' -and $null -ne $signature.SignerCertificate) {
     $manifest.signing_thumbprint = $signature.SignerCertificate.Thumbprint
 }

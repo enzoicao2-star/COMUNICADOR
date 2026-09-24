@@ -23,10 +23,26 @@ if (-not @($certificate.EnhancedKeyUsageList | Where-Object { $_.ObjectId -eq $c
 }
 if ($certificate.NotAfter -le [datetime]::UtcNow) { throw 'O certificado de assinatura expirou.' }
 
-$signature = Set-AuthenticodeSignature -LiteralPath $path -Certificate $certificate `
-    -HashAlgorithm SHA256 -TimestampServer 'http://timestamp.digicert.com'
-if ($signature.Status -ne 'Valid') {
-    throw ('Assinatura rejeitada: ' + $signature.StatusMessage)
+$signTool = @(Get-Command signtool.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source)[0]
+if (-not $signTool) {
+    $sdkBin = Join-Path ([Environment]::GetEnvironmentVariable('ProgramFiles(x86)')) 'Windows Kits\10\bin'
+    $signTool = @(Get-ChildItem -LiteralPath $sdkBin -Directory -ErrorAction SilentlyContinue |
+        Sort-Object { try { [version]$_.Name } catch { [version]'0.0' } } -Descending |
+        ForEach-Object { Join-Path $_.FullName 'x64\signtool.exe' } |
+        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+        Select-Object -First 1)[0]
+}
+if (-not $signTool) { throw 'SignTool do Windows SDK nao encontrado. Instale o Windows SDK para assinar a release.' }
+
+$storeArgs = if ($certificate.PSParentPath -like '*LocalMachine*') { @('/sm') } else { @() }
+$signOutput = & $signTool sign /sha1 $wanted /s My @storeArgs /fd SHA256 `
+    /tr 'http://timestamp.digicert.com' /td SHA256 /v $path 2>&1
+if ($LASTEXITCODE -ne 0) {
+    throw ('Falha ao assinar ou carimbar a data: ' + ($signOutput -join [Environment]::NewLine))
+}
+$verifyOutput = & $signTool verify /pa /all /v $path 2>&1
+if ($LASTEXITCODE -ne 0) {
+    throw ('A assinatura nao passou na verificacao de confianca: ' + ($verifyOutput -join [Environment]::NewLine))
 }
 $verified = Get-AuthenticodeSignature -LiteralPath $path
 if ($verified.Status -ne 'Valid' -or $verified.SignerCertificate.Thumbprint.ToUpperInvariant() -ne $wanted) {
