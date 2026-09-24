@@ -53,7 +53,7 @@ echo.
 set "REPO_RAW=https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/receiver"
 set "INSTALL_ROOT=%LOCALAPPDATA%\Comunicador\Receptor"
 set "INSTALL_DIR=%INSTALL_ROOT%\app"
-set "DOWNLOAD_DIR=%TEMP%\Comunicador-Receptor-%RECEIVER_VERSION%"
+set "DOWNLOAD_DIR=%TEMP%\Comunicador-Receptor-%RECEIVER_VERSION%-%RANDOM%%RANDOM%"
 set "CACHE_BUSTER=%RANDOM%%RANDOM%%RANDOM%"
 set "COMUNICADOR_RECEPTOR_SCRIPT=%LOCALAPPDATA%\Comunicador\Receptor\app\receptor.py"
 set "TASK_NAME=Comunicador Receptor"
@@ -127,7 +127,6 @@ if not exist "!PYTHONW_EXE!" (
 echo.
 echo [3/8] Preparando a atualizacao segura...
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
-if exist "%DOWNLOAD_DIR%" rmdir /s /q "%DOWNLOAD_DIR%"
 mkdir "%DOWNLOAD_DIR%"
 if errorlevel 1 (
     echo ERRO: nao foi possivel criar a pasta temporaria de download.
@@ -136,16 +135,33 @@ if errorlevel 1 (
 
 echo.
 echo [4/8] Baixando e validando o receptor %RECEIVER_VERSION%...
-curl -fsSL -o "%DOWNLOAD_DIR%\receptor.py" "%REPO_RAW%/receptor.py?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
-if errorlevel 1 goto :erro_download
-curl -fsSL -o "%DOWNLOAD_DIR%\protocolo.py" "%REPO_RAW%/protocolo.py?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
-if errorlevel 1 goto :erro_download
-curl -fsSL -o "%DOWNLOAD_DIR%\requirements.txt" "%REPO_RAW%/requirements.txt?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
-if errorlevel 1 goto :erro_download
-curl -fsSL -o "%DOWNLOAD_DIR%\DIAGNOSTICO.bat" "%REPO_RAW%/DIAGNOSTICO.bat?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
-if errorlevel 1 goto :erro_download
-curl -fsSL -o "%DOWNLOAD_DIR%\DESINSTALAR_RECEPTOR.bat" "%REPO_RAW%/DESINSTALAR_RECEPTOR.bat?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
-if errorlevel 1 goto :erro_download
+curl.exe --help all 2>nul | findstr /L /C:"--parallel" >nul
+if errorlevel 1 (
+    rem Versoes antigas do curl nao suportam --parallel; usa o fluxo anterior.
+    echo       Download paralelo indisponivel; tentando arquivo por arquivo...
+    curl.exe -fsSL -o "%DOWNLOAD_DIR%\receptor.py" "%REPO_RAW%/receptor.py?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
+    if errorlevel 1 goto :erro_download
+    curl.exe -fsSL -o "%DOWNLOAD_DIR%\protocolo.py" "%REPO_RAW%/protocolo.py?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
+    if errorlevel 1 goto :erro_download
+    curl.exe -fsSL -o "%DOWNLOAD_DIR%\requirements.txt" "%REPO_RAW%/requirements.txt?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
+    if errorlevel 1 goto :erro_download
+    curl.exe -fsSL -o "%DOWNLOAD_DIR%\DIAGNOSTICO.bat" "%REPO_RAW%/DIAGNOSTICO.bat?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
+    if errorlevel 1 goto :erro_download
+    curl.exe -fsSL -o "%DOWNLOAD_DIR%\DESINSTALAR_RECEPTOR.bat" "%REPO_RAW%/DESINSTALAR_RECEPTOR.bat?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
+    if errorlevel 1 goto :erro_download
+) else (
+    curl.exe --parallel --parallel-immediate --fail-early -fsSL ^
+        -o "%DOWNLOAD_DIR%\receptor.py" "%REPO_RAW%/receptor.py?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!" ^
+        -o "%DOWNLOAD_DIR%\protocolo.py" "%REPO_RAW%/protocolo.py?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!" ^
+        -o "%DOWNLOAD_DIR%\requirements.txt" "%REPO_RAW%/requirements.txt?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!" ^
+        -o "%DOWNLOAD_DIR%\DIAGNOSTICO.bat" "%REPO_RAW%/DIAGNOSTICO.bat?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!" ^
+        -o "%DOWNLOAD_DIR%\DESINSTALAR_RECEPTOR.bat" "%REPO_RAW%/DESINSTALAR_RECEPTOR.bat?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
+    if errorlevel 1 goto :erro_download
+)
+for %%F in (receptor.py protocolo.py requirements.txt DIAGNOSTICO.bat DESINSTALAR_RECEPTOR.bat) do (
+    if not exist "%DOWNLOAD_DIR%\%%F" goto :erro_download
+    for %%Z in ("%DOWNLOAD_DIR%\%%F") do if %%~zZ LEQ 0 goto :erro_download
+)
 
 "!PYTHON_EXE!" -m py_compile "%DOWNLOAD_DIR%\protocolo.py" "%DOWNLOAD_DIR%\receptor.py"
 if errorlevel 1 (
@@ -203,11 +219,15 @@ echo       Receptor %RECEIVER_VERSION% validado e salvo em: %INSTALL_DIR%
 
 echo.
 echo [5/8] Instalando dependencias Python ^(pystray, Pillow^)...
-"!PYTHON_EXE!" -m pip install --user --quiet --upgrade pip
-"!PYTHON_EXE!" -m pip install --user --quiet -r "%INSTALL_DIR%\requirements.txt"
-if errorlevel 1 (
-    echo AVISO: nao foi possivel instalar todas as dependencias opcionais.
-    echo        O receptor funciona normalmente, so o icone na bandeja fica desativado.
+"!PYTHON_EXE!" -c "from importlib.metadata import version; from pip._vendor.packaging.requirements import Requirement; from pathlib import Path; import sys; reqs=[Requirement(line) for line in Path(sys.argv[1]).read_text(encoding='utf-8').splitlines() if line.strip() and not line.lstrip().startswith('#')]; import pystray, PIL; sys.exit(0 if all(r.specifier.contains(version(r.name)) for r in reqs) else 1)" "%INSTALL_DIR%\requirements.txt" >nul 2>nul
+if not errorlevel 1 (
+    echo       Dependencias ja instaladas; nenhuma espera pelo pip.
+) else (
+    "!PYTHON_EXE!" -m pip install --user --disable-pip-version-check --quiet -r "%INSTALL_DIR%\requirements.txt"
+    if errorlevel 1 (
+        echo AVISO: nao foi possivel instalar todas as dependencias opcionais.
+        echo        O receptor funciona normalmente, so o icone na bandeja fica desativado.
+    )
 )
 
 echo.
@@ -248,21 +268,20 @@ if not errorlevel 1 (
     )
 )
 
-echo       Salvando as configuracoes atuais de rede antes de alterar...
-powershell -NoProfile -Command ^
-    "$bk = Join-Path $env:LOCALAPPDATA 'Comunicador\backup_rede.csv';" ^
-    "if (Test-Path $bk) { Write-Host '      Backup anterior preservado (estado original ja guardado).' } else {" ^
-    "  New-Item -ItemType Directory -Force -Path (Split-Path $bk) | Out-Null;" ^
-    "  Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -notmatch 'Loopback' } | ForEach-Object {" ^
-    "    $p = Get-NetConnectionProfile -InterfaceIndex $_.ifIndex -ErrorAction SilentlyContinue;" ^
-    "    if ($p) { \"$($_.ifIndex),$($p.NetworkCategory)\" } } | Set-Content -Path $bk -Encoding UTF8;" ^
-    "  Write-Host ('      Backup salvo em: ' + $bk) }"
-
+echo       Verificando e preservando as configuracoes de rede...
 echo       Marcando as redes fisicas como "Particular" ^(no perfil Publico o
 echo       Windows bloqueia a descoberta entre computadores; adaptadores
 echo       virtuais/VPN/loopback nao sao tocados^)...
 powershell -NoProfile -Command ^
-    "Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -notmatch 'Loopback' } | ForEach-Object { $p = Get-NetConnectionProfile -InterfaceIndex $_.ifIndex -ErrorAction SilentlyContinue; if ($p -and $p.NetworkCategory -eq 'Public') { try { Set-NetConnectionProfile -InterfaceIndex $_.ifIndex -NetworkCategory Private -ErrorAction Stop; Write-Host ('      ALTERADO: ' + $p.Name + ' Publica -> Particular') } catch {} } }"
+    "$bk = Join-Path $env:LOCALAPPDATA 'Comunicador\backup_rede.csv';" ^
+    "$adapters = @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceDescription -notmatch 'Loopback' });" ^
+    "$indices = @($adapters | ForEach-Object { $_.ifIndex });" ^
+    "$profiles = @(Get-NetConnectionProfile -ErrorAction SilentlyContinue | Where-Object { $indices -contains $_.InterfaceIndex });" ^
+    "if (Test-Path $bk) { Write-Host '      Backup anterior preservado (estado original ja guardado).' } else {" ^
+    "  New-Item -ItemType Directory -Force -Path (Split-Path $bk) | Out-Null;" ^
+    "  $profiles | ForEach-Object { '{0},{1}' -f $_.InterfaceIndex,$_.NetworkCategory } | Set-Content -Path $bk -Encoding UTF8;" ^
+    "  Write-Host ('      Backup salvo em: ' + $bk) };" ^
+    "$profiles | Where-Object { $_.NetworkCategory -eq 'Public' } | ForEach-Object { try { Set-NetConnectionProfile -InterfaceIndex $_.InterfaceIndex -NetworkCategory Private -ErrorAction Stop; Write-Host ('      ALTERADO: ' + $_.Name + ' Publica -> Particular') } catch {} }"
 
 netsh advfirewall firewall delete rule name="Comunicador Receptor" >nul 2>nul
 netsh advfirewall firewall delete rule name="Comunicador Receptor (descoberta)" >nul 2>nul
@@ -279,27 +298,23 @@ if errorlevel 1 (
 
 echo.
 echo [7/8] Iniciando o receptor %RECEIVER_VERSION% agora...
-rem Inicia direto pelo pythonw, sem depender do agendador — assim o receptor
-rem sobe mesmo que a tarefa nao tenha podido ser criada.
-start "" "!PYTHONW_EXE!" "%INSTALL_DIR%\receptor.py"
-
-ping -n 4 127.0.0.1 >nul 2>nul
-
 echo.
 echo [8/8] Confirmando processo, versao e inicializacao automatica...
 set "RECEPTOR_OK="
-powershell -NoProfile -Command ^
+rem Inicia direto pelo pythonw, sem depender do Agendador. O PID retornado
+rem identifica exatamente esta instancia e evita a espera fixa de varios segundos.
+powershell -NoProfile -NonInteractive -Command ^
     "$target=$env:COMUNICADOR_RECEPTOR_SCRIPT;" ^
-    "$p=Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'python*' -and $_.CommandLine -like ('*'+$target+'*') };" ^
-    "if($p){exit 0}else{exit 1}"
-if not errorlevel 1 (
-    set "RECEPTOR_OK=1"
-    echo       Processo do receptor %RECEIVER_VERSION% confirmado.
-) else (
+    "$argument=[char]34 + $target + [char]34;" ^
+    "try { $p=Start-Process -FilePath $env:PYTHONW_EXE -ArgumentList $argument -WorkingDirectory $env:INSTALL_DIR -WindowStyle Hidden -PassThru -ErrorAction Stop } catch { exit 1 };" ^
+    "Start-Sleep -Milliseconds 2000; $p.Refresh(); if ($p.HasExited) { exit 1 } else { exit 0 }"
+if errorlevel 1 (
     echo       ERRO: o receptor encerrou logo depois de iniciar.
     echo       Verifique o log em: %LOCALAPPDATA%\Comunicador\Receptor\receptor.log
     goto :erro
 )
+set "RECEPTOR_OK=1"
+echo       Processo do receptor %RECEIVER_VERSION% confirmado.
 if not defined AUTOSTART_OK (
     echo       ERRO: a inicializacao automatica nao foi configurada.
     goto :erro
@@ -333,9 +348,9 @@ echo ===============================================
 echo.
 rem Deu tudo certo: fecha sozinho. So em caso de erro a janela fica
 rem aberta, para a mensagem poder ser lida.
-echo Esta janela fecha sozinha em 5 segundos...
+echo Esta janela fecha sozinha em 2 segundos...
 rem ping em vez de timeout: timeout falha quando a entrada esta redirecionada.
-ping -n 6 127.0.0.1 >nul 2>nul
+ping -n 3 127.0.0.1 >nul 2>nul
 rem Apaga o BAT que acabou de ser executado somente apos o sucesso confirmado.
 rem O atualizador nao o restaura enquanto o receptor continuar instalado.
 call :agendar_autoexclusao

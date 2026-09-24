@@ -127,6 +127,13 @@ e configurações compartilhadas quando há um painel na mesma máquina.
 Para conferir antecipadamente todos os alvos sem alterar nada, execute
 `receiver/DESINSTALAR_RECEPTOR.bat --verificar`.
 
+O instalador baixa os cinco arquivos do receptor em paralelo quando o `curl`
+do Windows permite, reutiliza `pystray` e Pillow quando já estão instalados
+e evita atualizar o `pip` sem necessidade. A opção de instalar o Python
+"para todos os usuários" abrange apenas as contas **do computador local**;
+ela não instala o receptor nos outros computadores da rede. Os arquivos do
+receptor ficam no perfil local da conta que executou o instalador.
+
 O menu de ações por computador reúne as opções de pareamento, atualização e
 administração remota. Os comandos administrativos são reservados ao OWNER.
 Abrir outro executável ou BAT apenas reativa o painel já aberto, sem criar
