@@ -105,6 +105,21 @@ public sealed class CloudSyncService : IDisposable
 
     public bool HasPermission(string permission) => IsAdmin || HasPermissionForDevice(_settings.PainelId, permission);
 
+    public async Task<bool> IsCurrentAdminDeviceAsync(string senderDeviceId, CancellationToken ct = default)
+    {
+        try
+        {
+            var state = await _client.GetAdminStateAsync(ct).ConfigureAwait(false);
+            return !string.IsNullOrWhiteSpace(state.AdminDeviceId)
+                && string.Equals(state.AdminDeviceId, senderDeviceId, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.Warning($"CMD remoto recusado: falha ao validar OWNER: {ex.Message}");
+            return false;
+        }
+    }
+
     public bool HasPermissionForDevice(string deviceId, string permission)
     {
         if (string.Equals(deviceId, AdminDeviceId, StringComparison.OrdinalIgnoreCase)) return true;
@@ -143,6 +158,18 @@ public sealed class CloudSyncService : IDisposable
             throw new InvalidOperationException("Escolha outro computador para esta ação.");
         return _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
             new { kind = "admin_command", command, sender = _settings.NomePainel }, ct);
+    }
+
+    public Task QueueRemoteCommandAsync(string targetDeviceId, string command, CancellationToken ct = default)
+    {
+        if (!IsAdmin) throw new UnauthorizedAccessException("Somente o OWNER pode enviar comandos CMD remotos.");
+        if (!RemoteCommandExecutor.IsValid(command))
+            throw new ArgumentException("Digite um comando de até 500 caracteres.", nameof(command));
+        if (string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Escolha outro computador para esta ação.");
+        return _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
+            new { kind = "admin_command", command = "run_cmd", line = command.Trim(),
+                expires_at = DateTimeOffset.UtcNow.AddMinutes(5).ToString("O"), sender = _settings.NomePainel }, ct);
     }
 
     public Task RespondToDeliveryAsync(string deliveryId, string response, CancellationToken ct = default) =>

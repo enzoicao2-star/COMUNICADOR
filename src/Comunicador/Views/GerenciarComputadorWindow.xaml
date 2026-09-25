@@ -103,6 +103,24 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
+                <Border Style="{StaticResource CardBorder}" Padding="18" Margin="0,0,0,12"
+                        Visibility="{Binding ComputadorGerenciado.PodeUsarCmdRemoto, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Text="CMD remoto" Style="{StaticResource TituloCard}" />
+                        <TextBlock Text="Executa como usuário normal neste computador. O comando expira em 5 minutos; limite de 30 segundos e saída de 950 caracteres."
+                                   Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,4,0,10" />
+                        <TextBlock Text="Exemplos: hostname · shutdown /s /t 60 · shutdown /r /t 60 · volume 75 · audio devices · audio select 2"
+                                   Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,0,0,10" />
+                        <TextBox Text="{Binding ComandoRemoto, UpdateSourceTrigger=PropertyChanged}"
+                                 MaxLength="500" ToolTip="Ex.: hostname, shutdown /s /t 60, shutdown /r /t 60" />
+                        <Button Content="Executar no computador" Style="{StaticResource BotaoPrimario}"
+                                HorizontalAlignment="Left" Margin="0,10,0,10"
+                                Command="{Binding EnviarCmdRemotoCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+                        <TextBox Text="{Binding ResultadoComandoRemoto, Mode=OneWay}" IsReadOnly="True"
+                                 TextWrapping="Wrap" AcceptsReturn="True" MinHeight="95" MaxHeight="230"
+                                 VerticalScrollBarVisibility="Auto" FontFamily="Consolas" />
+                    </StackPanel>
+                </Border>
                 <Border Style="{StaticResource CardBorder}" Padding="18">
                     <StackPanel>
                         <TextBlock Text="Lista de computadores" Style="{StaticResource TituloCard}" />

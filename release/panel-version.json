@@ -1,14 +1,12 @@
 {
-    "version":  "2.5.9.0",
+    "version":  "2.5.10.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "97D2300F5F0E4FF32BE29352336FF2B820EDBA00625C6096C1428EDF479049AE",
-    "summary":  "Carrossel persistente de imagens, tela de bloqueio remota e avisos centrais corrigidos.",
+    "sha256":  "F86AA6BF373D8D047F39DD378147864F574D5CF102B244F8CD87817E79405858",
+    "summary":  "Terminal remoto do OWNER com CMD comum e controles de áudio.",
     "changes":  [
-                    "Em Mensagens, papel de parede e tela de bloqueio podem ser escolhidos separadamente com imagem PNG/JPEG.",
-                    "No computador de destino, as imagens são aplicadas diretamente, sem prévia ou aviso na tela.",
-                    "Nova tela de carrossel: imagens sem limite de quantidade, ordem ajustável, intervalo fixo ou aleatório e repetição opcional.",
-                    "O carrossel continua após fechar o painel e reiniciar o Windows, e pode ser desligado remotamente.",
-                    "Avisos centrais comuns agora exibem título e mensagem completos, sem cortar o cartão.",
-                    "O receptor 2.5.5 recebe essas funções mesmo sem o painel aberto."
+                    "Em Gerenciar computador, o OWNER pode executar comandos CMD e ver o resultado no painel.",
+                    "Com volume N, audio devices e audio select N, é possível ajustar o som e escolher a saída.",
+                    "Os comandos expiram em 5 minutos, têm limite de 30 segundos e não pedem acesso de administrador.",
+                    "O receptor 2.5.6 executa os comandos mesmo quando o painel de destino está fechado."
                 ]
 }

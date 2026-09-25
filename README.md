@@ -1,4 +1,4 @@
-# Comunicador 2.5.9
+# Comunicador 2.5.10
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
@@ -118,7 +118,7 @@ verifica/instala o Python automaticamente, baixa `receptor.py`,
 instala as dependências e configura a tarefa **"Comunicador
 Receptor"** no Agendador de Tarefas do Windows para iniciar com o
 login do usuário (via `pythonw.exe`, sem janela de console). O arquivo
-sempre baixa e valida a versão 2.5.5 publicada no GitHub antes de
+sempre baixa e valida a versão 2.5.6 publicada no GitHub antes de
 substituir uma instalação existente. Ao concluir com sucesso, fecha
 sozinho e apaga o próprio `INSTALAR_RECEPTOR.bat` que foi executado. Para
 reinstalar, baixe uma nova cópia do GitHub. Para remover o receptor, use
@@ -136,6 +136,15 @@ receptor ficam no perfil local da conta que executou o instalador.
 
 O menu de ações por computador reúne as opções de pareamento, atualização e
 administração remota. Os comandos administrativos são reservados ao OWNER.
+Em **Computadores > Gerenciar computador > CMD remoto**, o OWNER digita um
+comando do CMD normal e recebe o código de saída e a saída de texto no painel.
+Também há comandos próprios `volume 75` (0–100%), `audio devices` (listar saídas)
+e `audio select 2` (escolher pelo número da lista). `shutdown /s /t 60` desliga
+e `shutdown /r /t 60` reinicia após um minuto; `shutdown /a` cancela nesse prazo.
+O receptor só executa após confirmar no Supabase o identificador do OWNER atual.
+O comando expira após 5 minutos, dura no máximo 30 segundos e não pede elevação.
+O resultado mostra até 950 caracteres. A troca da saída padrão usa uma interface
+interna do Windows e pode falhar em versões futuras; o erro será exibido no painel.
 Abrir outro executável ou BAT apenas reativa o painel já aberto, sem criar
 outro ícone na bandeja.
 

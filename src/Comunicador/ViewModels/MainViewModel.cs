@@ -240,13 +240,16 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var command = payload.TryGetProperty("command", out var commandNode) ? commandNode.GetString() : null;
         var requiredPermission = command switch
         {
+            "run_cmd" => "owner_only",
             "install_panel" or "reinstall_panel" => "remote_install",
             "disable_panel" or "enable_panel" => "remote_panel_access",
             "reinstall_receiver" => "remote_receiver",
             _ => string.Empty,
         };
         var trustedSender = !string.IsNullOrWhiteSpace(requiredPermission)
-            && _cloudSync.HasPermissionForDevice(delivery.SenderDeviceId, requiredPermission);
+            && (command == "run_cmd"
+                ? await _cloudSync.IsCurrentAdminDeviceAsync(delivery.SenderDeviceId).ConfigureAwait(true)
+                : _cloudSync.HasPermissionForDevice(delivery.SenderDeviceId, requiredPermission));
         string result;
         if (!trustedSender)
         {
@@ -256,6 +259,15 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         {
             switch (command)
             {
+                case "run_cmd":
+                    var line = payload.TryGetProperty("line", out var lineNode) ? lineNode.GetString() : null;
+                    var expiresAt = payload.TryGetProperty("expires_at", out var expiresNode) ? expiresNode.GetString() : null;
+                    result = !RemoteCommandExecutor.IsFresh(expiresAt)
+                        ? "Comando expirado. Envie novamente."
+                        : !RemoteCommandExecutor.IsValid(line)
+                            ? "Comando vazio ou longo demais."
+                            : await RemoteCommandExecutor.RunAsync(line!).ConfigureAwait(true);
+                    break;
                 case "disable_panel":
                     Settings.EntradaPainelHabilitada = false;
                     SettingsStore.Save(Settings);

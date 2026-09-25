@@ -25,16 +25,37 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private string _novoIp = string.Empty;
     private string _novaPorta = ProtocolConstants.TcpPort.ToString();
     private Computador? _computadorGerenciado;
+    private string _comandoRemoto = string.Empty;
+    private string _resultadoComandoRemoto = "Digite um comando e clique em Executar.";
 
     public ObservableCollection<Computador> Computadores { get; } = new();
 
     public Computador? ComputadorGerenciado
     {
         get => _computadorGerenciado;
-        set => SetField(ref _computadorGerenciado, value);
+        set
+        {
+            if (SetField(ref _computadorGerenciado, value))
+            {
+                ComandoRemoto = string.Empty;
+                ResultadoComandoRemoto = "Digite um comando e clique em Executar.";
+            }
+        }
     }
 
     public bool PodeGerenciarGlobalmente => _cloud.IsAdmin;
+
+    public string ComandoRemoto
+    {
+        get => _comandoRemoto;
+        set => SetField(ref _comandoRemoto, value);
+    }
+
+    public string ResultadoComandoRemoto
+    {
+        get => _resultadoComandoRemoto;
+        set => SetField(ref _resultadoComandoRemoto, value);
+    }
 
     public string? StatusMensagem
     {
@@ -73,6 +94,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public ICommand ReinstalarPainelRemotoCommand { get; }
     public ICommand BloquearPainelRemotoCommand { get; }
     public ICommand HabilitarPainelRemotoCommand { get; }
+    public ICommand EnviarCmdRemotoCommand { get; }
 
     public IReadOnlyList<string> EstilosBadge { get; } = ["Holográfica", "Metal", "Pílula", "Contorno", "Selo"];
     public IReadOnlyList<string> IconesBadge { get; } =
@@ -91,6 +113,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         _settings = settings;
         _perfis = perfis;
         _cloud = cloud;
+        _cloud.ResponseReceived += OnRemoteCommandResponse;
         _novaPorta = settings.PortaTcp.ToString();
 
         foreach (var computador in _store.Load())
@@ -114,6 +137,9 @@ public sealed class ComputadoresViewModel : ViewModelBase
             param => PodeEnviarComandoAdmin(param, "disable_panel"));
         HabilitarPainelRemotoCommand = new AsyncRelayCommand(param => EnviarComandoAdminAsync(param, "enable_panel"),
             param => PodeEnviarComandoAdmin(param, "enable_panel"));
+        EnviarCmdRemotoCommand = new AsyncRelayCommand(EnviarCmdRemotoAsync,
+            param => _cloud.IsAdmin && param is Computador computador
+                && !string.Equals(computador.Id, _settings.PainelId, StringComparison.OrdinalIgnoreCase));
 
         _discovery.ReceptorDescoberto += OnReceptorDescoberto;
 
@@ -414,6 +440,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
         var ehAdmin = string.Equals(computador.Id, _cloud.AdminDeviceId, StringComparison.OrdinalIgnoreCase);
         computador.EhOwner = ehAdmin;
         computador.PodeGerenciarAdmin = _cloud.IsAdmin && !ehAdmin;
+        computador.PodeUsarCmdRemoto = _cloud.IsAdmin
+            && !string.Equals(computador.Id, _settings.PainelId, StringComparison.OrdinalIgnoreCase);
         computador.PodeAdministrarRemotamente = !_cloud.IsAdmin
             ? new[] { "remote_install", "remote_panel_access", "remote_receiver" }.Any(_cloud.HasPermission)
             : !ehAdmin;
@@ -478,6 +506,40 @@ public sealed class ComputadoresViewModel : ViewModelBase
         {
             StatusMensagem = $"Não foi possível enviar a ação para {computador.NomeExibicao}: {ex.Message}";
         }
+    }
+
+    private async Task EnviarCmdRemotoAsync(object? param)
+    {
+        if (!_cloud.IsAdmin || param is not Computador computador || !computador.PodeUsarCmdRemoto)
+            return;
+        if (!RemoteCommandExecutor.IsValid(ComandoRemoto))
+        {
+            ResultadoComandoRemoto = "Digite um comando de até 500 caracteres.";
+            return;
+        }
+        try
+        {
+            var line = ComandoRemoto.Trim();
+            await _cloud.QueueRemoteCommandAsync(computador.Id, line).ConfigureAwait(true);
+            ResultadoComandoRemoto = $"> {line}\nAguardando resposta de {computador.NomeExibicao}…";
+        }
+        catch (Exception ex)
+        {
+            ResultadoComandoRemoto = $"Falha no envio: {ex.Message}";
+        }
+    }
+
+    private void OnRemoteCommandResponse(CloudDelivery response)
+    {
+        if (response.Payload.ValueKind != System.Text.Json.JsonValueKind.Object
+            || !response.Payload.TryGetProperty("command", out var command)
+            || command.GetString() != "run_cmd") return;
+        UiDispatcher.Invoke(() =>
+        {
+            if (ComputadorGerenciado?.Id != response.TargetDeviceId) return;
+            var line = response.Payload.TryGetProperty("line", out var lineNode) ? lineNode.GetString() : null;
+            ResultadoComandoRemoto = $"> {line}\n{response.ResponseText ?? "Sem resposta do computador."}";
+        });
     }
 
     private bool PodeEditar(Computador computador) => _cloud.CanEdit(computador.Id);

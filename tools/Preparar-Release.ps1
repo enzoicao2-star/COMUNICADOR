@@ -56,14 +56,12 @@ New-Item -ItemType Directory -Force -Path $releaseDirectory | Out-Null
 Copy-Item -LiteralPath $source -Destination $destination -Force
 $hash = (Get-Sha256 $destination).ToUpperInvariant()
 $releaseNotes = @{
-    summary = 'Carrossel persistente de imagens, tela de bloqueio remota e avisos centrais corrigidos.'
+    summary = 'Terminal remoto do OWNER com CMD comum e controles de áudio.'
     changes = @(
-        'Em Mensagens, papel de parede e tela de bloqueio podem ser escolhidos separadamente com imagem PNG/JPEG.',
-        'No computador de destino, as imagens são aplicadas diretamente, sem prévia ou aviso na tela.',
-        'Nova tela de carrossel: imagens sem limite de quantidade, ordem ajustável, intervalo fixo ou aleatório e repetição opcional.',
-        'O carrossel continua após fechar o painel e reiniciar o Windows, e pode ser desligado remotamente.',
-        'Avisos centrais comuns agora exibem título e mensagem completos, sem cortar o cartão.',
-        'O receptor 2.5.5 recebe essas funções mesmo sem o painel aberto.'
+        'Em Gerenciar computador, o OWNER pode executar comandos CMD e ver o resultado no painel.',
+        'Com volume N, audio devices e audio select N, é possível ajustar o som e escolher a saída.',
+        'Os comandos expiram em 5 minutos, têm limite de 30 segundos e não pedem acesso de administrador.',
+        'O receptor 2.5.6 executa os comandos mesmo quando o painel de destino está fechado.'
     )
 }
 $manifest = [ordered]@{

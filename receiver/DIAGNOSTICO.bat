@@ -9,7 +9,7 @@ set "INSTALL_DIR=%BASE%\app"
 set "PORT_TCP=57931"
 set "PORT_UDP=57932"
 set "TASK_NAME=Comunicador Receptor"
-set "EXPECTED_VERSION=2.5.5"
+set "EXPECTED_VERSION=2.5.6"
 
 echo ===============================================
 echo   Comunicador Receptor %EXPECTED_VERSION% - diagnostico

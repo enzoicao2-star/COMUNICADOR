@@ -9,9 +9,9 @@
     <AssemblyName>Comunicador</AssemblyName>
     <RootNamespace>Comunicador</RootNamespace>
     <Platforms>x64</Platforms>
-    <Version>2.5.9</Version>
-    <AssemblyVersion>2.5.9.0</AssemblyVersion>
-    <FileVersion>2.5.9.0</FileVersion>
+    <Version>2.5.10</Version>
+    <AssemblyVersion>2.5.10.0</AssemblyVersion>
+    <FileVersion>2.5.10.0</FileVersion>
     <Product>Comunicador</Product>
     <ApplicationIcon>Assets\Comunicador.ico</ApplicationIcon>
   </PropertyGroup>
@@ -31,6 +31,9 @@
     <EmbeddedResource Include="..\..\receiver\carousel-worker.ps1"
                       Link="ReceiverResources\carousel-worker.ps1"
                       LogicalName="Comunicador.Receiver.carousel-worker.ps1" />
+    <EmbeddedResource Include="..\..\receiver\audio-control.ps1"
+                      Link="ReceiverResources\audio-control.ps1"
+                      LogicalName="Comunicador.Receiver.audio-control.ps1" />
   </ItemGroup>
 
 </Project>

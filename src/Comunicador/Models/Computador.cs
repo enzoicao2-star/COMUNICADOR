@@ -46,6 +46,7 @@ public sealed class Computador : ObservableModel
     private bool _reduzirMovimento;
     private bool _podeGerenciarAdmin;
     private bool _podeAdministrarRemotamente;
+    private bool _podeUsarCmdRemoto;
 
     public string Id { get => _id; set => SetField(ref _id, value); }
 
@@ -169,6 +170,7 @@ public sealed class Computador : ObservableModel
     [JsonIgnore] public bool PodeEditarPerfil { get => _podeEditarPerfil; set => SetField(ref _podeEditarPerfil, value); }
     [JsonIgnore] public bool PodeGerenciarAdmin { get => _podeGerenciarAdmin; set => SetField(ref _podeGerenciarAdmin, value); }
     [JsonIgnore] public bool PodeAdministrarRemotamente { get => _podeAdministrarRemotamente; set => SetField(ref _podeAdministrarRemotamente, value); }
+    [JsonIgnore] public bool PodeUsarCmdRemoto { get => _podeUsarCmdRemoto; set => SetField(ref _podeUsarCmdRemoto, value); }
     [JsonIgnore] public string TextoAcaoAdmin => EhAdminDelegado ? "Remover admin" : "Conceder admin";
     [JsonIgnore] public bool ReduzirMovimento { get => _reduzirMovimento; set => SetField(ref _reduzirMovimento, value); }
     [JsonIgnore]
