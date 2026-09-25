@@ -31,10 +31,70 @@ public sealed class ImagemMensagemTests
         return msg;
     }
 
+    [Theory]
+    [InlineData("begin")]
+    [InlineData("item")]
+    [InlineData("commit")]
+    [InlineData("stop")]
+    public void EtapasDoCarrosselPassamPeloProtocolo(string action)
+    {
+        var msg = NotificacaoCentral();
+        msg.DisplayMode = ProtocolConstants.DisplayMode.Carousel;
+        msg.Title = string.Empty;
+        msg.Message = string.Empty;
+        msg.ImageDurationSeconds = null;
+        msg.AllowManualClose = null;
+        msg.Image = action == "item" ? Imagem() : null;
+        msg.Carousel = new CarouselCommand
+        {
+            Action = action,
+            SessionId = Guid.NewGuid().ToString(),
+            Target = action == "begin" ? "both" : null,
+            Count = action == "begin" ? 2 : null,
+            MinMinutes = action == "begin" ? 3 : null,
+            MaxMinutes = action == "begin" ? 8 : null,
+            Repeat = action == "begin" ? true : null,
+            Index = action == "item" ? 0 : null,
+        };
+
+        Assert.True(MessageValidator.Validate(msg).IsValid);
+        var frame = MessageValidator.Frame(msg)[..^1];
+        Assert.True(MessageValidator.TryParse(frame, out var parsed, out _));
+        Assert.Equal(action, parsed!.Carousel!.Action);
+        if (action == "item")
+        {
+            parsed.Image!.MimeType = "image/gif";
+            Assert.False(MessageValidator.Validate(parsed).IsValid);
+        }
+    }
+
     [Fact]
     public void ImagemCentralValida_Passa()
     {
         Assert.True(MessageValidator.Validate(NotificacaoCentral()).IsValid);
+    }
+
+    [Theory]
+    [InlineData(ProtocolConstants.DisplayMode.Wallpaper)]
+    [InlineData(ProtocolConstants.DisplayMode.LockScreen)]
+    public void ImagemDoSistemaExigePngOuJpegESemTexto(string modo)
+    {
+        var mensagem = NotificacaoCentral();
+        mensagem.DisplayMode = modo;
+        mensagem.Title = string.Empty;
+        mensagem.Message = string.Empty;
+        mensagem.ImageDurationSeconds = null;
+        mensagem.AllowManualClose = null;
+        Assert.True(MessageValidator.Validate(mensagem).IsValid);
+
+        mensagem.Image = null;
+        Assert.Equal(ProtocolConstants.ErrorCode.MissingField, MessageValidator.Validate(mensagem).Code);
+
+        mensagem.Image = new ConteudoImagem
+        {
+            Name = "animacao.gif", MimeType = "image/gif", DataBase64 = GifUmPixel,
+        };
+        Assert.Equal(ProtocolConstants.ErrorCode.InvalidFieldType, MessageValidator.Validate(mensagem).Code);
     }
 
     [Fact]

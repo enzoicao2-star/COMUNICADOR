@@ -1,6 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-set "RECEIVER_VERSION=2.5.3"
+set "RECEIVER_VERSION=2.5.5"
 
 rem Criar a tarefa no Agendador e liberar portas no Firewall exige administrador.
 rem Se este .bat nao estiver rodando elevado, pede UAC uma unica vez e continua

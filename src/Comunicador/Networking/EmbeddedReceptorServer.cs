@@ -428,43 +428,85 @@ public sealed class EmbeddedReceptorServer : IDisposable
             return;
         }
 
+        if (msg.DisplayMode == ProtocolConstants.DisplayMode.Carousel)
+        {
+            if (msg.Carousel?.Action != "stop" && !_settings.PapelParedeRemotoPermitidoGlobalmente)
+            {
+                await EnviarAsync(stream, ComunicadorMessage.Error(
+                    ProtocolConstants.ErrorCode.ContentBlocked,
+                    "O admin desativou a alteração remota das imagens do sistema.", msg.Id), ct).ConfigureAwait(false);
+                return;
+            }
+            try
+            {
+                var status = CarouselService.Handle(msg.Carousel!, msg.Image);
+                var carouselAck = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ack);
+                carouselAck.InReplyTo = msg.Id;
+                carouselAck.Status = status;
+                await EnviarAsync(stream, carouselAck, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException
+                or FormatException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+            {
+                await EnviarAsync(stream, ComunicadorMessage.Error(
+                    ProtocolConstants.ErrorCode.InternalError,
+                    $"Não foi possível configurar o carrossel: {ex.Message}", msg.Id), ct).ConfigureAwait(false);
+            }
+            return;
+        }
+
         var allowReply = msg.AllowReply == true;
+        var systemImage = msg.DisplayMode is ProtocolConstants.DisplayMode.Wallpaper
+            or ProtocolConstants.DisplayMode.LockScreen;
         var entry = new HistoricoEntry
         {
             Direcao = DirecaoHistorico.Recebida,
             ComputadorId = msg.PanelId ?? msg.Sender!,
             ComputadorNome = msg.Sender!,
-            Titulo = msg.Title!,
-            Mensagem = msg.Message!,
-            Status = StatusEnvio.Exibido,
+            Titulo = systemImage
+                ? msg.DisplayMode == ProtocolConstants.DisplayMode.LockScreen ? "Tela de bloqueio" : "Papel de parede"
+                : msg.Title!,
+            Mensagem = systemImage ? msg.Image?.Name ?? "Imagem recebida" : msg.Message!,
+            Status = systemImage ? StatusEnvio.Enviando : StatusEnvio.Exibido,
         };
         _historico.Adicionar(entry);
 
-        if (msg.DisplayMode == ProtocolConstants.DisplayMode.Wallpaper && msg.Image is not null)
+        if (systemImage && msg.Image is not null)
         {
             if (!_settings.PapelParedeRemotoPermitidoGlobalmente)
             {
+                _historico.AtualizarExistente(entry.Id, item => item.Status = StatusEnvio.Erro);
                 await EnviarAsync(stream, ComunicadorMessage.Error(
                     ProtocolConstants.ErrorCode.ContentBlocked,
-                    "O admin desativou a alteração remota do papel de parede.", msg.Id), ct).ConfigureAwait(false);
+                    "O admin desativou a alteração remota das imagens do sistema.", msg.Id), ct).ConfigureAwait(false);
                 return;
             }
 
-            var ackWallpaper = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ack);
-            ackWallpaper.InReplyTo = msg.Id;
+            var ackImage = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ack);
+            ackImage.InReplyTo = msg.Id;
             try
             {
-                WallpaperService.Apply(msg.Image);
-                ackWallpaper.Status = "wallpaper_applied";
+                if (msg.DisplayMode == ProtocolConstants.DisplayMode.LockScreen)
+                {
+                    await LockScreenService.ApplyAsync(msg.Image, ct).ConfigureAwait(false);
+                    ackImage.Status = "lock_screen_applied";
+                }
+                else
+                {
+                    WallpaperService.Apply(msg.Image);
+                    ackImage.Status = "wallpaper_applied";
+                }
+                _historico.AtualizarExistente(entry.Id, item => item.Status = StatusEnvio.Entregue);
             }
-            catch (Exception ex) when (ex is IOException or FormatException or System.ComponentModel.Win32Exception)
+            catch (Exception ex) when (ex is IOException or FormatException or System.ComponentModel.Win32Exception or UnauthorizedAccessException)
             {
+                _historico.AtualizarExistente(entry.Id, item => { item.Status = StatusEnvio.Erro; item.ErroDetalhe = ex.Message; });
                 await EnviarAsync(stream, ComunicadorMessage.Error(
                     ProtocolConstants.ErrorCode.InternalError,
-                    $"Não foi possível alterar o papel de parede: {ex.Message}", msg.Id), ct).ConfigureAwait(false);
+                    $"Não foi possível alterar a imagem do sistema: {ex.Message}", msg.Id), ct).ConfigureAwait(false);
                 return;
             }
-            await EnviarAsync(stream, ackWallpaper, ct).ConfigureAwait(false);
+            await EnviarAsync(stream, ackImage, ct).ConfigureAwait(false);
             return;
         }
 

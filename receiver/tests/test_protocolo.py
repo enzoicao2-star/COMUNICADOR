@@ -23,6 +23,45 @@ def test_valid_notification_passes():
     protocolo.validate(make_valid_notification())
 
 
+@pytest.mark.parametrize("action", ["begin", "item", "commit", "stop"])
+def test_carousel_stage_validation(action):
+    import uuid
+    msg = make_valid_notification()
+    msg.update(display_mode=protocolo.DISPLAY_MODE_CAROUSEL, title="", message="",
+               allow_reply=False, carousel={"action": action, "session_id": str(uuid.uuid4())})
+    if action == "begin":
+        msg["carousel"].update(target="both", count=2, min_minutes=3,
+                               max_minutes=8, repeat=True)
+    if action == "item":
+        msg["carousel"]["index"] = 0
+        msg["image"] = {"name": "pixel.png", "mime_type": "image/png",
+                        "data_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="}
+    protocolo.validate(msg)
+    if action == "item":
+        msg["image"]["mime_type"] = "image/gif"
+        with pytest.raises(ProtocolError):
+            protocolo.validate(msg)
+
+
+@pytest.mark.parametrize("modo", [protocolo.DISPLAY_MODE_WALLPAPER,
+                                 protocolo.DISPLAY_MODE_LOCK_SCREEN])
+def test_system_image_needs_png_or_jpeg_without_text(modo):
+    msg = make_valid_notification()
+    msg.update(display_mode=modo, title="", message="", image={
+        "name": "pixel.png", "mime_type": "image/png",
+        "data_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="})
+    protocolo.validate(msg)
+    del msg["image"]
+    with pytest.raises(ProtocolError) as exc:
+        protocolo.validate(msg)
+    assert exc.value.code == ErrorCode.MISSING_FIELD
+    msg["image"] = {"name": "pixel.gif", "mime_type": "image/gif",
+                    "data_base64": "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="}
+    with pytest.raises(ProtocolError) as exc:
+        protocolo.validate(msg)
+    assert exc.value.code == ErrorCode.INVALID_FIELD_TYPE
+
+
 def test_missing_field_raises():
     msg = make_valid_notification()
     del msg["title"]

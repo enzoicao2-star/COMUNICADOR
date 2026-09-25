@@ -16,6 +16,7 @@ public sealed class PythonReceptorFixture : IAsyncLifetime
     private Process? _process;
 
     public int TcpPort { get; private set; }
+    public string TempDir => _tempDir;
 
     public async Task InitializeAsync()
     {
@@ -192,10 +193,12 @@ public sealed class PythonReceptorFixture : IAsyncLifetime
 public class PythonReceptorIntegrationTests : IClassFixture<PythonReceptorFixture>
 {
     private readonly int _tcpPort;
+    private readonly string _tempDir;
 
     public PythonReceptorIntegrationTests(PythonReceptorFixture fixture)
     {
         _tcpPort = fixture.TcpPort;
+        _tempDir = fixture.TempDir;
     }
 
     private static ReceptorClient NovoCliente(string nome = "PAINEL-TESTE") =>
@@ -296,6 +299,44 @@ public class PythonReceptorIntegrationTests : IClassFixture<PythonReceptorFixtur
 
         Assert.True(resultado.Delivered);
         Assert.True(resultado.WasShown);
+    }
+
+    [Fact]
+    public async Task Carrossel_CSharpParaPython_TransfereEAtivaSemJanela()
+    {
+        var client = NovoCliente();
+        var pair = await client.PairAsync("127.0.0.1", _tcpPort);
+        var session = Guid.NewGuid().ToString();
+        async Task<NotificationResult> Send(CarouselCommand command, ConteudoImagem? image = null) =>
+            await client.SendNotificationAsync("127.0.0.1", _tcpPort, pair.Token,
+                string.Empty, string.Empty, allowReply: false,
+                modoExibicao: ProtocolConstants.DisplayMode.Carousel,
+                imagem: image, carousel: command);
+
+        var begin = await Send(new CarouselCommand
+        {
+            Action = "begin", SessionId = session, Target = "wallpaper",
+            Count = 2, MinMinutes = 1, MaxMinutes = 3, Repeat = true,
+        });
+        Assert.True(begin.Delivered, begin.ErrorMessage);
+        Assert.False(begin.WasShown);
+
+        var image = new ConteudoImagem
+        {
+            Name = "pixel.png", MimeType = "image/png",
+            DataBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        };
+        for (var i = 0; i < 2; i++)
+        {
+            var step = await Send(new CarouselCommand
+            { Action = "item", SessionId = session, Index = i }, image);
+            Assert.True(step.Delivered, $"Imagem {i + 1}: {step.ErrorMessage}");
+        }
+        var commit = await Send(new CarouselCommand { Action = "commit", SessionId = session });
+        Assert.True(commit.Delivered, commit.ErrorMessage);
+        Assert.True(File.Exists(Path.Combine(_tempDir, "Carousel", "active.json")));
+        var stop = await Send(new CarouselCommand { Action = "stop", SessionId = Guid.NewGuid().ToString() });
+        Assert.True(stop.Delivered, stop.ErrorMessage);
     }
 
     [Fact]

@@ -30,6 +30,10 @@
                         </BeginStoryboard>
                     </DataTrigger.EnterActions>
                 </DataTrigger>
+                <DataTrigger Binding="{Binding AlterarImagemSistema}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Setter Property="Opacity" Value="1" />
+                </DataTrigger>
             </Style.Triggers>
         </Style>
     </UserControl.Resources>
@@ -63,7 +67,9 @@
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <Button Style="{StaticResource BotaoSecundario}" Command="{Binding PrevisualizarCommand}"
-                            Content="Testar no meu PC" Height="40" Margin="0,0,8,0" />
+                            Content="Testar no meu PC" Height="40" Margin="0,0,8,0"
+                            ToolTipService.ShowOnDisabled="True"
+                            ToolTip="Ao alterar o papel de parede ou a tela de bloqueio, confira a miniatura; nenhuma imagem abre na tela do destinatário." />
                     <Button Style="{StaticResource BotaoPrimario}" Command="{Binding EnviarCommand}"
                             Height="40" Padding="26,0">
                         <StackPanel Orientation="Horizontal">
@@ -84,6 +90,9 @@
                         <Style TargetType="Border" BasedOn="{StaticResource CardBorder}">
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding ExibirImagemCentral}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding AlterarImagemSistema}" Value="True">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                 </DataTrigger>
                             </Style.Triggers>
@@ -191,6 +200,9 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
+                        <Button Content="Abrir carrossel de imagens…" Style="{StaticResource BotaoSecundario}"
+                                Command="{Binding AbrirCarrosselCommand}" Margin="0,12,0,0"
+                                Visibility="{Binding PodeGerenciarCarrossel, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     </StackPanel>
                 </Border>
 
@@ -231,7 +243,16 @@
                     </StackPanel>
                 </Border>
 
-                <Border x:Name="CardAparencia" Style="{StaticResource CardBorder}" Padding="19">
+                <Border x:Name="CardAparencia" Padding="19">
+                    <Border.Style>
+                        <Style TargetType="Border" BasedOn="{StaticResource CardBorder}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding AlterarImagemSistema}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <StackPanel>
                         <TextBlock Text="Aparência e som" Style="{StaticResource TituloCard}" />
                         <TextBlock Text="Personalize somente este envio." Style="{StaticResource Subtitulo}" Margin="0,2,0,12" />
@@ -325,7 +346,7 @@
                                             <Style.Triggers>
                                                 <MultiDataTrigger>
                                                     <MultiDataTrigger.Conditions>
-                                                        <Condition Binding="{Binding TemImagem}" Value="True" />
+                                                        <Condition Binding="{Binding ImagemCompativelPapelParede}" Value="True" />
                                                         <Condition Binding="{Binding PodeAlterarPapelParede}" Value="True" />
                                                     </MultiDataTrigger.Conditions>
                                                     <Setter Property="Visibility" Value="Visible" />
@@ -334,12 +355,58 @@
                                         </Style>
                                     </CheckBox.Style>
                                 </CheckBox>
+                                <CheckBox IsChecked="{Binding DefinirComoTelaDeBloqueio}"
+                                          IsEnabled="{Binding PodeAlterarPapelParede}"
+                                          Content="Definir esta imagem como tela de bloqueio remota"
+                                          Margin="0,5,0,0">
+                                    <CheckBox.Style>
+                                        <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding ImagemCompativelPapelParede}" Value="True" />
+                                                        <Condition Binding="{Binding PodeAlterarPapelParede}" Value="True" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </CheckBox.Style>
+                                </CheckBox>
+                                <TextBlock Text="O papel de parede será alterado sem mostrar a imagem ou abrir um aviso no computador de destino."
+                                           TextWrapping="Wrap" Margin="0,5,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Subtitulo}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DefinirComoPapelDeParede}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="A tela de bloqueio da conta do destinatário será alterada sem abrir a imagem ou um aviso."
+                                           TextWrapping="Wrap" Margin="0,5,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Subtitulo}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DefinirComoTelaDeBloqueio}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <StackPanel Margin="0,8,0,0">
                                     <StackPanel.Style>
                                         <Style TargetType="StackPanel">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding TemImagem}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                                <DataTrigger Binding="{Binding AlterarImagemSistema}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
@@ -356,6 +423,7 @@
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding TemVideoConfigurado}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                                <DataTrigger Binding="{Binding AlterarImagemSistema}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
@@ -392,6 +460,7 @@
                                             <Setter Property="Visibility" Value="Visible" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding TemAudio}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                                <DataTrigger Binding="{Binding AlterarImagemSistema}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </CheckBox.Style>
@@ -405,6 +474,7 @@
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding TemAudio}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                        <DataTrigger Binding="{Binding AlterarImagemSistema}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
@@ -528,6 +598,9 @@
                         <Style TargetType="Border" BasedOn="{StaticResource CardBorder}">
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding ExibirImagemCentral}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding AlterarImagemSistema}" Value="True">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                 </DataTrigger>
                             </Style.Triggers>

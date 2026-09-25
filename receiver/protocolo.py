@@ -67,10 +67,12 @@ DISPLAY_MODE_AUDIO = "audio"
 DISPLAY_MODE_CENTER_ALERT = "center_alert"
 DISPLAY_MODE_CENTER_MESSAGE = "center_message"
 DISPLAY_MODE_WALLPAPER = "wallpaper"
+DISPLAY_MODE_LOCK_SCREEN = "lock_screen"
+DISPLAY_MODE_CAROUSEL = "carousel"
 DISPLAY_MODES = {
     DISPLAY_MODE_TOAST, DISPLAY_MODE_CENTER_IMAGE, DISPLAY_MODE_CENTER_VIDEO,
     DISPLAY_MODE_AUDIO, DISPLAY_MODE_CENTER_ALERT, DISPLAY_MODE_CENTER_MESSAGE,
-    DISPLAY_MODE_WALLPAPER,
+    DISPLAY_MODE_WALLPAPER, DISPLAY_MODE_LOCK_SCREEN, DISPLAY_MODE_CAROUSEL,
 }
 SOUND_TYPES = {"information", "warning", "error"}
 TOAST_POSITIONS = {"bottom_right", "top_right"}
@@ -357,6 +359,37 @@ def _validar_conteudo_visual(msg: dict) -> None:
     video = msg.get("video")
     videos_por_monitor = msg.get("screen_videos")
     audio = msg.get("audio")
+    carrossel = msg.get("carousel")
+    if modo == DISPLAY_MODE_CAROUSEL:
+        if not isinstance(carrossel, dict):
+            raise ProtocolError(ErrorCode.MISSING_FIELD, "Carrossel precisa do campo 'carousel'.")
+        _require_uuid(carrossel, "session_id")
+        acao = carrossel.get("action")
+        if acao not in {"begin", "item", "commit", "stop"}:
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Ação do carrossel inválida.")
+        if any(value for value in (imagens_por_monitor, video, videos_por_monitor, audio)):
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Carrossel aceita somente uma imagem por etapa.")
+        if acao == "begin":
+            minimo = carrossel.get("min_minutes")
+            maximo = carrossel.get("max_minutes")
+            quantidade = carrossel.get("count")
+            if (carrossel.get("target") not in {"wallpaper", "lock_screen", "both"}
+                    or not isinstance(quantidade, int) or isinstance(quantidade, bool) or quantidade < 1
+                    or not isinstance(minimo, int) or isinstance(minimo, bool) or not 1 <= minimo <= 10080
+                    or not isinstance(maximo, int) or isinstance(maximo, bool) or not minimo <= maximo <= 10080
+                    or not isinstance(carrossel.get("repeat"), bool)):
+                raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Configuração do carrossel inválida.")
+        if acao == "item":
+            indice = carrossel.get("index")
+            if (not isinstance(indice, int) or isinstance(indice, bool) or indice < 0
+                    or not isinstance(imagem, dict)):
+                raise ProtocolError(ErrorCode.MISSING_FIELD, "Etapa do carrossel precisa de índice e imagem.")
+            if imagem.get("mime_type") not in {"image/png", "image/jpeg"}:
+                raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Carrossel aceita PNG ou JPEG.")
+        elif imagem is not None:
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Imagem só pode acompanhar a etapa 'item'.")
+    elif carrossel is not None:
+        raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "O campo 'carousel' exige display_mode='carousel'.")
     if modo == DISPLAY_MODE_CENTER_IMAGE:
         if not isinstance(imagem, dict) and not (
                 isinstance(imagens_por_monitor, list) and imagens_por_monitor):
@@ -364,6 +397,11 @@ def _validar_conteudo_visual(msg: dict) -> None:
                 ErrorCode.MISSING_FIELD, "Aviso central precisa de 'image' ou 'screen_images'.")
     if modo == DISPLAY_MODE_WALLPAPER and not isinstance(imagem, dict):
         raise ProtocolError(ErrorCode.MISSING_FIELD, "Papel de parede precisa do campo 'image'.")
+    if modo == DISPLAY_MODE_LOCK_SCREEN and not isinstance(imagem, dict):
+        raise ProtocolError(ErrorCode.MISSING_FIELD, "Tela de bloqueio precisa do campo 'image'.")
+    if modo in {DISPLAY_MODE_WALLPAPER, DISPLAY_MODE_LOCK_SCREEN} \
+            and isinstance(imagem, dict) and imagem.get("mime_type") not in {"image/png", "image/jpeg"}:
+        raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Imagem do sistema precisa ser PNG ou JPEG.")
 
     if modo == DISPLAY_MODE_CENTER_VIDEO and not isinstance(video, dict) and not (
             isinstance(videos_por_monitor, list) and videos_por_monitor):
@@ -641,7 +679,7 @@ def validate(msg: dict) -> None:
         _require_str(msg, "sender", MAX_NAME_LENGTH)
         if msg.get("display_mode") in {
                 DISPLAY_MODE_CENTER_IMAGE, DISPLAY_MODE_CENTER_VIDEO, DISPLAY_MODE_AUDIO,
-                DISPLAY_MODE_WALLPAPER}:
+                DISPLAY_MODE_WALLPAPER, DISPLAY_MODE_LOCK_SCREEN, DISPLAY_MODE_CAROUSEL}:
             _require_str_allow_empty(msg, "title", MAX_TITLE_LENGTH)
             _require_str_allow_empty(msg, "message", MAX_MESSAGE_LENGTH)
         else:

@@ -1,4 +1,4 @@
-# Comunicador 2.5.7
+# Comunicador 2.5.9
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
@@ -118,7 +118,7 @@ verifica/instala o Python automaticamente, baixa `receptor.py`,
 instala as dependências e configura a tarefa **"Comunicador
 Receptor"** no Agendador de Tarefas do Windows para iniciar com o
 login do usuário (via `pythonw.exe`, sem janela de console). O arquivo
-sempre baixa e valida a versão 2.5.3 publicada no GitHub antes de
+sempre baixa e valida a versão 2.5.5 publicada no GitHub antes de
 substituir uma instalação existente. Ao concluir com sucesso, fecha
 sozinho e apaga o próprio `INSTALAR_RECEPTOR.bat` que foi executado. Para
 reinstalar, baixe uma nova cópia do GitHub. Para remover o receptor, use
@@ -150,6 +150,21 @@ GIFs enviados ou vistos na prévia agora compõem corretamente os quadros parcia
 da animação. Em **Computadores > Gerenciar computador**, a atualização de um
 receptor mostra o envio dos arquivos e aguarda sua reconexão antes de informar
 que terminou.
+
+Em **Mensagens**, um administrador pode escolher uma imagem PNG/JPEG e aplicá-la
+como papel de parede da área de trabalho ou como tela de bloqueio da conta do
+destinatário. Essas opções são separadas e não abrem a imagem nem um aviso na
+tela de quem recebe. A permissão global fica em **Configurações > Administrador**.
+O receptor 2.5.4 ou superior é necessário para alterar a tela de bloqueio.
+
+Em **Mensagens > Abrir carrossel de imagens**, o administrador escolhe quantas
+imagens PNG/JPEG quiser, organiza a ordem e define intervalos fixos ou
+aleatórios em minutos. É possível aplicar no papel de parede, na tela de
+bloqueio ou em ambos. A repetição volta da última imagem para a primeira até
+ser desligada no mesmo local. As imagens são transferidas separadamente; o
+receptor 2.5.5 salva a sequência e mantém um processo do usuário ativo depois
+de fechar o painel e ao entrar novamente no Windows. Cada arquivo tem o limite
+normal de 4 MB. Avisos centrais comuns mostram novamente o texto por inteiro.
 
 ### Assinatura e atualização do executável
 

@@ -107,6 +107,9 @@ public sealed class ComunicadorMessage
     [JsonPropertyName("image")]
     public ConteudoImagem? Image { get; set; }
 
+    [JsonPropertyName("carousel")]
+    public CarouselCommand? Carousel { get; set; }
+
     [JsonPropertyName("screen_images")]
     public List<ImagemMonitor>? ScreenImages { get; set; }
 

@@ -11,6 +11,7 @@ public sealed class ReceptorClient
     private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan PingTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan ReplyTimeout = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan AckTimeout = TimeSpan.FromSeconds(30);
 
     private readonly string _panelId;
     private string _panelName;
@@ -114,7 +115,8 @@ public sealed class ReceptorClient
         bool? repetirVideo = null,
         ConteudoAudio? audio = null,
         bool? repetirAudio = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        CarouselCommand? carousel = null)
     {
         try
         {
@@ -140,6 +142,7 @@ public sealed class ReceptorClient
             notification.ImageDurationSeconds = duracaoImagemSegundos;
             notification.AllowManualClose = permitirFecharManualmente;
             notification.Appearance = aparencia;
+            notification.Carousel = carousel;
             var validacao = MessageValidator.Validate(notification);
             if (!validacao.IsValid)
             {
@@ -154,7 +157,9 @@ public sealed class ReceptorClient
             }
             await TcpFraming.WriteMessageAsync(stream, notification, ct).ConfigureAwait(false);
 
-            var ack = await ReadValidatedAsync(stream, ct).ConfigureAwait(false);
+            using var ackCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            ackCts.CancelAfter(AckTimeout);
+            var ack = await ReadValidatedAsync(stream, ackCts.Token).ConfigureAwait(false);
             if (ack.Type == ProtocolConstants.MessageType.Error)
             {
                 return new NotificationResult(false, false, false, null, ack.Message);

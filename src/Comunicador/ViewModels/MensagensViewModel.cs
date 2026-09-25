@@ -51,6 +51,7 @@ public sealed class MensagensViewModel : ViewModelBase
     private bool _repetirAudio;
     private bool _limitarDuracaoAudio;
     private bool _definirComoPapelDeParede;
+    private bool _definirComoTelaDeBloqueio;
     private string? _statusOperacao;
     private string _novoGrupoNome = string.Empty;
     private string _novoModeloNome = string.Empty;
@@ -75,6 +76,7 @@ public sealed class MensagensViewModel : ViewModelBase
     public string NovoGrupoNome { get => _novoGrupoNome; set => SetField(ref _novoGrupoNome, value); }
     public string NovoModeloNome { get => _novoModeloNome; set => SetField(ref _novoModeloNome, value); }
     public bool PodeGerenciarBiblioteca => _cloud.IsAdmin && _cloud.GlobalConfig is not null;
+    public bool PodeGerenciarCarrossel => _cloud.IsAdmin;
 
     /// <summary>Botões de resposta rápida que vão junto com o aviso.</summary>
     public ObservableCollection<BotaoRespostaEditavel> Botoes { get; } = new();
@@ -122,6 +124,7 @@ public sealed class MensagensViewModel : ViewModelBase
         {
             if (SetField(ref _exibirImagemCentral, value))
             {
+                if (value) { DefinirComoPapelDeParede = false; DefinirComoTelaDeBloqueio = false; }
                 if (value && _exibirAvisoObrigatorio)
                 {
                     _exibirAvisoObrigatorio = false;
@@ -157,6 +160,8 @@ public sealed class MensagensViewModel : ViewModelBase
         : null;
 
     public bool TemImagem => _dadosImagem is { Length: > 0 };
+    public bool ImagemCompativelPapelParede => TemImagem
+        && (_mimeImagem == "image/png" || _mimeImagem == "image/jpeg");
     public bool TemVideo => _dadosVideo is { Length: > 0 };
     public bool TemAudio => _dadosAudio is { Length: > 0 };
     public bool TemMidia => TemImagem || TemVideo || TemAudio;
@@ -168,14 +173,51 @@ public sealed class MensagensViewModel : ViewModelBase
         : TemImagem ? (_mimeImagem == "image/gif" ? "GIF" : "Imagem") : "Mídia";
     public bool PodeAlterarPapelParede => _cloud.IsAdmin
         && _cloud.GlobalConfig?.PermitirPapelParedeRemoto != false;
+    public bool AlterarImagemSistema => DefinirComoPapelDeParede || DefinirComoTelaDeBloqueio;
     public bool DefinirComoPapelDeParede
     {
         get => _definirComoPapelDeParede;
         set
         {
-            if (!PodeAlterarPapelParede && value) return;
-            if (SetField(ref _definirComoPapelDeParede, value) && value)
+            if (value && (!PodeAlterarPapelParede || !ImagemCompativelPapelParede)) return;
+            if (!SetField(ref _definirComoPapelDeParede, value)) return;
+            if (value)
+            {
+                DefinirComoTelaDeBloqueio = false;
+                ExibirImagemCentral = false;
+                ExibirAvisoObrigatorio = false;
+                ExibirMensagemCentral = false;
+            }
+            else if (TemImagem && !AlterarImagemSistema)
+            {
                 ExibirImagemCentral = true;
+            }
+            OnPropertyChanged(nameof(AlterarImagemSistema));
+            OnPropertyChanged(nameof(DescricaoFormato));
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    public bool DefinirComoTelaDeBloqueio
+    {
+        get => _definirComoTelaDeBloqueio;
+        set
+        {
+            if (value && (!PodeAlterarPapelParede || !ImagemCompativelPapelParede)) return;
+            if (!SetField(ref _definirComoTelaDeBloqueio, value)) return;
+            if (value)
+            {
+                DefinirComoPapelDeParede = false;
+                ExibirImagemCentral = false;
+                ExibirAvisoObrigatorio = false;
+                ExibirMensagemCentral = false;
+            }
+            else if (TemImagem && !AlterarImagemSistema)
+            {
+                ExibirImagemCentral = true;
+            }
+            OnPropertyChanged(nameof(AlterarImagemSistema));
+            OnPropertyChanged(nameof(DescricaoFormato));
             CommandManager.InvalidateRequerySuggested();
         }
     }
@@ -212,7 +254,11 @@ public sealed class MensagensViewModel : ViewModelBase
         }
     }
 
-    public string DescricaoFormato => ExibirImagemCentral
+    public string DescricaoFormato => DefinirComoPapelDeParede
+        ? "A imagem será aplicada como papel de parede, sem abrir uma janela no computador de destino."
+        : DefinirComoTelaDeBloqueio
+        ? "A imagem será aplicada à tela de bloqueio da conta do destinatário, sem abrir uma janela."
+        : ExibirImagemCentral
         ? TemAudio
             ? "O áudio tocará em segundo plano, sem abrir nenhuma janela."
             : "A mídia aparecerá centralizada, sem moldura. Título e mensagem não são necessários."
@@ -230,6 +276,8 @@ public sealed class MensagensViewModel : ViewModelBase
             if (!SetField(ref _exibirMensagemCentral, value)) return;
             if (value)
             {
+                DefinirComoPapelDeParede = false;
+                DefinirComoTelaDeBloqueio = false;
                 if (_exibirImagemCentral) { _exibirImagemCentral = false; OnPropertyChanged(nameof(ExibirImagemCentral)); }
                 if (_exibirAvisoObrigatorio) { _exibirAvisoObrigatorio = false; OnPropertyChanged(nameof(ExibirAvisoObrigatorio)); }
             }
@@ -245,6 +293,7 @@ public sealed class MensagensViewModel : ViewModelBase
         {
             if (SetField(ref _exibirAvisoObrigatorio, value))
             {
+                if (value) { DefinirComoPapelDeParede = false; DefinirComoTelaDeBloqueio = false; }
                 if (value && _exibirImagemCentral)
                 {
                     _exibirImagemCentral = false;
@@ -314,6 +363,7 @@ public sealed class MensagensViewModel : ViewModelBase
     public ICommand RemoverModeloCommand { get; }
     public ICommand AtualizarDestinatariosCommand { get; }
     public ICommand SelecionarImagemCommand { get; }
+    public ICommand AbrirCarrosselCommand { get; }
     public ICommand SelecionarVideoCommand { get; }
     public ICommand SelecionarAudioCommand { get; }
     public ICommand RemoverImagemCommand { get; }
@@ -333,13 +383,15 @@ public sealed class MensagensViewModel : ViewModelBase
         _reenvios = reenvios;
         _cloud.StateChanged += () => UiDispatcher.Invoke(() =>
         {
-            if (!_cloud.IsAdmin) DefinirComoPapelDeParede = false;
+            if (!_cloud.IsAdmin) { DefinirComoPapelDeParede = false; DefinirComoTelaDeBloqueio = false; }
             OnPropertyChanged(nameof(PodeAlterarPapelParede));
+            OnPropertyChanged(nameof(PodeGerenciarCarrossel));
             OnPropertyChanged(nameof(PodeGerenciarBiblioteca));
+            CommandManager.InvalidateRequerySuggested();
         });
         _cloud.GlobalConfigReceived += config => UiDispatcher.Invoke(() =>
         {
-            if (!config.PermitirPapelParedeRemoto) DefinirComoPapelDeParede = false;
+            if (!config.PermitirPapelParedeRemoto) { DefinirComoPapelDeParede = false; DefinirComoTelaDeBloqueio = false; }
             OnPropertyChanged(nameof(PodeAlterarPapelParede));
             AtualizarBiblioteca(config);
             OnPropertyChanged(nameof(PodeGerenciarBiblioteca));
@@ -348,7 +400,7 @@ public sealed class MensagensViewModel : ViewModelBase
 
         EnviarCommand = new AsyncRelayCommand(EnviarAsync, PodeEnviar);
         PrevisualizarCommand = new AsyncRelayCommand(PrevisualizarAsync,
-            () => PodeEnviar());
+            () => PodeEnviar() && !AlterarImagemSistema);
         AplicarGrupoCommand = new RelayCommand(_ => AplicarGrupo(), _ => GrupoSelecionado is not null);
         SalvarGrupoCommand = new AsyncRelayCommand(SalvarGrupoAsync,
             () => PodeGerenciarBiblioteca && Destinatarios.Any(d => d.Selecionado));
@@ -357,11 +409,21 @@ public sealed class MensagensViewModel : ViewModelBase
         AplicarModeloCommand = new RelayCommand(_ => AplicarModelo(), _ => ModeloSelecionado is not null);
         SalvarModeloCommand = new AsyncRelayCommand(SalvarModeloAsync,
             () => PodeGerenciarBiblioteca && !string.IsNullOrWhiteSpace(Titulo)
-                && !string.IsNullOrWhiteSpace(Mensagem) && !ExibirImagemCentral);
+                && !string.IsNullOrWhiteSpace(Mensagem) && !ExibirImagemCentral
+                && !AlterarImagemSistema);
         RemoverModeloCommand = new AsyncRelayCommand(RemoverModeloAsync,
             () => PodeGerenciarBiblioteca && ModeloSelecionado is not null);
         AtualizarDestinatariosCommand = new RelayCommand(_ => AtualizarDestinatarios());
         SelecionarImagemCommand = new RelayCommand(_ => SelecionarImagem());
+        AbrirCarrosselCommand = new RelayCommand(_ =>
+        {
+            var window = new Views.CarrosselWindow(_enviador, Destinatarios,
+                () => PodeAlterarPapelParede, () => PodeGerenciarCarrossel)
+            {
+                Owner = System.Windows.Application.Current.MainWindow,
+            };
+            window.ShowDialog();
+        }, _ => PodeGerenciarCarrossel);
         SelecionarVideoCommand = new RelayCommand(_ => SelecionarVideo());
         SelecionarAudioCommand = new RelayCommand(_ => SelecionarAudio());
         RemoverImagemCommand = new RelayCommand(_ => RemoverMidia(), _ => TemMidia);
@@ -485,6 +547,8 @@ public sealed class MensagensViewModel : ViewModelBase
         Mensagem = modelo.Mensagem;
         PermitirResposta = modelo.PermitirResposta;
         ExibirImagemCentral = false;
+        DefinirComoPapelDeParede = false;
+        DefinirComoTelaDeBloqueio = false;
         ExibirAvisoObrigatorio = modelo.ModoExibicao == ProtocolConstants.DisplayMode.CenterAlert;
         ExibirMensagemCentral = modelo.ModoExibicao == ProtocolConstants.DisplayMode.CenterMessage;
         CorDestaque = modelo.Aparencia.AccentColor;
@@ -504,7 +568,8 @@ public sealed class MensagensViewModel : ViewModelBase
         var nome = string.IsNullOrWhiteSpace(NovoModeloNome) ? ModeloSelecionado?.Nome : NovoModeloNome.Trim();
         if (string.IsNullOrWhiteSpace(nome) || nome.Length > 60)
         { StatusOperacao = "Informe um nome de modelo com até 60 caracteres."; return; }
-        if (string.IsNullOrWhiteSpace(Titulo) || string.IsNullOrWhiteSpace(Mensagem) || ExibirImagemCentral)
+        if (string.IsNullOrWhiteSpace(Titulo) || string.IsNullOrWhiteSpace(Mensagem)
+            || ExibirImagemCentral || AlterarImagemSistema)
         { StatusOperacao = "Modelos compartilhados guardam avisos de texto e botões."; return; }
         var config = _cloud.GlobalConfig?.Clone();
         if (config is null) return;
@@ -679,8 +744,8 @@ public sealed class MensagensViewModel : ViewModelBase
 
     private bool PodeEnviar()
     {
-        var temConteudo = DefinirComoPapelDeParede
-            ? PodeAlterarPapelParede && TemImagem
+        var temConteudo = AlterarImagemSistema
+            ? PodeAlterarPapelParede && ImagemCompativelPapelParede
             : ExibirImagemCentral
             ? TemMidia || DestinatariosComMidiaEspecifica()
             : !string.IsNullOrWhiteSpace(Titulo) && !string.IsNullOrWhiteSpace(Mensagem);
@@ -917,7 +982,13 @@ public sealed class MensagensViewModel : ViewModelBase
             _mimeImagem = mime;
             _caminhoImagem = dialog.FileName;
             _nomeImagem = arquivo.Name;
-            ExibirImagemCentral = true;
+            if (!ImagemCompativelPapelParede)
+            {
+                DefinirComoPapelDeParede = false;
+                DefinirComoTelaDeBloqueio = false;
+            }
+            if (!AlterarImagemSistema)
+                ExibirImagemCentral = true;
             var tipoSelecionado = mime == "image/gif" ? "GIF" : "Imagem";
             StatusOperacao = $"{tipoSelecionado} selecionado: {arquivo.Name} ({arquivo.Length / 1024d:0.#} KB).";
             NotificarMidiaAlterada();
@@ -1090,6 +1161,8 @@ public sealed class MensagensViewModel : ViewModelBase
     private void RemoverMidia()
     {
         LimparMidiaGeral();
+        DefinirComoPapelDeParede = false;
+        DefinirComoTelaDeBloqueio = false;
         ExibirImagemCentral = MonitoresDestino.Any(m => m.Midias.Count > 0);
         StatusOperacao = "Mídia carregada removida.";
         NotificarMidiaAlterada();
@@ -1102,6 +1175,7 @@ public sealed class MensagensViewModel : ViewModelBase
         OnPropertyChanged(nameof(MimeImagem));
         OnPropertyChanged(nameof(ImagemPreviewBase64));
         OnPropertyChanged(nameof(TemImagem));
+        OnPropertyChanged(nameof(ImagemCompativelPapelParede));
         OnPropertyChanged(nameof(TemVideo));
         OnPropertyChanged(nameof(TemAudio));
         OnPropertyChanged(nameof(TemMidia));
@@ -1119,7 +1193,7 @@ public sealed class MensagensViewModel : ViewModelBase
 
     private ConteudoImagem? CriarConteudoImagem()
     {
-        if ((!ExibirImagemCentral && !DefinirComoPapelDeParede)
+        if ((!ExibirImagemCentral && !AlterarImagemSistema)
             || _dadosImagem is not { Length: > 0 } || _mimeImagem is null || NomeImagem is null)
         {
             return null;
@@ -1165,6 +1239,11 @@ public sealed class MensagensViewModel : ViewModelBase
 
     private async Task PrevisualizarAsync()
     {
+        if (AlterarImagemSistema)
+        {
+            StatusOperacao = "Imagem do sistema não abre prévia em tela cheia. Confira a miniatura antes de enviar.";
+            return;
+        }
         var computador = Destinatarios.FirstOrDefault(d => d.Selecionado)?.Computador;
         if (computador is null)
         {
@@ -1176,13 +1255,12 @@ public sealed class MensagensViewModel : ViewModelBase
         var imagem = CriarConteudoImagem();
         var video = CriarConteudoVideo();
         var audio = CriarConteudoAudio();
-        var modo = DefinirComoPapelDeParede ? ProtocolConstants.DisplayMode.CenterImage
-            : !ExibirImagemCentral ? ExibirAvisoObrigatorio ? ProtocolConstants.DisplayMode.CenterAlert
+        var modo = !ExibirImagemCentral ? ExibirAvisoObrigatorio ? ProtocolConstants.DisplayMode.CenterAlert
                 : ExibirMensagemCentral ? ProtocolConstants.DisplayMode.CenterMessage : ProtocolConstants.DisplayMode.Toast
             : audio is not null ? ProtocolConstants.DisplayMode.Audio
             : videos.Count > 0 || video is not null ? ProtocolConstants.DisplayMode.CenterVideo
             : ProtocolConstants.DisplayMode.CenterImage;
-        var permiteInteracao = !ExibirAvisoObrigatorio && !ExibirImagemCentral && !DefinirComoPapelDeParede;
+        var permiteInteracao = !ExibirAvisoObrigatorio && !ExibirImagemCentral && !AlterarImagemSistema;
         var aparencia = new AparenciaNotificacao
         {
             AccentColor = CorDestaque.Trim(),
@@ -1216,7 +1294,7 @@ public sealed class MensagensViewModel : ViewModelBase
     {
         var selecionados = Destinatarios.Where(d => d.Selecionado).ToList();
         // Mídia central é conteúdo puro: não exige título, mensagem nem interação.
-        var permiteInteracao = !ExibirAvisoObrigatorio && !ExibirImagemCentral && !DefinirComoPapelDeParede;
+        var permiteInteracao = !ExibirAvisoObrigatorio && !ExibirImagemCentral && !AlterarImagemSistema;
         var botoesProtocolo = permiteInteracao
             ? Botoes.Select(b => b.ParaProtocolo()).ToList()
             : new List<BotaoResposta>();
@@ -1245,6 +1323,8 @@ public sealed class MensagensViewModel : ViewModelBase
             var videosPorMonitor = CriarVideosPorMonitor(computador.Id);
             var modoExibicao = DefinirComoPapelDeParede
                 ? ProtocolConstants.DisplayMode.Wallpaper
+                : DefinirComoTelaDeBloqueio
+                ? ProtocolConstants.DisplayMode.LockScreen
                 : !ExibirImagemCentral
                 ? ExibirAvisoObrigatorio
                     ? ProtocolConstants.DisplayMode.CenterAlert
@@ -1256,7 +1336,7 @@ public sealed class MensagensViewModel : ViewModelBase
                     : videosPorMonitor.Count > 0 || video is not null
                         ? ProtocolConstants.DisplayMode.CenterVideo
                         : ProtocolConstants.DisplayMode.CenterImage;
-            if (modoExibicao == ProtocolConstants.DisplayMode.Wallpaper)
+            if (AlterarImagemSistema)
             {
                 imagensPorMonitor.Clear();
                 videosPorMonitor.Clear();
@@ -1280,12 +1360,17 @@ public sealed class MensagensViewModel : ViewModelBase
                 ProtocolConstants.DisplayMode.Audio => "Áudio",
                 ProtocolConstants.DisplayMode.CenterImage => "Imagem",
                 ProtocolConstants.DisplayMode.Wallpaper => "Papel de parede",
+                ProtocolConstants.DisplayMode.LockScreen => "Tela de bloqueio",
                 _ => "Mensagem",
             };
-            var tituloHistorico = ExibirImagemCentral && string.IsNullOrWhiteSpace(Titulo)
+            var tituloHistorico = AlterarImagemSistema
+                ? nomeTipo
+                : ExibirImagemCentral && string.IsNullOrWhiteSpace(Titulo)
                 ? nomeTipo
                 : Titulo;
-            var mensagemHistorico = ExibirImagemCentral && string.IsNullOrWhiteSpace(Mensagem)
+            var mensagemHistorico = AlterarImagemSistema
+                ? NomeImagem ?? "Imagem aplicada"
+                : ExibirImagemCentral && string.IsNullOrWhiteSpace(Mensagem)
                 ? NomeMidia ?? $"{nomeTipo} enviado"
                 : Mensagem;
             var entry = new HistoricoEntry
@@ -1300,8 +1385,8 @@ public sealed class MensagensViewModel : ViewModelBase
 
             var envio = new EnvioPendente
             {
-                Titulo = Titulo,
-                Mensagem = Mensagem,
+                Titulo = AlterarImagemSistema ? string.Empty : Titulo,
+                Mensagem = AlterarImagemSistema ? string.Empty : Mensagem,
                 PermitirResposta = permitirRespostaEfetiva,
                 Botoes = botoesProtocolo,
                 ModoExibicao = modoExibicao,
@@ -1346,13 +1431,16 @@ public sealed class MensagensViewModel : ViewModelBase
             }
         }
 
-        var nomeConteudo = ExibirImagemCentral ? TipoMidiaTexto : "Mensagem";
+        var nomeConteudo = DefinirComoPapelDeParede ? "Papel de parede"
+            : DefinirComoTelaDeBloqueio ? "Tela de bloqueio"
+            : ExibirImagemCentral ? TipoMidiaTexto : "Mensagem";
         StatusOperacao = erros.Count == 0
-            ? $"{nomeConteudo} exibida em {enviados} computador(es)."
-            : $"Exibida em {enviados}; falhou em {erros.Count}. {string.Join(" | ", erros)}";
+            ? AlterarImagemSistema
+                ? $"{nomeConteudo} aplicada em {enviados} computador(es), sem abrir a imagem na tela."
+                : $"{nomeConteudo} exibida em {enviados} computador(es)."
+            : $"Concluído em {enviados}; falhou em {erros.Count}. {string.Join(" | ", erros)}";
         Titulo = string.Empty;
         Mensagem = string.Empty;
-        DefinirComoPapelDeParede = false;
     }
 
 }

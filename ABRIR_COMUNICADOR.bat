@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 set "ROOT=%~dp0"
 set "COMUNICADOR_ROOT=%~dp0"
-set "VERSAO_ESPERADA=2.5.7.0"
+set "VERSAO_ESPERADA=2.5.9.0"
 set "REPO_RAW=https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main"
 cd /d "%ROOT%"
 
@@ -35,7 +35,7 @@ if "!MODO_DEV!"=="1" if /I "!PAINEL_EXE!"=="%ROOT%dist\Comunicador.exe" (
             "if($atual -lt $expected -or $novo -gt $item.LastWriteTimeUtc){'1'}else{'0'}"') do set "PRECISA_COMPILAR=%%I"
     )
     if "!PRECISA_COMPILAR!"=="1" (
-        echo A fonte local mudou. Compilando a versao 2.5.7...
+        echo A fonte local mudou. Compilando a versao 2.5.9...
         call "%ROOT%build.bat"
         if errorlevel 1 (
             echo.

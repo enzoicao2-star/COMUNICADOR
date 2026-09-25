@@ -507,7 +507,7 @@
                                 <CheckBox Content="Reduzir movimento em todos os painéis" IsChecked="{Binding GlobalReduzirMovimento}" Margin="0,0,18,8" />
                                 <CheckBox Content="Permitir recebimento de mídias" IsChecked="{Binding GlobalPermitirMidias}" Margin="0,0,18,8" />
                                 <CheckBox Content="Permitir botões com links" IsChecked="{Binding GlobalPermitirLinks}" Margin="0,0,18,8" />
-                                <CheckBox Content="Permitir papel de parede remoto" IsChecked="{Binding GlobalPermitirPapelParede}" Margin="0,0,18,8" />
+                                <CheckBox Content="Permitir alterar papel de parede e tela de bloqueio remotamente" IsChecked="{Binding GlobalPermitirPapelParede}" Margin="0,0,18,8" />
                             </WrapPanel>
                             <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="7" Padding="10,8" Margin="0,3,0,0">
                                 <TextBlock Text="Mensagens e lembretes continuam obrigatórios em todos os painéis. Esta política não pode ser desativada."

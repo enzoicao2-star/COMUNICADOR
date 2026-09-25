@@ -177,6 +177,20 @@ O campo opcional `display_mode` define a apresentação:
 - `center_video`: um ou mais vídeos no centro dos monitores escolhidos;
 - `audio`: áudio reproduzido em segundo plano, sem janela ou elemento visual;
 - `center_alert`: aviso modal central que exige confirmação.
+- `wallpaper`: aplica PNG/JPEG como papel de parede da área de trabalho, sem abrir janela;
+- `lock_screen`: aplica PNG/JPEG à tela de bloqueio da conta do receptor, sem abrir janela.
+- `carousel`: gerencia uma sequência persistente de imagens do sistema, sem abrir janela.
+
+Os modos `wallpaper` e `lock_screen` exigem `image`, aceitam `title` e `message`
+vazios e confirmam respectivamente `wallpaper_applied` e `lock_screen_applied`.
+O modo `lock_screen` requer receptor 2.5.4 ou posterior.
+
+`carousel` requer receptor 2.5.5 ou posterior. O objeto `carousel` inclui
+`action` (`begin`, `item`, `commit`, `stop`) e `session_id` UUID. `begin` envia
+`target` (`wallpaper`, `lock_screen` ou `both`), `count`, `min_minutes`,
+`max_minutes` (1–10080) e `repeat`. Cada `item` envia seu `index` e uma
+`image` PNG/JPEG de até 4 MB. `commit` só troca a sequência ativa quando todos
+os itens chegaram; `stop` a desliga. O receptor confirma cada etapa por ACK.
 
 Para imagem central, `screen_images` contém objetos com
 `monitor_index`, `width_percent` (10–100) e `image`. A imagem é
@@ -271,7 +285,7 @@ máquina do receptor — só o painel precisa da porta aberta.
 ```json
 { "protocol_version": 1, "type": "register", "id": "...", "timestamp": "...",
   "computer_id": "b0b1...", "computer_name": "COMPUTADOR-1", "token": "9f8b...",
-  "receiver_version": "2.5.3", "has_panel": false,
+  "receiver_version": "2.5.5", "has_panel": false,
   "monitors": [{ "index": 0, "name": "DISPLAY1", "width": 1920,
     "height": 1080, "x": 0, "y": 0, "primary": true }] }
 ```

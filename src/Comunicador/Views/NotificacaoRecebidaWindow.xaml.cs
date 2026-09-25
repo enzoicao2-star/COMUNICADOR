@@ -72,8 +72,19 @@ public partial class NotificacaoRecebidaWindow : Window
             _avisoCentral = true;
             _avisoObrigatorio = modoExibicao == ProtocolConstants.DisplayMode.CenterAlert && !previewMode;
             DeSenderText.Text = sender;
-            SizeToContent = SizeToContent.Manual;
-            PlanoFundo.Background = new SolidColorBrush(Color.FromArgb(224, 14, 14, 14));
+            if (_avisoObrigatorio)
+            {
+                SizeToContent = SizeToContent.Manual;
+                PlanoFundo.Background = new SolidColorBrush(Color.FromArgb(224, 14, 14, 14));
+            }
+            else
+            {
+                // Um aviso central comum mede a própria altura. O antigo modo
+                // Manual mantinha a janela estreita (380 px) e cortava o cartão
+                // de 580 px, deixando título e mensagem fora da área visível.
+                Width = 620;
+                SizeToContent = SizeToContent.Height;
+            }
             Cartao.Width = 580;
             Cartao.MaxWidth = 580;
             Cartao.HorizontalAlignment = HorizontalAlignment.Center;

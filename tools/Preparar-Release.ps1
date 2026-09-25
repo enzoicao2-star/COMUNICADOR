@@ -56,12 +56,14 @@ New-Item -ItemType Directory -Force -Path $releaseDirectory | Out-Null
 Copy-Item -LiteralPath $source -Destination $destination -Force
 $hash = (Get-Sha256 $destination).ToUpperInvariant()
 $releaseNotes = @{
-    summary = 'GIFs completos e estáveis; atualização do receptor com progresso e confirmação de reconexão.'
+    summary = 'Carrossel persistente de imagens, tela de bloqueio remota e avisos centrais corrigidos.'
     changes = @(
-        'Em Mensagens e nas notificações recebidas, GIFs animados mantêm todos os pixels no lugar durante a reprodução.',
-        'Em Computadores > Gerenciar computador, a atualização do receptor mostra o envio dos arquivos em porcentagem.',
-        'O painel só confirma a atualização depois que o receptor reinicia e volta à rede na versão esperada.',
-        'O painel passa para a versão 2.5.7 sem assinatura de desenvolvimento.'
+        'Em Mensagens, papel de parede e tela de bloqueio podem ser escolhidos separadamente com imagem PNG/JPEG.',
+        'No computador de destino, as imagens são aplicadas diretamente, sem prévia ou aviso na tela.',
+        'Nova tela de carrossel: imagens sem limite de quantidade, ordem ajustável, intervalo fixo ou aleatório e repetição opcional.',
+        'O carrossel continua após fechar o painel e reiniciar o Windows, e pode ser desligado remotamente.',
+        'Avisos centrais comuns agora exibem título e mensagem completos, sem cortar o cartão.',
+        'O receptor 2.5.5 recebe essas funções mesmo sem o painel aberto.'
     )
 }
 $manifest = [ordered]@{

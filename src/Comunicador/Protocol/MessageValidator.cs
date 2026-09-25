@@ -99,7 +99,7 @@ public static class MessageValidator
                 ?? ValidarConteudoVisual(
                     msg.DisplayMode, msg.Image, msg.ScreenImages,
                     msg.Video, msg.ScreenVideos, msg.ImageDurationSeconds,
-                    msg.AllowManualClose, msg.VideoLoop, msg.Audio, msg.AudioLoop)
+                    msg.AllowManualClose, msg.VideoLoop, msg.Audio, msg.AudioLoop, msg.Carousel)
                 ?? ValidarAparencia(msg.Appearance),
 
             MessageType.Ack => RequireUuid(msg.InReplyTo, "in_reply_to")
@@ -154,7 +154,8 @@ public static class MessageValidator
     /// continuam obrigatórios.</summary>
     private static ValidationResult? ValidarTextoNotificacao(ComunicadorMessage msg)
     {
-        if (msg.DisplayMode is DisplayMode.CenterImage or DisplayMode.CenterVideo or DisplayMode.Audio or DisplayMode.Wallpaper)
+        if (msg.DisplayMode is DisplayMode.CenterImage or DisplayMode.CenterVideo or DisplayMode.Audio
+            or DisplayMode.Wallpaper or DisplayMode.LockScreen or DisplayMode.Carousel)
         {
             return RequireStringAllowEmpty(msg.Title, "title", MaxTitleLength)
                 ?? RequireStringAllowEmpty(msg.Message, "message", MaxMessageLength);
@@ -222,7 +223,7 @@ public static class MessageValidator
         string? modo, ConteudoImagem? imagem, List<ImagemMonitor>? imagensPorMonitor,
         ConteudoVideo? video, List<VideoMonitor>? videosPorMonitor,
         int? duracaoSegundos, bool? permitirFechar, bool? repetirVideo,
-        ConteudoAudio? audio, bool? repetirAudio)
+        ConteudoAudio? audio, bool? repetirAudio, CarouselCommand? carousel)
     {
         modo ??= DisplayMode.Toast;
         if (!DisplayMode.All.Contains(modo))
@@ -230,6 +231,18 @@ public static class MessageValidator
             return ValidationResult.Fail(
                 ErrorCode.InvalidFieldType,
                 "Campo 'display_mode' precisa ser 'toast', 'center_image', 'center_video', 'audio' ou 'center_alert'.");
+        }
+
+        if (modo == DisplayMode.Carousel)
+        {
+            var erroCarrossel = ValidarCarrossel(carousel, imagem, imagensPorMonitor,
+                video, videosPorMonitor, audio);
+            if (erroCarrossel is not null) return erroCarrossel;
+        }
+        else if (carousel is not null)
+        {
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType,
+                "O campo 'carousel' exige display_mode='carousel'.");
         }
 
         if (modo == DisplayMode.CenterImage
@@ -243,6 +256,15 @@ public static class MessageValidator
         if (modo == DisplayMode.Wallpaper && imagem is null)
         {
             return ValidationResult.Fail(ErrorCode.MissingField, "Papel de parede precisa do campo 'image'.");
+        }
+        if (modo == DisplayMode.LockScreen && imagem is null)
+        {
+            return ValidationResult.Fail(ErrorCode.MissingField, "Tela de bloqueio precisa do campo 'image'.");
+        }
+        if (modo is DisplayMode.Wallpaper or DisplayMode.LockScreen
+            && imagem?.MimeType is not ("image/png" or "image/jpeg"))
+        {
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Imagem do sistema precisa ser PNG ou JPEG.");
         }
 
         if (modo == DisplayMode.CenterVideo
@@ -441,6 +463,43 @@ public static class MessageValidator
                 ErrorCode.PayloadTooLarge, $"O conjunto de mídias excede {MaxTotalMediaBytes} bytes.");
         }
 
+        return null;
+    }
+
+    private static ValidationResult? ValidarCarrossel(
+        CarouselCommand? command, ConteudoImagem? image, List<ImagemMonitor>? screenImages,
+        ConteudoVideo? video, List<VideoMonitor>? screenVideos, ConteudoAudio? audio)
+    {
+        if (command is null)
+            return ValidationResult.Fail(ErrorCode.MissingField, "Carrossel precisa do campo 'carousel'.");
+        if (!Guid.TryParse(command.SessionId, out _))
+            return ValidationResult.Fail(ErrorCode.InvalidId, "Identificador do carrossel inválido.");
+        if (command.Action is not ("begin" or "item" or "commit" or "stop"))
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Ação do carrossel inválida.");
+        if (screenImages is { Count: > 0 } || video is not null || screenVideos is { Count: > 0 } || audio is not null)
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Carrossel aceita somente uma imagem por etapa.");
+
+        if (command.Action == "begin")
+        {
+            if (command.Target is not ("wallpaper" or "lock_screen" or "both")
+                || command.Count is not > 0
+                || command.MinMinutes is not >= 1 or > 10080
+                || command.MaxMinutes is not >= 1 or > 10080
+                || command.MaxMinutes < command.MinMinutes
+                || !command.Repeat.HasValue)
+                return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Configuração do carrossel inválida.");
+        }
+        if (command.Action == "item")
+        {
+            if (command.Index is not >= 0 || image is null)
+                return ValidationResult.Fail(ErrorCode.MissingField, "Etapa do carrossel precisa de índice e imagem.");
+            if (image.MimeType is not ("image/png" or "image/jpeg"))
+                return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Carrossel aceita PNG ou JPEG.");
+        }
+        else if (image is not null)
+        {
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Imagem só pode acompanhar a etapa 'item'.");
+        }
         return null;
     }
 

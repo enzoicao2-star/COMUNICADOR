@@ -30,6 +30,7 @@ import tempfile
 import threading
 import time
 import uuid
+import zlib
 import webbrowser
 import urllib.error
 import urllib.parse
@@ -42,13 +43,15 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.3"
+RECEIVER_VERSION = "2.5.5"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
 SUPABASE_URL = "https://yofxuiajeyxeacophgdy.supabase.co"
 SUPABASE_KEY = "sb_publishable_9vE6ehPLNhoByGInnUAlug_Ndd_fTam"
 CLOUD_POLL_SECONDS = 8
+CAROUSEL_WORKER_ZLIB = "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"
+_carousel_lock = threading.RLock()
 
 MEDIA_PLAYER_SCRIPT = r'''param(
     [Parameter(Mandatory=$true)][string]$MediaPath,
@@ -313,6 +316,178 @@ def aplicar_papel_parede(image: dict, config: "Config") -> None:
     import ctypes
     if not ctypes.windll.user32.SystemParametersInfoW(20, 0, str(destino), 3):
         raise OSError("O Windows recusou a alteração do papel de parede.")
+
+
+def aplicar_tela_bloqueio(image: dict, config: "Config") -> None:
+    if os.name != "nt":
+        raise OSError("Alteração remota da tela de bloqueio requer Windows.")
+    mime = image.get("mime_type")
+    extensao = ".png" if mime == "image/png" else ".jpg" if mime == "image/jpeg" else None
+    if extensao is None:
+        raise ValueError("Use uma imagem PNG ou JPEG para a tela de bloqueio.")
+    dados = base64.b64decode(image["data_base64"], validate=True)
+    destino = config.directory.parent / f"lock-screen-{uuid.uuid4().hex}{extensao}"
+    destino.write_bytes(dados)
+    # Windows PowerShell 5.1 inclui a projeção WinRT necessária. Executar na
+    # sessão deste usuário altera somente a tela de bloqueio desta conta.
+    script = r'''
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+$storage = [Windows.Storage.StorageFile,Windows.Storage,ContentType=WindowsRuntime]
+$lockScreen = [Windows.System.UserProfile.LockScreen,Windows.System.UserProfile,ContentType=WindowsRuntime]
+$methods = [System.WindowsRuntimeSystemExtensions].GetMethods()
+$loadMethod = $methods | Where-Object { $_.Name -eq 'AsTask' -and $_.IsGenericMethodDefinition -and $_.GetParameters().Count -eq 1 } | Select-Object -First 1
+$loadTask = $loadMethod.MakeGenericMethod($storage).Invoke($null, @($storage::GetFileFromPathAsync($env:COMUNICADOR_LOCK_IMAGE_PATH)))
+$loadTask.Wait()
+$applyMethod = $methods | Where-Object { $_.Name -eq 'AsTask' -and -not $_.IsGenericMethodDefinition -and $_.GetParameters().Count -eq 1 } | Select-Object -First 1
+$applyTask = $applyMethod.Invoke($null, @($lockScreen::SetImageFileAsync($loadTask.Result)))
+$applyTask.Wait()
+'''
+    ambiente = os.environ.copy()
+    ambiente["COMUNICADOR_LOCK_IMAGE_PATH"] = str(destino)
+    powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+    try:
+        resultado = subprocess.run(
+            [str(powershell), "-NoProfile", "-NonInteractive", "-EncodedCommand",
+             base64.b64encode(script.encode("utf-16-le")).decode("ascii")],
+            env=ambiente, capture_output=True, text=True, timeout=30,
+            creationflags=subprocess.CREATE_NO_WINDOW)
+    except subprocess.TimeoutExpired as exc:
+        try:
+            destino.unlink()
+        except OSError:
+            pass
+        raise OSError("O Windows demorou demais para alterar a tela de bloqueio.") from exc
+    if resultado.returncode != 0:
+        try:
+            destino.unlink()
+        except OSError:
+            pass
+        raise OSError("O Windows recusou a imagem da tela de bloqueio: " + resultado.stderr.strip())
+    for antigo in config.directory.parent.glob("lock-screen-*"):
+        if antigo != destino:
+            try:
+                antigo.unlink()
+            except OSError:
+                pass
+
+
+def _carousel_json(path: Path) -> Optional[dict]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+
+
+def _save_carousel_json(path: Path, value: dict) -> None:
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+    temporary.replace(path)
+
+
+def _carousel_autostart(root: Path, enable: bool) -> None:
+    import winreg
+    key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+        if enable:
+            powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+            command = (f'"{powershell}" -NoProfile -NonInteractive -WindowStyle Hidden '
+                       f'-ExecutionPolicy Bypass -File "{root / "carousel-worker.ps1"}"')
+            winreg.SetValueEx(key, "ComunicadorCarousel", 0, winreg.REG_SZ, command)
+        else:
+            try:
+                winreg.DeleteValue(key, "ComunicadorCarousel")
+            except FileNotFoundError:
+                pass
+
+
+def handle_carousel(command: dict, image: Optional[dict], config: "Config",
+                    test_mode: bool = False) -> str:
+    """Stage each image independently; only commit replaces the running set."""
+    with _carousel_lock:
+        root = (config.directory if test_mode else config.directory.parent) / "Carousel"
+        root.mkdir(parents=True, exist_ok=True)
+        active_path = root / "active.json"
+        action = command["action"]
+        if action == "stop":
+            active = _carousel_json(active_path)
+            if active:
+                active["enabled"] = False
+                _save_carousel_json(active_path, active)
+            if not test_mode:
+                _carousel_autostart(root, False)
+            return "carousel_stopped"
+
+        folder_name = "session-" + uuid.UUID(command["session_id"]).hex
+        folder = root / folder_name
+        stage_path = folder / "stage.json"
+        if action == "begin":
+            if folder.exists():
+                raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Essa transferência já foi iniciada.")
+            folder.mkdir()
+            stage = {
+                "session_id": command["session_id"], "folder": folder_name,
+                "target": command["target"], "count": command["count"],
+                "min_minutes": command["min_minutes"], "max_minutes": command["max_minutes"],
+                "repeat": command["repeat"], "enabled": False,
+                "received": {}, "images": [],
+            }
+            _save_carousel_json(stage_path, stage)
+            return "carousel_staged"
+
+        stage = _carousel_json(stage_path)
+        if stage is None or stage["session_id"] != command["session_id"]:
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Inicie o carrossel antes de enviar imagens.")
+        if action == "item":
+            index = command["index"]
+            if index >= stage["count"]:
+                raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Índice fora do carrossel.")
+            extension = ".png" if image["mime_type"] == "image/png" else ".jpg"
+            file_name = f"{index:08d}{extension}"
+            image_path = folder / file_name
+            temporary = folder / (file_name + ".tmp")
+            temporary.write_bytes(base64.b64decode(image["data_base64"], validate=True))
+            temporary.replace(image_path)
+            previous = stage["received"].get(str(index))
+            if previous and previous != file_name:
+                (folder / previous).unlink(missing_ok=True)
+            stage["received"][str(index)] = file_name
+            _save_carousel_json(stage_path, stage)
+            return "carousel_item_saved"
+
+        if action != "commit":
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Ação do carrossel inválida.")
+        if len(stage["received"]) != stage["count"]:
+            raise ProtocolError(ErrorCode.MISSING_FIELD,
+                                "Ainda há imagens pendentes; o carrossel anterior continua ativo.")
+        stage["images"] = [stage["received"].get(str(index), "")
+                           for index in range(stage["count"])]
+        if not all(name and (folder / name).is_file() for name in stage["images"]):
+            raise ProtocolError(ErrorCode.MISSING_FIELD,
+                                "Ainda há imagens pendentes; o carrossel anterior continua ativo.")
+        if not test_mode:
+            worker = zlib.decompress(base64.b64decode(CAROUSEL_WORKER_ZLIB)).decode("utf-8")
+            worker_path = root / "carousel-worker.ps1"
+            temporary = worker_path.with_suffix(".ps1.tmp")
+            temporary.write_text(worker, encoding="utf-8")
+            temporary.replace(worker_path)
+        stage["enabled"] = True
+        _save_carousel_json(active_path, stage)
+        if not test_mode:
+            try:
+                _carousel_autostart(root, True)
+                powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+                subprocess.Popen(
+                    [str(powershell), "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",
+                     "-ExecutionPolicy", "Bypass", "-File", str(root / "carousel-worker.ps1")],
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except (OSError, ValueError):
+                stage["enabled"] = False
+                _save_carousel_json(active_path, stage)
+                _carousel_autostart(root, False)
+                raise
+        return "carousel_started"
 
 
 class Config:
@@ -731,8 +906,8 @@ class NotificationUi:
             display_mode="toast", image=None, screen_images=None,
             image_duration_seconds=None, allow_manual_close=None, appearance=None,
             video=None, screen_videos=None, video_loop=False, audio=None, audio_loop=False):
-        if display_mode == protocolo.DISPLAY_MODE_WALLPAPER:
-            # O tratamento de rede aplica o papel de parede antes de chegar aqui.
+        if display_mode in (protocolo.DISPLAY_MODE_WALLPAPER, protocolo.DISPLAY_MODE_LOCK_SCREEN):
+            # O tratamento de rede aplica a imagem do sistema antes de chegar aqui.
             on_result(None)
             return
         if display_mode == protocolo.DISPLAY_MODE_CENTER_IMAGE:
@@ -1254,11 +1429,23 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         if server.config.media_blocked and mensagem_tem_midia(msg):
             raise ProtocolError(ErrorCode.CONTENT_BLOCKED,
                                 "Este computador bloqueou imagens, vídeos e áudios.")
-        if msg.get("display_mode") == protocolo.DISPLAY_MODE_WALLPAPER:
-            aplicar_papel_parede(msg["image"], server.config)
+        if msg.get("display_mode") == protocolo.DISPLAY_MODE_CAROUSEL:
+            status = handle_carousel(msg["carousel"], msg.get("image"),
+                                     server.config, server.ui.test_mode)
             ack = protocolo.base_message(MessageType.ACK)
             ack["in_reply_to"] = msg["id"]
-            ack["status"] = "wallpaper_applied"
+            ack["status"] = status
+            self._safe_send(ack)
+            return
+        if msg.get("display_mode") in (protocolo.DISPLAY_MODE_WALLPAPER, protocolo.DISPLAY_MODE_LOCK_SCREEN):
+            tela_bloqueio = msg["display_mode"] == protocolo.DISPLAY_MODE_LOCK_SCREEN
+            if tela_bloqueio:
+                aplicar_tela_bloqueio(msg["image"], server.config)
+            else:
+                aplicar_papel_parede(msg["image"], server.config)
+            ack = protocolo.base_message(MessageType.ACK)
+            ack["in_reply_to"] = msg["id"]
+            ack["status"] = "lock_screen_applied" if tela_bloqueio else "wallpaper_applied"
             self._safe_send(ack)
             return
 
@@ -1551,8 +1738,12 @@ class ReverseConnection(threading.Thread):
     def _tratar_notificacao_segura(self, msg: dict) -> None:
         try:
             self._tratar_notificacao(msg)
+        except ProtocolError as exc:
+            self._enviar(protocolo.make_error(exc.code, str(exc), msg.get("id")))
         except Exception:
             logging.exception("Falha isolada ao tratar notificação reversa %s.", msg.get("id"))
+            self._enviar(protocolo.make_error(ErrorCode.INTERNAL_ERROR,
+                                              "Não foi possível aplicar a operação.", msg.get("id")))
 
     def _tratar_notificacao(self, msg: dict) -> None:
         if self.config.media_blocked and mensagem_tem_midia(msg):
@@ -1560,11 +1751,23 @@ class ReverseConnection(threading.Thread):
                 ErrorCode.CONTENT_BLOCKED,
                 "Este computador bloqueou imagens, vídeos e áudios.", msg["id"]))
             return
-        if msg.get("display_mode") == protocolo.DISPLAY_MODE_WALLPAPER:
-            aplicar_papel_parede(msg["image"], self.config)
+        if msg.get("display_mode") == protocolo.DISPLAY_MODE_CAROUSEL:
+            status = handle_carousel(msg["carousel"], msg.get("image"),
+                                     self.config, self.ui.test_mode)
             ack = protocolo.base_message(MessageType.ACK)
             ack["in_reply_to"] = msg["id"]
-            ack["status"] = "wallpaper_applied"
+            ack["status"] = status
+            self._enviar(ack)
+            return
+        if msg.get("display_mode") in (protocolo.DISPLAY_MODE_WALLPAPER, protocolo.DISPLAY_MODE_LOCK_SCREEN):
+            tela_bloqueio = msg["display_mode"] == protocolo.DISPLAY_MODE_LOCK_SCREEN
+            if tela_bloqueio:
+                aplicar_tela_bloqueio(msg["image"], self.config)
+            else:
+                aplicar_papel_parede(msg["image"], self.config)
+            ack = protocolo.base_message(MessageType.ACK)
+            ack["in_reply_to"] = msg["id"]
+            ack["status"] = "lock_screen_applied" if tela_bloqueio else "wallpaper_applied"
             self._enviar(ack)
             return
         allow_reply = msg.get("allow_reply", False)
@@ -1735,8 +1938,8 @@ def start_tray_icon(config: Config, on_exit) -> Optional[object]:
 def setup_logging(config_dir: Path, test_mode: bool) -> None:
     config_dir.mkdir(parents=True, exist_ok=True)
     handlers = [logging.FileHandler(config_dir / "receptor.log", encoding="utf-8")]
-    if test_mode:
-        handlers.append(logging.StreamHandler(sys.stdout))
+    # Test hosts read stdout only until the READY line. Logging every request
+    # there eventually fills their pipe and blocks a receiver thread mid-send.
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", handlers=handlers)
 
 

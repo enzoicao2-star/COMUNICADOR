@@ -37,7 +37,8 @@ public sealed class EnviadorNotificacoes
         bool? repetirVideo = null,
         ConteudoAudio? audio = null,
         bool? repetirAudio = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        CarouselCommand? carousel = null)
     {
         var listaBotoes = botoes is { Count: > 0 } ? botoes.ToList() : null;
 
@@ -65,6 +66,7 @@ public sealed class EnviadorNotificacoes
             notificacao.ImageDurationSeconds = duracaoImagemSegundos;
             notificacao.AllowManualClose = permitirFecharManualmente;
             notificacao.Appearance = aparencia;
+            notificacao.Carousel = carousel;
 
             var validacao = MessageValidator.Validate(notificacao);
             if (!validacao.IsValid)
@@ -98,7 +100,7 @@ public sealed class EnviadorNotificacoes
             titulo, mensagem, permitirResposta, listaBotoes, modoExibicao, imagem,
             imagensPorMonitor?.ToList(), duracaoImagemSegundos,
             permitirFecharManualmente, aparencia, video, videosPorMonitor?.ToList(),
-            repetirVideo, audio, repetirAudio, ct).ConfigureAwait(false);
+            repetirVideo, audio, repetirAudio, ct, carousel).ConfigureAwait(false);
     }
 
     /// <summary>Online se existe conexao reversa viva ou se o ping direto responde.</summary>
