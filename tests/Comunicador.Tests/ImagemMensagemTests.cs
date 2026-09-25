@@ -49,11 +49,12 @@ public sealed class ImagemMensagemTests
         {
             Action = action,
             SessionId = Guid.NewGuid().ToString(),
-            Target = action == "begin" ? "both" : null,
+            Target = action == "begin" ? "center_image" : null,
             Count = action == "begin" ? 2 : null,
             MinMinutes = action == "begin" ? 3 : null,
             MaxMinutes = action == "begin" ? 8 : null,
             Repeat = action == "begin" ? true : null,
+            DurationSeconds = action == "begin" ? 15 : null,
             Index = action == "item" ? 0 : null,
         };
 
@@ -61,6 +62,11 @@ public sealed class ImagemMensagemTests
         var frame = MessageValidator.Frame(msg)[..^1];
         Assert.True(MessageValidator.TryParse(frame, out var parsed, out _));
         Assert.Equal(action, parsed!.Carousel!.Action);
+        if (action == "begin")
+        {
+            parsed.Carousel.Target = "wallpaper";
+            Assert.False(MessageValidator.Validate(parsed).IsValid);
+        }
         if (action == "item")
         {
             parsed.Image!.MimeType = "image/gif";

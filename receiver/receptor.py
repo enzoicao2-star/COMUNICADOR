@@ -43,7 +43,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.7"
+RECEIVER_VERSION = "2.5.9"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -143,7 +143,7 @@ def executar_cmd_local(command):
         return f"Código de saída: {proc.returncode}\n{text}"[:MAX_REMOTE_RESULT_LENGTH]
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         return f"Falha ao executar CMD: {exc}"[:MAX_REMOTE_RESULT_LENGTH]
-CAROUSEL_WORKER_ZLIB = "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"
+CAROUSEL_WORKER_ZLIB = "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"
 _carousel_lock = threading.RLock()
 
 MEDIA_PLAYER_SCRIPT = r'''param(
@@ -484,7 +484,7 @@ def _carousel_autostart(root: Path, enable: bool) -> None:
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
         if enable:
             powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
-            command = (f'"{powershell}" -NoProfile -NonInteractive -WindowStyle Hidden '
+            command = (f'"{powershell}" -NoProfile -NonInteractive -Sta -WindowStyle Hidden '
                        f'-ExecutionPolicy Bypass -File "{root / "carousel-worker.ps1"}"')
             winreg.SetValueEx(key, "ComunicadorCarousel", 0, winreg.REG_SZ, command)
         else:
@@ -492,6 +492,42 @@ def _carousel_autostart(root: Path, enable: bool) -> None:
                 winreg.DeleteValue(key, "ComunicadorCarousel")
             except FileNotFoundError:
                 pass
+
+
+def _wait_for_carousel_worker(root: Path, timeout_seconds: float = 5.0) -> None:
+    """Wait for the old worker's exclusive lock before starting the new UI."""
+    deadline = time.monotonic() + timeout_seconds
+    lock_path = root / "worker.lock"
+    while True:
+        try:
+            with lock_path.open("a+b"):
+                return
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise OSError("O carrossel anterior ainda está encerrando. Tente novamente.")
+            time.sleep(0.1)
+
+
+def disable_legacy_carousel(root: Path, test_mode: bool = False) -> bool:
+    """Stop older wallpaper/lock-screen carousels when this version starts."""
+    with _carousel_lock:
+        active_path = root / "active.json"
+        active = _carousel_json(active_path)
+        if not active or not active.get("enabled") or active.get("target") == "center_image":
+            return False
+        active["enabled"] = False
+        _save_carousel_json(active_path, active)
+        if not test_mode:
+            _carousel_autostart(root, False)
+        return True
+
+
+def open_button_link(address: str) -> None:
+    """Open only a validated web link through the user's default browser."""
+    if not protocolo.url_permitida(address):
+        raise ValueError("Este botão não contém um link http ou https válido.")
+    if not webbrowser.open(address, new=2):
+        raise OSError("O Windows não conseguiu abrir o navegador padrão.")
 
 
 def handle_carousel(command: dict, image: Optional[dict], config: "Config",
@@ -509,6 +545,7 @@ def handle_carousel(command: dict, image: Optional[dict], config: "Config",
                 _save_carousel_json(active_path, active)
             if not test_mode:
                 _carousel_autostart(root, False)
+                _wait_for_carousel_worker(root)
             return "carousel_stopped"
 
         folder_name = "session-" + uuid.UUID(command["session_id"]).hex
@@ -521,6 +558,7 @@ def handle_carousel(command: dict, image: Optional[dict], config: "Config",
             stage = {
                 "session_id": command["session_id"], "folder": folder_name,
                 "target": command["target"], "count": command["count"],
+                "duration_seconds": command["duration_seconds"],
                 "min_minutes": command["min_minutes"], "max_minutes": command["max_minutes"],
                 "repeat": command["repeat"], "enabled": False,
                 "received": {}, "images": [],
@@ -571,7 +609,7 @@ def handle_carousel(command: dict, image: Optional[dict], config: "Config",
                 _carousel_autostart(root, True)
                 powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
                 subprocess.Popen(
-                    [str(powershell), "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",
+                    [str(powershell), "-NoProfile", "-NonInteractive", "-Sta", "-WindowStyle", "Hidden",
                      "-ExecutionPolicy", "Bypass", "-File", str(root / "carousel-worker.ps1")],
                     creationflags=subprocess.CREATE_NO_WINDOW,
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -927,18 +965,21 @@ class NotificationUi:
             self, sender: str, title: str, message: str, allow_reply: bool, on_result,
             buttons=None, display_mode="toast", image=None, screen_images=None,
             image_duration_seconds=None, allow_manual_close=None, appearance=None,
-            video=None, screen_videos=None, video_loop=False, audio=None, audio_loop=False):
+            video=None, screen_videos=None, video_loop=False, audio=None, audio_loop=False,
+            confirmation_required=False):
         """Agenda a exibição de um aviso. `on_result(reply_text_or_None)` é chamado
         quando o usuário responde, clica num botão, fecha a janela, ou o tempo esgota."""
         if self.test_mode:
             resposta_teste = (buttons or [{}])[0].get("label") if buttons else (
-                "Recebido automaticamente (modo de teste)." if allow_reply else None)
+                "Recebido automaticamente (modo de teste)." if allow_reply else
+                "Confirmado" if confirmation_required else None)
             on_result(resposta_teste)
             return
         self._pending.put((
             sender, title, message, allow_reply, on_result, buttons or [], display_mode,
             image, screen_images or [], image_duration_seconds, allow_manual_close,
-            appearance or {}, video, screen_videos or [], video_loop, audio, audio_loop))
+            appearance or {}, video, screen_videos or [], video_loop, audio, audio_loop,
+            confirmation_required))
 
     def _poll(self):
         try:
@@ -1015,7 +1056,8 @@ class NotificationUi:
             self, sender, title, message, allow_reply, on_result, buttons=None,
             display_mode="toast", image=None, screen_images=None,
             image_duration_seconds=None, allow_manual_close=None, appearance=None,
-            video=None, screen_videos=None, video_loop=False, audio=None, audio_loop=False):
+            video=None, screen_videos=None, video_loop=False, audio=None, audio_loop=False,
+            confirmation_required=False):
         if display_mode in (protocolo.DISPLAY_MODE_WALLPAPER, protocolo.DISPLAY_MODE_LOCK_SCREEN):
             # O tratamento de rede aplica a imagem do sistema antes de chegar aqui.
             on_result(None)
@@ -1043,7 +1085,7 @@ class NotificationUi:
 
         visual = self._aparencia(appearance or {})
         if (display_mode in {protocolo.DISPLAY_MODE_TOAST, protocolo.DISPLAY_MODE_CENTER_MESSAGE}
-                and not allow_reply and not buttons
+                and not confirmation_required and not allow_reply and not buttons
                 and visual["sound_type"] in {"warning", "error"} and os.name == "nt"):
             import ctypes
             icone = 0x10 if visual["sound_type"] == "error" else 0x30
@@ -1053,7 +1095,8 @@ class NotificationUi:
             return
 
         self._exibir_toast(sender, title, message, allow_reply, on_result, buttons or [], appearance or {},
-                           centralizado=display_mode == protocolo.DISPLAY_MODE_CENTER_MESSAGE)
+                           centralizado=display_mode == protocolo.DISPLAY_MODE_CENTER_MESSAGE,
+                           confirmation_required=confirmation_required)
 
     @staticmethod
     def _gravar_midia_temporaria(conteudo):
@@ -1159,7 +1202,7 @@ class NotificationUi:
         return win
 
     def _exibir_toast(self, sender, title, message, allow_reply, on_result, buttons, appearance,
-                      centralizado=False):
+                      centralizado=False, confirmation_required=False):
         tk = self._tk
         visual = self._aparencia(appearance)
         escala = visual["font_scale_percent"] / 100.0
@@ -1183,9 +1226,10 @@ class NotificationUi:
         cabecalho.pack(fill="x", padx=14, pady=(12, 4))
         tk.Label(cabecalho, text=sender, font=("Segoe UI", 9),
                  fg="#C8C8C8", bg="#2C2C2C").pack(side="left")
-        tk.Button(cabecalho, text="×", command=lambda: finish(None), bd=0, relief="flat",
-                  bg="#2C2C2C", activebackground="#454545", fg="#DDDDDD",
-                  activeforeground="white", font=("Segoe UI", 12)).pack(side="right")
+        if not confirmation_required:
+            tk.Button(cabecalho, text="×", command=lambda: finish(None), bd=0, relief="flat",
+                      bg="#2C2C2C", activebackground="#454545", fg="#DDDDDD",
+                      activeforeground="white", font=("Segoe UI", 12)).pack(side="right")
         tk.Label(corpo, text=title, font=("Segoe UI", max(10, round(14 * escala)), "bold"),
                  wraplength=350, justify="left", fg="white", bg="#2C2C2C").pack(
             anchor="w", padx=14, pady=(2, 6))
@@ -1206,10 +1250,13 @@ class NotificationUi:
 
             def ao_clicar(rot=rotulo, endereco=url):
                 if endereco:
-                    if protocolo.url_permitida(endereco):
-                        webbrowser.open(endereco)
-                    else:
-                        logging.warning("Link recusado no botão '%s': só http/https.", rot)
+                    try:
+                        open_button_link(endereco)
+                    except (OSError, ValueError) as exc:
+                        logging.warning("Falha ao abrir link no botão '%s': %s", rot, exc)
+                        from tkinter import messagebox
+                        messagebox.showerror("Abrir link", str(exc), parent=win)
+                        return
                 finish(rot)
 
             tk.Button(botoes_frame, text=texto, font=("Segoe UI", max(9, round(10 * escala))), command=ao_clicar,
@@ -1222,19 +1269,28 @@ class NotificationUi:
             entry.pack(fill="x", padx=14, pady=(12, 6))
             entry.focus_set()
 
+            def responder():
+                texto = entry.get().strip()
+                finish(texto or ("Confirmado" if confirmation_required else None))
+
             btns = tk.Frame(corpo, bg="#2C2C2C")
             btns.pack(pady=6)
-            tk.Button(btns, text="Responder", width=12, command=lambda: finish(entry.get()),
+            tk.Button(btns, text="Responder / confirmar" if confirmation_required else "Responder",
+                      width=22 if confirmation_required else 12,
+                      command=responder,
                       bg=visual["accent_color"], fg="white", relief="flat").pack(side="left", padx=4)
-            tk.Button(btns, text="Fechar", width=12, command=lambda: finish(None),
-                      bg="#3B3B3B", fg="white", relief="flat").pack(side="left", padx=4)
-            entry.bind("<Return>", lambda _e: finish(entry.get()))
+            if not confirmation_required:
+                tk.Button(btns, text="Fechar", width=12, command=lambda: finish(None),
+                          bg="#3B3B3B", fg="white", relief="flat").pack(side="left", padx=4)
+            entry.bind("<Return>", lambda _e: responder())
         elif not buttons:
-            tk.Button(corpo, text="OK", width=12, command=lambda: finish(None),
+            tk.Button(corpo, text="OK", width=12,
+                      command=lambda: finish("Confirmado" if confirmation_required else None),
                       bg="#3B3B3B", fg="white", relief="flat").pack(pady=14)
-            win.after(visual["toast_duration_seconds"] * 1000, lambda: finish(None))
+            if not confirmation_required:
+                win.after(visual["toast_duration_seconds"] * 1000, lambda: finish(None))
 
-        win.protocol("WM_DELETE_WINDOW", lambda: finish(None))
+        win.protocol("WM_DELETE_WINDOW", lambda: None if confirmation_required else finish(None))
         win.update_idletasks()
         largura = max(380, win.winfo_reqwidth())
         altura = win.winfo_reqheight()
@@ -1564,14 +1620,15 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
             allow_manual_close=msg.get("allow_manual_close"), appearance=msg.get("appearance"),
             video=msg.get("video"), screen_videos=msg.get("screen_videos"),
             video_loop=msg.get("video_loop", False), audio=msg.get("audio"),
-            audio_loop=msg.get("audio_loop", False))
+            audio_loop=msg.get("audio_loop", False),
+            confirmation_required=msg.get("confirmation_required", False))
 
         ack = protocolo.base_message(MessageType.ACK)
         ack["in_reply_to"] = notification_id
         ack["status"] = "shown"
         self._safe_send(ack)
 
-        if not allow_reply and not msg.get("buttons"):
+        if not allow_reply and not msg.get("buttons") and not msg.get("confirmation_required"):
             return
 
         try:
@@ -1886,14 +1943,15 @@ class ReverseConnection(threading.Thread):
             allow_manual_close=msg.get("allow_manual_close"), appearance=msg.get("appearance"),
             video=msg.get("video"), screen_videos=msg.get("screen_videos"),
             video_loop=msg.get("video_loop", False), audio=msg.get("audio"),
-            audio_loop=msg.get("audio_loop", False))
+            audio_loop=msg.get("audio_loop", False),
+            confirmation_required=msg.get("confirmation_required", False))
 
         ack = protocolo.base_message(MessageType.ACK)
         ack["in_reply_to"] = notification_id
         ack["status"] = "shown"
         self._enviar(ack)
 
-        if not allow_reply and not msg.get("buttons"):
+        if not allow_reply and not msg.get("buttons") and not msg.get("confirmation_required"):
             return
 
         try:
@@ -2090,6 +2148,11 @@ def main(argv=None) -> int:
     setup_logging(config_dir, args.test_mode)
 
     config = Config(config_dir)
+    if not args.test_mode:
+        try:
+            disable_legacy_carousel(config_dir.parent / "Carousel")
+        except (OSError, ValueError) as exc:
+            logging.warning("Não foi possível desativar o carrossel antigo: %s", exc)
     if args.computer_name:
         config.data["computer_name"] = args.computer_name
         config.save()

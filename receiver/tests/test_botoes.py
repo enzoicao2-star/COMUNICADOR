@@ -12,6 +12,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import protocolo  # noqa: E402
+import receptor  # noqa: E402
 from protocolo import ErrorCode, MessageType, ProtocolError  # noqa: E402
 
 
@@ -89,3 +90,16 @@ def test_url_permitida_direto():
     assert not protocolo.url_permitida("file:///x")
     assert not protocolo.url_permitida("")
     assert not protocolo.url_permitida(None)
+
+
+def test_clique_abre_link_no_navegador_e_avisa_quando_falha(monkeypatch):
+    opened = []
+    monkeypatch.setattr(receptor.webbrowser, "open", lambda url, new: opened.append((url, new)) or True)
+    receptor.open_button_link("https://exemplo.com/a")
+    assert opened == [("https://exemplo.com/a", 2)]
+
+    monkeypatch.setattr(receptor.webbrowser, "open", lambda url, new: False)
+    with pytest.raises(OSError):
+        receptor.open_button_link("https://exemplo.com/a")
+    with pytest.raises(ValueError):
+        receptor.open_button_link("file:///C:/teste")

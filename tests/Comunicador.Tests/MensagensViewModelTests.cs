@@ -13,6 +13,23 @@ namespace Comunicador.Tests;
 public sealed class MensagensViewModelTests
 {
     [Fact]
+    public void ConfirmacaoObrigatoriaPodeSerCombinadaComMensagemNoCentroOuNoCanto()
+    {
+        var pasta = Path.Combine(Path.GetTempPath(), $"comunicador-confirmacao-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(pasta);
+        using var contexto = CriarContexto(pasta);
+
+        contexto.Mensagens.ExibirMensagemCentral = true;
+        contexto.Mensagens.ExibirAvisoObrigatorio = true;
+        Assert.True(contexto.Mensagens.ExibirMensagemCentral);
+        Assert.True(contexto.Mensagens.ExibirAvisoObrigatorio);
+
+        contexto.Mensagens.ExibirMensagemCentral = false;
+        Assert.True(contexto.Mensagens.ExibirAvisoObrigatorio);
+        Assert.Contains("canto", contexto.Mensagens.DescricaoFormato);
+    }
+
+    [Fact]
     public void Monitores_e_imagem_seguem_somente_o_computador_selecionado()
     {
         var pasta = Path.Combine(Path.GetTempPath(), $"comunicador-mensagens-{Guid.NewGuid():N}");

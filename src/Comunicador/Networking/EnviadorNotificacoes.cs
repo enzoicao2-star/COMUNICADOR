@@ -38,7 +38,8 @@ public sealed class EnviadorNotificacoes
         ConteudoAudio? audio = null,
         bool? repetirAudio = null,
         CancellationToken ct = default,
-        CarouselCommand? carousel = null)
+        CarouselCommand? carousel = null,
+        bool confirmationRequired = false)
     {
         var listaBotoes = botoes is { Count: > 0 } ? botoes.ToList() : null;
 
@@ -54,6 +55,7 @@ public sealed class EnviadorNotificacoes
             notificacao.Title = titulo;
             notificacao.Message = mensagem;
             notificacao.AllowReply = permitirResposta;
+            notificacao.ConfirmationRequired = confirmationRequired;
             notificacao.Buttons = listaBotoes;
             notificacao.DisplayMode = modoExibicao;
             notificacao.Image = imagem;
@@ -83,7 +85,7 @@ public sealed class EnviadorNotificacoes
 
             var resultado = await conexao
                 .EnviarNotificacaoAsync(notificacao,
-                    permitirResposta || listaBotoes is { Count: > 0 }, TimeoutResposta, ct, framed)
+                    permitirResposta || confirmationRequired || listaBotoes is { Count: > 0 }, TimeoutResposta, ct, framed)
                 .ConfigureAwait(false);
 
             if (resultado.Delivered)
@@ -100,7 +102,7 @@ public sealed class EnviadorNotificacoes
             titulo, mensagem, permitirResposta, listaBotoes, modoExibicao, imagem,
             imagensPorMonitor?.ToList(), duracaoImagemSegundos,
             permitirFecharManualmente, aparencia, video, videosPorMonitor?.ToList(),
-            repetirVideo, audio, repetirAudio, ct, carousel).ConfigureAwait(false);
+            repetirVideo, audio, repetirAudio, ct, carousel, confirmationRequired).ConfigureAwait(false);
     }
 
     /// <summary>Online se existe conexao reversa viva ou se o ping direto responde.</summary>

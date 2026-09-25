@@ -4,6 +4,7 @@ using Comunicador.Networking;
 using Comunicador.Protocol;
 using Comunicador.Services;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Comunicador.Tests;
 
@@ -194,11 +195,13 @@ public class PythonReceptorIntegrationTests : IClassFixture<PythonReceptorFixtur
 {
     private readonly int _tcpPort;
     private readonly string _tempDir;
+    private readonly ITestOutputHelper _output;
 
-    public PythonReceptorIntegrationTests(PythonReceptorFixture fixture)
+    public PythonReceptorIntegrationTests(PythonReceptorFixture fixture, ITestOutputHelper output)
     {
         _tcpPort = fixture.TcpPort;
         _tempDir = fixture.TempDir;
+        _output = output;
     }
 
     private static ReceptorClient NovoCliente(string nome = "PAINEL-TESTE") =>
@@ -258,6 +261,50 @@ public class PythonReceptorIntegrationTests : IClassFixture<PythonReceptorFixtur
         Assert.False(resultado.GotReply);
     }
 
+    [Theory]
+    [InlineData(ProtocolConstants.DisplayMode.Toast)]
+    [InlineData(ProtocolConstants.DisplayMode.CenterMessage)]
+    public async Task ConfirmacaoObrigatoria_RecebeConfirmacaoEmQualquerPosicao(string modo)
+    {
+        var client = NovoCliente();
+        var par = await client.PairAsync("127.0.0.1", _tcpPort);
+
+        var resultado = await client.SendNotificationAsync(
+            "127.0.0.1", _tcpPort, par.Token, "Confirmar", "Leia",
+            allowReply: false, modoExibicao: modo, confirmationRequired: true);
+
+        Assert.True(resultado.Delivered);
+        Assert.True(resultado.GotReply);
+        Assert.Equal("Confirmado", resultado.ReplyText);
+    }
+
+    [Fact]
+    [Trait("Category", "Performance")]
+    public async Task MedirEnvioPainelParaReceptorPythonEmMs()
+    {
+        var client = NovoCliente();
+        var par = await client.PairAsync("127.0.0.1", _tcpPort);
+        foreach (var required in new[] { false, true })
+        {
+            var samples = new List<double>();
+            for (var i = 0; i < 30; i++)
+            {
+                var stopwatch = Stopwatch.StartNew();
+                var result = await client.SendNotificationAsync(
+                    "127.0.0.1", _tcpPort, par.Token, "Medição", "Mensagem de teste",
+                    allowReply: false, confirmationRequired: required);
+                stopwatch.Stop();
+                Assert.True(result.Delivered);
+                Assert.Equal(required, result.GotReply);
+                samples.Add(stopwatch.Elapsed.TotalMilliseconds);
+            }
+            samples.Sort();
+            _output.WriteLine($"Painel C# → receptor Python, confirmação={required}: " +
+                $"mediana {samples[15]:F2} ms; p95 {samples[28]:F2} ms; " +
+                $"mín {samples[0]:F2} ms; máx {samples[^1]:F2} ms (30 envios locais).");
+        }
+    }
+
     [Fact]
     public async Task NotificacaoComBotaoDeLink_ChegaAoReceptorPython()
     {
@@ -315,8 +362,8 @@ public class PythonReceptorIntegrationTests : IClassFixture<PythonReceptorFixtur
 
         var begin = await Send(new CarouselCommand
         {
-            Action = "begin", SessionId = session, Target = "wallpaper",
-            Count = 2, MinMinutes = 1, MaxMinutes = 3, Repeat = true,
+            Action = "begin", SessionId = session, Target = "center_image",
+            Count = 2, MinMinutes = 1, MaxMinutes = 3, Repeat = true, DurationSeconds = 15,
         });
         Assert.True(begin.Delivered, begin.ErrorMessage);
         Assert.False(begin.WasShown);

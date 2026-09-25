@@ -29,4 +29,7 @@ public sealed class CarouselCommand
 
     [JsonPropertyName("repeat")]
     public bool? Repeat { get; set; }
+
+    [JsonPropertyName("duration_seconds")]
+    public int? DurationSeconds { get; set; }
 }

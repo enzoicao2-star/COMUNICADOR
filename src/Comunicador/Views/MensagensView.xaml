@@ -225,7 +225,7 @@
                                 <CheckBox IsChecked="{Binding ExibirAvisoObrigatorio}" Margin="0">
                                     <StackPanel>
                                         <TextBlock Text="Confirmação obrigatória" FontWeight="SemiBold" />
-                                        <TextBlock Text="Bloqueia até clicar em OK" Style="{StaticResource Subtitulo}" FontSize="11" />
+                                        <TextBlock Text="Também funciona no canto" Style="{StaticResource Subtitulo}" FontSize="11" />
                                     </StackPanel>
                                 </CheckBox>
                             </Border>

@@ -20,11 +20,11 @@ public partial class NotificacaoRecebidaWindow : Window
     private readonly DispatcherTimer? _autoCloseTimer;
     private readonly bool _avisoCentral;
     private readonly bool _avisoObrigatorio;
+    private readonly bool _confirmacaoObrigatoria;
     private readonly bool _imagemCentral;
     private readonly bool _bloquearFechamentoManual;
     private readonly int? _monitorIndex;
     private readonly string _posicaoToast;
-    private readonly bool _previewMode;
     private bool _fechamentoConfirmado;
 
     public string? Resultado { get; private set; }
@@ -39,14 +39,22 @@ public partial class NotificacaoRecebidaWindow : Window
         bool? permitirFecharManualmente = null,
         AparenciaNotificacao? aparencia = null,
         int? monitorIndex = null,
-        bool previewMode = false)
+        bool previewMode = false,
+        bool confirmationRequired = false)
     {
         InitializeComponent();
 
         aparencia ??= new AparenciaNotificacao();
-        _previewMode = previewMode;
         _monitorIndex = monitorIndex;
         _posicaoToast = aparencia.ToastPosition;
+        _confirmacaoObrigatoria = (confirmationRequired
+            || modoExibicao == ProtocolConstants.DisplayMode.CenterAlert) && !previewMode;
+        if (_confirmacaoObrigatoria)
+        {
+            DispensarButton.Visibility = Visibility.Collapsed;
+            ResponderButton.Content = "Responder / confirmar";
+            Grid.SetColumnSpan(ResponderButton, 3);
+        }
 
         DeSenderText.Text = sender;
         TituloText.Text = title;
@@ -168,7 +176,7 @@ public partial class NotificacaoRecebidaWindow : Window
         }
 
         var interacaoPermitida = !_avisoObrigatorio && !_imagemCentral;
-        if (!interacaoPermitida && !previewMode)
+        if ((!interacaoPermitida || _confirmacaoObrigatoria) && !previewMode)
         {
             FecharX.Visibility = Visibility.Collapsed;
         }
@@ -189,7 +197,7 @@ public partial class NotificacaoRecebidaWindow : Window
             OkPanel.Visibility = Visibility.Visible;
         }
 
-        TimeSpan? tempoAteFechar = _avisoObrigatorio
+        TimeSpan? tempoAteFechar = _confirmacaoObrigatoria
             ? null
             : _avisoCentral
             ? TimeSpan.FromSeconds(Math.Clamp(
@@ -245,7 +253,10 @@ public partial class NotificacaoRecebidaWindow : Window
 
     private void Responder_Click(object sender, RoutedEventArgs e)
     {
-        Resultado = string.IsNullOrWhiteSpace(RespostaBox.Text) ? null : RespostaBox.Text.Trim();
+        Resultado = string.IsNullOrWhiteSpace(RespostaBox.Text)
+            ? _confirmacaoObrigatoria ? "Confirmado" : null
+            : RespostaBox.Text.Trim();
+        _fechamentoConfirmado = true;
         Close();
     }
 
@@ -263,6 +274,7 @@ public partial class NotificacaoRecebidaWindow : Window
 
     private void Fechar_Click(object sender, RoutedEventArgs e)
     {
+        if (_confirmacaoObrigatoria) Resultado = "Confirmado";
         _fechamentoConfirmado = true;
         _autoCloseTimer?.Stop();
         Close();
@@ -279,7 +291,7 @@ public partial class NotificacaoRecebidaWindow : Window
 
     private void AoTentarFechar(object? sender, CancelEventArgs e)
     {
-        if ((_avisoObrigatorio || _bloquearFechamentoManual) && !_fechamentoConfirmado
+        if ((_confirmacaoObrigatoria || _bloquearFechamentoManual) && !_fechamentoConfirmado
             && Application.Current?.Dispatcher.HasShutdownStarted != true)
         {
             e.Cancel = true;
@@ -297,7 +309,7 @@ public partial class NotificacaoRecebidaWindow : Window
             return;
         }
 
-        if (botao.TemLink && !_previewMode)
+        if (botao.TemLink)
         {
             if (BotaoResposta.UrlPermitida(botao.Url))
             {
@@ -309,15 +321,22 @@ public partial class NotificacaoRecebidaWindow : Window
                 catch (Exception ex)
                 {
                     Logger.Error($"Falha ao abrir o link do botão '{botao.Label}': {ex.Message}");
+                    MessageBox.Show(this, $"Não foi possível abrir o link:\n{ex.Message}",
+                        "Abrir link", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
                 }
             }
             else
             {
                 Logger.Error($"Link recusado no botão '{botao.Label}': só http/https são permitidos.");
+                MessageBox.Show(this, "Este botão não contém um link http ou https válido.",
+                    "Abrir link", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
             }
         }
 
         Resultado = botao.Label;
+        _fechamentoConfirmado = true;
         _autoCloseTimer?.Stop();
         Close();
     }
@@ -336,7 +355,8 @@ public partial class NotificacaoRecebidaWindow : Window
         bool? repetirVideo = null,
         ConteudoAudio? audio = null,
         bool? repetirAudio = null,
-        bool previewMode = false)
+        bool previewMode = false,
+        bool confirmationRequired = false)
     {
         if (modoExibicao is ProtocolConstants.DisplayMode.CenterVideo or ProtocolConstants.DisplayMode.Audio)
         {
@@ -347,7 +367,7 @@ public partial class NotificacaoRecebidaWindow : Window
         }
 
         var tipoSom = aparencia?.SoundType;
-        var usarJanelaWindows = !allowReply && botoes is not { Count: > 0 }
+        var usarJanelaWindows = !confirmationRequired && !allowReply && botoes is not { Count: > 0 }
             && imagem is null && imagensPorMonitor is not { Count: > 0 }
             && modoExibicao is ProtocolConstants.DisplayMode.Toast or ProtocolConstants.DisplayMode.CenterMessage
             && tipoSom is ProtocolConstants.SoundType.Warning or ProtocolConstants.SoundType.Error;
@@ -389,7 +409,7 @@ public partial class NotificacaoRecebidaWindow : Window
                 var window = new NotificacaoRecebidaWindow(
                     sender, title, message, allowReply, botoes, modoExibicao, imagem,
                     grupo.Imagens, duracaoImagemSegundos, permitirFecharManualmente,
-                    aparencia, grupo.MonitorIndex, previewMode)
+                    aparencia, grupo.MonitorIndex, previewMode, confirmationRequired)
                 {
                     WindowStartupLocation = WindowStartupLocation.Manual,
                 };

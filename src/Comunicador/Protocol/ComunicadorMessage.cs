@@ -99,6 +99,10 @@ public sealed class ComunicadorMessage
     [JsonPropertyName("allow_reply")]
     public bool? AllowReply { get; set; }
 
+    [JsonPropertyName("confirmation_required")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? ConfirmationRequired { get; set; }
+
     /// <summary>"toast" (padrão) ou "center_image".</summary>
     [JsonPropertyName("display_mode")]
     public string? DisplayMode { get; set; }

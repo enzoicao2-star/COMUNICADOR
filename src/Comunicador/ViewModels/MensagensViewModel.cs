@@ -262,11 +262,13 @@ public sealed class MensagensViewModel : ViewModelBase
         ? TemAudio
             ? "O áudio tocará em segundo plano, sem abrir nenhuma janela."
             : "A mídia aparecerá centralizada, sem moldura. Título e mensagem não são necessários."
-        : ExibirAvisoObrigatorio
-            ? "O computador ficará coberto pelo aviso até a pessoa clicar em OK."
         : ExibirMensagemCentral
-            ? "A mensagem aparecerá no centro da tela e poderá receber respostas ou ações."
-        : "O aviso aparecerá no canto inferior direito, no estilo do Windows.";
+            ? ExibirAvisoObrigatorio
+                ? "A mensagem aparecerá no centro e permanecerá até a pessoa responder, clicar em um botão ou confirmar."
+                : "A mensagem aparecerá no centro da tela e poderá receber respostas ou ações."
+        : ExibirAvisoObrigatorio
+            ? "O aviso aparecerá no canto e permanecerá até a pessoa responder, clicar em um botão ou confirmar."
+            : "O aviso aparecerá no canto inferior direito, no estilo do Windows.";
 
     public bool ExibirMensagemCentral
     {
@@ -279,7 +281,6 @@ public sealed class MensagensViewModel : ViewModelBase
                 DefinirComoPapelDeParede = false;
                 DefinirComoTelaDeBloqueio = false;
                 if (_exibirImagemCentral) { _exibirImagemCentral = false; OnPropertyChanged(nameof(ExibirImagemCentral)); }
-                if (_exibirAvisoObrigatorio) { _exibirAvisoObrigatorio = false; OnPropertyChanged(nameof(ExibirAvisoObrigatorio)); }
             }
             OnPropertyChanged(nameof(DescricaoFormato));
             CommandManager.InvalidateRequerySuggested();
@@ -298,11 +299,6 @@ public sealed class MensagensViewModel : ViewModelBase
                 {
                     _exibirImagemCentral = false;
                     OnPropertyChanged(nameof(ExibirImagemCentral));
-                }
-                if (value && _exibirMensagemCentral)
-                {
-                    _exibirMensagemCentral = false;
-                    OnPropertyChanged(nameof(ExibirMensagemCentral));
                 }
                 OnPropertyChanged(nameof(DescricaoFormato));
                 CommandManager.InvalidateRequerySuggested();
@@ -418,7 +414,7 @@ public sealed class MensagensViewModel : ViewModelBase
         AbrirCarrosselCommand = new RelayCommand(_ =>
         {
             var window = new Views.CarrosselWindow(_enviador, Destinatarios,
-                () => PodeAlterarPapelParede, () => PodeGerenciarCarrossel)
+                () => PodeGerenciarCarrossel, () => PodeGerenciarCarrossel)
             {
                 Owner = System.Windows.Application.Current.MainWindow,
             };
@@ -549,8 +545,10 @@ public sealed class MensagensViewModel : ViewModelBase
         ExibirImagemCentral = false;
         DefinirComoPapelDeParede = false;
         DefinirComoTelaDeBloqueio = false;
-        ExibirAvisoObrigatorio = modelo.ModoExibicao == ProtocolConstants.DisplayMode.CenterAlert;
-        ExibirMensagemCentral = modelo.ModoExibicao == ProtocolConstants.DisplayMode.CenterMessage;
+        ExibirMensagemCentral = modelo.ModoExibicao is ProtocolConstants.DisplayMode.CenterMessage
+            or ProtocolConstants.DisplayMode.CenterAlert;
+        ExibirAvisoObrigatorio = modelo.ConfirmacaoObrigatoria
+            || modelo.ModoExibicao == ProtocolConstants.DisplayMode.CenterAlert;
         CorDestaque = modelo.Aparencia.AccentColor;
         EscalaTexto = modelo.Aparencia.FontScalePercent;
         TocarSom = modelo.Aparencia.PlaySound;
@@ -580,8 +578,8 @@ public sealed class MensagensViewModel : ViewModelBase
             Id = ModeloSelecionado?.Id ?? Guid.NewGuid().ToString("N"),
             Nome = nome,
             Titulo = Titulo.Trim(), Mensagem = Mensagem.Trim(), PermitirResposta = PermitirResposta,
-            ModoExibicao = ExibirAvisoObrigatorio ? ProtocolConstants.DisplayMode.CenterAlert
-                : ExibirMensagemCentral ? ProtocolConstants.DisplayMode.CenterMessage : ProtocolConstants.DisplayMode.Toast,
+            ModoExibicao = ExibirMensagemCentral ? ProtocolConstants.DisplayMode.CenterMessage : ProtocolConstants.DisplayMode.Toast,
+            ConfirmacaoObrigatoria = ExibirAvisoObrigatorio,
             Botoes = Botoes.Select(b => b.ParaProtocolo()).ToList(),
             Aparencia = new AparenciaNotificacao
             {
@@ -1255,12 +1253,11 @@ public sealed class MensagensViewModel : ViewModelBase
         var imagem = CriarConteudoImagem();
         var video = CriarConteudoVideo();
         var audio = CriarConteudoAudio();
-        var modo = !ExibirImagemCentral ? ExibirAvisoObrigatorio ? ProtocolConstants.DisplayMode.CenterAlert
-                : ExibirMensagemCentral ? ProtocolConstants.DisplayMode.CenterMessage : ProtocolConstants.DisplayMode.Toast
+        var modo = !ExibirImagemCentral ? ExibirMensagemCentral ? ProtocolConstants.DisplayMode.CenterMessage : ProtocolConstants.DisplayMode.Toast
             : audio is not null ? ProtocolConstants.DisplayMode.Audio
             : videos.Count > 0 || video is not null ? ProtocolConstants.DisplayMode.CenterVideo
             : ProtocolConstants.DisplayMode.CenterImage;
-        var permiteInteracao = !ExibirAvisoObrigatorio && !ExibirImagemCentral && !AlterarImagemSistema;
+        var permiteInteracao = !ExibirImagemCentral && !AlterarImagemSistema;
         var aparencia = new AparenciaNotificacao
         {
             AccentColor = CorDestaque.Trim(),
@@ -1286,7 +1283,8 @@ public sealed class MensagensViewModel : ViewModelBase
             repetirVideo: RepetirVideo,
             audio: audio,
             repetirAudio: RepetirAudio,
-            previewMode: true).ConfigureAwait(true);
+            previewMode: true,
+            confirmationRequired: ExibirAvisoObrigatorio).ConfigureAwait(true);
         StatusOperacao = "Prévia encerrada. Nenhuma mensagem foi enviada.";
     }
 
@@ -1294,7 +1292,7 @@ public sealed class MensagensViewModel : ViewModelBase
     {
         var selecionados = Destinatarios.Where(d => d.Selecionado).ToList();
         // Mídia central é conteúdo puro: não exige título, mensagem nem interação.
-        var permiteInteracao = !ExibirAvisoObrigatorio && !ExibirImagemCentral && !AlterarImagemSistema;
+        var permiteInteracao = !ExibirImagemCentral && !AlterarImagemSistema;
         var botoesProtocolo = permiteInteracao
             ? Botoes.Select(b => b.ParaProtocolo()).ToList()
             : new List<BotaoResposta>();
@@ -1315,6 +1313,7 @@ public sealed class MensagensViewModel : ViewModelBase
 
         var enviados = 0;
         var erros = new List<string>();
+        var enviosPendentes = new List<Task>();
 
         foreach (var destino in selecionados)
         {
@@ -1326,9 +1325,7 @@ public sealed class MensagensViewModel : ViewModelBase
                 : DefinirComoTelaDeBloqueio
                 ? ProtocolConstants.DisplayMode.LockScreen
                 : !ExibirImagemCentral
-                ? ExibirAvisoObrigatorio
-                    ? ProtocolConstants.DisplayMode.CenterAlert
-                    : ExibirMensagemCentral
+                ? ExibirMensagemCentral
                         ? ProtocolConstants.DisplayMode.CenterMessage
                         : ProtocolConstants.DisplayMode.Toast
                 : audio is not null
@@ -1388,6 +1385,7 @@ public sealed class MensagensViewModel : ViewModelBase
                 Titulo = AlterarImagemSistema ? string.Empty : Titulo,
                 Mensagem = AlterarImagemSistema ? string.Empty : Mensagem,
                 PermitirResposta = permitirRespostaEfetiva,
+                ConfirmacaoObrigatoria = ExibirAvisoObrigatorio,
                 Botoes = botoesProtocolo,
                 ModoExibicao = modoExibicao,
                 Imagem = imagemParaEsteComputador,
@@ -1401,10 +1399,21 @@ public sealed class MensagensViewModel : ViewModelBase
                 RepetirAudio = modoExibicao == ProtocolConstants.DisplayMode.Audio ? RepetirAudio : null,
                 Aparencia = aparencia,
             };
-            var resultado = await envio.EnviarAsync(_enviador, computador).ConfigureAwait(true);
+            // Dispara cada destinatário antes de esperar respostas. Um aviso
+            // obrigatório aberto em um PC não atrasa a entrega aos demais.
+            enviosPendentes.Add(ProcessarEnvioAsync(computador, entry, envio,
+                permitirRespostaEfetiva, modoExibicao));
+        }
 
+        await Task.WhenAll(enviosPendentes).ConfigureAwait(true);
+
+        async Task ProcessarEnvioAsync(Computador computador, HistoricoEntry entry,
+            EnvioPendente envio, bool permitirResposta, string modoExibicao)
+        {
+            var resultado = await envio.EnviarAsync(_enviador, computador).ConfigureAwait(true);
             _historico.AtualizarExistente(
-                entry.Id, item => EnvioPendente.AtualizarHistorico(item, resultado, permitirRespostaEfetiva));
+                entry.Id, item => EnvioPendente.AtualizarHistorico(item, resultado,
+                    permitirResposta || envio.ConfirmacaoObrigatoria));
             if (resultado.GotReply)
             {
                 _ = Views.NotificacaoRecebidaWindow.MostrarAsync(
@@ -1414,21 +1423,20 @@ public sealed class MensagensViewModel : ViewModelBase
             if (resultado.Delivered)
             {
                 enviados++;
+                return;
             }
-            else
+
+            try { _reenvios.Salvar(entry.Id, envio); CommandManager.InvalidateRequerySuggested(); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                try { _reenvios.Salvar(entry.Id, envio); CommandManager.InvalidateRequerySuggested(); }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                {
-                    Logger.Error($"Não foi possível guardar o envio para repetir: {ex.Message}", "envio");
-                }
-                var detalhe = resultado.ErrorMessage ?? "falha sem detalhe";
-                erros.Add($"{computador.Nome}: {detalhe}");
-                Logger.Error(
-                    $"Falha ao enviar mensagem para {computador.NomeExibicao} ({computador.EnderecoIp}:{computador.PortaTcp}).",
-                    "envio",
-                    $"Título: {Titulo} | Modo: {modoExibicao} | Erro: {detalhe}");
+                Logger.Error($"Não foi possível guardar o envio para repetir: {ex.Message}", "envio");
             }
+            var detalhe = resultado.ErrorMessage ?? "falha sem detalhe";
+            erros.Add($"{computador.Nome}: {detalhe}");
+            Logger.Error(
+                $"Falha ao enviar mensagem para {computador.NomeExibicao} ({computador.EnderecoIp}:{computador.PortaTcp}).",
+                "envio",
+                $"Título: {envio.Titulo} | Modo: {modoExibicao} | Erro: {detalhe}");
         }
 
         var nomeConteudo = DefinirComoPapelDeParede ? "Papel de parede"

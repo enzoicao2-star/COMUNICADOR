@@ -10,6 +10,7 @@ public sealed class EnvioPendente
     public string Titulo { get; set; } = string.Empty;
     public string Mensagem { get; set; } = string.Empty;
     public bool PermitirResposta { get; set; }
+    public bool ConfirmacaoObrigatoria { get; set; }
     public List<BotaoResposta> Botoes { get; set; } = [];
     public string ModoExibicao { get; set; } = ProtocolConstants.DisplayMode.Toast;
     public ConteudoImagem? Imagem { get; set; }
@@ -28,7 +29,8 @@ public sealed class EnvioPendente
         enviador.EnviarAsync(computador, Titulo, Mensagem, PermitirResposta, Botoes,
             ModoExibicao, Imagem, ImagensPorMonitor, DuracaoSegundos,
             PermitirFecharManualmente, Aparencia, Video, VideosPorMonitor,
-            RepetirVideo, Audio, RepetirAudio, ct);
+            RepetirVideo, Audio, RepetirAudio, ct,
+            confirmationRequired: ConfirmacaoObrigatoria);
 
     public static void AtualizarHistorico(HistoricoEntry item, NotificationResult resultado, bool permitirResposta)
     {

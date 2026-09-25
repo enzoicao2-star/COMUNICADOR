@@ -1,0 +1,16 @@
+{
+  "measured_at": "2026-09-25",
+  "environment": "Release, Windows x64, C# panel client to Python receiver test mode over 127.0.0.1",
+  "sample_count_per_message_type": 30,
+  "without_confirmation_ms": { "median": 0.80, "p95": 1.61 },
+  "with_confirmation_ms": { "median": 0.86, "p95": 1.98 },
+  "receiver_tcp_frame_8_mib_ms_median": 26.99,
+  "supabase_response_query_ms": { "before": 0.137, "after": 0.131, "rows": 5 },
+  "supabase_calls_per_sync_cycle": { "before": 6, "after": 5 },
+  "idle_carousel_state_reads_per_second": { "before": 5, "after": 1 },
+  "notes": [
+    "TCP samples include connection, validation and ACK; confirmation includes the automatic test-mode reply.",
+    "Database before/after timing differs by less than measurement noise on this small dataset.",
+    "Network latency and human response time were not measured."
+  ]
+}

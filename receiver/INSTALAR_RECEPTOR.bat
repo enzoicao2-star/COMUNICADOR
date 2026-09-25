@@ -1,6 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
-set "RECEIVER_VERSION=2.5.7"
+set "RECEIVER_VERSION=2.5.9"
+if not defined COMUNICADOR_SOURCE_DIR set "COMUNICADOR_SOURCE_DIR=%~dp0"
 
 rem Modo de diagnostico seguro: testa a deteccao sem instalar nem pedir UAC.
 if /I "%~1"=="--verificar-python" (
@@ -354,6 +355,8 @@ call :agendar_autoexclusao
 exit /b 0
 
 :agendar_autoexclusao
+rem Instalador compartilhado da conferencia deve continuar disponivel em Z:.
+if /I "%COMUNICADOR_SOURCE_DIR%"=="Z:\CONTROLES\conferencia\9\" exit /b 0
 set "COMUNICADOR_SELF_DELETE=%~f0"
 powershell -NoProfile -NonInteractive -Command "$cleanup='Start-Sleep -Seconds 2; Remove-Item -LiteralPath $env:COMUNICADOR_SELF_DELETE -Force -ErrorAction SilentlyContinue'; $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cleanup)); Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-NonInteractive','-WindowStyle','Hidden','-EncodedCommand',$encoded) -WindowStyle Hidden"
 exit /b 0

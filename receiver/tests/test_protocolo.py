@@ -23,6 +23,17 @@ def test_valid_notification_passes():
     protocolo.validate(make_valid_notification())
 
 
+@pytest.mark.parametrize("modo", [protocolo.DISPLAY_MODE_TOAST,
+                                  protocolo.DISPLAY_MODE_CENTER_MESSAGE])
+def test_confirmation_required_can_be_combined_with_position(modo):
+    msg = make_valid_notification()
+    msg.update(display_mode=modo, allow_reply=False, confirmation_required=True)
+    protocolo.validate(msg)
+    msg["confirmation_required"] = "sim"
+    with pytest.raises(ProtocolError):
+        protocolo.validate(msg)
+
+
 @pytest.mark.parametrize("action", ["begin", "item", "commit", "stop"])
 def test_carousel_stage_validation(action):
     import uuid
@@ -30,8 +41,8 @@ def test_carousel_stage_validation(action):
     msg.update(display_mode=protocolo.DISPLAY_MODE_CAROUSEL, title="", message="",
                allow_reply=False, carousel={"action": action, "session_id": str(uuid.uuid4())})
     if action == "begin":
-        msg["carousel"].update(target="both", count=2, min_minutes=3,
-                               max_minutes=8, repeat=True)
+        msg["carousel"].update(target="center_image", count=2, min_minutes=3,
+                               max_minutes=8, repeat=True, duration_seconds=15)
     if action == "item":
         msg["carousel"]["index"] = 0
         msg["image"] = {"name": "pixel.png", "mime_type": "image/png",
@@ -39,6 +50,10 @@ def test_carousel_stage_validation(action):
     protocolo.validate(msg)
     if action == "item":
         msg["image"]["mime_type"] = "image/gif"
+        with pytest.raises(ProtocolError):
+            protocolo.validate(msg)
+    if action == "begin":
+        msg["carousel"]["target"] = "wallpaper"
         with pytest.raises(ProtocolError):
             protocolo.validate(msg)
 

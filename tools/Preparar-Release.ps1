@@ -56,12 +56,16 @@ New-Item -ItemType Directory -Force -Path $releaseDirectory | Out-Null
 Copy-Item -LiteralPath $source -Destination $destination -Force
 $hash = (Get-Sha256 $destination).ToUpperInvariant()
 $releaseNotes = @{
-    summary = 'Painel e receptor mais rápidos; instalador do Python corrigido.'
+    summary = 'Carrossel no centro da tela, confirmação em qualquer posição e melhorias de desempenho.'
     changes = @(
-        'O receptor 2.5.7 recebe imagens, GIFs e vídeos grandes com menos espera.',
-        'O painel 2.5.11 grava histórico e logs mais rapidamente e sincroniza perfis com menos custo.',
-        'O envio de mídias e a sincronização do painel evitam serializações duplicadas.',
-        'O instalador do receptor reconhece Python em caminhos com espaços e mostra o erro original na própria janela se falhar.'
+        'O carrossel mostra cada imagem no centro da tela pelo tempo escolhido.',
+        'O papel de parede e a tela de bloqueio não são modificados pelo carrossel.',
+        'O carrossel continua após fechar o painel ou reiniciar o computador.',
+        'Carrosséis antigos que trocavam o fundo são desligados antes de iniciar um novo.',
+        'Botões com link abrem o navegador também na prévia; falhas de abertura aparecem na tela.',
+        'Confirmação obrigatória pode acompanhar mensagens no canto ou no centro e volta ao histórico como resposta.',
+        'Mensagens para vários computadores são despachadas sem esperar a confirmação do primeiro.',
+        'Sincronização do banco e receptor usam menos espera e menos leituras repetidas.'
     )
 }
 $manifest = [ordered]@{

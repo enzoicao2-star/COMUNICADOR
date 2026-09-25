@@ -100,3 +100,31 @@ dotnet test tests/Comunicador.Tests/Comunicador.Tests.csproj -c Release --filter
 Não há uma nova amostra de abertura e navegação: neste ambiente o executável
 de benchmark encerrou antes de abrir a janela, inclusive com acesso normal ao
 perfil do Windows. Os tempos acima não medem a experiência completa da UI.
+
+## Comunicação e banco — 2026-09-25 (2.5.13)
+
+Teste local com o cliente C# real enviando 30 mensagens ao receptor Python real
+em modo de teste, por TCP em `127.0.0.1`. Inclui conexão, validação, ACK e,
+quando exigida, a resposta automática do modo de teste:
+
+| Envio | Mediana | p95 |
+|---|---:|---:|
+| Mensagem sem confirmação | 0,80 ms | 1,61 ms |
+| Mensagem com confirmação | 0,86 ms | 1,98 ms |
+
+O receptor montou um quadro TCP de 8 MiB em 26,99 ms (mediana de cinco
+execuções). São medições locais; não representam a latência da rede nem o tempo
+que uma pessoa leva para responder.
+
+O painel agora inicia os envios para todos os destinatários antes de aguardar
+as respostas. A sincronização de perfis e configuração global consulta o banco
+em paralelo e reutiliza o estado administrativo retornado pelo registro,
+reduzindo de seis para cinco as chamadas ao Supabase em cada ciclo. A troca de
+histórico e logs com até quatro computadores também ocorre em paralelo. O
+carrossel ocioso passou de cinco para uma leitura de estado por segundo.
+
+No banco compartilhado havia cinco entregas e um perfil. O plano medido da
+consulta de respostas levou 0,137 ms antes e 0,131 ms depois da migração:
+essa diferença é ruído nessa escala. O novo índice parcial acompanha o filtro
+de respostas pendentes; o índice de perfis sem uso foi removido. O otimizador
+ainda prefere percorrer as cinco linhas existentes.

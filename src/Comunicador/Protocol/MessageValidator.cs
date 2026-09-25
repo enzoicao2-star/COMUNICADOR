@@ -484,11 +484,12 @@ public static class MessageValidator
 
         if (command.Action == "begin")
         {
-            if (command.Target is not ("wallpaper" or "lock_screen" or "both")
+            if (command.Target != "center_image"
                 || command.Count is not > 0
                 || command.MinMinutes is not >= 1 or > 10080
                 || command.MaxMinutes is not >= 1 or > 10080
                 || command.MaxMinutes < command.MinMinutes
+                || command.DurationSeconds is not >= 1 or > 300
                 || !command.Repeat.HasValue)
                 return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Configuração do carrossel inválida.");
         }

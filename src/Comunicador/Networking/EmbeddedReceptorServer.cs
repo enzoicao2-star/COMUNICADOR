@@ -73,6 +73,16 @@ public sealed class EmbeddedReceptorServer : IDisposable
             return;
         }
 
+        try
+        {
+            if (CarouselService.DisableLegacyCarousel())
+                Logger.Info("Carrossel antigo de imagens do sistema desativado.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Logger.Warning($"Não foi possível desativar o carrossel antigo: {ex.Message}");
+        }
+
         var cts = new CancellationTokenSource();
         TcpListener? tcpListener = null;
         UdpClient? udpClient = null;
@@ -430,13 +440,6 @@ public sealed class EmbeddedReceptorServer : IDisposable
 
         if (msg.DisplayMode == ProtocolConstants.DisplayMode.Carousel)
         {
-            if (msg.Carousel?.Action != "stop" && !_settings.PapelParedeRemotoPermitidoGlobalmente)
-            {
-                await EnviarAsync(stream, ComunicadorMessage.Error(
-                    ProtocolConstants.ErrorCode.ContentBlocked,
-                    "O admin desativou a alteração remota das imagens do sistema.", msg.Id), ct).ConfigureAwait(false);
-                return;
-            }
             try
             {
                 var status = CarouselService.Handle(msg.Carousel!, msg.Image);
@@ -514,14 +517,15 @@ public sealed class EmbeddedReceptorServer : IDisposable
             msg.Sender!, msg.Title!, msg.Message!, allowReply, msg.Buttons,
             msg.DisplayMode, msg.Image, msg.ScreenImages, msg.ImageDurationSeconds,
             msg.AllowManualClose, msg.Appearance, msg.Video, msg.ScreenVideos,
-            msg.VideoLoop, msg.Audio, msg.AudioLoop);
+            msg.VideoLoop, msg.Audio, msg.AudioLoop,
+            confirmationRequired: msg.ConfirmationRequired == true);
 
         var ack = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ack);
         ack.InReplyTo = msg.Id;
         ack.Status = "shown";
         await EnviarAsync(stream, ack, ct).ConfigureAwait(false);
 
-        if (!allowReply && msg.Buttons is not { Count: > 0 })
+        if (!allowReply && msg.ConfirmationRequired != true && msg.Buttons is not { Count: > 0 })
         {
             return;
         }

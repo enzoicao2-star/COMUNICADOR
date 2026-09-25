@@ -373,10 +373,12 @@ def _validar_conteudo_visual(msg: dict) -> None:
             minimo = carrossel.get("min_minutes")
             maximo = carrossel.get("max_minutes")
             quantidade = carrossel.get("count")
-            if (carrossel.get("target") not in {"wallpaper", "lock_screen", "both"}
+            duracao = carrossel.get("duration_seconds")
+            if (carrossel.get("target") != "center_image"
                     or not isinstance(quantidade, int) or isinstance(quantidade, bool) or quantidade < 1
                     or not isinstance(minimo, int) or isinstance(minimo, bool) or not 1 <= minimo <= 10080
                     or not isinstance(maximo, int) or isinstance(maximo, bool) or not minimo <= maximo <= 10080
+                    or not isinstance(duracao, int) or isinstance(duracao, bool) or not 1 <= duracao <= 300
                     or not isinstance(carrossel.get("repeat"), bool)):
                 raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Configuração do carrossel inválida.")
         if acao == "item":
@@ -686,6 +688,8 @@ def validate(msg: dict) -> None:
             _require_str(msg, "title", MAX_TITLE_LENGTH)
             _require_str(msg, "message", MAX_MESSAGE_LENGTH)
         _require_bool(msg, "allow_reply")
+        if "confirmation_required" in msg:
+            _require_bool(msg, "confirmation_required")
         _validar_botoes(msg)
         _validar_conteudo_visual(msg)
         _validar_aparencia(msg)

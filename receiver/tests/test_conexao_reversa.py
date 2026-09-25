@@ -37,8 +37,9 @@ def _ler(sock, buffer):
 class PainelFake:
     """Painel minimo: aceita o register e conversa pela mesma conexao."""
 
-    def __init__(self, permitir_resposta=True):
+    def __init__(self, permitir_resposta=True, confirmacao_obrigatoria=False):
         self.permitir_resposta = permitir_resposta
+        self.confirmacao_obrigatoria = confirmacao_obrigatoria
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind(("127.0.0.1", 0))
@@ -98,6 +99,7 @@ class PainelFake:
             notif["title"] = "Teste reverso"
             notif["message"] = "Chegou pela conexao reversa?"
             notif["allow_reply"] = self.permitir_resposta
+            notif["confirmation_required"] = self.confirmacao_obrigatoria
             conn.sendall(protocolo.frame(notif))
 
             conn.settimeout(20)
@@ -105,7 +107,7 @@ class PainelFake:
                 m1, buffer = _ler(conn, buffer)
                 if m1 and m1.get("type") == MessageType.ACK:
                     self.ack = m1
-                    if self.permitir_resposta:
+                    if self.permitir_resposta or self.confirmacao_obrigatoria:
                         m2, buffer = _ler(conn, buffer)
                         if m2 and m2.get("type") == MessageType.REPLY:
                             self.reply = m2
@@ -117,8 +119,9 @@ class PainelFake:
 def painel_e_receptor(tmp_path):
     criados = {}
 
-    def _iniciar(permitir_resposta=True):
-        painel = PainelFake(permitir_resposta=permitir_resposta)
+    def _iniciar(permitir_resposta=True, confirmacao_obrigatoria=False):
+        painel = PainelFake(permitir_resposta=permitir_resposta,
+                           confirmacao_obrigatoria=confirmacao_obrigatoria)
         painel.start()
         time.sleep(0.3)
 
@@ -184,3 +187,11 @@ def test_sem_permitir_resposta_recebe_so_o_ack(painel_e_receptor):
     assert painel.erro is None, painel.erro
     assert painel.ack is not None
     assert painel.reply is None
+
+
+def test_confirmacao_obrigatoria_chega_pela_conexao_reversa(painel_e_receptor):
+    painel = painel_e_receptor(permitir_resposta=False, confirmacao_obrigatoria=True)
+    assert painel.erro is None, painel.erro
+    assert painel.ack is not None
+    assert painel.reply is not None
+    assert painel.reply["reply_text"] == "Confirmado"

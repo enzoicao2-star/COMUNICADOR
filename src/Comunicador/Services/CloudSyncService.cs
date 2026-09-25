@@ -175,21 +175,22 @@ public sealed class CloudSyncService : IDisposable
     public Task RespondToDeliveryAsync(string deliveryId, string response, CancellationToken ct = default) =>
         _client.RespondToDeliveryAsync(deliveryId, response, ct);
 
-    public async Task SynchronizeOnceAsync(CancellationToken ct = default)
+    public async Task SynchronizeOnceAsync(CancellationToken ct = default,
+        CloudAdminState? registeredState = null)
     {
-        var admin = await _client.GetAdminStateAsync(ct).ConfigureAwait(false);
+        // Os três dados são independentes; buscar em paralelo elimina esperas de
+        // rede em série. O registro do ciclo já traz o estado admin atualizado.
+        var adminTask = registeredState is null
+            ? _client.GetAdminStateAsync(ct)
+            : Task.FromResult(registeredState);
+        var profilesTask = _client.GetProfilesAsync(ct);
+        var configTask = GetGlobalConfigOptionalAsync(ct);
+        await Task.WhenAll(adminTask, profilesTask, configTask).ConfigureAwait(false);
+        var admin = await adminTask.ConfigureAwait(false);
         SetAdmin(admin.IsAdmin, admin.AdminDeviceId);
-        var cloudProfiles = await _client.GetProfilesAsync(ct).ConfigureAwait(false);
-        ConfiguracaoGlobalPrograma? globalConfig = null;
-        try
-        {
-            globalConfig = await _client.GetGlobalConfigAsync(ct).ConfigureAwait(false);
-            if (globalConfig is not null) ApplyGlobalConfig(globalConfig);
-        }
-        catch (HttpRequestException ex) when (!ct.IsCancellationRequested)
-        {
-            Logger.Warning($"Configuração global indisponível; mantendo sincronização normal: {ex.Message}");
-        }
+        var cloudProfiles = await profilesTask.ConfigureAwait(false);
+        var globalConfig = await configTask.ConfigureAwait(false);
+        if (globalConfig is not null) ApplyGlobalConfig(globalConfig);
         IsDelegatedAdmin = cloudProfiles.FirstOrDefault(profile =>
             string.Equals(profile.DeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
             ?.Badges.Any(b => b.Id == "admin" || b.RoleId is not null && globalConfig?.ModelosBadge
@@ -205,6 +206,16 @@ public sealed class CloudSyncService : IDisposable
         }));
         Status = "Sincronização Supabase ativa.";
         StateChanged?.Invoke();
+    }
+
+    private async Task<ConfiguracaoGlobalPrograma?> GetGlobalConfigOptionalAsync(CancellationToken ct)
+    {
+        try { return await _client.GetGlobalConfigAsync(ct).ConfigureAwait(false); }
+        catch (HttpRequestException ex) when (!ct.IsCancellationRequested)
+        {
+            Logger.Warning($"Configuração global indisponível; mantendo sincronização normal: {ex.Message}");
+            return null;
+        }
     }
 
     private void ApplyGlobalConfig(ConfiguracaoGlobalPrograma config)
@@ -240,10 +251,13 @@ public sealed class CloudSyncService : IDisposable
                         _lastUploadedProfile = fingerprint;
                     }
                 }
-                await SynchronizeOnceAsync(ct).ConfigureAwait(false);
-                var deliveries = await _client.ClaimDueDeliveriesAsync(ct).ConfigureAwait(false);
+                await SynchronizeOnceAsync(ct, state).ConfigureAwait(false);
+                var deliveriesTask = _client.ClaimDueDeliveriesAsync(ct);
+                var responsesTask = _client.GetResponsesAsync(_settings.PainelId, ct);
+                await Task.WhenAll(deliveriesTask, responsesTask).ConfigureAwait(false);
+                var deliveries = await deliveriesTask.ConfigureAwait(false);
                 foreach (var delivery in deliveries) DeliveryReceived?.Invoke(delivery);
-                var responses = await _client.GetResponsesAsync(_settings.PainelId, ct).ConfigureAwait(false);
+                var responses = await responsesTask.ConfigureAwait(false);
                 foreach (var response in responses.OrderBy(r => r.RespondedAt))
                 {
                     if (!_responsesSeen.Add(response.Id)) continue;

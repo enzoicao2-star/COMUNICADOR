@@ -116,7 +116,8 @@ public sealed class ReceptorClient
         ConteudoAudio? audio = null,
         bool? repetirAudio = null,
         CancellationToken ct = default,
-        CarouselCommand? carousel = null)
+        CarouselCommand? carousel = null,
+        bool confirmationRequired = false)
     {
         try
         {
@@ -130,6 +131,7 @@ public sealed class ReceptorClient
             notification.Title = title;
             notification.Message = message;
             notification.AllowReply = allowReply;
+            notification.ConfirmationRequired = confirmationRequired;
             notification.Buttons = botoes is { Count: > 0 } ? botoes : null;
             notification.DisplayMode = modoExibicao;
             notification.Image = imagem;
@@ -172,7 +174,7 @@ public sealed class ReceptorClient
 
             var shown = ack.Status == "shown";
 
-            if (!allowReply && notification.Buttons is not { Count: > 0 })
+            if (!allowReply && !confirmationRequired && notification.Buttons is not { Count: > 0 })
             {
                 return new NotificationResult(true, shown, false, null, null);
             }

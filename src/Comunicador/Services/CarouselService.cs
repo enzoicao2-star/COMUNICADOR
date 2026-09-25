@@ -22,7 +22,8 @@ public static class CarouselService
     {
         [JsonPropertyName("session_id")] public string SessionId { get; set; } = "";
         [JsonPropertyName("folder")] public string Folder { get; set; } = "";
-        [JsonPropertyName("target")] public string Target { get; set; } = "wallpaper";
+        [JsonPropertyName("target")] public string Target { get; set; } = "center_image";
+        [JsonPropertyName("duration_seconds")] public int DurationSeconds { get; set; } = 15;
         [JsonPropertyName("count")] public int Count { get; set; }
         [JsonPropertyName("min_minutes")] public int MinMinutes { get; set; }
         [JsonPropertyName("max_minutes")] public int MaxMinutes { get; set; }
@@ -30,6 +31,21 @@ public static class CarouselService
         [JsonPropertyName("enabled")] public bool Enabled { get; set; }
         [JsonPropertyName("images")] public List<string> Images { get; set; } = [];
         [JsonPropertyName("received")] public Dictionary<int, string> Received { get; set; } = [];
+    }
+
+    public static bool DisableLegacyCarousel()
+    {
+        lock (Gate)
+        {
+            var activePath = Path.Combine(Root, "active.json");
+            var active = Read(activePath);
+            if (active is null || !active.Enabled || active.Target == "center_image") return false;
+            active.Enabled = false;
+            Save(activePath, active);
+            using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
+            key?.DeleteValue(RunName, throwOnMissingValue: false);
+            return true;
+        }
     }
 
     public static string Handle(CarouselCommand command, ConteudoImagem? image)
@@ -48,6 +64,7 @@ public static class CarouselService
                 }
                 using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
                 key?.DeleteValue(RunName, throwOnMissingValue: false);
+                WaitForWorkerStop();
                 return "carousel_stopped";
             }
 
@@ -63,6 +80,7 @@ public static class CarouselService
                     SessionId = command.SessionId,
                     Folder = folderName,
                     Target = command.Target!,
+                    DurationSeconds = command.DurationSeconds!.Value,
                     Count = command.Count!.Value,
                     MinMinutes = command.MinMinutes!.Value,
                     MaxMinutes = command.MaxMinutes!.Value,
@@ -107,7 +125,7 @@ public static class CarouselService
                 var worker = Path.Combine(Root, "carousel-worker.ps1");
                 var powerShell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),
                     "WindowsPowerShell", "v1.0", "powershell.exe");
-                var commandLine = $"\"{powerShell}\" -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File \"{worker}\"";
+                var commandLine = $"\"{powerShell}\" -NoProfile -NonInteractive -Sta -WindowStyle Hidden -ExecutionPolicy Bypass -File \"{worker}\"";
                 using var key = Registry.CurrentUser.CreateSubKey(RunKeyPath);
                 key.SetValue(RunName, commandLine, RegistryValueKind.String);
                 var start = new ProcessStartInfo(powerShell)
@@ -116,7 +134,7 @@ public static class CarouselService
                     CreateNoWindow = true,
                     WindowStyle = ProcessWindowStyle.Hidden,
                 };
-                foreach (var argument in new[] { "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",
+                foreach (var argument in new[] { "-NoProfile", "-NonInteractive", "-Sta", "-WindowStyle", "Hidden",
                     "-ExecutionPolicy", "Bypass", "-File", worker }) start.ArgumentList.Add(argument);
                 using var process = Process.Start(start) ?? throw new IOException("Não foi possível iniciar o carrossel.");
             }
@@ -151,5 +169,24 @@ public static class CarouselService
         var temporary = Path.Combine(Root, "carousel-worker.ps1.tmp");
         using (var output = File.Create(temporary)) resource.CopyTo(output);
         File.Move(temporary, Path.Combine(Root, "carousel-worker.ps1"), overwrite: true);
+    }
+
+    private static void WaitForWorkerStop()
+    {
+        var lockPath = Path.Combine(Root, "worker.lock");
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            try
+            {
+                using var unused = File.Open(lockPath, FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite, FileShare.None);
+                return;
+            }
+            catch (IOException) when (attempt < 49)
+            {
+                Thread.Sleep(100);
+            }
+        }
+        throw new IOException("O carrossel anterior ainda está encerrando. Tente novamente.");
     }
 }

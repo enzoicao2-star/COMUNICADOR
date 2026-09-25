@@ -35,9 +35,12 @@ create table if not exists public.deliveries (
     delivered_at timestamptz, responded_at timestamptz, sender_notified_at timestamptz
 );
 alter table public.deliveries add column if not exists sender_notified_at timestamptz;
-create index if not exists panel_profiles_updated_at_idx on public.panel_profiles(updated_at desc);
+drop index if exists public.panel_profiles_updated_at_idx;
 create index if not exists deliveries_target_pending_idx on public.deliveries(target_device_id,status,deliver_at);
 create index if not exists deliveries_sender_created_idx on public.deliveries(sender_device_id,created_at desc);
+create index if not exists deliveries_sender_unnotified_idx
+  on public.deliveries(sender_device_id,responded_at)
+  where status='responded' and sender_notified_at is null;
 create index if not exists system_settings_admin_device_idx on public.system_settings(admin_device_id);
 
 create or replace function public.current_device_id()

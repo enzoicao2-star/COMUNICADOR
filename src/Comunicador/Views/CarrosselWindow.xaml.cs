@@ -98,7 +98,7 @@ public partial class CarrosselWindow : Window
     private async void Start_Click(object sender, RoutedEventArgs e)
     {
         if (_busy) return;
-        if (!_canStart()) { StatusText.Text = "O acesso administrativo às imagens do sistema foi desativado."; return; }
+        if (!_canStart()) { StatusText.Text = "O acesso administrativo ao carrossel foi desativado."; return; }
         var targets = _recipients.Where(r => r.Selecionado).Select(r => r.Computador).ToList();
         if (targets.Count == 0 || _images.Count == 0)
         {
@@ -106,7 +106,12 @@ public partial class CarrosselWindow : Window
             return;
         }
         if (!TryIntervals(out var min, out var max)) return;
-        var target = ((ComboBoxItem)TargetCombo.SelectedItem).Tag.ToString()!;
+        if (!int.TryParse(DurationSeconds.Text, NumberStyles.None, CultureInfo.InvariantCulture,
+                out var duration) || duration is < 1 or > 300)
+        {
+            StatusText.Text = "Informe o tempo na tela em segundos, de 1 a 300.";
+            return;
+        }
         var paths = _images.ToArray();
         var errors = new List<string>();
         SetBusy(true);
@@ -116,12 +121,24 @@ public partial class CarrosselWindow : Window
         {
             foreach (var computer in targets)
             {
+                // Desliga inclusive o worker antigo de papel de parede antes de
+                // transferir a nova sequência de imagens para a tela normal.
+                var stopped = await SendAsync(computer, new CarouselCommand
+                {
+                    Action = "stop", SessionId = Guid.NewGuid().ToString(),
+                }, null);
+                if (!stopped.Delivered)
+                {
+                    errors.Add($"{computer.NomeExibicao}: {stopped.ErrorMessage}");
+                    TransferProgress.Value += paths.Length + 2;
+                    continue;
+                }
                 var session = Guid.NewGuid().ToString();
                 var begin = new CarouselCommand
                 {
-                    Action = "begin", SessionId = session, Target = target,
+                    Action = "begin", SessionId = session, Target = "center_image",
                     Count = paths.Length, MinMinutes = min, MaxMinutes = max,
-                    Repeat = RepeatCheck.IsChecked == true,
+                    Repeat = RepeatCheck.IsChecked == true, DurationSeconds = duration,
                 };
                 StatusText.Text = $"{computer.NomeExibicao}: preparando carrossel…";
                 var result = await SendAsync(computer, begin, null);

@@ -57,19 +57,25 @@ public sealed class SyncCoordinatorService : IDisposable
             var historyAdded = 0;
             var logsAdded = 0;
             var failures = 0;
-            foreach (var computer in computers)
+            // Rede e disco de um computador não devem atrasar todos os outros.
+            // O limite de quatro evita abrir uma conexão por PC de uma vez.
+            foreach (var batch in computers.Chunk(4))
             {
-                var result = await SyncComputerAsync(computer, ct).ConfigureAwait(false);
-                if (!result.Success)
+                var results = await Task.WhenAll(batch.Select(computer =>
+                    SyncComputerAsync(computer, ct))).ConfigureAwait(false);
+                foreach (var result in results)
                 {
-                    failures++;
-                    continue;
-                }
+                    if (!result.Success)
+                    {
+                        failures++;
+                        continue;
+                    }
 
-                reached++;
-                historyAdded += _history.Mesclar(result.HistoryEntries.Select(i => i.ToModel()));
-                logsAdded += _logs.Mesclar(result.LogEntries.Select(i => i.ToModel()));
-                _profiles.Mesclar(result.ComputerProfiles);
+                    reached++;
+                    historyAdded += _history.Mesclar(result.HistoryEntries.Select(i => i.ToModel()));
+                    logsAdded += _logs.Mesclar(result.LogEntries.Select(i => i.ToModel()));
+                    _profiles.Mesclar(result.ComputerProfiles);
+                }
             }
             return new(reached, historyAdded, logsAdded, failures);
         }

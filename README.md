@@ -1,4 +1,4 @@
-# Comunicador 2.5.11
+# Comunicador 2.5.13
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
@@ -118,7 +118,7 @@ verifica/instala o Python automaticamente, baixa `receptor.py`,
 instala as dependências e configura a tarefa **"Comunicador
 Receptor"** no Agendador de Tarefas do Windows para iniciar com o
 login do usuário (via `pythonw.exe`, sem janela de console). O arquivo
-sempre baixa e valida a versão 2.5.7 publicada no GitHub antes de
+sempre baixa e valida a versão 2.5.9 publicada no GitHub antes de
 substituir uma instalação existente. Ao concluir com sucesso, fecha
 sozinho e apaga o próprio `INSTALAR_RECEPTOR.bat` que foi executado. Para
 reinstalar, baixe uma nova cópia do GitHub. Para remover o receptor, use
@@ -172,12 +172,26 @@ O receptor 2.5.4 ou superior é necessário para alterar a tela de bloqueio.
 
 Em **Mensagens > Abrir carrossel de imagens**, o administrador escolhe quantas
 imagens PNG/JPEG quiser, organiza a ordem e define intervalos fixos ou
-aleatórios em minutos. É possível aplicar no papel de parede, na tela de
-bloqueio ou em ambos. A repetição volta da última imagem para a primeira até
-ser desligada no mesmo local. As imagens são transferidas separadamente; o
-receptor 2.5.5 salva a sequência e mantém um processo do usuário ativo depois
-de fechar o painel e ao entrar novamente no Windows. Cada arquivo tem o limite
-normal de 4 MB. Avisos centrais comuns mostram novamente o texto por inteiro.
+aleatórios em minutos e por quantos segundos cada imagem aparece no centro da
+tela. O carrossel não altera o papel de parede nem a tela de bloqueio. A
+repetição volta da última imagem para a primeira até ser desligada no mesmo
+local. As imagens são transferidas separadamente; o receptor 2.5.9 salva a
+sequência e mantém o carrossel ativo depois de fechar o painel e ao entrar
+novamente no Windows. Cada arquivo tem o limite normal de 4 MB.
+
+Botões com link abrem o navegador por clique também na prévia local. Se o
+navegador não puder ser aberto, o motivo aparece na própria tela.
+
+Em **Mensagens**, a confirmação obrigatória pode ser combinada com o aviso no
+canto ou com a mensagem no centro. O aviso permanece até a pessoa confirmar,
+responder ou clicar em um botão; o painel registra a confirmação no histórico.
+Os envios para vários computadores começam juntos, sem esperar que o primeiro
+destinatário confirme antes de entregar aos demais.
+
+O instalador do receptor preserva o BAT compartilhado quando é iniciado de
+`Z:\CONTROLES\conferencia\9`; após uma instalação bem-sucedida, a janela
+fecha automaticamente. Fora desse caminho, mantém a exclusão automática após
+o sucesso.
 
 ### Assinatura e atualização do executável
 

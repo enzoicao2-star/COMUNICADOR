@@ -11,7 +11,7 @@
         </Grid.RowDefinitions>
         <StackPanel>
             <TextBlock Text="Carrossel de imagens" FontSize="24" FontWeight="SemiBold" />
-            <TextBlock Text="As imagens serão enviadas uma por vez e continuarão alternando mesmo com o painel fechado ou após reiniciar o computador."
+            <TextBlock Text="As imagens aparecerão no centro da tela, uma por vez, sem mudar o papel de parede. O carrossel continua mesmo com o painel fechado ou após reiniciar o computador."
                        TextWrapping="Wrap" Margin="0,5,0,14" Foreground="{DynamicResource TextSecondaryBrush}" />
         </StackPanel>
 
@@ -44,12 +44,8 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
 
-                <TextBlock Text="Alterar" FontWeight="SemiBold" Margin="0,15,0,5" />
-                <ComboBox x:Name="TargetCombo" SelectedIndex="0" Width="250" HorizontalAlignment="Left">
-                    <ComboBoxItem Content="Papel de parede" Tag="wallpaper" />
-                    <ComboBoxItem Content="Tela de bloqueio" Tag="lock_screen" />
-                    <ComboBoxItem Content="Ambos" Tag="both" />
-                </ComboBox>
+                <TextBlock Text="Tempo de cada imagem na tela, em segundos" FontWeight="SemiBold" Margin="0,15,0,6" />
+                <TextBox x:Name="DurationSeconds" Text="15" Width="65" HorizontalAlignment="Left" />
                 <TextBlock Text="Intervalo entre imagens, em minutos" FontWeight="SemiBold" Margin="0,15,0,6" />
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
                     <RadioButton x:Name="FixedRadio" GroupName="Interval" Content="Fixo" IsChecked="True" VerticalAlignment="Center" />

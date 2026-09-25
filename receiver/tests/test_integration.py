@@ -142,11 +142,31 @@ def test_notificacao_sem_permitir_resposta(receptor):
     assert response["type"] == MessageType.ACK
 
 
+@pytest.mark.parametrize("modo", [protocolo.DISPLAY_MODE_TOAST,
+                                  protocolo.DISPLAY_MODE_CENTER_MESSAGE])
+def test_confirmacao_obrigatoria_retorna_resposta_mesmo_sem_campo_de_resposta(receptor, modo):
+    token = pair(receptor["port"])
+    notif = protocolo.base_message(MessageType.NOTIFICATION)
+    notif.update(token=token, sender="PAINEL-TESTE", title="Confirmar", message="Leia",
+                 allow_reply=False, display_mode=modo, confirmation_required=True)
+
+    with socket.create_connection(("127.0.0.1", receptor["port"]), timeout=10) as sock:
+        sock.sendall(protocolo.frame(notif))
+        sock.settimeout(10)
+        data = b""
+        while data.count(b"\n") < 2:
+            data += sock.recv(4096)
+    ack, reply = [json.loads(line) for line in data.splitlines()[:2]]
+    assert ack["type"] == MessageType.ACK
+    assert reply["type"] == MessageType.REPLY
+    assert reply["reply_text"] == "Confirmado"
+
+
 def test_atualizacao_oficial_em_modo_teste(receptor):
     token = pair(receptor["port"])
     pedido = protocolo.base_message(MessageType.UPDATE_REQUEST)
     pedido["token"] = token
-    pedido["target_version"] = "2.5.7"
+    pedido["target_version"] = "2.5.9"
     pedido["update_files"] = []
     for nome in ("receptor.py", "protocolo.py"):
         dados = (RECEPTOR_PATH.parent / nome).read_bytes()
@@ -160,7 +180,7 @@ def test_atualizacao_oficial_em_modo_teste(receptor):
     assert response["type"] == MessageType.UPDATE_STATUS
     assert response["success"] is True
     assert response["status"] == "updated"
-    assert response["receiver_version"] == "2.5.7"
+    assert response["receiver_version"] == "2.5.9"
 
 
 def test_painel_coleta_logs_sem_mostrar_janela(receptor):

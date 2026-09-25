@@ -47,6 +47,7 @@ public sealed class ModeloMensagemGlobal
     public string Titulo { get; set; } = string.Empty;
     public string Mensagem { get; set; } = string.Empty;
     public bool PermitirResposta { get; set; } = true;
+    public bool ConfirmacaoObrigatoria { get; set; }
     public string ModoExibicao { get; set; } = ProtocolConstants.DisplayMode.Toast;
     public List<BotaoResposta> Botoes { get; set; } = [];
     public AparenciaNotificacao Aparencia { get; set; } = new();

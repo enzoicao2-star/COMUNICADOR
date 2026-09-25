@@ -9,9 +9,9 @@
     <AssemblyName>Comunicador</AssemblyName>
     <RootNamespace>Comunicador</RootNamespace>
     <Platforms>x64</Platforms>
-    <Version>2.5.11</Version>
-    <AssemblyVersion>2.5.11.0</AssemblyVersion>
-    <FileVersion>2.5.11.0</FileVersion>
+    <Version>2.5.13</Version>
+    <AssemblyVersion>2.5.13.0</AssemblyVersion>
+    <FileVersion>2.5.13.0</FileVersion>
     <Product>Comunicador</Product>
     <ApplicationIcon>Assets\Comunicador.ico</ApplicationIcon>
   </PropertyGroup>
