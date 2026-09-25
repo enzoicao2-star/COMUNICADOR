@@ -1,0 +1,34 @@
+{
+  "measured_at": "2026-09-25",
+  "configuration": "Release, Windows x64, local synthetic workloads",
+  "receiver_tcp_frame_8_mib_ms": {
+    "before": 3345.93,
+    "after": 44.19,
+    "reduction_percent": 98.7
+  },
+  "panel_history_save_10000_ms_median": {
+    "before": 34.61,
+    "after": 19.02,
+    "reduction_percent": 45.0
+  },
+  "panel_history_file_10000_bytes": {
+    "before": 5837813,
+    "after": 5057842
+  },
+  "panel_profile_merge_trim_250_plus_250_ms": {
+    "before": 50.78,
+    "after": 7.18,
+    "reduction_percent": 85.9
+  },
+  "panel_json_frame_8_mib_ms_median": {
+    "before": 20.62,
+    "after": 9.84,
+    "reduction_percent": 52.3
+  },
+  "ui_benchmark": "sem amostra nova: o processo de benchmark encerrou antes de abrir a janela neste ambiente",
+  "notes": [
+    "Tempos de caminhos isolados, não incluem latência da rede nem tempo de renderização da interface.",
+    "O receptor agora lê blocos maiores e acumula em bytearray, em vez de copiar a mensagem a cada recv.",
+    "O painel serializa JSON diretamente em UTF-8 e reutiliza o quadro validado para enviar mídias e sincronização."
+  ]
+}

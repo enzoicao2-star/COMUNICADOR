@@ -149,13 +149,13 @@ public sealed class ReceptorClient
                 return new NotificationResult(
                     false, false, false, null, $"{validacao.Code}: {validacao.Message}");
             }
-            var tamanho = MessageValidator.ValidateSize(
-                MessageValidator.Frame(notification).Length, isUdp: false);
+            var framed = MessageValidator.Frame(notification);
+            var tamanho = MessageValidator.ValidateSize(framed.Length, isUdp: false);
             if (!tamanho.IsValid)
             {
                 return new NotificationResult(false, false, false, null, tamanho.Message);
             }
-            await TcpFraming.WriteMessageAsync(stream, notification, ct).ConfigureAwait(false);
+            await TcpFraming.WriteFramedAsync(stream, framed, ct).ConfigureAwait(false);
 
             using var ackCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             ackCts.CancelAfter(AckTimeout);
@@ -253,7 +253,8 @@ public sealed class ReceptorClient
     }
 
     public async Task<SyncResult> SyncAsync(
-        string ipAddress, int tcpPort, ComunicadorMessage request, CancellationToken ct = default)
+        string ipAddress, int tcpPort, ComunicadorMessage request, CancellationToken ct = default,
+        byte[]? framed = null)
     {
         try
         {
@@ -261,7 +262,8 @@ public sealed class ReceptorClient
             cts.CancelAfter(TimeSpan.FromSeconds(30));
             using var client = await ConnectAsync(ipAddress, tcpPort, ConnectTimeout, cts.Token).ConfigureAwait(false);
             await using var stream = client.GetStream();
-            await TcpFraming.WriteMessageAsync(stream, request, cts.Token).ConfigureAwait(false);
+            await TcpFraming.WriteFramedAsync(stream, framed ?? MessageValidator.Frame(request),
+                cts.Token).ConfigureAwait(false);
             var response = await ReadValidatedAsync(stream, cts.Token).ConfigureAwait(false);
             if (response.Type == ProtocolConstants.MessageType.Error)
             {

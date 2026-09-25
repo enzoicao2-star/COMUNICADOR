@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set "RECEIVER_VERSION=2.5.6"
+set "RECEIVER_VERSION=2.5.7"
 set "TASK_NAME=Comunicador Receptor"
 set "INSTALL_ROOT=%LOCALAPPDATA%\Comunicador\Receptor"
 set "COMUNICADOR_RECEPTOR_SCRIPT=%LOCALAPPDATA%\Comunicador\Receptor\app\receptor.py"

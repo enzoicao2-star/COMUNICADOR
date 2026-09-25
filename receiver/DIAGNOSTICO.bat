@@ -9,7 +9,7 @@ set "INSTALL_DIR=%BASE%\app"
 set "PORT_TCP=57931"
 set "PORT_UDP=57932"
 set "TASK_NAME=Comunicador Receptor"
-set "EXPECTED_VERSION=2.5.6"
+set "EXPECTED_VERSION=2.5.7"
 
 echo ===============================================
 echo   Comunicador Receptor %EXPECTED_VERSION% - diagnostico
@@ -22,11 +22,11 @@ echo.
 
 echo [1] PYTHON
 for /f "delims=" %%P in ('where python 2^>nul') do (
-    echo %%P | findstr /I /C:"\WindowsApps\python.exe" >nul
-    if errorlevel 1 if not defined PY (
-        for /f "delims=" %%V in ('"%%P" -c "import sys; print(sys.executable)" 2^>nul') do if not defined PY set "PY=%%V"
-    )
+    call :validar_python "%%P"
 )
+if not defined PY for /f "delims=" %%P in ('py -3 -c "import sys; print(sys.executable)" 2^>nul') do call :validar_python "%%P"
+if not defined PY for /d %%D in ("%ProgramFiles%\Python3*") do call :validar_python "%%D\python.exe"
+if not defined PY for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do call :validar_python "%%D\python.exe"
 if defined PY (
     echo     Python real encontrado: !PY!
     "!PY!" --version 2>&1
@@ -128,4 +128,15 @@ echo   Fim do diagnostico. Tire um print desta tela
 echo   e mande para quem esta ajudando.
 echo ===============================================
 pause
+exit /b 0
+
+:validar_python
+if defined PY exit /b 0
+set "CANDIDATO_PY=%~1"
+if not exist "!CANDIDATO_PY!" exit /b 0
+echo(!CANDIDATO_PY!| findstr /I /C:"\WindowsApps\python.exe" >nul
+if not errorlevel 1 exit /b 0
+"!CANDIDATO_PY!" -c "import sys, tkinter; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>nul
+if errorlevel 1 exit /b 0
+for %%Q in ("!CANDIDATO_PY!") do if exist "%%~dpQpythonw.exe" set "PY=%%~fQ"
 exit /b 0

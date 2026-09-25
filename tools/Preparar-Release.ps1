@@ -56,12 +56,12 @@ New-Item -ItemType Directory -Force -Path $releaseDirectory | Out-Null
 Copy-Item -LiteralPath $source -Destination $destination -Force
 $hash = (Get-Sha256 $destination).ToUpperInvariant()
 $releaseNotes = @{
-    summary = 'Terminal remoto do OWNER com CMD comum e controles de áudio.'
+    summary = 'Painel e receptor mais rápidos; instalador do Python corrigido.'
     changes = @(
-        'Em Gerenciar computador, o OWNER pode executar comandos CMD e ver o resultado no painel.',
-        'Com volume N, audio devices e audio select N, é possível ajustar o som e escolher a saída.',
-        'Os comandos expiram em 5 minutos, têm limite de 30 segundos e não pedem acesso de administrador.',
-        'O receptor 2.5.6 executa os comandos mesmo quando o painel de destino está fechado.'
+        'O receptor 2.5.7 recebe imagens, GIFs e vídeos grandes com menos espera.',
+        'O painel 2.5.11 grava histórico e logs mais rapidamente e sincroniza perfis com menos custo.',
+        'O envio de mídias e a sincronização do painel evitam serializações duplicadas.',
+        'O instalador do receptor reconhece Python em caminhos com espaços e mostra o erro original na própria janela se falhar.'
     )
 }
 $manifest = [ordered]@{

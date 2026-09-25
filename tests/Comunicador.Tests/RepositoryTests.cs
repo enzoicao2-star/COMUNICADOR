@@ -9,6 +9,23 @@ namespace Comunicador.Tests;
 public sealed class RepositoryTests
 {
     [Fact]
+    public void JsonStore_LeArquivoLegadoIndentadoESubstituiSemArquivoTemporario()
+    {
+        WithTemporaryStore(directory =>
+        {
+            var path = Path.Combine(directory, "history.json");
+            File.WriteAllText(path, "[\n  { \"Id\": \"antigo\" }\n]");
+            var store = new JsonStore<HistoricoEntry>(path);
+
+            Assert.Equal("antigo", Assert.Single(store.Load()).Id);
+            store.Save([new HistoricoEntry { Id = "novo" }]);
+
+            Assert.Equal("novo", Assert.Single(store.Load()).Id);
+            Assert.False(File.Exists(path + ".tmp"));
+        });
+    }
+
+    [Fact]
     public void Historico_SnapshotEMesclar_MantemOrdemEAtualizaPorId()
     {
         WithTemporaryStore(directory =>

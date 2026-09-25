@@ -1,4 +1,4 @@
-# Comunicador 2.5.10
+# Comunicador 2.5.11
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
@@ -118,7 +118,7 @@ verifica/instala o Python automaticamente, baixa `receptor.py`,
 instala as dependências e configura a tarefa **"Comunicador
 Receptor"** no Agendador de Tarefas do Windows para iniciar com o
 login do usuário (via `pythonw.exe`, sem janela de console). O arquivo
-sempre baixa e valida a versão 2.5.6 publicada no GitHub antes de
+sempre baixa e valida a versão 2.5.7 publicada no GitHub antes de
 substituir uma instalação existente. Ao concluir com sucesso, fecha
 sozinho e apaga o próprio `INSTALAR_RECEPTOR.bat` que foi executado. Para
 reinstalar, baixe uma nova cópia do GitHub. Para remover o receptor, use
@@ -129,10 +129,14 @@ Para conferir antecipadamente todos os alvos sem alterar nada, execute
 
 O instalador baixa os cinco arquivos do receptor em paralelo quando o `curl`
 do Windows permite, reutiliza `pystray` e Pillow quando já estão instalados
-e evita atualizar o `pip` sem necessidade. A opção de instalar o Python
-"para todos os usuários" abrange apenas as contas **do computador local**;
-ela não instala o receptor nos outros computadores da rede. Os arquivos do
-receptor ficam no perfil local da conta que executou o instalador.
+e evita atualizar o `pip` sem necessidade. Ele verifica o Python da conta
+atual, inclusive se estiver em um caminho com espaços, e instala uma cópia
+por usuário quando necessário. Assim o receptor permanece na mesma sessão
+que recebe os avisos. Se a instalação do Python falhar, mostra na própria
+janela o código de saída e as linhas originais de erro para copiar e colar.
+`receiver/INSTALAR_RECEPTOR.bat --verificar-python` testa só a detecção,
+sem instalar nem pedir permissão. A instalação é local ao computador em que
+o BAT foi executado; não instala nada nos outros computadores da rede.
 
 O menu de ações por computador reúne as opções de pareamento, atualização e
 administração remota. Os comandos administrativos são reservados ao OWNER.
@@ -177,8 +181,8 @@ normal de 4 MB. Avisos centrais comuns mostram novamente o texto por inteiro.
 
 ### Assinatura e atualização do executável
 
-A versão 2.5.6 assinada com certificado autoassinado foi bloqueada pelo Controle
-Inteligente de Aplicativos em alguns computadores. A 2.5.7 volta a ser
+A versão 2.5.6 do painel assinada com certificado autoassinado foi bloqueada pelo Controle
+Inteligente de Aplicativos em alguns computadores. O painel 2.5.7 voltou a ser
 distribuída sem assinatura de desenvolvimento e foi aberta em teste no Windows
 do projeto. O `ABRIR_COMUNICADOR.bat` baixa a nova versão e sincroniza os BATs
 do GitHub. O atualizador guarda a versão anterior e a restaura se a nova não

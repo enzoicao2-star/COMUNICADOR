@@ -43,7 +43,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.6"
+RECEIVER_VERSION = "2.5.7"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -1487,16 +1487,8 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
                 in_reply_to=msg.get("id")))
 
     def _read_message(self, buffer: bytes) -> Optional[bytes]:
-        sock = self.request
-        while True:
-            chunk = sock.recv(4096)
-            if not chunk:
-                return None if not buffer else buffer
-            buffer += chunk
-            protocolo.validate_size(len(buffer), is_udp=False)
-            if b"\n" in buffer:
-                line, _, _rest = buffer.partition(b"\n")
-                return line
+        line, _rest = read_framed_message(self.request, buffer, allow_unterminated=True)
+        return line
 
     def _handle_ping(self, msg: dict, server: "ReceptorTcpServer") -> None:
         token = msg["token"]
@@ -1964,16 +1956,11 @@ class ReverseConnection(threading.Thread):
 
     def _ler(self, buffer: bytes):
         """Lê uma mensagem completa, devolvendo (mensagem, buffer_restante)."""
-        while b"\n" not in buffer:
-            if self._sock is None:
-                return None, buffer
-            chunk = self._sock.recv(4096)
-            if not chunk:
-                return None, buffer
-            buffer += chunk
-            protocolo.validate_size(len(buffer), is_udp=False)
-
-        linha, _, resto = buffer.partition(b"\n")
+        if self._sock is None:
+            return None, buffer
+        linha, resto = read_framed_message(self._sock, buffer)
+        if linha is None:
+            return None, resto
         try:
             msg = protocolo.parse(linha)
             protocolo.validate(msg)
@@ -1981,6 +1968,29 @@ class ReverseConnection(threading.Thread):
         except ProtocolError as exc:
             logging.warning("Mensagem inválida do painel %s: %s", self.host, exc)
             return None, resto
+
+
+def read_framed_message(sock, buffer: bytes, allow_unterminated: bool = False):
+    """Lê até o próximo delimitador sem recopiar a mensagem a cada recv."""
+    delimiter = buffer.find(b"\n")
+    if delimiter >= 0:
+        protocolo.validate_size(delimiter + 1, is_udp=False)
+        return buffer[:delimiter], buffer[delimiter + 1:]
+
+    pending = bytearray(buffer)
+    protocolo.validate_size(len(pending), is_udp=False)
+    while True:
+        chunk = sock.recv(64 * 1024)
+        if not chunk:
+            return (bytes(pending) if pending and allow_unterminated else None,
+                    bytes(pending) if not allow_unterminated else b"")
+        delimiter = chunk.find(b"\n")
+        if delimiter >= 0:
+            protocolo.validate_size(len(pending) + delimiter + 1, is_udp=False)
+            pending.extend(chunk[:delimiter])
+            return bytes(pending), chunk[delimiter + 1:]
+        protocolo.validate_size(len(pending) + len(chunk), is_udp=False)
+        pending.extend(chunk)
 
 
 def descobrir_paineis(port: int, timeout: float = 4.0) -> list:

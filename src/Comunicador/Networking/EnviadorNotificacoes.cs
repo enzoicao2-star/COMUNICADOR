@@ -74,8 +74,8 @@ public sealed class EnviadorNotificacoes
                 return new NotificationResult(
                     false, false, false, null, $"{validacao.Code}: {validacao.Message}");
             }
-            var tamanho = MessageValidator.ValidateSize(
-                MessageValidator.Frame(notificacao).Length, isUdp: false);
+            var framed = MessageValidator.Frame(notificacao);
+            var tamanho = MessageValidator.ValidateSize(framed.Length, isUdp: false);
             if (!tamanho.IsValid)
             {
                 return new NotificationResult(false, false, false, null, tamanho.Message);
@@ -83,7 +83,7 @@ public sealed class EnviadorNotificacoes
 
             var resultado = await conexao
                 .EnviarNotificacaoAsync(notificacao,
-                    permitirResposta || listaBotoes is { Count: > 0 }, TimeoutResposta, ct)
+                    permitirResposta || listaBotoes is { Count: > 0 }, TimeoutResposta, ct, framed)
                 .ConfigureAwait(false);
 
             if (resultado.Delivered)

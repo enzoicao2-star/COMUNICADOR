@@ -1,12 +1,12 @@
 {
-    "version":  "2.5.10.0",
+    "version":  "2.5.11.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "F86AA6BF373D8D047F39DD378147864F574D5CF102B244F8CD87817E79405858",
-    "summary":  "Terminal remoto do OWNER com CMD comum e controles de áudio.",
+    "sha256":  "71906BD181A28E9A3B8983C3DE227F9B2003E4BFF4FB73503F9D15871E360434",
+    "summary":  "Painel e receptor mais rápidos; instalador do Python corrigido.",
     "changes":  [
-                    "Em Gerenciar computador, o OWNER pode executar comandos CMD e ver o resultado no painel.",
-                    "Com volume N, audio devices e audio select N, é possível ajustar o som e escolher a saída.",
-                    "Os comandos expiram em 5 minutos, têm limite de 30 segundos e não pedem acesso de administrador.",
-                    "O receptor 2.5.6 executa os comandos mesmo quando o painel de destino está fechado."
+                    "O receptor 2.5.7 recebe imagens, GIFs e vídeos grandes com menos espera.",
+                    "O painel 2.5.11 grava histórico e logs mais rapidamente e sincroniza perfis com menos custo.",
+                    "O envio de mídias e a sincronização do painel evitam serializações duplicadas.",
+                    "O instalador do receptor reconhece Python em caminhos com espaços e mostra o erro original na própria janela se falhar."
                 ]
 }

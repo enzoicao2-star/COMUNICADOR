@@ -22,19 +22,23 @@ for ($run = 1; $run -le $Runs; $run++) {
     $runFile = [IO.Path]::ChangeExtension($output, ".run$run.json")
     Remove-Item -LiteralPath $runFile -Force -ErrorAction SilentlyContinue
     $started = [Diagnostics.Stopwatch]::StartNew()
-    $process = Start-Process -FilePath $exe -ArgumentList ('--benchmark-file=' + $runFile) -PassThru
+    $process = Start-Process -FilePath $exe -ArgumentList @('--monitor=2', ('--benchmark-file=' + $runFile)) -PassThru
     $limit = [DateTime]::UtcNow.AddSeconds(30)
     do {
         Start-Sleep -Milliseconds 25
         $process.Refresh()
     } while ($process.MainWindowHandle -eq 0 -and -not $process.HasExited -and [DateTime]::UtcNow -lt $limit)
     $visibleMs = $started.Elapsed.TotalMilliseconds
-    if ($process.MainWindowHandle -eq 0) { throw "A janela não abriu na medição $run." }
+    $windowHandle = $process.MainWindowHandle
+    if ($process.HasExited -or $null -eq $windowHandle -or $windowHandle -eq [IntPtr]::Zero) {
+        $exitDetail = if ($process.HasExited) { " O processo saiu com codigo $($process.ExitCode)." } else { '' }
+        throw "A janela nao abriu na medicao $run.$exitDetail"
+    }
 
     $screens = @([System.Windows.Forms.Screen]::AllScreens)
     if ($screens.Count -gt 1) {
         $screen = @($screens | Where-Object { -not $_.Primary })[0].WorkingArea
-        [ComunicadorBenchmarkWindow]::SetWindowPos($process.MainWindowHandle, [IntPtr]::Zero,
+        [ComunicadorBenchmarkWindow]::SetWindowPos($windowHandle, [IntPtr]::Zero,
             $screen.X + 20, $screen.Y + 20, [Math]::Min(1260, $screen.Width - 40),
             [Math]::Min(820, $screen.Height - 40), 0x0040) | Out-Null
     }

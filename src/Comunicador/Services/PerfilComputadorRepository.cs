@@ -63,6 +63,8 @@ public sealed class PerfilComputadorRepository
         var changed = 0;
         lock (_gate)
         {
+            var byId = new Dictionary<string, PerfilComputador>(StringComparer.Ordinal);
+            foreach (var profile in _profiles) byId.TryAdd(profile.ComputerId, profile);
             foreach (var item in remote.Take(MaxProfiles))
             {
                 if (string.IsNullOrWhiteSpace(item.ComputerId) ||
@@ -72,12 +74,13 @@ public sealed class PerfilComputadorRepository
                     continue;
 
                 updated = updated.ToUniversalTime();
-                var local = _profiles.FirstOrDefault(p => p.ComputerId == item.ComputerId);
+                byId.TryGetValue(item.ComputerId, out var local);
                 if (local is not null && local.AtualizadoEmUtc >= updated) continue;
                 if (local is null)
                 {
                     local = new PerfilComputador { ComputerId = item.ComputerId };
                     _profiles.Add(local);
+                    byId.Add(item.ComputerId, local);
                 }
                 local.NomePublico = item.DisplayName;
                 local.EhOwner = item.IsOwner;
@@ -112,8 +115,9 @@ public sealed class PerfilComputadorRepository
     {
         if (_profiles.Count > MaxProfiles)
         {
-            _profiles.RemoveAll(p => !_profiles.OrderByDescending(x => x.AtualizadoEmUtc)
-                .Take(MaxProfiles).Contains(p));
+            var keep = _profiles.OrderByDescending(x => x.AtualizadoEmUtc)
+                .Take(MaxProfiles).ToHashSet();
+            _profiles.RemoveAll(p => !keep.Contains(p));
         }
         _store.Save(_profiles);
     }

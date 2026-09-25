@@ -77,10 +77,15 @@ public static class TcpFraming
         }
     }
 
-    public static async Task WriteMessageAsync(Stream stream, ComunicadorMessage message,
+    public static Task WriteMessageAsync(Stream stream, ComunicadorMessage message,
         CancellationToken ct = default, Action<long, long>? transferProgress = null)
     {
-        var framed = MessageValidator.Frame(message);
+        return WriteFramedAsync(stream, MessageValidator.Frame(message), ct, transferProgress);
+    }
+
+    public static async Task WriteFramedAsync(Stream stream, byte[] framed,
+        CancellationToken ct = default, Action<long, long>? transferProgress = null)
+    {
         if (transferProgress is null)
         {
             await stream.WriteAsync(framed, ct).ConfigureAwait(false);

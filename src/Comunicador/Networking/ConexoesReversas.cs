@@ -69,12 +69,14 @@ public sealed class ConexaoReversa : IDisposable
     /// a resposta do usuario. Serializado por conexao para duas notificacoes simultaneas
     /// nao embaralharem suas respostas no mesmo socket.</summary>
     public async Task<NotificationResult> EnviarNotificacaoAsync(
-        ComunicadorMessage notificacao, bool aguardarResposta, TimeSpan timeoutResposta, CancellationToken ct)
+        ComunicadorMessage notificacao, bool aguardarResposta, TimeSpan timeoutResposta,
+        CancellationToken ct, byte[]? framed = null)
     {
         await _envioLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            await TcpFraming.WriteMessageAsync(_stream, notificacao, ct).ConfigureAwait(false);
+            await TcpFraming.WriteFramedAsync(_stream,
+                framed ?? MessageValidator.Frame(notificacao), ct).ConfigureAwait(false);
 
             var ack = await LerAsync(ct).ConfigureAwait(false);
             if (ack is null)
@@ -171,14 +173,16 @@ public sealed class ConexaoReversa : IDisposable
         }
     }
 
-    public async Task<SyncResult> SincronizarAsync(ComunicadorMessage request, CancellationToken ct)
+    public async Task<SyncResult> SincronizarAsync(
+        ComunicadorMessage request, CancellationToken ct, byte[]? framed = null)
     {
         await _envioLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(30));
-            await TcpFraming.WriteMessageAsync(_stream, request, cts.Token).ConfigureAwait(false);
+            await TcpFraming.WriteFramedAsync(_stream,
+                framed ?? MessageValidator.Frame(request), cts.Token).ConfigureAwait(false);
             var response = await LerAsync(cts.Token).ConfigureAwait(false);
             if (response is null)
             {

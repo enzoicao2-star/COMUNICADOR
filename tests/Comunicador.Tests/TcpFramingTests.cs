@@ -45,6 +45,19 @@ public class TcpFramingTests
     }
 
     [Fact]
+    public async Task WriteFramedAsync_ReusesValidatedFrameWithoutChangingBytes()
+    {
+        var msg = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ping);
+        msg.Token = "pré-validado";
+        var framed = MessageValidator.Frame(msg);
+        using var stream = new MemoryStream();
+
+        await TcpFraming.WriteFramedAsync(stream, framed);
+
+        Assert.Equal(framed, stream.ToArray());
+    }
+
+    [Fact]
     public async Task Read_ReturnsNull_OnEmptyStream()
     {
         using var stream = new MemoryStream();

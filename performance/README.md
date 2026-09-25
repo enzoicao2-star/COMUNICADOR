@@ -69,3 +69,34 @@ desligados. A captura de pilhas do Windows foi bloqueada pela política local de
 rastreamento; portanto, essa amostra não permite atribuir o custo a um método
 específico. O resultado completo e o detalhe por execução estão em
 [`optimization-2026-09-23.json`](optimization-2026-09-23.json).
+
+## Otimizações de painel e receptor — 2026-09-25
+
+As medições abaixo são de caminhos isolados em Release no mesmo computador.
+O benchmark do receptor usa um socket simulado e inclui a montagem do quadro,
+sem tempo de rede. Os números completos estão em
+[`optimization-2026-09-25.json`](optimization-2026-09-25.json).
+
+| Operação | Antes | Depois | Redução |
+|---|---:|---:|---:|
+| Receptor: montar mensagem TCP de 8 MiB | 3.345,93 ms | 44,19 ms | 98,7% |
+| Painel: gravar 10.000 mensagens | 34,61 ms | 19,02 ms | 45,0% |
+| Painel: mesclar e aparar 250 + 250 perfis | 50,78 ms | 7,18 ms | 85,9% |
+| Painel: serializar quadro JSON de 8 MiB | 20,62 ms | 9,84 ms | 52,3% |
+
+O arquivo de histórico com 10.000 registros caiu de 5.837.813 para
+5.057.842 bytes. A gravação continua síncrona para não perder mensagens ao
+fechar o painel; o arquivo antigo com JSON indentado continua legível.
+Os envios de mídia e de sincronização agora reutilizam o quadro serializado
+na validação, evitando uma segunda serialização.
+
+Para repetir as medições:
+
+```powershell
+python performance/benchmark_receiver_framing.py
+dotnet test tests/Comunicador.Tests/Comunicador.Tests.csproj -c Release --filter Category=Performance --logger "console;verbosity=detailed"
+```
+
+Não há uma nova amostra de abertura e navegação: neste ambiente o executável
+de benchmark encerrou antes de abrir a janela, inclusive com acesso normal ao
+perfil do Windows. Os tempos acima não medem a experiência completa da UI.

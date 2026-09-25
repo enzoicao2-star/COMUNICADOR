@@ -167,8 +167,11 @@ public static class MessageValidator
 
     public static byte[] Frame(ComunicadorMessage message)
     {
-        var json = JsonSerializer.Serialize(message, JsonOptions);
-        return Encoding.UTF8.GetBytes(json + "\n");
+        var json = JsonSerializer.SerializeToUtf8Bytes(message, JsonOptions);
+        var framed = new byte[json.Length + 1];
+        Buffer.BlockCopy(json, 0, framed, 0, json.Length);
+        framed[^1] = (byte)'\n';
+        return framed;
     }
 
     /// <summary>Botões são opcionais, mas quando vêm precisam ser sãos: quantidade,

@@ -1,10 +1,27 @@
 @echo off
 setlocal enabledelayedexpansion
-set "RECEIVER_VERSION=2.5.6"
+set "RECEIVER_VERSION=2.5.7"
 
-rem Criar a tarefa no Agendador e liberar portas no Firewall exige administrador.
-rem Se este .bat nao estiver rodando elevado, pede UAC uma unica vez e continua
-rem na janela elevada (a original so passa a bola e fecha).
+rem Modo de diagnostico seguro: testa a deteccao sem instalar nem pedir UAC.
+if /I "%~1"=="--verificar-python" (
+    if "%~2"=="" (call :detectar_python) else (call :validar_python "%~2")
+    if defined PYTHON_EXE (
+        echo Python encontrado em: !PYTHON_EXE!
+        exit /b 0
+    )
+    echo Python compativel nao encontrado.
+    exit /b 1
+)
+if /I "%~1"=="--verificar-erro-python" (
+    set "PYTHON_INSTALL_LOG=%~2"
+    set "PYTHON_INSTALL_CODE=%~3"
+    call :mostrar_erro_python
+    exit /b 0
+)
+
+rem Python e notificacoes devem rodar na conta que fez login. Elevar o BAT
+rem inteiro pode trocar para outra conta administradora, esconder um Python ja
+rem instalado e fazer o receptor abrir na sessao de usuario errada.
 set "SEM_ADMIN="
 
 rem Copia este .bat para o disco local antes de qualquer coisa.
@@ -31,16 +48,8 @@ if /I not "%~d0"=="%SystemDrive%" (
 
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Para configurar o Agendador de Tarefas e o Firewall, o Windows pede
-    echo permissao de administrador. Uma janela vai aparecer ^(UAC^)...
-    echo.
-    powershell -NoProfile -Command "try { Start-Process -FilePath '%~f0' -Verb RunAs -ErrorAction Stop; exit 0 } catch { exit 1 }"
-    if not errorlevel 1 exit /b
-    rem UAC recusado/indisponivel: seguimos assim mesmo. O receptor ainda e
-    rem instalado e iniciado; a inicializacao automatica usa a pasta Inicializar
-    rem (que nao precisa de admin) e o Firewall fica por conta do usuario.
-    echo AVISO: permissao de administrador nao concedida.
-    echo        A instalacao CONTINUA em modo limitado.
+    echo Instalando na conta atual, sem trocar de usuario pelo UAC.
+    echo Se o Firewall exigir administrador, a conexao reversa continuara ativa.
     echo.
     set "SEM_ADMIN=1"
 )
@@ -58,22 +67,14 @@ set "CACHE_BUSTER=%RANDOM%%RANDOM%%RANDOM%"
 set "COMUNICADOR_RECEPTOR_SCRIPT=%LOCALAPPDATA%\Comunicador\Receptor\app\receptor.py"
 set "TASK_NAME=Comunicador Receptor"
 set "PYTHON_INSTALLER_URL=https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe"
-set "PYTHON_INSTALLER=%TEMP%\comunicador_python_installer.exe"
+set "PYTHON_INSTALLER=%TEMP%\Comunicador-Python-3.12.10-%RANDOM%.exe"
+set "PYTHON_INSTALL_LOG=%TEMP%\Comunicador-Python-install-%RANDOM%.log"
 set "PYTHON_EXE="
 set "PORT_TCP=57931"
 set "PORT_UDP=57932"
 
 echo [1/8] Verificando se o Python ja esta instalado...
-for /f "delims=" %%P in ('where python 2^>nul') do call :validar_python "%%P"
-if not defined PYTHON_EXE (
-    for /f "delims=" %%P in ('py -3 -c "import sys; print(sys.executable)" 2^>nul') do call :validar_python "%%P"
-)
-if not defined PYTHON_EXE (
-    for /d %%D in ("%ProgramFiles%\Python3*") do call :validar_python "%%D\python.exe"
-)
-if not defined PYTHON_EXE (
-    for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do call :validar_python "%%D\python.exe"
-)
+call :detectar_python
 
 if defined PYTHON_EXE (
     echo       Python encontrado em: !PYTHON_EXE!
@@ -81,37 +82,33 @@ if defined PYTHON_EXE (
     echo       Python nao encontrado nesta maquina.
     echo.
     echo [2/8] Baixando o instalador oficial do Python ^(python.org^)...
-    curl -fsSL -o "%PYTHON_INSTALLER%" "%PYTHON_INSTALLER_URL%"
+    curl.exe --fail --location --silent --show-error --retry 2 -o "%PYTHON_INSTALLER%" "%PYTHON_INSTALLER_URL%"
     if errorlevel 1 (
         echo ERRO: falha ao baixar o instalador do Python. Verifique sua conexao com a internet.
         goto :erro
     )
 
-    if defined SEM_ADMIN (
-        echo       Instalando Python silenciosamente para este usuario...
-        "%PYTHON_INSTALLER%" /quiet InstallAllUsers=0 PrependPath=1 Include_launcher=0 Include_test=0
-    ) else (
-        echo       Instalando Python silenciosamente para todos os usuarios...
-        "%PYTHON_INSTALLER%" /quiet InstallAllUsers=1 PrependPath=1 Include_launcher=0 Include_test=0
-    )
-    if errorlevel 1 (
-        echo ERRO: a instalacao do Python falhou.
+    rem Instalar para a conta que usa o receptor evita conflito com outra
+    rem instalacao global e nao exige modificar o PATH do computador.
+    echo       Instalando Python para este usuario...
+    "%PYTHON_INSTALLER%" /quiet InstallAllUsers=0 PrependPath=0 ^
+        Include_launcher=0 Include_test=0 Include_pip=1 Include_tcltk=1 ^
+        /log "!PYTHON_INSTALL_LOG!"
+    set "PYTHON_INSTALL_CODE=!errorlevel!"
+    if "!PYTHON_INSTALL_CODE!"=="3010" echo       O instalador pediu reinicio; verificando se o Python ja funciona.
+    if not "!PYTHON_INSTALL_CODE!"=="0" if not "!PYTHON_INSTALL_CODE!"=="3010" (
+        echo ERRO: instalador do Python retornou o codigo !PYTHON_INSTALL_CODE!.
+        call :mostrar_erro_python
         goto :erro
     )
-    del "%PYTHON_INSTALLER%" >nul 2>nul
+    del "!PYTHON_INSTALLER!" >nul 2>nul
 
     echo       Verificando instalacao...
     set "PYTHON_EXE="
-    for /d %%D in ("%ProgramFiles%\Python3*") do (
-        call :validar_python "%%D\python.exe"
-    )
+    call :detectar_python
     if not defined PYTHON_EXE (
-        for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do (
-            call :validar_python "%%D\python.exe"
-        )
-    )
-    if not defined PYTHON_EXE (
-        echo ERRO: nao foi possivel localizar o Python apos a instalacao.
+        echo ERRO: Python foi instalado mas nao passou na verificacao de versao, Tk ou pythonw.
+        call :mostrar_erro_python
         goto :erro
     )
     echo       Python instalado em: !PYTHON_EXE!
@@ -367,16 +364,49 @@ set "CANDIDATO_PY=%~1"
 if not exist "!CANDIDATO_PY!" exit /b 0
 echo(!CANDIDATO_PY!| findstr /I /C:"\WindowsApps\python.exe" >nul
 if not errorlevel 1 exit /b 0
-set "PYCHECK="
-for /f "delims=" %%V in ('"!CANDIDATO_PY!" -c "import sys; print(sys.executable)" 2^>nul') do if not defined PYCHECK set "PYCHECK=%%V"
-if not defined PYCHECK exit /b 0
-for %%Q in ("!PYCHECK!") do (
-    if exist "%%~dpQpythonw.exe" set "PYTHON_EXE=%%~fQ"
+rem Evita o for /f com executavel entre aspas: cmd.exe perde as aspas de
+rem caminhos com espacos e classificava um Python valido como inexistente.
+"!CANDIDATO_PY!" -c "import sys, tkinter; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>nul
+if errorlevel 1 exit /b 0
+for %%Q in ("!CANDIDATO_PY!") do if exist "%%~dpQpythonw.exe" set "PYTHON_EXE=%%~fQ"
+exit /b 0
+
+:detectar_python
+for /f "delims=" %%P in ('where python 2^>nul') do call :validar_python "%%P"
+if not defined PYTHON_EXE (
+    for /f "delims=" %%P in ('py -3 -c "import sys; print(sys.executable)" 2^>nul') do call :validar_python "%%P"
 )
+if not defined PYTHON_EXE (
+    for /d %%D in ("%ProgramFiles%\Python3*") do call :validar_python "%%D\python.exe"
+)
+if not defined PYTHON_EXE (
+    for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do call :validar_python "%%D\python.exe"
+)
+exit /b 0
+
+:mostrar_erro_python
+echo.
+echo ===== ERRO ORIGINAL DO INSTALADOR PYTHON - COPIE DAQUI =====
+powershell -NoProfile -NonInteractive -Command ^
+    "$prefix=[IO.Path]::GetFileNameWithoutExtension($env:PYTHON_INSTALL_LOG);" ^
+    "$files=@(Get-ChildItem -LiteralPath $env:TEMP -Filter ($prefix+'*.log') -File -ErrorAction SilentlyContinue);" ^
+    "Write-Output ('Codigo de saida: '+$env:PYTHON_INSTALL_CODE);" ^
+    "if (-not $files) { Write-Output 'O instalador nao gerou detalhes em texto.'; exit };" ^
+    "$shown=$false;" ^
+    "foreach ($file in $files) {" ^
+    "  $errors=@(Get-Content -LiteralPath $file.FullName -ErrorAction SilentlyContinue |" ^
+    "    Select-String -Pattern 'error|failed|failure|exception|0x[0-9a-f]{8}' |" ^
+    "    Select-Object -Last 30 | ForEach-Object { $_.Line });" ^
+    "  if ($errors.Count) { $shown=$true; Write-Output ('--- '+$file.Name+' ---'); $errors | ForEach-Object { Write-Output $_ } }" ^
+    "};" ^
+    "if (-not $shown) { Get-Content -LiteralPath $files[0].FullName -Tail 30 }"
+echo ===== FIM DO ERRO ORIGINAL =====
+echo.
 exit /b 0
 
 :erro
 if exist "%DOWNLOAD_DIR%" rmdir /s /q "%DOWNLOAD_DIR%" >nul 2>nul
+if defined PYTHON_INSTALLER if exist "!PYTHON_INSTALLER!" del /q "!PYTHON_INSTALLER!" >nul 2>nul
 echo.
 echo ===============================================
 echo   Instalacao FALHOU. Veja os erros acima.

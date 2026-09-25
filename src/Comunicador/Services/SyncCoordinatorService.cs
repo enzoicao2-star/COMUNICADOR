@@ -101,15 +101,17 @@ public sealed class SyncCoordinatorService : IDisposable
         {
             return new(false, [], [], [], validation.Message);
         }
-        var size = MessageValidator.ValidateSize(MessageValidator.Frame(request).Length, isUdp: false);
+        var framed = MessageValidator.Frame(request);
+        var size = MessageValidator.ValidateSize(framed.Length, isUdp: false);
         if (!size.IsValid)
         {
             return new(false, [], [], [], size.Message);
         }
 
         return connection is not null
-            ? await connection.SincronizarAsync(request, ct).ConfigureAwait(false)
-            : await _client.SyncAsync(computer.EnderecoIp, computer.PortaTcp, request, ct).ConfigureAwait(false);
+            ? await connection.SincronizarAsync(request, ct, framed).ConfigureAwait(false)
+            : await _client.SyncAsync(computer.EnderecoIp, computer.PortaTcp, request, ct,
+                framed).ConfigureAwait(false);
     }
 
     private async Task LoopAsync(CancellationToken ct)

@@ -6,7 +6,7 @@ namespace Comunicador.Storage;
 /// <summary>Load/save helper for a JSON-serialized list persisted to a single file, one per model type.</summary>
 public sealed class JsonStore<T>
 {
-    private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions Options = new();
     private readonly string _path;
     private readonly object _lock = new();
 
@@ -27,8 +27,8 @@ public sealed class JsonStore<T>
 
             try
             {
-                var json = File.ReadAllText(_path);
-                return JsonSerializer.Deserialize<List<T>>(json, Options) ?? new List<T>();
+                using var stream = File.OpenRead(_path);
+                return JsonSerializer.Deserialize<List<T>>(stream, Options) ?? new List<T>();
             }
             catch (JsonException)
             {
@@ -42,11 +42,13 @@ public sealed class JsonStore<T>
         lock (_lock)
         {
             AppPaths.EnsureCreated();
-            var json = JsonSerializer.Serialize(items.ToList(), Options);
             var tmpPath = _path + ".tmp";
-            File.WriteAllText(tmpPath, json);
-            File.Copy(tmpPath, _path, overwrite: true);
-            File.Delete(tmpPath);
+            using (var stream = new FileStream(tmpPath, FileMode.Create, FileAccess.Write,
+                       FileShare.None, bufferSize: 64 * 1024))
+            {
+                JsonSerializer.Serialize(stream, items, Options);
+            }
+            File.Move(tmpPath, _path, overwrite: true);
         }
     }
 }
