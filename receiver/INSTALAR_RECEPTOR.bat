@@ -1,6 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-set "RECEIVER_VERSION=2.5.9"
+set "RECEIVER_VERSION=2.5.8"
 if not defined COMUNICADOR_SOURCE_DIR set "COMUNICADOR_SOURCE_DIR=%~dp0"
 
 rem Modo de diagnostico seguro: testa a deteccao sem instalar nem pedir UAC.
