@@ -17,7 +17,7 @@ public static class SettingsStore
         if (!File.Exists(AppPaths.ConfiguracoesFile))
         {
             var fresh = new AppSettings();
-            fresh.PainelId = DeviceIdentityStore.GetOrCreate(fresh.PainelId);
+            fresh.PainelId = DeviceIdentityStore.GetOrCreate();
             Save(fresh);
             return fresh;
         }
@@ -46,7 +46,7 @@ public static class SettingsStore
         catch (JsonException)
         {
             var fresh = new AppSettings();
-            fresh.PainelId = DeviceIdentityStore.GetOrCreate(fresh.PainelId);
+            fresh.PainelId = DeviceIdentityStore.GetOrCreate();
             Save(fresh);
             return fresh;
         }

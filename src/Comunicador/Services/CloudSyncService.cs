@@ -212,16 +212,19 @@ public sealed class CloudSyncService : IDisposable
             new { kind = "admin_command", command, sender = _settings.NomePainel }, ct).ConfigureAwait(false);
     }
 
-    public async Task QueueRemoteCommandAsync(string targetDeviceId, string command, CancellationToken ct = default)
+    public async Task QueueRemoteCommandAsync(
+        string targetDeviceId, string command, string requestId, CancellationToken ct = default)
     {
         if (!IsAdmin) throw new UnauthorizedAccessException("Somente o OWNER pode enviar comandos CMD remotos.");
         if (!RemoteCommandExecutor.IsValid(command))
             throw new ArgumentException("Digite um comando de até 500 caracteres.", nameof(command));
+        if (string.IsNullOrWhiteSpace(requestId))
+            throw new ArgumentException("Identificador da solicitação inválido.", nameof(requestId));
         if (string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Escolha outro computador para esta ação.");
         await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
         await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
-            new { kind = "admin_command", command = "run_cmd", line = command.Trim(),
+            new { kind = "admin_command", command = "run_cmd", request_id = requestId, line = command.Trim(),
                 expires_at = DateTimeOffset.UtcNow.AddMinutes(5).ToString("O"), sender = _settings.NomePainel }, ct)
             .ConfigureAwait(false);
     }

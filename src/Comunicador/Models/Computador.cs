@@ -53,6 +53,10 @@ public sealed class Computador : ObservableModel
 
     public string Id { get => _id; set => SetField(ref _id, value); }
 
+    /// <summary>Identificadores antigos deste mesmo PC, guardados ao consolidar
+    /// uma instalação que passou de receptor para painel.</summary>
+    public List<string> LegacyDeviceIds { get; set; } = [];
+
     /// <summary>Nome informado pela própria máquina (hostname).</summary>
     public string Nome
     {
@@ -100,6 +104,9 @@ public sealed class Computador : ObservableModel
             {
                 OnPropertyChanged(nameof(PodeAtualizarReceptor));
                 OnPropertyChanged(nameof(StatusVersaoPainel));
+                OnPropertyChanged(nameof(StatusVersoes));
+                OnPropertyChanged(nameof(TodasVersoesAtualizadas));
+                OnPropertyChanged(nameof(TextoTipoInstalacao));
             }
         }
     }
@@ -143,6 +150,10 @@ public sealed class Computador : ObservableModel
                 OnPropertyChanged(nameof(ReceptorAtualizado));
                 OnPropertyChanged(nameof(StatusVersaoReceptor));
                 OnPropertyChanged(nameof(PodeAtualizarReceptor));
+                OnPropertyChanged(nameof(StatusVersoes));
+                OnPropertyChanged(nameof(TodasVersoesAtualizadas));
+                OnPropertyChanged(nameof(TemReceptor));
+                OnPropertyChanged(nameof(TextoTipoInstalacao));
             }
         }
     }
@@ -156,6 +167,8 @@ public sealed class Computador : ObservableModel
             {
                 OnPropertyChanged(nameof(StatusVersaoPainel));
                 OnPropertyChanged(nameof(PainelAtualizado));
+                OnPropertyChanged(nameof(StatusVersoes));
+                OnPropertyChanged(nameof(TodasVersoesAtualizadas));
             }
         }
     }
@@ -224,6 +237,20 @@ public sealed class Computador : ObservableModel
                 ? $"Painel {VersaoPainel} atualizado"
                 : $"Painel {VersaoPainel} — atualização disponível";
 
+    [JsonIgnore]
+    public string StatusVersoes => TemPainel
+        ? string.Join(" · ", new[] { StatusVersaoPainel, TemReceptor ? StatusVersaoReceptor : "Receptor não instalado" })
+        : StatusVersaoReceptor;
+
+    [JsonIgnore]
+    public bool TemReceptor => !string.IsNullOrWhiteSpace(VersaoReceptor);
+
+    [JsonIgnore]
+    public string TextoTipoInstalacao => TemReceptor ? "PAINEL + RECEPTOR" : "PAINEL";
+
+    [JsonIgnore]
+    public bool TodasVersoesAtualizadas => PainelAtualizado && ReceptorAtualizado;
+
     [JsonIgnore] public string NovoBadgeTexto { get => _novoBadgeTexto; set => SetField(ref _novoBadgeTexto, value); }
     [JsonIgnore] public string NovoBadgeCor { get => _novoBadgeCor; set => SetField(ref _novoBadgeCor, value); }
     [JsonIgnore] public string NovoBadgeEstilo { get => _novoBadgeEstilo; set => SetField(ref _novoBadgeEstilo, value); }
@@ -246,6 +273,7 @@ public sealed class Computador : ObservableModel
             if (SetField(ref _atualizandoReceptor, value))
             {
                 OnPropertyChanged(nameof(StatusVersaoReceptor));
+                OnPropertyChanged(nameof(StatusVersoes));
                 OnPropertyChanged(nameof(PodeAtualizarReceptor));
             }
         }
@@ -258,7 +286,10 @@ public sealed class Computador : ObservableModel
         set
         {
             if (SetField(ref _progressoAtualizacaoReceptor, Math.Clamp(value, 0, 100)))
+            {
                 OnPropertyChanged(nameof(StatusVersaoReceptor));
+                OnPropertyChanged(nameof(StatusVersoes));
+            }
         }
     }
 
@@ -269,7 +300,10 @@ public sealed class Computador : ObservableModel
         set
         {
             if (SetField(ref _etapaAtualizacaoReceptor, value))
+            {
                 OnPropertyChanged(nameof(StatusVersaoReceptor));
+                OnPropertyChanged(nameof(StatusVersoes));
+            }
         }
     }
 

@@ -29,9 +29,27 @@ public static class DeviceIdentityStore
                 // Um arquivo inválido é recriado de forma atômica abaixo.
             }
 
-            var id = Guid.TryParse(legacyPanelId, out var legacy) ? legacy : Guid.NewGuid();
+            var id = Guid.TryParse(legacyPanelId, out var legacy)
+                ? legacy
+                : LerIdentidadeDoReceptor() ?? Guid.NewGuid();
             Save(id.ToString(), hasPanel: true);
             return id.ToString();
+        }
+    }
+
+    private static Guid? LerIdentidadeDoReceptor()
+    {
+        try
+        {
+            var path = Path.Combine(AppPaths.LocalSharedDir, "Receptor", "config.json");
+            if (!File.Exists(path)) return null;
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            return document.RootElement.TryGetProperty("computer_id", out var value)
+                && Guid.TryParse(value.GetString(), out var id) ? id : null;
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            return null;
         }
     }
 

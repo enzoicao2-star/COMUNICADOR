@@ -200,5 +200,17 @@
       "Se a conexão direta falhar, o painel envia o instalador oficial pela nuvem.",
       "A atualização só aparece como concluída após o receptor publicar a nova versão; pedidos sem confirmação ficam pendentes."
     ]
+  },
+  {
+    "version": "2.5.17.0",
+    "summary": "CMD remoto sem avisos e atualização silenciosa de receptores.",
+    "changes": [
+      "O painel mostra o estado de espera antes de enviar o comando, para não sobrescrever uma resposta que chegue rapidamente.",
+      "Cada execução tem um identificador próprio; respostas antigas não substituem o resultado do comando atual, e a resposta aparece somente no campo CMD.",
+      "A reinstalação remota do receptor roda sem janela de CMD e sem notificação de instalação.",
+      "O receptor atualizado para 2.5.12 não abre console durante a reinstalação em segundo plano.",
+      "Ao instalar o painel em um PC com receptor, os dois aproveitam a mesma identidade e aparecem em um único cartão.",
+      "Cartões de PCs com painel mostram as versões do painel e do receptor juntos."
+    ]
   }
 ]

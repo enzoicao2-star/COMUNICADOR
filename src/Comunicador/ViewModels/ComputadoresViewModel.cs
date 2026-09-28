@@ -30,6 +30,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private Computador? _computadorGerenciado;
     private string _comandoRemoto = string.Empty;
     private string _resultadoComandoRemoto = "Digite um comando e clique em Executar.";
+    private string? _comandoRemotoRequestId;
+    private string? _comandoRemotoTargetId;
 
     public ObservableCollection<Computador> Computadores { get; } = new();
 
@@ -575,26 +577,49 @@ public sealed class ComputadoresViewModel : ViewModelBase
         try
         {
             var line = ComandoRemoto.Trim();
-            await _cloud.QueueRemoteCommandAsync(computador.Id, line).ConfigureAwait(true);
+            var requestId = Guid.NewGuid().ToString("N");
+            _comandoRemotoRequestId = requestId;
+            _comandoRemotoTargetId = computador.Id;
             ResultadoComandoRemoto = $"> {line}\nAguardando resposta de {computador.NomeExibicao}…";
+            await _cloud.QueueRemoteCommandAsync(computador.Id, line, requestId).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
+            _comandoRemotoRequestId = null;
+            _comandoRemotoTargetId = null;
             ResultadoComandoRemoto = $"Falha no envio: {ex.Message}";
         }
     }
 
     private void OnRemoteCommandResponse(CloudDelivery response)
     {
-        if (response.Payload.ValueKind != System.Text.Json.JsonValueKind.Object
-            || !response.Payload.TryGetProperty("command", out var command)
-            || command.GetString() != "run_cmd") return;
         UiDispatcher.Invoke(() =>
         {
-            if (ComputadorGerenciado?.Id != response.TargetDeviceId) return;
-            var line = response.Payload.TryGetProperty("line", out var lineNode) ? lineNode.GetString() : null;
-            ResultadoComandoRemoto = $"> {line}\n{response.ResponseText ?? "Sem resposta do computador."}";
+            var result = TryFormatRemoteCommandResponse(
+                response, _comandoRemotoTargetId, _comandoRemotoRequestId);
+            if (result is null) return;
+            ResultadoComandoRemoto = result;
+            _comandoRemotoRequestId = null;
+            _comandoRemotoTargetId = null;
         });
+    }
+
+    private static string? TryFormatRemoteCommandResponse(
+        CloudDelivery response, string? expectedTargetId, string? expectedRequestId)
+    {
+        var payload = response.Payload;
+        if (payload.ValueKind != System.Text.Json.JsonValueKind.Object
+            || !payload.TryGetProperty("command", out var command)
+            || command.ValueKind != System.Text.Json.JsonValueKind.String
+            || command.GetString() != "run_cmd"
+            || !string.Equals(expectedTargetId, response.TargetDeviceId, StringComparison.OrdinalIgnoreCase)
+            || !payload.TryGetProperty("request_id", out var requestId)
+            || requestId.ValueKind != System.Text.Json.JsonValueKind.String
+            || !string.Equals(expectedRequestId, requestId.GetString(), StringComparison.Ordinal))
+            return null;
+
+        var line = payload.TryGetProperty("line", out var lineNode) ? lineNode.GetString() : null;
+        return $"> {line}\n{response.ResponseText ?? "Sem resposta do computador."}";
     }
 
     private bool PodeEditar(Computador computador) => _cloud.CanEdit(computador.Id);
@@ -610,14 +635,32 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private void OnCloudDevicesReceived(IReadOnlyList<CloudDevice> devices) => UiDispatcher.Invoke(() =>
     {
         var changed = false;
+        var aliasesByPanelId = FindMigratedReceiverAliases(devices);
+        var aliasIds = aliasesByPanelId.Values.SelectMany(ids => ids)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var device in devices)
         {
             if (string.IsNullOrWhiteSpace(device.DeviceId)) continue;
+            if (aliasIds.Contains(device.DeviceId)) continue;
             if (_cloudReceiverUpdates.TryGetValue(device.DeviceId, out var updateConfirmation))
                 updateConfirmation.Observe(device);
             var computador = Computadores.FirstOrDefault(c =>
                 string.Equals(c.Id, device.DeviceId, StringComparison.OrdinalIgnoreCase));
             var created = computador is null;
+            var migratedIdentity = false;
+            if (computador is null && aliasesByPanelId.TryGetValue(device.DeviceId, out var oldIds))
+            {
+                computador = Computadores.FirstOrDefault(c => oldIds.Contains(c.Id, StringComparer.OrdinalIgnoreCase));
+                if (computador is not null)
+                {
+                    var oldId = computador.Id;
+                    computador.Id = device.DeviceId;
+                    AddLegacyId(computador, oldId);
+                    foreach (var badge in computador.Badges) badge.ComputerId = device.DeviceId;
+                    migratedIdentity = true;
+                    changed = true;
+                }
+            }
             if (computador is null)
             {
                 computador = new Computador
@@ -633,12 +676,34 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 Computadores.Add(computador);
                 changed = true;
             }
+            if (aliasesByPanelId.TryGetValue(device.DeviceId, out var legacyIds))
+            {
+                foreach (var legacyId in legacyIds)
+                {
+                    if (AddLegacyId(computador, legacyId)) changed = true;
+                    var duplicate = Computadores.FirstOrDefault(c =>
+                        !ReferenceEquals(c, computador)
+                        && string.Equals(c.Id, legacyId, StringComparison.OrdinalIgnoreCase));
+                    if (duplicate is null) continue;
+                    MergeComputerDetails(computador, duplicate);
+                    Computadores.Remove(duplicate);
+                    migratedIdentity = true;
+                    changed = true;
+                }
+            }
             if (!computador.Pareado)
             {
                 var status = device.LastSeenAt > DateTimeOffset.UtcNow.AddSeconds(-45)
                     ? StatusComputador.Online : StatusComputador.Offline;
                 if (computador.Status != status) { computador.Status = status; changed = true; }
                 computador.UltimaVezVisto = device.LastSeenAt.UtcDateTime;
+            }
+            else if (migratedIdentity)
+            {
+                computador.Status = device.LastSeenAt > DateTimeOffset.UtcNow.AddSeconds(-45)
+                    ? StatusComputador.Online : StatusComputador.Offline;
+                computador.UltimaVezVisto = device.LastSeenAt.UtcDateTime;
+                computador.PingMs = null;
             }
             if (!string.Equals(computador.Nome, device.MachineName, StringComparison.Ordinal))
             {
@@ -669,7 +734,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 computador.VersaoReceptor = device.ReceiverVersion;
                 changed = true;
             }
-            if (created) AplicarPerfil(computador);
+            if (created || migratedIdentity) AplicarPerfil(computador);
         }
         if (changed)
         {
@@ -677,6 +742,47 @@ public sealed class ComputadoresViewModel : ViewModelBase
             CommandManager.InvalidateRequerySuggested();
         }
     });
+
+    private static Dictionary<string, string[]> FindMigratedReceiverAliases(
+        IReadOnlyList<CloudDevice> devices)
+    {
+        var aliases = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+        foreach (var group in devices
+            .Where(d => !string.IsNullOrWhiteSpace(d.MachineName) && !string.IsNullOrWhiteSpace(d.DeviceId))
+            .GroupBy(d => d.MachineName.Trim(), StringComparer.OrdinalIgnoreCase))
+        {
+            var panels = group.Where(d => d.HasPanel).ToArray();
+            var receivers = group.Where(d => !d.HasPanel).ToArray();
+            if (panels.Length == 1 && receivers.Length == 1
+                && !string.Equals(panels[0].DeviceId, receivers[0].DeviceId, StringComparison.OrdinalIgnoreCase))
+                aliases[panels[0].DeviceId] = [receivers[0].DeviceId];
+        }
+        return aliases;
+    }
+
+    private static bool AddLegacyId(Computador computador, string legacyId)
+    {
+        if (string.IsNullOrWhiteSpace(legacyId)
+            || computador.LegacyDeviceIds.Contains(legacyId, StringComparer.OrdinalIgnoreCase)) return false;
+        computador.LegacyDeviceIds.Add(legacyId);
+        return true;
+    }
+
+    private static void MergeComputerDetails(Computador primary, Computador duplicate)
+    {
+        if (string.IsNullOrWhiteSpace(primary.EnderecoIp) && !string.IsNullOrWhiteSpace(duplicate.EnderecoIp))
+            primary.EnderecoIp = duplicate.EnderecoIp;
+        if (primary.PortaTcp <= 0) primary.PortaTcp = duplicate.PortaTcp;
+        if (string.IsNullOrWhiteSpace(primary.Token)) primary.Token = duplicate.Token;
+        primary.Pareado |= duplicate.Pareado;
+        if (primary.Monitores.Count == 0 && duplicate.Monitores.Count > 0)
+            primary.Monitores = duplicate.Monitores;
+        if (primary.Badges.Count == 0 && duplicate.Badges.Count > 0)
+            primary.Badges = duplicate.Badges.Select(b => b.Clone()).ToList();
+        if (string.IsNullOrWhiteSpace(primary.Apelido)) primary.Apelido = duplicate.Apelido;
+        foreach (var id in duplicate.LegacyDeviceIds) AddLegacyId(primary, id);
+        AddLegacyId(primary, duplicate.Id);
+    }
 
     public IReadOnlyList<Computador> Snapshot() => Computadores.ToList();
 

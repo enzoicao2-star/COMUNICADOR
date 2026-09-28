@@ -43,7 +43,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.11"
+RECEIVER_VERSION = "2.5.12"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -704,11 +704,32 @@ class Config:
             identity = json.loads((self.directory.parent / "device.json").read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return
-        if identity.get("device_id") != self.computer_id:
+        shared_id = identity.get("device_id")
+        if not isinstance(shared_id, str) or not protocolo.is_valid_uuid(shared_id):
             return
-        self.data["has_panel"] = bool(identity.get("has_panel", self.data.get("has_panel", False)))
-        self.data["panel_version"] = identity.get("panel_version", self.data.get("panel_version"))
-        self.data["media_blocked"] = bool(identity.get("media_blocked", self.data.get("media_blocked", False)))
+        changed = False
+        if shared_id != self.computer_id:
+            # O painel instalado nesta mesma conta passa a ser a identidade
+            # compartilhada do computador. Um receptor que já estava aberto
+            # adota o mesmo ID sem exigir reinicialização manual.
+            if not identity.get("has_panel", False):
+                return
+            self.data["computer_id"] = shared_id
+            changed = True
+        has_panel = bool(identity.get("has_panel", self.data.get("has_panel", False)))
+        panel_version = identity.get("panel_version", self.data.get("panel_version"))
+        media_blocked = bool(identity.get("media_blocked", self.data.get("media_blocked", False)))
+        if self.data.get("has_panel") != has_panel:
+            self.data["has_panel"] = has_panel
+            changed = True
+        if self.data.get("panel_version") != panel_version:
+            self.data["panel_version"] = panel_version
+            changed = True
+        if self.data.get("media_blocked") != media_blocked:
+            self.data["media_blocked"] = media_blocked
+            changed = True
+        if changed:
+            self.save()
 
     @property
     def paired_panels(self) -> dict:
@@ -1009,9 +1030,17 @@ class CloudDeliveryWorker(threading.Thread):
             installer.write_bytes(content)
             if b"REPO_RAW" not in content and command == "install_panel":
                 raise ValueError("O arquivo recebido não parece ser o instalador oficial do painel.")
-            subprocess.Popen(["cmd.exe", "/d", "/c", str(installer)],
-                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                             close_fds=True)
+            startupinfo = None
+            if os.name == "nt":
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = 0  # SW_HIDE
+            subprocess.Popen(
+                ["cmd.exe", "/d", "/c", str(installer)],
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                startupinfo=startupinfo,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                close_fds=True)
             resposta = "Instalador oficial iniciado neste computador."
             logging.info("Comando administrativo %s iniciado por %s", command,
                          delivery.get("sender_device_id", "remetente"))

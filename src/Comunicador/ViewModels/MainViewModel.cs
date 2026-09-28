@@ -182,6 +182,11 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     private void OnCloudResponseReceived(CloudDelivery resposta) => UiDispatcher.Invoke(() =>
     {
+        var adminCommand = GetAdminCommand(resposta.Payload);
+        // Respostas de CMD aparecem no campo de resultado da tela do computador.
+        // Instalações remotas também rodam em segundo plano e não devem gerar toast.
+        if (adminCommand == "run_cmd") return;
+
         var computador = Computadores.Computadores.FirstOrDefault(c => c.Id == resposta.TargetDeviceId);
         var tituloOriginal = resposta.Payload.ValueKind == System.Text.Json.JsonValueKind.Object
             && resposta.Payload.TryGetProperty("title", out var titulo)
@@ -196,10 +201,23 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             Status = StatusEnvio.Respondido,
             RespostaTexto = resposta.ResponseText,
         });
-        _ = Views.NotificacaoRecebidaWindow.MostrarAsync(
-            nome, "Resposta recebida", resposta.ResponseText ?? "O usuário confirmou o recebimento.",
-            allowReply: false);
+        if (adminCommand is not ("install_panel" or "reinstall_panel" or "reinstall_receiver"))
+        {
+            _ = Views.NotificacaoRecebidaWindow.MostrarAsync(
+                nome, "Resposta recebida", resposta.ResponseText ?? "O usuário confirmou o recebimento.",
+                allowReply: false);
+        }
     });
+
+    private static string? GetAdminCommand(System.Text.Json.JsonElement payload) =>
+        payload.ValueKind == System.Text.Json.JsonValueKind.Object
+        && payload.TryGetProperty("kind", out var kind)
+        && kind.ValueKind == System.Text.Json.JsonValueKind.String
+        && kind.GetString() == "admin_command"
+        && payload.TryGetProperty("command", out var command)
+        && command.ValueKind == System.Text.Json.JsonValueKind.String
+            ? command.GetString()
+            : null;
 
     private void OnCloudDeliveryReceived(CloudDelivery delivery) =>
         UiDispatcher.Invoke(() => _ = HandleCloudDeliveryAsync(delivery));
