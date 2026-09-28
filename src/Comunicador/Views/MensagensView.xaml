@@ -260,7 +260,8 @@
                             <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="11" /><ColumnDefinition /></Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock Text="Cor de destaque" Style="{StaticResource RotuloCampo}" />
-                                <TextBox Text="{Binding CorDestaque, UpdateSourceTrigger=PropertyChanged}" MaxLength="7" />
+                                <controls:ColorPickerPopover Width="160"
+                                    SelectedColor="{Binding CorDestaque, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="Posição do aviso" Style="{StaticResource RotuloCampo}" />

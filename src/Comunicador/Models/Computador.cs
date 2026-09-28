@@ -23,6 +23,8 @@ public sealed class Computador : ObservableModel
     private DateTime _ultimaVezVisto = DateTime.UtcNow;
     private bool _emEdicao;
     private bool _temPainel;
+    private bool _registradoNaNuvem;
+    private bool _midiasBloqueadas;
     private List<MonitorInfo> _monitores = new();
     private string? _versaoReceptor;
     private bool _atualizandoReceptor;
@@ -41,6 +43,7 @@ public sealed class Computador : ObservableModel
     private bool _novoBadgeEfeitoMouse = true;
     private bool _novoBadgeAnimacaoFlutuante;
     private bool _podeEditarPerfil;
+    private bool _podeEditarNome;
     private string? _badgeEmEdicaoId;
     private string? _novoBadgeRoleId;
     private bool _reduzirMovimento;
@@ -96,9 +99,23 @@ public sealed class Computador : ObservableModel
             if (SetField(ref _temPainel, value))
             {
                 OnPropertyChanged(nameof(PodeAtualizarReceptor));
+                OnPropertyChanged(nameof(StatusVersaoPainel));
             }
         }
     }
+    /// <summary>Indica que o receptor tem identidade registrada e pode receber entregas pela nuvem.</summary>
+    public bool RegistradoNaNuvem
+    {
+        get => _registradoNaNuvem;
+        set => SetField(ref _registradoNaNuvem, value);
+    }
+    public bool MidiasBloqueadas
+    {
+        get => _midiasBloqueadas;
+        set { if (SetField(ref _midiasBloqueadas, value)) OnPropertyChanged(nameof(StatusRecebimentoMidias)); }
+    }
+    [JsonIgnore] public string StatusRecebimentoMidias => MidiasBloqueadas
+        ? "Mídias bloqueadas neste computador" : "Mídias permitidas neste computador";
     public List<MonitorInfo> Monitores
     {
         get => _monitores;
@@ -168,6 +185,7 @@ public sealed class Computador : ObservableModel
     [JsonIgnore] public bool EhAdminDelegado => Badges.Any(b => b.Id == "admin");
     [JsonIgnore] public bool ExibirOwnerPadrao => EhOwner && !TemBadgeOwner;
     [JsonIgnore] public bool PodeEditarPerfil { get => _podeEditarPerfil; set => SetField(ref _podeEditarPerfil, value); }
+    [JsonIgnore] public bool PodeEditarNome { get => _podeEditarNome; set => SetField(ref _podeEditarNome, value); }
     [JsonIgnore] public bool PodeGerenciarAdmin { get => _podeGerenciarAdmin; set => SetField(ref _podeGerenciarAdmin, value); }
     [JsonIgnore] public bool PodeAdministrarRemotamente { get => _podeAdministrarRemotamente; set => SetField(ref _podeAdministrarRemotamente, value); }
     [JsonIgnore] public bool PodeUsarCmdRemoto { get => _podeUsarCmdRemoto; set => SetField(ref _podeUsarCmdRemoto, value); }
@@ -195,7 +213,7 @@ public sealed class Computador : ObservableModel
 
     [JsonIgnore]
     public string StatusVersaoPainel => !TemPainel
-        ? string.Empty
+        ? "Somente receptor — painel não instalado"
         : string.IsNullOrWhiteSpace(VersaoPainel)
             ? "Painel antigo — versão desconhecida"
             : PainelAtualizado
@@ -266,7 +284,13 @@ public sealed class Computador : ObservableModel
     [JsonIgnore]
     public bool PodeAtualizarReceptor => !TemPainel && !AtualizandoReceptor && Pareado;
 
-    public string EnderecoIp { get => _enderecoIp; set => SetField(ref _enderecoIp, value); }
+    public string EnderecoIp
+    {
+        get => _enderecoIp;
+        set { if (SetField(ref _enderecoIp, value)) OnPropertyChanged(nameof(EnderecoIpExibicao)); }
+    }
+    [JsonIgnore] public string EnderecoIpExibicao => string.IsNullOrWhiteSpace(EnderecoIp)
+        ? "registrado na nuvem" : EnderecoIp;
     public int PortaTcp { get => _portaTcp; set => SetField(ref _portaTcp, value); }
     [JsonIgnore]
     public double? PingMs { get => _pingMs; set => SetField(ref _pingMs, value); }

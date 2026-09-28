@@ -90,6 +90,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public ICommand SalvarPerfilCommand { get; }
     public ICommand FecharEdicaoCommand { get; }
     public ICommand AlternarAdminDelegadoCommand { get; }
+    public ICommand AtribuirTagAdminCommand { get; }
+    public ICommand RemoverTagAdminCommand { get; }
     public ICommand InstalarPainelRemotoCommand { get; }
     public ICommand ReinstalarPainelRemotoCommand { get; }
     public ICommand BloquearPainelRemotoCommand { get; }
@@ -114,6 +116,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         _perfis = perfis;
         _cloud = cloud;
         _cloud.ResponseReceived += OnRemoteCommandResponse;
+        _cloud.DevicesReceived += OnCloudDevicesReceived;
         _novaPorta = settings.PortaTcp.ToString();
 
         foreach (var computador in _store.Load())
@@ -213,7 +216,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
             if (param is not BadgeUsuario badge) return;
             var computador = Computadores.FirstOrDefault(c => c.Id == badge.ComputerId || c.Badges.Contains(badge));
             if (computador is null || !PodeEditar(computador)) return;
-            if (badge.Id is "owner" or "admin" && !_cloud.IsAdmin)
+            if ((badge.Id is "owner" or "admin" || badge.RoleId is not null) && !_cloud.IsAdmin)
             {
                 StatusMensagem = "Somente o OWNER pode remover badges reservadas.";
                 return;
@@ -261,6 +264,36 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 StatusMensagem = $"Admin concedido a {computador.NomeExibicao}. Personalize a tag e clique em Aplicar mudanças.";
             }
         }, param => _cloud.IsAdmin && param is Computador { EhOwner: false });
+        AtribuirTagAdminCommand = new AsyncRelayCommand(async param =>
+        {
+            if (!_cloud.IsAdmin || param is not Computador computador || computador.EhOwner) return;
+            var model = ModelosBadgeGlobal.FirstOrDefault(m => m.Id == computador.NovoBadgeRoleId);
+            if (model is null) { StatusMensagem = "Selecione uma tag padrão válida."; return; }
+            var badges = computador.Badges.Where(b => b.RoleId != model.Id).ToList();
+            if (badges.Count >= ProtocolConstants.MaxBadgesPerComputer)
+            {
+                StatusMensagem = "Este computador já tem quatro badges. Remova uma antes de atribuir a tag.";
+                return;
+            }
+            badges.Add(new BadgeUsuario
+            {
+                Id = Guid.NewGuid().ToString("N"), ComputerId = computador.Id, RoleId = model.Id,
+                Texto = model.Texto, Cor = model.Cor, Icone = model.Icone, Estilo = model.Estilo,
+                Brilho = model.Brilho, EfeitoMouse = model.EfeitoMouse,
+                AnimacaoFlutuante = model.AnimacaoFlutuante,
+            });
+            computador.Badges = badges;
+            await SalvarPerfilAsync(computador).ConfigureAwait(true);
+        }, param => _cloud.IsAdmin && param is Computador { EhOwner: false });
+        RemoverTagAdminCommand = new AsyncRelayCommand(async param =>
+        {
+            if (!_cloud.IsAdmin || param is not Computador computador || computador.EhOwner
+                || string.IsNullOrWhiteSpace(computador.NovoBadgeRoleId)) return;
+            var badges = computador.Badges.Where(b => b.RoleId != computador.NovoBadgeRoleId).ToList();
+            if (badges.Count == computador.Badges.Count) return;
+            computador.Badges = badges;
+            await SalvarPerfilAsync(computador).ConfigureAwait(true);
+        }, param => _cloud.IsAdmin && param is Computador { EhOwner: false });
     }
 
     private void SalvarBadge(Computador computador)
@@ -273,7 +306,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         var existente = string.IsNullOrWhiteSpace(computador.BadgeEmEdicaoId)
             ? null
             : computador.Badges.FirstOrDefault(b => b.Id == computador.BadgeEmEdicaoId);
-        if (existente?.Id is "owner" or "admin" && !_cloud.IsAdmin)
+        if ((existente?.Id is "owner" or "admin" || existente?.RoleId is not null) && !_cloud.IsAdmin)
         {
             StatusMensagem = "Somente o OWNER pode modificar badges reservadas.";
             return;
@@ -303,7 +336,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
             Brilho = computador.NovoBadgeBrilho,
             EfeitoMouse = computador.NovoBadgeEfeitoMouse,
             AnimacaoFlutuante = computador.NovoBadgeAnimacaoFlutuante,
-            RoleId = computador.NovoBadgeRoleId,
+            RoleId = _cloud.IsAdmin ? existente?.RoleId : null,
         };
         computador.Badges = existente is null
             ? computador.Badges.Append(badge).ToList()
@@ -318,7 +351,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     {
         var computador = Computadores.FirstOrDefault(c => c.Id == badge.ComputerId || c.Badges.Contains(badge));
         if (computador is null || !PodeEditar(computador)) return;
-        if (badge.Id is "owner" or "admin" && !_cloud.IsAdmin)
+        if ((badge.Id is "owner" or "admin" || badge.RoleId is not null) && !_cloud.IsAdmin)
         {
             StatusMensagem = "Somente o OWNER pode modificar esta badge.";
             return;
@@ -390,7 +423,9 @@ public sealed class ComputadoresViewModel : ViewModelBase
             StatusMensagem = "Somente o próprio computador ou o administrador pode alterar este perfil.";
             return;
         }
-        var nome = string.IsNullOrWhiteSpace(computador.Apelido) ? computador.Nome : computador.Apelido!;
+        var nome = !computador.PodeEditarNome
+            ? _perfis.Obter(computador.Id)?.NomePublico ?? computador.Nome
+            : string.IsNullOrWhiteSpace(computador.Apelido) ? computador.Nome : computador.Apelido!;
         var ehAdminAlvo = string.Equals(computador.Id, _cloud.AdminDeviceId, StringComparison.OrdinalIgnoreCase);
         var badges = computador.Badges.Where(b => b.Id != "owner").ToList();
         if (ehAdminAlvo)
@@ -436,6 +471,10 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private void AplicarPerfil(Computador computador)
     {
         computador.PodeEditarPerfil = PodeEditar(computador);
+        computador.PodeEditarNome = computador.PodeEditarPerfil
+            && (_cloud.IsAdmin
+                || string.Equals(computador.Id, _settings.PainelId, StringComparison.OrdinalIgnoreCase)
+                || _cloud.HasPermission("manage_profiles"));
         computador.ReduzirMovimento = _settings.ReduzirMovimento;
         var ehAdmin = string.Equals(computador.Id, _cloud.AdminDeviceId, StringComparison.OrdinalIgnoreCase);
         computador.EhOwner = ehAdmin;
@@ -458,6 +497,17 @@ public sealed class ComputadoresViewModel : ViewModelBase
         {
             var clone = b.Clone();
             clone.ComputerId = computador.Id;
+            var role = _cloud.GlobalConfig?.ModelosBadge.FirstOrDefault(model => model.Id == clone.RoleId);
+            if (role is not null)
+            {
+                clone.Texto = role.Texto;
+                clone.Cor = role.Cor;
+                clone.Icone = role.Icone;
+                clone.Estilo = role.Estilo;
+                clone.Brilho = role.Brilho;
+                clone.EfeitoMouse = role.EfeitoMouse;
+                clone.AnimacaoFlutuante = role.AnimacaoFlutuante;
+            }
             return clone;
         }).ToList();
         if (ehAdmin)
@@ -550,6 +600,71 @@ public sealed class ComputadoresViewModel : ViewModelBase
         OnPropertyChanged(nameof(ModelosBadgeGlobal));
         CommandManager.InvalidateRequerySuggested();
         Persist();
+    });
+
+    private void OnCloudDevicesReceived(IReadOnlyList<CloudDevice> devices) => UiDispatcher.Invoke(() =>
+    {
+        var changed = false;
+        foreach (var device in devices)
+        {
+            if (string.IsNullOrWhiteSpace(device.DeviceId)) continue;
+            var computador = Computadores.FirstOrDefault(c =>
+                string.Equals(c.Id, device.DeviceId, StringComparison.OrdinalIgnoreCase));
+            var created = computador is null;
+            if (computador is null)
+            {
+                computador = new Computador
+                {
+                    Id = device.DeviceId,
+                    Nome = device.MachineName,
+                    EnderecoIp = string.Empty,
+                    PortaTcp = _settings.PortaTcp,
+                    Status = device.LastSeenAt > DateTimeOffset.UtcNow.AddSeconds(-45)
+                        ? StatusComputador.Online : StatusComputador.Offline,
+                    UltimaVezVisto = device.LastSeenAt.UtcDateTime,
+                };
+                Computadores.Add(computador);
+                changed = true;
+            }
+            if (!computador.Pareado)
+            {
+                var status = device.LastSeenAt > DateTimeOffset.UtcNow.AddSeconds(-45)
+                    ? StatusComputador.Online : StatusComputador.Offline;
+                if (computador.Status != status) { computador.Status = status; changed = true; }
+                computador.UltimaVezVisto = device.LastSeenAt.UtcDateTime;
+            }
+            if (!string.Equals(computador.Nome, device.MachineName, StringComparison.Ordinal))
+            {
+                computador.Nome = device.MachineName;
+                changed = true;
+            }
+            var hasPanel = device.HasPanel;
+            if (computador.TemPainel != hasPanel) { computador.TemPainel = hasPanel; changed = true; }
+            if (!computador.RegistradoNaNuvem)
+            {
+                computador.RegistradoNaNuvem = true;
+                changed = true;
+            }
+            if (computador.MidiasBloqueadas != device.MediaBlocked)
+            {
+                computador.MidiasBloqueadas = device.MediaBlocked;
+                changed = true;
+            }
+            if (!string.IsNullOrWhiteSpace(device.PanelVersion)
+                && computador.VersaoPainel != device.PanelVersion)
+            {
+                computador.VersaoPainel = device.PanelVersion;
+                changed = true;
+            }
+            if (!string.IsNullOrWhiteSpace(device.ReceiverVersion)
+                && computador.VersaoReceptor != device.ReceiverVersion)
+            {
+                computador.VersaoReceptor = device.ReceiverVersion;
+                changed = true;
+            }
+            if (created) AplicarPerfil(computador);
+        }
+        if (changed) Persist();
     });
 
     public IReadOnlyList<Computador> Snapshot() => Computadores.ToList();

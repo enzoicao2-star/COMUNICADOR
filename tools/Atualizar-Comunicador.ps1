@@ -455,18 +455,21 @@ try {
         Install-Shortcuts $managedRoot $target
     }
     Write-Host ('Comunicador atualizado automaticamente para ' + $latestVersion + '.')
-    if ($RestartAfterUpdate) {
+    if ($currentVersion -gt [version]'0.0.0.0') {
         try {
             $noticeDirectory = Join-Path $env:APPDATA 'Comunicador'
             New-Item -ItemType Directory -Force -Path $noticeDirectory | Out-Null
             $notice = [ordered]@{
                 version = $latestVersion.ToString()
+                previous_version = $currentVersion.ToString()
                 summary = [string]$manifest.summary
                 changes = @($manifest.changes)
             }
             $notice | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $noticeDirectory 'ultima-atualizacao.json') -Encoding UTF8
         }
         catch { Write-Host ('AVISO: nao foi possivel salvar o resumo da atualizacao: ' + $_.Exception.Message) }
+    }
+    if ($RestartAfterUpdate) {
         $startedPanel = Start-Process -FilePath $target -WorkingDirectory $targetDirectory -PassThru
         $healthy = $false
         for ($attempt = 0; $attempt -lt 90; $attempt++) {

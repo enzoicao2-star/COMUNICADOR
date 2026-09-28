@@ -43,7 +43,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.9"
+RECEIVER_VERSION = "2.5.11"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -655,7 +655,7 @@ class Config:
                 changed = True
             self.data["has_panel"] = bool(identity.get("has_panel", False))
             self.data["panel_version"] = identity.get("panel_version")
-            self.data["media_blocked"] = bool(identity.get("media_blocked", False))
+            self.data["media_blocked"] = bool(identity.get("media_blocked", self.data.get("media_blocked", False)))
         elif "computer_id" not in self.data:
             self.data["computer_id"] = str(uuid.uuid4())
             changed = True
@@ -667,6 +667,7 @@ class Config:
             changed = True
         if changed:
             self.save()
+        self.cloud_worker = None
 
     def save(self) -> None:
         with self._lock:
@@ -694,7 +695,20 @@ class Config:
 
     @property
     def media_blocked(self) -> bool:
+        self.refresh_shared_preferences()
         return bool(self.data.get("media_blocked", False))
+
+    def refresh_shared_preferences(self) -> None:
+        """Panel settings can change while the receiver stays in the tray."""
+        try:
+            identity = json.loads((self.directory.parent / "device.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        if identity.get("device_id") != self.computer_id:
+            return
+        self.data["has_panel"] = bool(identity.get("has_panel", self.data.get("has_panel", False)))
+        self.data["panel_version"] = identity.get("panel_version", self.data.get("panel_version"))
+        self.data["media_blocked"] = bool(identity.get("media_blocked", self.data.get("media_blocked", False)))
 
     @property
     def paired_panels(self) -> dict:
@@ -705,6 +719,20 @@ class Config:
 
     def token_is_valid(self, token: str) -> bool:
         return any(p.get("token") == token for p in self.paired_panels.values())
+
+    def sender_is_owner(self, msg: dict) -> bool:
+        panel_id = msg.get("panel_id")
+        token = msg.get("token")
+        if not panel_id or not token or self.cloud_worker is None:
+            return False
+        paired = self.paired_panels.get(panel_id)
+        if not paired or paired.get("token") != token:
+            return False
+        try:
+            return self.cloud_worker.is_current_owner(panel_id)
+        except (OSError, urllib.error.URLError, ValueError, KeyError):
+            logging.exception("Falha ao confirmar OWNER; mantendo bloqueio de mídia.")
+            return False
 
     def pair(self, panel_id: str, panel_name: str) -> str:
         token = uuid.uuid4().hex + uuid.uuid4().hex
@@ -732,9 +760,11 @@ class Config:
                 return p["token"]
         return None
 
-    def store_reverse_token(self, token: str, panel_name: str) -> None:
+    def store_reverse_token(self, token: str, panel_name: str, panel_id: str = "") -> None:
         with self._lock:
-            self.paired_panels[f"reverso:{panel_name}"] = {
+            if panel_id:
+                self.paired_panels.pop(f"reverso:{panel_name}", None)
+            self.paired_panels[panel_id or f"reverso:{panel_name}"] = {
                 "token": token,
                 "panel_name": panel_name,
                 "paired_at": datetime.now(timezone.utc).isoformat(),
@@ -814,12 +844,20 @@ class CloudDeliveryWorker(threading.Thread):
             return self._json_request(path, method, body, session["access_token"])
 
     def _registrar(self):
-        self._autorizado("/rest/v1/rpc/register_device", "POST", {
+        self.config.refresh_shared_preferences()
+        self._autorizado("/rest/v1/rpc/register_device_status", "POST", {
             "p_device_id": self.config.computer_id,
             "p_machine_name": self.config.computer_name,
             "p_panel_version": self.config.panel_version,
             "p_receiver_version": RECEIVER_VERSION,
+            "p_has_panel": self.config.has_panel,
+            "p_media_blocked": self.config.media_blocked,
         })
+
+    def is_current_owner(self, panel_id: str) -> bool:
+        state = self._autorizado("/rest/v1/rpc/get_admin_state", "POST", {}) or []
+        return any(str(item.get("admin_device_id", "")).lower() == panel_id.lower()
+                   for item in state)
 
     def _atualizar_entrega(self, delivery_id, resposta):
         status = "responded" if resposta else "delivered"
@@ -857,9 +895,57 @@ class CloudDeliveryWorker(threading.Thread):
                              args=(delivery,), daemon=True,
                              name=f"comando-admin-{delivery_id[:8]}").start()
             return
-        def concluir(resposta):
-            if not resposta:
+
+        if payload.get("kind") == "notification":
+            image = payload.get("image")
+            screen_images = payload.get("screen_images") or []
+            video = payload.get("video")
+            screen_videos = payload.get("screen_videos") or []
+            audio = payload.get("audio")
+            mode = payload.get("display_mode", "toast")
+            has_media = bool(image or screen_images or video or screen_videos or audio)
+            sender_id = delivery.get("sender_device_id", "")
+            sender_is_owner = False
+            if mode in (protocolo.DISPLAY_MODE_WALLPAPER, protocolo.DISPLAY_MODE_LOCK_SCREEN) \
+                    or has_media and self.config.media_blocked:
+                try:
+                    sender_is_owner = self.is_current_owner(sender_id)
+                except (OSError, urllib.error.URLError, ValueError, IndexError, KeyError) as exc:
+                    logging.warning("Não foi possível validar o OWNER da entrega cloud: %s", exc)
+
+            if mode in (protocolo.DISPLAY_MODE_WALLPAPER, protocolo.DISPLAY_MODE_LOCK_SCREEN):
+                if not sender_is_owner:
+                    self._atualizar_entrega(
+                        delivery_id, "Ação recusada: somente o OWNER pode alterar o papel de parede ou a tela de bloqueio.")
+                    return
+                if not image:
+                    self._atualizar_entrega(delivery_id, "Ação recusada: a imagem não foi recebida.")
+                    return
+                try:
+                    if mode == protocolo.DISPLAY_MODE_LOCK_SCREEN:
+                        aplicar_tela_bloqueio(image, self.config)
+                        result = "Tela de bloqueio atualizada."
+                    else:
+                        aplicar_papel_parede(image, self.config)
+                        result = "Papel de parede atualizado."
+                except (OSError, ValueError, KeyError, TypeError) as exc:
+                    result = f"Não foi possível aplicar a imagem: {exc}"
+                self._atualizar_entrega(delivery_id, result)
                 return
+
+            if has_media and self.config.media_blocked and not sender_is_owner:
+                image = None
+                screen_images = []
+                video = None
+                screen_videos = []
+                audio = None
+                mode = "toast"
+                if not payload.get("title"):
+                    payload["title"] = "Mídia bloqueada neste computador"
+                if not payload.get("message"):
+                    payload["message"] = "Este computador bloqueou a mídia enviada."
+
+        def concluir(resposta):
             threading.Thread(
                 target=self._atualizar_entrega, args=(delivery_id, resposta),
                 daemon=True, name=f"resposta-cloud-{delivery_id[:8]}").start()
@@ -869,8 +955,18 @@ class CloudDeliveryWorker(threading.Thread):
             payload.get("message", ""), bool(payload.get("allow_reply", True)),
             concluir,
             buttons=payload.get("buttons"),
-            display_mode=payload.get("display_mode", "toast"),
-            appearance=payload.get("appearance") or {})
+            display_mode=mode if payload.get("kind") == "notification" else payload.get("display_mode", "toast"),
+            image=image if payload.get("kind") == "notification" else None,
+            screen_images=screen_images if payload.get("kind") == "notification" else None,
+            image_duration_seconds=payload.get("image_duration_seconds"),
+            allow_manual_close=payload.get("allow_manual_close"),
+            appearance=payload.get("appearance") or {},
+            video=video if payload.get("kind") == "notification" else None,
+            screen_videos=screen_videos if payload.get("kind") == "notification" else None,
+            video_loop=payload.get("video_loop", False),
+            audio=audio if payload.get("kind") == "notification" else None,
+            audio_loop=payload.get("audio_loop", False),
+            confirmation_required=payload.get("confirmation_required", False))
 
     def _executar_comando_admin(self, delivery):
         """Executa apenas os comandos remotos explicitamente liberados ao OWNER pelo RLS."""
@@ -1584,7 +1680,7 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         token = msg["token"]
         if not server.config.token_is_valid(token):
             raise ProtocolError(ErrorCode.UNAUTHORIZED, "Token inválido ou painel não pareado.")
-        if server.config.media_blocked and mensagem_tem_midia(msg):
+        if server.config.media_blocked and mensagem_tem_midia(msg) and not server.config.sender_is_owner(msg):
             raise ProtocolError(ErrorCode.CONTENT_BLOCKED,
                                 "Este computador bloqueou imagens, vídeos e áudios.")
         if msg.get("display_mode") == protocolo.DISPLAY_MODE_CAROUSEL:
@@ -1851,7 +1947,8 @@ class ReverseConnection(threading.Thread):
             self._running = False
             return
 
-        self.config.store_reverse_token(resposta["token"], resposta.get("computer_name", self.host))
+        self.config.store_reverse_token(resposta["token"], resposta.get("computer_name", self.host),
+                                        resposta.get("computer_id", ""))
         self.config.remember_panel_host(self.host)
         logging.info("Registrado no painel %s:%s via conexão reversa.", self.host, self.port)
 
@@ -1905,7 +2002,7 @@ class ReverseConnection(threading.Thread):
                                               "Não foi possível aplicar a operação.", msg.get("id")))
 
     def _tratar_notificacao(self, msg: dict) -> None:
-        if self.config.media_blocked and mensagem_tem_midia(msg):
+        if self.config.media_blocked and mensagem_tem_midia(msg) and not self.config.sender_is_owner(msg):
             self._enviar(protocolo.make_error(
                 ErrorCode.CONTENT_BLOCKED,
                 "Este computador bloqueou imagens, vídeos e áudios.", msg["id"]))
@@ -2161,6 +2258,7 @@ def main(argv=None) -> int:
     cloud_worker = None
     if not args.test_mode:
         cloud_worker = CloudDeliveryWorker(config, ui)
+        config.cloud_worker = cloud_worker
         cloud_worker.start()
     try:
         tcp_server = ReceptorTcpServer(("0.0.0.0", args.port), config, ui)

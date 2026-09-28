@@ -53,6 +53,7 @@ public partial class App : Application
         }
         MainWindow = window;
         window.Show();
+        _mainViewModel.ShowUpdateSummary(window);
     }
 
     private bool ClaimSingleInstance()

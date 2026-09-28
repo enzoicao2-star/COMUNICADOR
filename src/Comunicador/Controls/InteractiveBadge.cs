@@ -15,6 +15,14 @@ public sealed class InteractiveBadge : FrameworkElement
 {
     private double _pointerX = .5;
     private double _pointerY = .5;
+    private double _renderX = .5;
+    private double _renderY = .5;
+    private double _returnFromX = .5;
+    private double _returnFromY = .5;
+    private TimeSpan _returnStarted;
+    private double _hoverStrength;
+    private double _returnFromStrength;
+    private bool _returning;
     private bool _hovered;
     private BitmapSource? _customIcon;
     private TimeSpan _lastRenderTime;
@@ -66,13 +74,19 @@ public sealed class InteractiveBadge : FrameworkElement
         MouseEnter += (_, _) =>
         {
             _hovered = true;
+            _returning = false;
+            _hoverStrength = Interactive ? 1 : 0;
             UpdateRenderingSubscription();
             InvalidateVisual();
         };
         MouseLeave += (_, _) =>
         {
             _hovered = false;
-            _pointerX = _pointerY = .5;
+            _returnFromX = _renderX;
+            _returnFromY = _renderY;
+            _returnFromStrength = _hoverStrength;
+            _returnStarted = TimeSpan.Zero;
+            _returning = Interactive && _returnFromStrength > .001;
             UpdateRenderingSubscription();
             InvalidateVisual();
         };
@@ -82,6 +96,8 @@ public sealed class InteractiveBadge : FrameworkElement
             var point = e.GetPosition(this);
             _pointerX = Math.Clamp(point.X / ActualWidth, 0, 1);
             _pointerY = Math.Clamp(point.Y / ActualHeight, 0, 1);
+            _renderX = _pointerX;
+            _renderY = _pointerY;
             InvalidateVisual();
         };
         Loaded += OnLoaded;
@@ -103,6 +119,7 @@ public sealed class InteractiveBadge : FrameworkElement
         IsVisibleChanged -= OnIsVisibleChanged;
         ThemeService.ThemeChanged -= OnThemeChanged;
         SetRenderingSubscribed(false);
+        _returning = false;
         StopFloatAnimation();
     }
 
@@ -158,7 +175,7 @@ public sealed class InteractiveBadge : FrameworkElement
 
     private void UpdateRenderingSubscription()
     {
-        SetRenderingSubscribed(IsLoaded && IsVisible && !_hovered && BadgeStyle == "Holográfica");
+        SetRenderingSubscribed(IsLoaded && IsVisible && (_returning || !_hovered && BadgeStyle == "Holográfica"));
     }
 
     private void SetRenderingSubscribed(bool subscribe)
@@ -185,8 +202,23 @@ public sealed class InteractiveBadge : FrameworkElement
 
     private void OnRendering(object? sender, EventArgs e)
     {
-        if (BadgeStyle != "Holográfica" || _hovered) return;
         if (e is not RenderingEventArgs rendering) return;
+        if (_returning)
+        {
+            if (_returnStarted == TimeSpan.Zero) _returnStarted = rendering.RenderingTime;
+            var progress = Math.Clamp((rendering.RenderingTime - _returnStarted).TotalMilliseconds / 900d, 0, 1);
+            var eased = (1 - Math.Cos(progress * Math.PI)) / 2;
+            _renderX = _returnFromX + (.5 - _returnFromX) * eased;
+            _renderY = _returnFromY + (.5 - _returnFromY) * eased;
+            _hoverStrength = _returnFromStrength * (1 - eased);
+            InvalidateVisual();
+            if (progress >= 1)
+            {
+                _returning = false;
+                UpdateRenderingSubscription();
+            }
+        }
+        if (BadgeStyle != "Holográfica" || _hovered) return;
         if (_lastRenderTime == TimeSpan.Zero)
         {
             _lastRenderTime = rendering.RenderingTime;
@@ -226,12 +258,13 @@ public sealed class InteractiveBadge : FrameworkElement
         };
 
         var transform = Transform.Identity;
-        if (_hovered && Interactive)
+        if ((_hovered || _returning) && Interactive)
         {
-            var angle = (_pointerX - .5) * 4.2;
-            var skew = (.5 - _pointerY) * 3.2;
+            var angle = (_renderX - .5) * 4.2;
+            var skew = (.5 - _renderY) * 3.2;
             var group = new TransformGroup();
-            group.Children.Add(new ScaleTransform(.985, .985, ActualWidth / 2, ActualHeight / 2));
+            var scale = 1 - .015 * _hoverStrength;
+            group.Children.Add(new ScaleTransform(scale, scale, ActualWidth / 2, ActualHeight / 2));
             group.Children.Add(new SkewTransform(skew, -angle * .25, ActualWidth / 2, ActualHeight / 2));
             group.Children.Add(new RotateTransform(angle, ActualWidth / 2, ActualHeight / 2));
             transform = group;
@@ -290,8 +323,8 @@ public sealed class InteractiveBadge : FrameworkElement
 
     private void DrawHolographicOverlay(DrawingContext dc, Rect rect, double radius)
     {
-        var center = _hovered && Interactive
-            ? _pointerX
+        var center = (_hovered || _returning) && Interactive
+            ? _renderX
             : .12 + .76 * ((Math.Sin(_shinePhase * Math.PI * 2 - Math.PI / 2) + 1) / 2);
         var brush = new LinearGradientBrush
         {

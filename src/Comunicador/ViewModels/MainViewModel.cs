@@ -1,7 +1,10 @@
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Text.Json;
 using System.Windows.Input;
 using Comunicador.Models;
 using Comunicador.Networking;
+using Comunicador.Protocol;
 using Comunicador.Services;
 using Comunicador.Storage;
 
@@ -93,12 +96,11 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var perfis = new PerfilComputadorRepository(new JsonStore<PerfilComputador>(AppPaths.PerfisComputadoresFile));
         _panelUpdate = new PanelUpdateService();
         var perfilLocal = perfis.Obter(Settings.PainelId);
-        var badgesLocais = perfilLocal?.Badges.Select(b => b.Clone()).ToList() ?? new List<BadgeUsuario>();
-        if (perfilLocal is null ||
-            !string.Equals(perfilLocal.NomePublico, Settings.NomePainel, StringComparison.Ordinal))
+        if (perfilLocal is not null && !string.IsNullOrWhiteSpace(perfilLocal.NomePublico)
+            && !string.Equals(perfilLocal.NomePublico, Settings.NomePainel, StringComparison.Ordinal))
         {
-            perfis.Salvar(Settings.PainelId, Settings.NomePainel, false,
-                badgesLocais, Settings.PainelId);
+            Settings.NomePainel = perfilLocal.NomePublico;
+            SettingsStore.Save(Settings);
         }
 
         _cloudSync = new CloudSyncService(new SupabaseClient(), Settings, perfis);
@@ -137,7 +139,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var paineisPareados = new ObservableCollection<PainelPareado>(paineisPareadosStore.Load());
         _embeddedReceptorServer = new EmbeddedReceptorServer(
             Settings, paineisPareados, paineisPareadosStore, _historicoRepositorio,
-            _logsRepositorio, _conexoesReversas, perfis);
+            _logsRepositorio, _conexoesReversas, perfis, _cloudSync);
         _embeddedReceptorServer.ReceptorRegistrado += Computadores.RegistrarViaConexaoReversa;
         Configuracoes = new ConfiguracoesViewModel(Settings, paineisPareados, paineisPareadosStore,
             _embeddedReceptorServer, perfis, client, _panelUpdate, _cloudSync);
@@ -205,11 +207,18 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     private async Task HandleCloudDeliveryAsync(CloudDelivery delivery)
     {
         var payload = delivery.Payload;
-        if (payload.ValueKind == System.Text.Json.JsonValueKind.Object
+        if (payload.ValueKind == JsonValueKind.Object
             && payload.TryGetProperty("kind", out var kindNode)
             && kindNode.GetString() == "admin_command")
         {
             await HandleAdminCommandAsync(delivery).ConfigureAwait(true);
+            return;
+        }
+        if (payload.ValueKind == JsonValueKind.Object
+            && payload.TryGetProperty("kind", out kindNode)
+            && kindNode.GetString() == "notification")
+        {
+            await HandleCloudNotificationAsync(delivery, payload).ConfigureAwait(true);
             return;
         }
         var sender = payload.TryGetProperty("sender", out var senderNode)
@@ -232,6 +241,103 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         });
         if (result is not null)
             await _cloudSync.RespondToDeliveryAsync(delivery.Id, result).ConfigureAwait(true);
+    }
+
+    private async Task HandleCloudNotificationAsync(CloudDelivery delivery, JsonElement payload)
+    {
+        var sender = payload.TryGetProperty("sender", out var senderNode)
+            ? senderNode.GetString() ?? delivery.SenderDeviceId : delivery.SenderDeviceId;
+        var options = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+            PropertyNameCaseInsensitive = true,
+        };
+        var notification = JsonSerializer.Deserialize<EnvioPendente>(payload.GetRawText(), options);
+        if (notification is null)
+        {
+            Logger.Warning("Entrega cloud ignorada: conteúdo de notificação inválido.");
+            return;
+        }
+
+        var mode = notification.ModoExibicao;
+        var systemImage = mode is ProtocolConstants.DisplayMode.Wallpaper
+            or ProtocolConstants.DisplayMode.LockScreen;
+        var hasMedia = notification.Imagem is not null || notification.ImagensPorMonitor.Count > 0
+            || notification.Video is not null || notification.VideosPorMonitor.Count > 0
+            || notification.Audio is not null;
+        var needsOwner = systemImage || hasMedia && !Settings.AceitarImagensDeOutrosPaineis;
+        var senderIsOwner = !needsOwner || await _cloudSync.IsCurrentAdminDeviceAsync(
+            delivery.SenderDeviceId).ConfigureAwait(true);
+
+        string? response;
+        if (systemImage)
+        {
+            if (!senderIsOwner)
+            {
+                response = "Ação recusada: somente o OWNER pode alterar o papel de parede ou a tela de bloqueio.";
+            }
+            else if (notification.Imagem is null)
+            {
+                response = "Ação recusada: a imagem não foi recebida.";
+            }
+            else
+            {
+                try
+                {
+                    if (mode == ProtocolConstants.DisplayMode.LockScreen)
+                        await LockScreenService.ApplyAsync(notification.Imagem).ConfigureAwait(true);
+                    else
+                        WallpaperService.Apply(notification.Imagem);
+                    response = mode == ProtocolConstants.DisplayMode.LockScreen
+                        ? "Tela de bloqueio atualizada." : "Papel de parede atualizado.";
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                    or System.ComponentModel.Win32Exception or InvalidDataException)
+                {
+                    response = $"Não foi possível aplicar a imagem: {ex.Message}";
+                }
+            }
+        }
+        else
+        {
+            if (hasMedia && !Settings.AceitarImagensDeOutrosPaineis && !senderIsOwner)
+            {
+                notification.Imagem = null;
+                notification.ImagensPorMonitor.Clear();
+                notification.Video = null;
+                notification.VideosPorMonitor.Clear();
+                notification.Audio = null;
+                notification.ModoExibicao = ProtocolConstants.DisplayMode.Toast;
+                notification.Titulo = string.IsNullOrWhiteSpace(notification.Titulo)
+                    ? "Mídia bloqueada neste computador" : notification.Titulo;
+                notification.Mensagem = string.IsNullOrWhiteSpace(notification.Mensagem)
+                    ? "Este computador bloqueou a mídia enviada."
+                    : notification.Mensagem;
+            }
+
+            response = await Views.NotificacaoRecebidaWindow.MostrarAsync(
+                sender, notification.Titulo, notification.Mensagem,
+                notification.PermitirResposta, notification.Botoes,
+                notification.ModoExibicao, notification.Imagem,
+                notification.ImagensPorMonitor, notification.DuracaoSegundos,
+                notification.PermitirFecharManualmente, notification.Aparencia,
+                notification.Video, notification.VideosPorMonitor,
+                notification.RepetirVideo, notification.Audio,
+                notification.RepetirAudio,
+                confirmationRequired: notification.ConfirmacaoObrigatoria).ConfigureAwait(true);
+        }
+
+        _historicoRepositorio.Adicionar(new HistoricoEntry
+        {
+            ComputadorId = delivery.SenderDeviceId,
+            ComputadorNome = sender,
+            Titulo = notification.Titulo,
+            Mensagem = notification.Mensagem,
+            Status = response is null ? StatusEnvio.Exibido : StatusEnvio.Respondido,
+            RespostaTexto = response,
+        });
+        if (response is not null)
+            await _cloudSync.RespondToDeliveryAsync(delivery.Id, response).ConfigureAwait(true);
     }
 
     private async Task HandleAdminCommandAsync(CloudDelivery delivery)
@@ -310,10 +416,16 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         if (Settings.EntradaPainelHabilitada) _embeddedReceptorServer.AtualizarDisponibilidade();
         _sync.Start();
         Configuracoes.AtualizarStatusReceptor();
+    }
+
+    public void ShowUpdateSummary(System.Windows.Window owner)
+    {
         var resumo = _panelUpdate.ConsumeUpdateSummary();
         if (!string.IsNullOrWhiteSpace(resumo))
-            System.Windows.MessageBox.Show(resumo, "Atualização concluída",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+        {
+            var window = new Views.AtualizacaoConcluidaWindow(resumo) { Owner = owner };
+            window.Show();
+        }
     }
 
     public void Dispose()

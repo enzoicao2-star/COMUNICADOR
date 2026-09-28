@@ -433,7 +433,7 @@
                                        Visibility="{Binding ExibirPoliticaInicializacaoGlobal, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         </StackPanel>
                     </Border>
-                    <Border Style="{StaticResource CardBorder}" Padding="20">
+                    <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,0,0,14">
                         <StackPanel>
                             <TextBlock Text="Sobre este painel" Style="{StaticResource TituloCard}" Margin="0,0,0,7" />
                             <TextBlock Text="Identificador exclusivo local" Style="{StaticResource Subtitulo}" FontSize="12" />
@@ -532,7 +532,8 @@
                                             </Grid>
                                             <WrapPanel Margin="0,8,0,4">
                                                 <TextBox Width="140" Margin="0,0,8,6" ToolTip="Texto da badge" Text="{Binding Texto, UpdateSourceTrigger=PropertyChanged}" />
-                                                <TextBox Width="96" Margin="0,0,8,6" ToolTip="Cor hexadecimal" Text="{Binding Cor, UpdateSourceTrigger=PropertyChanged}" />
+                                                <controls:ColorPickerPopover Width="126" Margin="0,0,8,6"
+                                                    SelectedColor="{Binding Cor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                 <ComboBox Width="125" Margin="0,0,8,6" ItemsSource="{Binding DataContext.IconesBadge, RelativeSource={RelativeSource AncestorType=UserControl}}" SelectedItem="{Binding Icone}" />
                                                 <ComboBox Width="125" Margin="0,0,8,6" ItemsSource="{Binding DataContext.EstilosBadge, RelativeSource={RelativeSource AncestorType=UserControl}}" SelectedItem="{Binding Estilo}" />
                                             </WrapPanel>
@@ -559,6 +560,15 @@
                                 <Button Content="Aplicar para todos" Style="{StaticResource BotaoPrimario}" HorizontalAlignment="Right"
                                         Command="{Binding SalvarConfiguracoesGlobaisCommand}" />
                             </DockPanel>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="Segurança do OWNER" Style="{StaticResource TituloCard}" />
+                            <TextBlock Text="Altere a senha usada para transferir ou recuperar o administrador."
+                                       Style="{StaticResource Subtitulo}" Margin="0,4,0,10" />
+                            <Button Content="Alterar senha administrativa" Style="{StaticResource BotaoSecundario}"
+                                    HorizontalAlignment="Left" Click="AlterarSenhaAdmin_OnClick" />
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,14,0,0">

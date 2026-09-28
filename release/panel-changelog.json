@@ -1,0 +1,195 @@
+[
+  {
+    "version": "2.2.2.0",
+    "summary": "",
+    "changes": []
+  },
+  {
+    "version": "2.4.0.0",
+    "summary": "A versão 2.4 adiciona identidade sincronizada entre painéis, badges personalizáveis, atualização pelo próprio aplicativo e novos formatos de mensagem.",
+    "changes": [
+      "Foi adicionado 1 novo fundo: Onda de partículas.",
+      "Foram adicionadas badges com texto, cor, estilo, ícone, brilho, animação e ícone personalizado.",
+      "Nomes públicos, OWNER, badges, versões e histórico passam a ser sincronizados entre os painéis.",
+      "Mensagens podem aparecer no centro, usar até 2 botões lado a lado e registrar a resposta no histórico por computador.",
+      "O painel agora verifica e instala atualizações sem depender da abertura pelo arquivo BAT.",
+      "Foram adicionados envio de vídeo e áudio, com repetição e duração configuráveis."
+    ]
+  },
+  {
+    "version": "2.5.0.0",
+    "summary": "A versão 2.5.0 adiciona identidade permanente, administração central, sincronização pelo Supabase e entregas mesmo com o painel fechado.",
+    "changes": [
+      "Cada computador ganhou um identificador permanente compartilhado pelo painel e receptor.",
+      "Foi adicionado o admin global recuperável por senha, com OWNER exclusivo e edição central de nomes e badges.",
+      "Nomes, badges, administrador, lembretes e respostas agora são sincronizados pelo Supabase.",
+      "O receptor entrega lembretes e respostas em segundo plano mesmo quando o painel está fechado.",
+      "Notificações e lembretes permanecem obrigatórios; o bloqueio local se aplica somente a mídias.",
+      "O admin pode definir remotamente uma imagem como papel de parede do computador escolhido.",
+      "Foram adicionados controles numéricos de duração para imagem, vídeo e áudio.",
+      "O editor de badges ganhou prévia ao vivo, ícone personalizado, brilho holográfico e aplicação sincronizada.",
+      "A interface ganhou fundos animados, transparência e blur ajustáveis, velocidade configurável e melhor contraste no modo escuro.",
+      "A navegação foi otimizada: a troca média de aba caiu de 115,03 ms para 4,23 ms nos testes da versão 2.5.0."
+    ]
+  },
+  {
+    "version": "2.5.1.0",
+    "summary": "A versão 2.5.1 corrige a interface de badges, libera GIFs animados e mantém o painel recebendo avisos em segundo plano.",
+    "changes": [
+      "O ícone Coroa agora mostra uma coroa real, em vez do carrinho de compras.",
+      "As badges ganharam a opção Flutuar suavemente, preservada na sincronização entre painéis.",
+      "O OWNER pode conceder, retirar e personalizar a badge ADMIN; os demais usuários não podem alterar badges reservadas.",
+      "GIFs animados agora são reproduzidos no painel e no receptor, mantendo todos os quadros e tempos da animação.",
+      "Ao fechar a janela, o Comunicador continua ativo na bandeja e recebe mensagens e lembretes obrigatórios em segundo plano.",
+      "O atalho de administrador com dois apóstrofos foi corrigido para layouts de teclado diferentes.",
+      "A predefinição de cor deixou de exibir contornos encaixados e agora tem um único cartão.",
+      "A opção de papel de parede remoto deixou de aparecer duplicada e fica visível somente para o OWNER.",
+      "Entregas agendadas são reservadas de forma atômica no Supabase, evitando exibições duplicadas."
+    ]
+  },
+  {
+    "version": "2.5.2.0",
+    "summary": "A versão 2.5.2 adiciona ações de administração remota e corrige o instalador do receptor.",
+    "changes": [
+      "O ícone Coroa agora mostra uma coroa real, em vez do carrinho de compras.",
+      "As badges ganharam a opção Flutuar suavemente, preservada na sincronização entre painéis.",
+      "O OWNER pode conceder, retirar e personalizar a badge ADMIN; os demais usuários não podem alterar badges reservadas.",
+      "GIFs animados agora são reproduzidos no painel e no receptor, mantendo todos os quadros e tempos da animação.",
+      "Ao fechar a janela, o Comunicador continua ativo na bandeja e recebe mensagens e lembretes obrigatórios em segundo plano.",
+      "O atalho de administrador com dois apóstrofos foi corrigido para layouts de teclado diferentes.",
+      "A predefinição de cor deixou de exibir contornos encaixados e agora tem um único cartão.",
+      "A opção de papel de parede remoto deixou de aparecer duplicada e fica visível somente para o OWNER.",
+      "O menu de três pontos permite renomear, parear novamente, reinstalar o receptor e remover um computador da lista.",
+      "O OWNER pode instalar ou reinstalar o painel em outro PC e ativar ou bloquear a entrada de conexões locais.",
+      "Comandos remotos administrativos só podem ser enviados pelo OWNER e têm confirmação pelo histórico de respostas.",
+      "O instalador, o receptor e o painel passam a informar a versão 2.5.2."
+    ]
+  },
+  {
+    "version": "2.5.3.0",
+    "summary": "A versão 2.5.3 corrige o menu de ações dos computadores e melhora o contraste.",
+    "changes": [
+      "O ícone Coroa agora mostra uma coroa real, em vez do carrinho de compras.",
+      "As badges ganharam a opção Flutuar suavemente, preservada na sincronização entre painéis.",
+      "O OWNER pode conceder, retirar e personalizar a badge ADMIN; os demais usuários não podem alterar badges reservadas.",
+      "GIFs animados agora são reproduzidos no painel e no receptor, mantendo todos os quadros e tempos da animação.",
+      "Ao fechar a janela, o Comunicador continua ativo na bandeja e recebe mensagens e lembretes obrigatórios em segundo plano.",
+      "O atalho de administrador com dois apóstrofos foi corrigido para layouts de teclado diferentes.",
+      "A predefinição de cor deixou de exibir contornos encaixados e agora tem um único cartão.",
+      "A opção de papel de parede remoto deixou de aparecer duplicada e fica visível somente para o OWNER.",
+      "O menu de três pontos permite renomear, parear novamente, reinstalar o receptor e remover um computador da lista.",
+      "O OWNER pode instalar ou reinstalar o painel em outro PC e ativar ou bloquear a entrada de conexões locais.",
+      "Comandos remotos administrativos só podem ser enviados pelo OWNER e têm confirmação pelo histórico de respostas.",
+      "O botão de três pontos abre o menu com um clique e os comandos voltam a ser acionáveis.",
+      "O menu acompanha o tema claro ou escuro com texto legível.",
+      "O painel passa para a versão 2.5.3."
+    ]
+  },
+  {
+    "version": "2.5.4.0",
+    "summary": "GIFs de até 16 MB, atualização confirmada ao iniciar e correções de reinstalação remota.",
+    "changes": [
+      "GIFs de até 16 MB podem ser selecionados e enviados; PNG, JPEG e BMP continuam limitados a 4 MB.",
+      "A prévia identifica o arquivo como GIF e reproduz sua animação antes do envio.",
+      "A abertura direta do executável verifica atualizações e pede confirmação antes de instalar.",
+      "Reinstalar painel força a substituição da cópia instalada e informa se não conseguiu iniciar.",
+      "O receptor sobe para 2.5.3 para aceitar GIFs maiores; os instaladores e diagnósticos foram alinhados.",
+      "O painel sobe para a versão 2.5.4."
+    ]
+  },
+  {
+    "version": "2.5.5.0",
+    "summary": "Restaurado o executável 2.5.5 que abre nos PCs onde a assinatura de desenvolvimento foi bloqueada.",
+    "changes": [
+      "A versão 2.5.6 introduziu apenas a assinatura de desenvolvimento; a 2.5.5 mantém as funções anteriores.",
+      "Ao iniciar pelo .bat, o painel 2.5.6 será substituído pelo executável 2.5.5 já testado neste Windows.",
+      "A publicação do executável antigo fica preservada até existir uma forma confiável de publicar novas builds."
+    ]
+  },
+  {
+    "version": "2.5.6.0",
+    "summary": "Executável do Comunicador assinado com certificado de desenvolvimento.",
+    "changes": [
+      "O painel 2.5.6 traz assinatura digital de desenvolvimento e carimbo de data.",
+      "A confiança neste certificado deve ser configurada manualmente em cada PC; o Windows ainda pode mostrar avisos."
+    ]
+  },
+  {
+    "version": "2.5.7.0",
+    "summary": "GIFs completos e estáveis; atualização do receptor com progresso e confirmação de reconexão.",
+    "changes": [
+      "Em Mensagens e nas notificações recebidas, GIFs animados mantêm todos os pixels no lugar durante a reprodução.",
+      "Em Computadores > Gerenciar computador, a atualização do receptor mostra o envio dos arquivos em porcentagem.",
+      "O painel só confirma a atualização depois que o receptor reinicia e volta à rede na versão esperada.",
+      "O painel passa para a versão 2.5.7 sem assinatura de desenvolvimento."
+    ]
+  },
+  {
+    "version": "2.5.9.0",
+    "summary": "Carrossel persistente de imagens, tela de bloqueio remota e avisos centrais corrigidos.",
+    "changes": [
+      "Em Mensagens, papel de parede e tela de bloqueio podem ser escolhidos separadamente com imagem PNG/JPEG.",
+      "No computador de destino, as imagens são aplicadas diretamente, sem prévia ou aviso na tela.",
+      "Nova tela de carrossel: imagens sem limite de quantidade, ordem ajustável, intervalo fixo ou aleatório e repetição opcional.",
+      "O carrossel continua após fechar o painel e reiniciar o Windows, e pode ser desligado remotamente.",
+      "Avisos centrais comuns agora exibem título e mensagem completos, sem cortar o cartão.",
+      "O receptor 2.5.5 recebe essas funções mesmo sem o painel aberto."
+    ]
+  },
+  {
+    "version": "2.5.10.0",
+    "summary": "Terminal remoto do OWNER com CMD comum e controles de áudio.",
+    "changes": [
+      "Em Gerenciar computador, o OWNER pode executar comandos CMD e ver o resultado no painel.",
+      "Com volume N, audio devices e audio select N, é possível ajustar o som e escolher a saída.",
+      "Os comandos expiram em 5 minutos, têm limite de 30 segundos e não pedem acesso de administrador.",
+      "O receptor 2.5.6 executa os comandos mesmo quando o painel de destino está fechado."
+    ]
+  },
+  {
+    "version": "2.5.11.0",
+    "summary": "Painel e receptor mais rápidos; instalador do Python corrigido.",
+    "changes": [
+      "O receptor 2.5.7 recebe imagens, GIFs e vídeos grandes com menos espera.",
+      "O painel 2.5.11 grava histórico e logs mais rapidamente e sincroniza perfis com menos custo.",
+      "O envio de mídias e a sincronização do painel evitam serializações duplicadas.",
+      "O instalador do receptor reconhece Python em caminhos com espaços e mostra o erro original na própria janela se falhar."
+    ]
+  },
+  {
+    "version": "2.5.13.0",
+    "summary": "Carrossel no centro da tela, confirmação em qualquer posição e melhorias de desempenho.",
+    "changes": [
+      "O carrossel mostra cada imagem no centro da tela pelo tempo escolhido.",
+      "O papel de parede e a tela de bloqueio não são modificados pelo carrossel.",
+      "O carrossel continua após fechar o painel ou reiniciar o computador.",
+      "Carrosséis antigos que trocavam o fundo são desligados antes de iniciar um novo.",
+      "Botões com link abrem o navegador também na prévia; falhas de abertura aparecem na tela.",
+      "Confirmação obrigatória pode acompanhar mensagens no canto ou no centro e volta ao histórico como resposta.",
+      "Mensagens para vários computadores são despachadas sem esperar a confirmação do primeiro.",
+      "Sincronização do banco e receptor usam menos espera e menos leituras repetidas."
+    ]
+  },
+  {
+    "version": "2.5.14.0",
+    "summary": "Computadores sincronizados, tags administrativas e atualização mais clara.",
+    "changes": [
+      "Computadores que bloqueiam mídias continuam visíveis, com o bloqueio e a instalação do painel identificados.",
+      "O OWNER pode enviar mídias a computadores que bloquearam o recebimento, após validação do identificador e pareamento.",
+      "Apelidos são sincronizados entre os painéis sem serem revertidos pelo cache local.",
+      "O OWNER pode alterar a senha e atribuir tags com permissões configuradas na Administração global.",
+      "Após atualizar, o painel mostra as mudanças de todas as versões puladas.",
+      "Badges voltam suavemente à posição padrão quando o mouse sai."
+    ]
+  },
+  {
+    "version": "2.5.15.0",
+    "summary": "Receptores sempre disponíveis, perfis sem erro de sincronização e seleção visual de cores.",
+    "changes": [
+      "Receptores registrados na nuvem aparecem como destinatários mesmo sem o painel instalado.",
+      "Mensagens, mídias, respostas e alterações de papel de parede chegam pela entrega cloud, respeitando bloqueio de mídia e validação do OWNER.",
+      "O painel registra primeiro o computador antes de salvar o perfil, eliminando a falha 409 da chave estrangeira no Supabase.",
+      "Campos de cor abrem um seletor flutuante e mostram uma amostra ao lado do código hexadecimal."
+    ]
+  }
+]

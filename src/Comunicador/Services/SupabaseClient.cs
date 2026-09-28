@@ -25,14 +25,17 @@ public sealed class SupabaseClient
 
     public async Task<CloudAdminState> RegisterDeviceAsync(
         string deviceId, string machineName, string? panelVersion, string? receiverVersion,
+        bool mediaBlocked,
         CancellationToken ct = default)
     {
-        var result = await RpcAsync<List<CloudAdminState>>("register_device", new
+        var result = await RpcAsync<List<CloudAdminState>>("register_device_status", new
         {
             p_device_id = deviceId,
             p_machine_name = machineName,
             p_panel_version = panelVersion,
             p_receiver_version = receiverVersion,
+            p_has_panel = true,
+            p_media_blocked = mediaBlocked,
         }, ct).ConfigureAwait(false);
         return result.FirstOrDefault() ?? new CloudAdminState();
     }
@@ -81,6 +84,24 @@ public sealed class SupabaseClient
         await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
         return await DeserializeAsync<List<CloudPanelProfile>>(response, ct).ConfigureAwait(false) ?? [];
     }
+
+    public async Task<IReadOnlyList<CloudDevice>> GetDevicesAsync(CancellationToken ct = default)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Get,
+            "/rest/v1/devices?select=device_id,machine_name,panel_version,receiver_version,has_panel,media_blocked,last_seen_at",
+            null, ct).ConfigureAwait(false);
+        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
+        return await DeserializeAsync<List<CloudDevice>>(response, ct).ConfigureAwait(false) ?? [];
+    }
+
+    public async Task<string> ChangeAdminPasswordAsync(string currentPassword, string newPassword,
+        CancellationToken ct = default) =>
+        await RpcAsync<string>("change_admin_password", new
+        {
+            p_current_password = currentPassword,
+            p_new_password = newPassword,
+        }, ct).ConfigureAwait(false);
 
     public async Task UpsertProfileAsync(
         string deviceId, string displayName, IEnumerable<BadgeUsuario> badges,
@@ -281,6 +302,16 @@ public sealed class CloudPanelProfile
     public string DisplayName { get; set; } = string.Empty;
     public List<BadgeUsuario> Badges { get; set; } = [];
     public DateTime UpdatedAt { get; set; }
+}
+public sealed class CloudDevice
+{
+    public string DeviceId { get; set; } = string.Empty;
+    public string MachineName { get; set; } = string.Empty;
+    public string? PanelVersion { get; set; }
+    public string? ReceiverVersion { get; set; }
+    public bool HasPanel { get; set; }
+    public bool MediaBlocked { get; set; }
+    public DateTimeOffset LastSeenAt { get; set; }
 }
 public sealed class GlobalConfigResult
 {

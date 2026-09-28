@@ -167,7 +167,7 @@ public sealed class LembretesViewModel : ViewModelBase
     {
         var idsSelecionados = Destinatarios.Where(d => d.Selecionado).Select(d => d.Computador.Id).ToHashSet();
         Destinatarios.Clear();
-        foreach (var computador in _computadores.Computadores.Where(c => c.Pareado))
+        foreach (var computador in _computadores.Computadores.Where(c => c.Pareado || c.RegistradoNaNuvem))
         {
             Destinatarios.Add(new ComputadorSelecionavel(computador) { Selecionado = idsSelecionados.Contains(computador.Id) });
         }

@@ -161,4 +161,26 @@ public partial class ConfiguracoesView : UserControl
             _abrindoLoginAdmin = false;
         }
     }
+
+    private async void AlterarSenhaAdmin_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel?.EstePainelEhOwner != true) return;
+        var dialog = new AlterarSenhaAdminWindow { Owner = Window.GetWindow(this) };
+        if (dialog.ShowDialog() != true) return;
+        IsEnabled = false;
+        try
+        {
+            var result = await _viewModel.AlterarSenhaAdminAsync(dialog.SenhaAtual, dialog.NovaSenha);
+            var message = result switch
+            {
+                "changed" => "Senha administrativa alterada e sincronizada.",
+                "invalid_password" => "A senha atual está incorreta.",
+                "password_too_short" => "A nova senha deve ter de 8 a 256 caracteres.",
+                _ => "Não foi possível alterar a senha agora.",
+            };
+            MessageBox.Show(message, "Administrador", MessageBoxButton.OK,
+                result == "changed" ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        }
+        finally { IsEnabled = true; }
+    }
 }

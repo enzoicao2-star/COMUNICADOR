@@ -24,6 +24,7 @@ public sealed class EmbeddedReceptorServer : IDisposable
     private readonly LogRepository _logs;
     private readonly RegistroConexoesReversas _conexoesReversas;
     private readonly PerfilComputadorRepository _perfis;
+    private readonly CloudSyncService _cloud;
 
     /// <summary>Disparado quando um receptor se registra abrindo conexao para este painel.</summary>
     public event Action<ConexaoReversa>? ReceptorRegistrado;
@@ -47,7 +48,7 @@ public sealed class EmbeddedReceptorServer : IDisposable
         JsonStore<PainelPareado> paineisPareadosStore, HistoricoRepository historico,
         LogRepository logs,
         RegistroConexoesReversas conexoesReversas,
-        PerfilComputadorRepository perfis)
+        PerfilComputadorRepository perfis, CloudSyncService cloud)
     {
         _settings = settings;
         _paineisPareados = paineisPareados;
@@ -56,6 +57,7 @@ public sealed class EmbeddedReceptorServer : IDisposable
         _logs = logs;
         _conexoesReversas = conexoesReversas;
         _perfis = perfis;
+        _cloud = cloud;
     }
 
     public void AtualizarDisponibilidade()
@@ -421,7 +423,8 @@ public sealed class EmbeddedReceptorServer : IDisposable
         if ((msg.Image is not null || msg.ScreenImages is { Count: > 0 }
                 || msg.Video is not null || msg.ScreenVideos is { Count: > 0 }
                 || msg.Audio is not null)
-            && (!_settings.AceitarImagensDeOutrosPaineis || !_settings.MidiasPermitidasGlobalmente))
+            && (!_settings.AceitarImagensDeOutrosPaineis || !_settings.MidiasPermitidasGlobalmente)
+            && !await SenderIsOwnerAsync(msg, ct).ConfigureAwait(false))
         {
             await EnviarAsync(stream, ComunicadorMessage.Error(
                 ProtocolConstants.ErrorCode.ContentBlocked,
@@ -430,7 +433,8 @@ public sealed class EmbeddedReceptorServer : IDisposable
         }
 
         if (msg.Buttons?.Any(b => b.TemLink) == true
-            && (!_settings.AceitarBotoesComLinks || !_settings.LinksPermitidosGlobalmente))
+            && (!_settings.AceitarBotoesComLinks || !_settings.LinksPermitidosGlobalmente)
+            && !await SenderIsOwnerAsync(msg, ct).ConfigureAwait(false))
         {
             await EnviarAsync(stream, ComunicadorMessage.Error(
                 ProtocolConstants.ErrorCode.ContentBlocked,
@@ -606,6 +610,16 @@ public sealed class EmbeddedReceptorServer : IDisposable
         var encontrado = false;
         UiDispatcher.Invoke(() => encontrado = _paineisPareados.Any(p => p.Token == token));
         return encontrado;
+    }
+
+    private async Task<bool> SenderIsOwnerAsync(ComunicadorMessage msg, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(msg.PanelId) || string.IsNullOrWhiteSpace(msg.Token)) return false;
+        var paired = false;
+        UiDispatcher.Invoke(() => paired = _paineisPareados.Any(p =>
+            string.Equals(p.PanelId, msg.PanelId, StringComparison.OrdinalIgnoreCase)
+            && p.Token == msg.Token));
+        return paired && await _cloud.IsCurrentAdminDeviceAsync(msg.PanelId, ct).ConfigureAwait(false);
     }
 
     private async Task ResponderDescobertaAsync(CancellationToken ct)

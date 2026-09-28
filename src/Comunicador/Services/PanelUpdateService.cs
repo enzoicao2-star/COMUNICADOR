@@ -114,13 +114,38 @@ public sealed class PanelUpdateService
         {
             var manifest = JsonSerializer.Deserialize<PanelManifest>(File.ReadAllText(path),
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            File.Delete(path);
             if (manifest is null) return null;
+            var previousText = manifest.PreviousVersion;
+            if (string.IsNullOrWhiteSpace(previousText))
+            {
+                var executable = Environment.ProcessPath;
+                var backup = executable is null ? null : Path.Combine(
+                    Path.GetDirectoryName(executable)!, "Comunicador.anterior.exe");
+                if (backup is not null && File.Exists(backup))
+                    previousText = FileVersionInfo.GetVersionInfo(backup).FileVersion;
+            }
+            if (Version.TryParse(previousText, out var previous)
+                && Version.TryParse(manifest.Version, out var current))
+            {
+                using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(
+                    "Comunicador.Release.panel-changelog.json");
+                if (stream is not null)
+                {
+                    using var reader = new StreamReader(stream);
+                    var summary = PanelChangelog.Format(reader.ReadToEnd(), previous, current,
+                        manifest.Summary ?? string.Empty, manifest.Changes ?? []);
+                    File.Delete(path);
+                    return summary;
+                }
+            }
             var changes = manifest.Changes is { Length: > 0 }
                 ? "\n\n" + string.Join("\n", manifest.Changes.Select(c => $"• {c}")) : string.Empty;
-            return $"Comunicador atualizado para {manifest.Version}.\n\n{manifest.Summary}{changes}".Trim();
+            var fallback = $"Comunicador atualizado para {manifest.Version}.\n\n{manifest.Summary}{changes}".Trim();
+            File.Delete(path);
+            return fallback;
         }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException
+            or System.ComponentModel.Win32Exception)
         {
             return null;
         }
@@ -150,6 +175,8 @@ public sealed class PanelUpdateService
     private sealed class PanelManifest
     {
         public string Version { get; set; } = string.Empty;
+        [System.Text.Json.Serialization.JsonPropertyName("previous_version")]
+        public string? PreviousVersion { get; set; }
         public string? Summary { get; set; }
         public string[]? Changes { get; set; }
     }

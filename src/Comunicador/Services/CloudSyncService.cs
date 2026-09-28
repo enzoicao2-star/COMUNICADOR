@@ -13,14 +13,17 @@ public sealed class CloudSyncService : IDisposable
     private readonly AppSettings _settings;
     private readonly PerfilComputadorRepository _profiles;
     private readonly CancellationTokenSource _cts = new();
+    private readonly SemaphoreSlim _deviceRegistrationGate = new(1, 1);
     private readonly HashSet<string> _responsesSeen = new(StringComparer.OrdinalIgnoreCase);
     private Task? _loop;
     private string? _lastUploadedProfile;
+    private CloudPanelProfile? _lastCloudOwnProfile;
     private string? _lastGlobalConfigJson;
 
     public event Action? StateChanged;
     public event Action<CloudDelivery>? ResponseReceived;
     public event Action<CloudDelivery>? DeliveryReceived;
+    public event Action<IReadOnlyList<CloudDevice>>? DevicesReceived;
     public event Action<ConfiguracaoGlobalPrograma>? GlobalConfigReceived;
     public bool IsAdmin { get; private set; }
     public bool IsDelegatedAdmin { get; private set; }
@@ -41,6 +44,13 @@ public sealed class CloudSyncService : IDisposable
         return _client.GetAdminAuditAsync(ct);
     }
 
+    public Task<string> ChangeAdminPasswordAsync(string currentPassword, string newPassword,
+        CancellationToken ct = default)
+    {
+        if (!IsAdmin) throw new UnauthorizedAccessException("Somente o OWNER pode trocar a senha administrativa.");
+        return _client.ChangeAdminPasswordAsync(currentPassword, newPassword, ct);
+    }
+
     public CloudSyncService(SupabaseClient client, AppSettings settings, PerfilComputadorRepository profiles)
     {
         _client = client;
@@ -52,6 +62,7 @@ public sealed class CloudSyncService : IDisposable
 
     public async Task<CloudAdminResult> ToggleAdminAsync(string password, CancellationToken ct = default)
     {
+        await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
         var result = await _client.ToggleAdminAsync(password, ct).ConfigureAwait(false);
         SetAdmin(result.IsAdmin, result.AdminDeviceId);
         Status = result.Status switch
@@ -76,6 +87,10 @@ public sealed class CloudSyncService : IDisposable
         string deviceId, string displayName, IEnumerable<BadgeUsuario> badges,
         CancellationToken ct = default)
     {
+        // panel_profiles.device_id references devices.device_id. Register the
+        // local panel first, including when the user saves before the sync loop's
+        // first request has completed.
+        await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
         if (!CanEdit(deviceId)) throw new UnauthorizedAccessException("Somente o próprio painel ou o admin pode alterar este perfil.");
         var normalized = badges.Where(b => b.Id != "owner").Select(b => b.Clone()).ToList();
         if (string.Equals(deviceId, AdminDeviceId, StringComparison.OrdinalIgnoreCase))
@@ -113,9 +128,9 @@ public sealed class CloudSyncService : IDisposable
             return !string.IsNullOrWhiteSpace(state.AdminDeviceId)
                 && string.Equals(state.AdminDeviceId, senderDeviceId, StringComparison.OrdinalIgnoreCase);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
-            Logger.Warning($"CMD remoto recusado: falha ao validar OWNER: {ex.Message}");
+            Logger.Warning($"Mídia remota recusada: falha ao validar OWNER: {ex.Message}");
             return false;
         }
     }
@@ -132,8 +147,15 @@ public sealed class CloudSyncService : IDisposable
 
     public Task QueueReminderAsync(
         string targetDeviceId, DateTime deliverAt, string title, string message,
-        bool allowReply, CancellationToken ct = default) =>
-        _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId,
+        bool allowReply, CancellationToken ct = default) => QueueReminderCoreAsync(
+            targetDeviceId, deliverAt, title, message, allowReply, ct);
+
+    private async Task QueueReminderCoreAsync(
+        string targetDeviceId, DateTime deliverAt, string title, string message,
+        bool allowReply, CancellationToken ct)
+    {
+        await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId,
             new DateTimeOffset(deliverAt.ToUniversalTime()), new
             {
                 kind = "reminder",
@@ -142,9 +164,38 @@ public sealed class CloudSyncService : IDisposable
                 message,
                 allow_reply = allowReply,
                 display_mode = ProtocolConstants.DisplayMode.Toast,
-            }, ct);
+            }, ct).ConfigureAwait(false);
+    }
 
-    public Task QueueAdminCommandAsync(string targetDeviceId, string command, CancellationToken ct = default)
+    public async Task QueueNotificationAsync(
+        string targetDeviceId, EnvioPendente notification, CancellationToken ct = default)
+    {
+        await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
+            new
+            {
+                kind = "notification",
+                sender = _settings.NomePainel,
+                title = notification.Titulo,
+                message = notification.Mensagem,
+                allow_reply = notification.PermitirResposta,
+                confirmation_required = notification.ConfirmacaoObrigatoria,
+                buttons = notification.Botoes,
+                display_mode = notification.ModoExibicao,
+                image = notification.Imagem,
+                screen_images = notification.ImagensPorMonitor,
+                image_duration_seconds = notification.DuracaoSegundos,
+                allow_manual_close = notification.PermitirFecharManualmente,
+                appearance = notification.Aparencia,
+                video = notification.Video,
+                screen_videos = notification.VideosPorMonitor,
+                video_loop = notification.RepetirVideo,
+                audio = notification.Audio,
+                audio_loop = notification.RepetirAudio,
+            }, ct).ConfigureAwait(false);
+    }
+
+    public async Task QueueAdminCommandAsync(string targetDeviceId, string command, CancellationToken ct = default)
     {
         var permission = command switch
         {
@@ -156,20 +207,23 @@ public sealed class CloudSyncService : IDisposable
         if (!HasPermission(permission)) throw new UnauthorizedAccessException("Esta conta não tem permissão para esta ação.");
         if (string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Escolha outro computador para esta ação.");
-        return _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
-            new { kind = "admin_command", command, sender = _settings.NomePainel }, ct);
+        await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
+            new { kind = "admin_command", command, sender = _settings.NomePainel }, ct).ConfigureAwait(false);
     }
 
-    public Task QueueRemoteCommandAsync(string targetDeviceId, string command, CancellationToken ct = default)
+    public async Task QueueRemoteCommandAsync(string targetDeviceId, string command, CancellationToken ct = default)
     {
         if (!IsAdmin) throw new UnauthorizedAccessException("Somente o OWNER pode enviar comandos CMD remotos.");
         if (!RemoteCommandExecutor.IsValid(command))
             throw new ArgumentException("Digite um comando de até 500 caracteres.", nameof(command));
         if (string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Escolha outro computador para esta ação.");
-        return _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
+        await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
             new { kind = "admin_command", command = "run_cmd", line = command.Trim(),
-                expires_at = DateTimeOffset.UtcNow.AddMinutes(5).ToString("O"), sender = _settings.NomePainel }, ct);
+                expires_at = DateTimeOffset.UtcNow.AddMinutes(5).ToString("O"), sender = _settings.NomePainel }, ct)
+            .ConfigureAwait(false);
     }
 
     public Task RespondToDeliveryAsync(string deliveryId, string response, CancellationToken ct = default) =>
@@ -184,11 +238,14 @@ public sealed class CloudSyncService : IDisposable
             ? _client.GetAdminStateAsync(ct)
             : Task.FromResult(registeredState);
         var profilesTask = _client.GetProfilesAsync(ct);
+        var devicesTask = _client.GetDevicesAsync(ct);
         var configTask = GetGlobalConfigOptionalAsync(ct);
-        await Task.WhenAll(adminTask, profilesTask, configTask).ConfigureAwait(false);
+        await Task.WhenAll(adminTask, profilesTask, devicesTask, configTask).ConfigureAwait(false);
         var admin = await adminTask.ConfigureAwait(false);
         SetAdmin(admin.IsAdmin, admin.AdminDeviceId);
         var cloudProfiles = await profilesTask.ConfigureAwait(false);
+        _lastCloudOwnProfile = cloudProfiles.FirstOrDefault(profile =>
+            string.Equals(profile.DeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase));
         var globalConfig = await configTask.ConfigureAwait(false);
         if (globalConfig is not null) ApplyGlobalConfig(globalConfig);
         IsDelegatedAdmin = cloudProfiles.FirstOrDefault(profile =>
@@ -204,6 +261,7 @@ public sealed class CloudSyncService : IDisposable
             UpdatedAt = profile.UpdatedAt.ToUniversalTime().ToString("o"),
             UpdatedBy = profile.DeviceId,
         }));
+        DevicesReceived?.Invoke(await devicesTask.ConfigureAwait(false));
         Status = "Sincronização Supabase ativa.";
         StateChanged?.Invoke();
     }
@@ -233,25 +291,35 @@ public sealed class CloudSyncService : IDisposable
         {
             try
             {
-                var state = await _client.RegisterDeviceAsync(
-                    _settings.PainelId, Environment.MachineName,
-                    ProtocolConstants.CurrentPanelVersion, ProtocolConstants.CurrentReceiverVersion, ct)
-                    .ConfigureAwait(false);
-                SetAdmin(state.IsAdmin, state.AdminDeviceId);
+                var state = await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+                // Primeiro recebe o perfil compartilhado. Enviar o cache local antes
+                // disso restaurava apelidos antigos por cima da edicao de outro painel.
+                await SynchronizeOnceAsync(ct, state).ConfigureAwait(false);
                 var own = _profiles.Obter(_settings.PainelId);
+                if (own is null && _lastCloudOwnProfile is null)
+                {
+                    _profiles.Salvar(_settings.PainelId, _settings.NomePainel, IsAdmin,
+                        [], _settings.PainelId);
+                    own = _profiles.Obter(_settings.PainelId);
+                }
                 if (own is not null)
                 {
                     var displayName = string.IsNullOrWhiteSpace(own.NomePublico)
                         ? _settings.NomePainel : own.NomePublico;
                     var fingerprint = JsonSerializer.Serialize(new { displayName, own.Badges });
-                    if (!string.Equals(_lastUploadedProfile, fingerprint, StringComparison.Ordinal))
+                    var cloudFingerprint = _lastCloudOwnProfile is { } published
+                        ? JsonSerializer.Serialize(new { displayName = published.DisplayName, Badges = published.Badges })
+                        : null;
+                    if (!string.Equals(fingerprint, cloudFingerprint, StringComparison.Ordinal)
+                        && !string.Equals(_lastUploadedProfile, fingerprint, StringComparison.Ordinal)
+                        && (_lastCloudOwnProfile is null
+                            || own.AtualizadoEmUtc > _lastCloudOwnProfile.UpdatedAt.ToUniversalTime()))
                     {
                         await _client.UpsertProfileAsync(_settings.PainelId,
                             displayName, own.Badges, ct).ConfigureAwait(false);
                         _lastUploadedProfile = fingerprint;
                     }
                 }
-                await SynchronizeOnceAsync(ct, state).ConfigureAwait(false);
                 var deliveriesTask = _client.ClaimDueDeliveriesAsync(ct);
                 var responsesTask = _client.GetResponsesAsync(_settings.PainelId, ct);
                 await Task.WhenAll(deliveriesTask, responsesTask).ConfigureAwait(false);
@@ -278,6 +346,24 @@ public sealed class CloudSyncService : IDisposable
         }
     }
 
+    private async Task<CloudAdminState> RegisterCurrentDeviceAsync(CancellationToken ct)
+    {
+        await _deviceRegistrationGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var state = await _client.RegisterDeviceAsync(
+                _settings.PainelId, Environment.MachineName,
+                ProtocolConstants.CurrentPanelVersion, ProtocolConstants.CurrentReceiverVersion,
+                !_settings.AceitarImagensDeOutrosPaineis, ct).ConfigureAwait(false);
+            SetAdmin(state.IsAdmin, state.AdminDeviceId);
+            return state;
+        }
+        finally
+        {
+            _deviceRegistrationGate.Release();
+        }
+    }
+
     private void SetAdmin(bool isAdmin, string? adminDeviceId)
     {
         var changed = IsAdmin != isAdmin ||
@@ -293,5 +379,6 @@ public sealed class CloudSyncService : IDisposable
         _cts.Cancel();
         try { _loop?.Wait(TimeSpan.FromSeconds(1)); } catch { }
         _cts.Dispose();
+        _deviceRegistrationGate.Dispose();
     }
 }

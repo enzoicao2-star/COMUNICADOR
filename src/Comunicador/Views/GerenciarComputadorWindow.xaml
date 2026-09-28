@@ -27,12 +27,15 @@
                             <Run Text="{Binding ComputadorGerenciado.StatusVersaoReceptor, Mode=OneWay}" /><Run Text="  ·  " />
                             <Run Text="{Binding ComputadorGerenciado.QuantidadeMonitores, Mode=OneWay}" /><Run Text=" monitor(es)" />
                         </TextBlock>
+                        <TextBlock Text="{Binding ComputadorGerenciado.StatusRecebimentoMidias}" Margin="0,5,0,0"
+                                   Foreground="#A15C00" Visibility="{Binding ComputadorGerenciado.MidiasBloqueadas, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource CardBorder}" Padding="18" Margin="0,0,0,12">
                     <StackPanel>
                         <TextBlock Text="Nome público" Style="{StaticResource TituloCard}" />
                         <TextBox Margin="0,9,0,0" MaxLength="60"
+                                 IsEnabled="{Binding ComputadorGerenciado.PodeEditarNome}"
                                  Text="{Binding ComputadorGerenciado.Apelido, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                 </Border>
@@ -54,10 +57,10 @@
                         </ItemsControl>
                         <WrapPanel Margin="0,8,0,0">
                             <TextBox Width="140" Margin="0,0,8,7" Text="{Binding ComputadorGerenciado.NovoBadgeTexto, UpdateSourceTrigger=PropertyChanged}" />
-                            <TextBox Width="95" Margin="0,0,8,7" Text="{Binding ComputadorGerenciado.NovoBadgeCor, UpdateSourceTrigger=PropertyChanged}" />
+                            <controls:ColorPickerPopover Width="126" Margin="0,0,8,7"
+                                SelectedColor="{Binding ComputadorGerenciado.NovoBadgeCor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             <ComboBox Width="125" Margin="0,0,8,7" ItemsSource="{Binding EstilosBadge}" SelectedItem="{Binding ComputadorGerenciado.NovoBadgeEstilo}" />
                             <ComboBox Width="125" Margin="0,0,8,7" ItemsSource="{Binding IconesBadge}" SelectedItem="{Binding ComputadorGerenciado.NovoBadgeIcone}" />
-                            <ComboBox Width="170" Margin="0,0,8,7" ItemsSource="{Binding ModelosBadgeGlobal}" DisplayMemberPath="Nome" SelectedValuePath="Id" SelectedValue="{Binding ComputadorGerenciado.NovoBadgeRoleId}" ToolTip="Tag padrão e permissões" />
                             <Button Content="Ícone próprio" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,7"
                                     Command="{Binding CarregarIconeBadgeCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
                         </WrapPanel>
@@ -72,7 +75,23 @@
                             <Button Content="Nova badge" Style="{StaticResource BotaoSecundario}"
                                     Command="{Binding NovaBadgeCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
                         </WrapPanel>
-                        <Button Content="Conceder / remover admin delegado" Style="{StaticResource BotaoSecundario}"
+                        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="8" Padding="12" Margin="0,12,0,0"
+                                Visibility="{Binding ComputadorGerenciado.PodeGerenciarAdmin, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <StackPanel>
+                                <TextBlock Text="Tags administrativas deste computador" Style="{StaticResource RotuloCampo}" />
+                                <TextBlock Text="Selecione uma tag criada na Administração global. Suas permissões acompanham a tag em todos os painéis."
+                                           Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,3,0,8" />
+                                <ComboBox ItemsSource="{Binding ModelosBadgeGlobal}" DisplayMemberPath="Nome" SelectedValuePath="Id"
+                                          SelectedValue="{Binding ComputadorGerenciado.NovoBadgeRoleId}" Width="230" HorizontalAlignment="Left" />
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button Content="Atribuir tag" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,0"
+                                            Command="{Binding AtribuirTagAdminCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+                                    <Button Content="Retirar tag" Style="{StaticResource BotaoSecundario}"
+                                            Command="{Binding RemoverTagAdminCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                        <Button Content="Admin delegado legado (gerenciar perfis)" Style="{StaticResource BotaoSecundario}"
                                 HorizontalAlignment="Left" Margin="0,10,0,0"
                                 Visibility="{Binding ComputadorGerenciado.PodeGerenciarAdmin, Converter={StaticResource BooleanToVisibilityConverter}}"
                                 Command="{Binding AlternarAdminDelegadoCommand}" CommandParameter="{Binding ComputadorGerenciado}" />

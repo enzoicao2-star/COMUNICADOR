@@ -644,7 +644,7 @@ public sealed class MensagensViewModel : ViewModelBase
                 computador.PropertyChanged += OnComputadorPropertyChanged;
             }
 
-            if (!computador.Pareado)
+            if (!computador.Pareado && !computador.RegistradoNaNuvem)
             {
                 continue;
             }
@@ -1410,7 +1410,24 @@ public sealed class MensagensViewModel : ViewModelBase
         async Task ProcessarEnvioAsync(Computador computador, HistoricoEntry entry,
             EnvioPendente envio, bool permitirResposta, string modoExibicao)
         {
-            var resultado = await envio.EnviarAsync(_enviador, computador).ConfigureAwait(true);
+            NotificationResult resultado;
+            try
+            {
+                if (!computador.Pareado && computador.RegistradoNaNuvem)
+                {
+                    await _cloud.QueueNotificationAsync(computador.Id, envio).ConfigureAwait(true);
+                    resultado = new NotificationResult(true, false, false, null, null);
+                }
+                else
+                {
+                    resultado = await envio.EnviarAsync(_enviador, computador).ConfigureAwait(true);
+                }
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException
+                or UnauthorizedAccessException or System.Text.Json.JsonException)
+            {
+                resultado = new NotificationResult(false, false, false, null, ex.Message);
+            }
             _historico.AtualizarExistente(
                 entry.Id, item => EnvioPendente.AtualizarHistorico(item, resultado,
                     permitirResposta || envio.ConfirmacaoObrigatoria));

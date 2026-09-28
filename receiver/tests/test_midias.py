@@ -1,4 +1,5 @@
 import base64
+import json
 import sys
 from pathlib import Path
 
@@ -8,6 +9,40 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import protocolo  # noqa: E402
 from protocolo import MessageType, ProtocolError  # noqa: E402
+from receptor import Config  # noqa: E402
+
+
+def test_owner_override_exige_identidade_e_token_do_mesmo_painel(tmp_path):
+    config = Config(tmp_path / "Receptor")
+    config.paired_panels["owner-id"] = {"token": "token-owner"}
+
+    class Worker:
+        def __init__(self):
+            self.consultas = 0
+
+        def is_current_owner(self, panel_id):
+            self.consultas += 1
+            return panel_id == "owner-id"
+
+    worker = Worker()
+    config.cloud_worker = worker
+    assert not config.sender_is_owner({"panel_id": "outro", "token": "token-owner"})
+    assert not config.sender_is_owner({"panel_id": "owner-id", "token": "errado"})
+    assert worker.consultas == 0
+    assert config.sender_is_owner({"panel_id": "owner-id", "token": "token-owner"})
+    assert worker.consultas == 1
+
+
+def test_bloqueio_de_midia_muda_sem_reiniciar_receptor(tmp_path):
+    config = Config(tmp_path / "Receptor")
+    identity = tmp_path / "device.json"
+    identity.write_text(json.dumps({"device_id": config.computer_id,
+                                    "has_panel": True, "media_blocked": True}), encoding="utf-8")
+    assert config.media_blocked
+    assert config.has_panel
+    identity.write_text(json.dumps({"device_id": config.computer_id,
+                                    "has_panel": True, "media_blocked": False}), encoding="utf-8")
+    assert not config.media_blocked
 
 
 def base(modo):

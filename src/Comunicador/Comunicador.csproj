@@ -9,9 +9,9 @@
     <AssemblyName>Comunicador</AssemblyName>
     <RootNamespace>Comunicador</RootNamespace>
     <Platforms>x64</Platforms>
-    <Version>2.5.13</Version>
-    <AssemblyVersion>2.5.13.0</AssemblyVersion>
-    <FileVersion>2.5.13.0</FileVersion>
+    <Version>2.5.15</Version>
+    <AssemblyVersion>2.5.15.0</AssemblyVersion>
+    <FileVersion>2.5.15.0</FileVersion>
     <Product>Comunicador</Product>
     <ApplicationIcon>Assets\Comunicador.ico</ApplicationIcon>
   </PropertyGroup>
@@ -25,6 +25,8 @@
     <EmbeddedResource Include="..\..\receiver\receptor.py"
                       Link="ReceiverResources\receptor.py"
                       LogicalName="Comunicador.Receiver.receptor.py" />
+    <EmbeddedResource Include="..\..\release\panel-changelog.json"
+                      LogicalName="Comunicador.Release.panel-changelog.json" />
     <EmbeddedResource Include="..\..\receiver\protocolo.py"
                       Link="ReceiverResources\protocolo.py"
                       LogicalName="Comunicador.Receiver.protocolo.py" />

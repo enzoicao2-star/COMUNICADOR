@@ -8,6 +8,14 @@ namespace Comunicador.Tests;
 public sealed class ComputadorTests
 {
     [Fact]
+    public void ReceptorSemPainelContinuaIdentificavelNaLista()
+    {
+        var computador = new Computador { TemPainel = false, EnderecoIp = string.Empty };
+        Assert.Contains("Somente receptor", computador.StatusVersaoPainel);
+        Assert.Equal("registrado na nuvem", computador.EnderecoIpExibicao);
+    }
+
+    [Fact]
     public void QuantidadeMonitores_AcompanhaListaSemFazerParteDoJson()
     {
         var computador = new Computador();

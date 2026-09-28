@@ -23,7 +23,7 @@
         <Grid DockPanel.Dock="Top" Margin="0,0,0,20">
             <StackPanel>
                 <TextBlock Text="Computadores" Style="{StaticResource TituloSecao}" />
-                <TextBlock Text="Máquinas que podem receber seus avisos nesta rede." Style="{StaticResource Subtitulo}" />
+                <TextBlock Text="Máquinas encontradas na rede ou registradas na nuvem, inclusive quando estão desconectadas." Style="{StaticResource Subtitulo}" />
             </StackPanel>
             <Button Style="{StaticResource BotaoSecundario}" HorizontalAlignment="Right" VerticalAlignment="Bottom"
                     Command="{Binding AtualizarAgoraCommand}">
@@ -195,7 +195,7 @@
                                             </Button>
                                         </Grid>
                                         <TextBlock Text="Nome público" Style="{StaticResource RotuloCampo}" />
-                                        <TextBox MaxLength="60" Text="{Binding Apelido, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBox MaxLength="60" Text="{Binding Apelido, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding PodeEditarNome}" />
                                         <TextBlock Text="Badges deste computador" Style="{StaticResource RotuloCampo}" Margin="0,10,0,3" />
                                         <TextBlock Text="Clique em uma badge salva para carregá-la no editor."
                                                    Style="{StaticResource Subtitulo}" FontSize="11" Margin="0,0,0,6" />
@@ -235,8 +235,8 @@
                                         <WrapPanel>
                                             <TextBox Width="130" MaxLength="28" Margin="0,0,7,6" ToolTip="Texto da badge"
                                                      Text="{Binding NovoBadgeTexto, UpdateSourceTrigger=PropertyChanged}" />
-                                            <TextBox Width="94" MaxLength="7" Margin="0,0,7,6" ToolTip="Cor hexadecimal"
-                                                     Text="{Binding NovoBadgeCor, UpdateSourceTrigger=PropertyChanged}" />
+                                            <controls:ColorPickerPopover Width="126" Margin="0,0,7,6"
+                                                SelectedColor="{Binding NovoBadgeCor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             <ComboBox Width="125" Margin="0,0,7,6" ItemsSource="{Binding ElementName=Raiz, Path=DataContext.EstilosBadge}"
                                                       SelectedItem="{Binding NovoBadgeEstilo}" />
                                             <ComboBox Width="115" Margin="0,0,7,6" ItemsSource="{Binding ElementName=Raiz, Path=DataContext.IconesBadge}"
@@ -265,7 +265,7 @@
                                         <TextBlock Style="{StaticResource Subtitulo}" Margin="7,0,0,0" VerticalAlignment="Center">
                                             <Run Text="{Binding Status, Converter={StaticResource StatusComputadorToTextoConverter}, Mode=OneWay}" />
                                             <Run Text="  ·  " Foreground="{DynamicResource TextSecondaryBrush}" />
-                                            <Run Text="{Binding EnderecoIp, Mode=OneWay}" />
+                                            <Run Text="{Binding EnderecoIpExibicao, Mode=OneWay}" />
                                         </TextBlock>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
@@ -291,6 +291,8 @@
                                             <Run Text=" monitor(es)" />
                                         </TextBlock>
                                     </StackPanel>
+                                    <TextBlock Text="{Binding StatusRecebimentoMidias}" FontSize="11" Foreground="#A15C00"
+                                               Margin="0,3,0,0" Visibility="{Binding MidiasBloqueadas, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                 </StackPanel>
 
                                 <Button Grid.Column="2" Width="38" Height="36" Padding="0"

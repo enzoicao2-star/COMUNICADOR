@@ -353,6 +353,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         AtualizarSelecaoPaletas();
         _cloud.StateChanged += OnCloudStateChanged;
         _cloud.GlobalConfigReceived += OnGlobalConfigReceived;
+        _perfis.Alterado += OnPerfisAlterados;
 
         _autoSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
         _autoSaveTimer.Tick += (_, _) =>
@@ -493,6 +494,17 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         }
     }
 
+    public async Task<string> AlterarSenhaAdminAsync(string senhaAtual, string novaSenha)
+    {
+        try { return await _cloud.ChangeAdminPasswordAsync(senhaAtual, novaSenha).ConfigureAwait(true); }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException
+            or UnauthorizedAccessException)
+        {
+            StatusOperacao = $"Não foi possível alterar a senha: {ex.Message}";
+            return "unavailable";
+        }
+    }
+
     private void OnCloudStateChanged() => UiDispatcher.Invoke(() =>
     {
         OnPropertyChanged(nameof(EstePainelEhOwner));
@@ -502,6 +514,18 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         OnPropertyChanged(nameof(PodeEditarPersonalizacaoLocal));
         CommandManager.InvalidateRequerySuggested();
         StatusOperacao = _cloud.Status;
+    });
+
+    private void OnPerfisAlterados() => UiDispatcher.Invoke(() =>
+    {
+        var perfil = _perfis.Obter(_settings.PainelId);
+        if (perfil is null || string.IsNullOrWhiteSpace(perfil.NomePublico)
+            || string.Equals(_settings.NomePainel, perfil.NomePublico, StringComparison.Ordinal)) return;
+        _settings.NomePainel = perfil.NomePublico;
+        _nomePainel = perfil.NomePublico;
+        OnPropertyChanged(nameof(NomePainel));
+        _client.UpdatePanelName(perfil.NomePublico);
+        SettingsStore.Save(_settings);
     });
 
     private void OnGlobalConfigReceived(ConfiguracaoGlobalPrograma config) => UiDispatcher.Invoke(() =>
@@ -677,9 +701,15 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         {
             badges.RemoveAll(b => b.Id == "owner");
         }
-        _perfis.Salvar(_settings.PainelId, _settings.NomePainel, _cloud.IsAdmin,
-            badges, _settings.PainelId);
-        _ = SincronizarPerfilLocalAsync(_settings.NomePainel, badges);
+        if (perfilAtual is null
+            || !string.Equals(perfilAtual.NomePublico, _settings.NomePainel, StringComparison.Ordinal)
+            || perfilAtual.EhOwner != _cloud.IsAdmin
+            || perfilAtual.Badges.Any(b => b.Id == "owner") != _cloud.IsAdmin)
+        {
+            _perfis.Salvar(_settings.PainelId, _settings.NomePainel, _cloud.IsAdmin,
+                badges, _settings.PainelId);
+            _ = SincronizarPerfilLocalAsync(_settings.NomePainel, badges);
+        }
         if (inicializacaoMudou) StartupManager.Aplicar(IniciarComWindows);
         _embeddedReceptorServer.AtualizarDisponibilidade();
         StatusReceptorEmbutido = CalcularStatusReceptor();
