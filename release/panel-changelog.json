@@ -191,5 +191,14 @@
       "O painel registra primeiro o computador antes de salvar o perfil, eliminando a falha 409 da chave estrangeira no Supabase.",
       "Campos de cor abrem um seletor flutuante e mostram uma amostra ao lado do código hexadecimal."
     ]
+  },
+  {
+    "version": "2.5.16.0",
+    "summary": "Atualização de receptores registrados na nuvem, com confirmação da versão instalada.",
+    "changes": [
+      "O OWNER pode atualizar receptores registrados na nuvem mesmo sem pareamento TCP local.",
+      "Se a conexão direta falhar, o painel envia o instalador oficial pela nuvem.",
+      "A atualização só aparece como concluída após o receptor publicar a nova versão; pedidos sem confirmação ficam pendentes."
+    ]
   }
 ]

@@ -107,7 +107,11 @@ public sealed class Computador : ObservableModel
     public bool RegistradoNaNuvem
     {
         get => _registradoNaNuvem;
-        set => SetField(ref _registradoNaNuvem, value);
+        set
+        {
+            if (SetField(ref _registradoNaNuvem, value))
+                OnPropertyChanged(nameof(PodeAtualizarReceptor));
+        }
     }
     public bool MidiasBloqueadas
     {
@@ -282,7 +286,7 @@ public sealed class Computador : ObservableModel
             : $"Receptor {VersaoReceptor} — atualização necessária";
 
     [JsonIgnore]
-    public bool PodeAtualizarReceptor => !TemPainel && !AtualizandoReceptor && Pareado;
+    public bool PodeAtualizarReceptor => !TemPainel && !AtualizandoReceptor && (Pareado || RegistradoNaNuvem);
 
     public string EnderecoIp
     {

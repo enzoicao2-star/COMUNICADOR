@@ -36,9 +36,15 @@ public sealed class AtualizadorReceptor
                 + "as próximas versões poderão ser instaladas diretamente pelo painel.");
         }
 
+        var conexao = _conexoes.Obter(computador.Id);
+        if (conexao is null && string.IsNullOrWhiteSpace(computador.EnderecoIp))
+        {
+            return new(false, "direct_unavailable", computador.VersaoReceptor ?? string.Empty,
+                "Este receptor está registrado somente na nuvem e não tem conexão direta disponível.");
+        }
+
         report?.Invoke(new(8, "Preparando os arquivos oficiais"));
         var arquivos = ReceiverUpdatePackage.Create();
-        var conexao = _conexoes.Obter(computador.Id);
         report?.Invoke(new(12, "Conectando ao computador"));
         void TransferProgress(long sent, long total)
         {

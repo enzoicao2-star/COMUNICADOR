@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net.Http;
 using System.Windows.Input;
@@ -21,6 +22,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private readonly AppSettings _settings;
     private readonly PerfilComputadorRepository _perfis;
     private readonly CloudSyncService _cloud;
+    private readonly ConcurrentDictionary<string, ReceiverCloudUpdateConfirmation> _cloudReceiverUpdates =
+        new(StringComparer.OrdinalIgnoreCase);
     private string? _statusMensagem;
     private string _novoIp = string.Empty;
     private string _novaPorta = ProtocolConstants.TcpPort.ToString();
@@ -172,7 +175,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
             {
                 await AtualizarReceptorAsync(computador).ConfigureAwait(true);
             }
-        }, param => param is Computador { PodeAtualizarReceptor: true });
+        }, param => _cloud.HasPermission("remote_receiver")
+            && param is Computador { PodeAtualizarReceptor: true });
 
         AdicionarManualCommand = new RelayCommand(_ => AdicionarManual(), _ => PodeAdicionarManual());
 
@@ -528,7 +532,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
             "install_panel" => _cloud.HasPermission("remote_install") && !computador.TemPainel && computador.Pareado,
             "reinstall_panel" => _cloud.HasPermission("remote_install") && computador.TemPainel,
             "disable_panel" or "enable_panel" => _cloud.HasPermission("remote_panel_access") && computador.TemPainel,
-            "reinstall_receiver" => _cloud.HasPermission("remote_receiver") && computador.Pareado,
+            "reinstall_receiver" => _cloud.HasPermission("remote_receiver")
+                && !computador.TemPainel && (computador.Pareado || computador.RegistradoNaNuvem),
             _ => false,
         };
 
@@ -608,6 +613,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
         foreach (var device in devices)
         {
             if (string.IsNullOrWhiteSpace(device.DeviceId)) continue;
+            if (_cloudReceiverUpdates.TryGetValue(device.DeviceId, out var updateConfirmation))
+                updateConfirmation.Observe(device);
             var computador = Computadores.FirstOrDefault(c =>
                 string.Equals(c.Id, device.DeviceId, StringComparison.OrdinalIgnoreCase));
             var created = computador is null;
@@ -664,7 +671,11 @@ public sealed class ComputadoresViewModel : ViewModelBase
             }
             if (created) AplicarPerfil(computador);
         }
-        if (changed) Persist();
+        if (changed)
+        {
+            Persist();
+            CommandManager.InvalidateRequerySuggested();
+        }
     });
 
     public IReadOnlyList<Computador> Snapshot() => Computadores.ToList();
@@ -945,12 +956,31 @@ public sealed class ComputadoresViewModel : ViewModelBase
         CommandManager.InvalidateRequerySuggested();
         try
         {
-            var resultado = await _atualizador.AtualizarAsync(computador, progress => UiDispatcher.Invoke(() =>
+            void Report(ReceiverUpdateProgress progress) => UiDispatcher.Invoke(() =>
             {
                 computador.ProgressoAtualizacaoReceptor = progress.Percent;
                 computador.EtapaAtualizacaoReceptor = progress.Stage;
                 StatusMensagem = $"{computador.NomeExibicao}: {progress.Stage} ({progress.Percent}%).";
-            })).ConfigureAwait(true);
+            });
+
+            var resultado = await _atualizador.AtualizarAsync(computador, Report).ConfigureAwait(true);
+            if (!resultado.Success && resultado.Status != "not_applicable"
+                && _cloud.HasPermission("remote_receiver"))
+            {
+                Logger.Warning($"Atualização direta do receptor de {computador.NomeExibicao} falhou; "
+                    + $"tentando a instalação oficial pela nuvem: {resultado.Message}", "atualizacao");
+                resultado = await AtualizarReceptorPelaNuvemAsync(computador, Report).ConfigureAwait(true);
+            }
+
+            if (resultado.Status == "update_pending")
+            {
+                StatusMensagem = $"Pedido de atualização enviado para {computador.NomeExibicao}. "
+                    + "O receptor ainda não confirmou; a solicitação continua na nuvem e o status "
+                    + "será atualizado quando ele concluir.";
+                Logger.Warning(StatusMensagem, "atualizacao");
+                return;
+            }
+
             if (resultado.Success)
             {
                 computador.VersaoReceptor = string.IsNullOrWhiteSpace(resultado.ReceiverVersion)
@@ -967,8 +997,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 var detalhe = string.IsNullOrWhiteSpace(resultado.Message)
                     ? resultado.Status
                     : resultado.Message;
-                StatusMensagem = $"Não foi possível atualizar {computador.NomeExibicao}: {detalhe}. "
-                    + "Se ele usa uma versão antiga, execute o instalador uma última vez nessa máquina.";
+                StatusMensagem = $"Não foi possível atualizar {computador.NomeExibicao}: {detalhe}.";
                 Logger.Error(
                     $"Falha ao atualizar o receptor de {computador.NomeExibicao}.",
                     "atualizacao", detalhe);
@@ -984,6 +1013,43 @@ public sealed class ComputadoresViewModel : ViewModelBase
         {
             computador.AtualizandoReceptor = false;
             CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    private async Task<ReceiverUpdateResult> AtualizarReceptorPelaNuvemAsync(
+        Computador computador, Action<ReceiverUpdateProgress> report)
+    {
+        var confirmation = new ReceiverCloudUpdateConfirmation(
+            computador.Id, ProtocolConstants.CurrentReceiverVersion, DateTimeOffset.UtcNow.AddSeconds(-2));
+        if (!_cloudReceiverUpdates.TryAdd(computador.Id, confirmation))
+            return new(false, "update_in_progress", computador.VersaoReceptor ?? string.Empty,
+                "Já existe uma atualização pela nuvem aguardando este receptor.");
+
+        try
+        {
+            await _cloud.QueueAdminCommandAsync(computador.Id, "reinstall_receiver").ConfigureAwait(true);
+            report(new(18, "Solicitação enviada pela nuvem; aguardando o receptor instalar e reconectar"));
+
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+            try
+            {
+                var version = await confirmation.WaitAsync(timeout.Token).ConfigureAwait(true);
+                return new(true, "updated", version, "Atualização confirmada pela versão registrada na nuvem.");
+            }
+            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+            {
+                return new(false, "update_pending", computador.VersaoReceptor ?? string.Empty,
+                    "O pedido foi enfileirado, mas o receptor ainda não confirmou a nova versão.");
+            }
+        }
+        catch (Exception ex)
+        {
+            return new(false, "cloud_delivery_failed", computador.VersaoReceptor ?? string.Empty,
+                $"A atualização direta falhou e não foi possível solicitar pela nuvem: {ex.Message}");
+        }
+        finally
+        {
+            _cloudReceiverUpdates.TryRemove(computador.Id, out _);
         }
     }
 

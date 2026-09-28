@@ -10,6 +10,28 @@ namespace Comunicador.Tests;
 public sealed class AtualizadorReceptorTests
 {
     [Fact]
+    public async Task ReceptorSomenteNuvemUsaFallbackSemTentarConectarEmIpVazio()
+    {
+        var computer = new Computador
+        {
+            Id = "joao-device",
+            Nome = "João",
+            Pareado = false,
+            RegistradoNaNuvem = true,
+            VersaoReceptor = "2.5.9",
+            EnderecoIp = string.Empty,
+        };
+        var updater = new AtualizadorReceptor(
+            new ReceptorClient("painel-teste", "PAINEL"), new RegistroConexoesReversas());
+
+        var result = await updater.AtualizarAsync(computer);
+
+        Assert.False(result.Success);
+        Assert.Equal("direct_unavailable", result.Status);
+        Assert.True(computer.PodeAtualizarReceptor);
+    }
+
+    [Fact]
     public async Task AtualizacaoDireta_SoConcluiDepoisDoPingNaVersaoNova()
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);

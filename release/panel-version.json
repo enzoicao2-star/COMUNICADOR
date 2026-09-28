@@ -1,12 +1,11 @@
 {
-  "version": "2.5.15.0",
-  "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-  "sha256": "0D90235F87F85FC5D30B3C67D2FDE8D66A86C8BB4B339BDACB0ABA3116513B32",
-  "summary": "Receptores sempre disponíveis, perfis sem erro de sincronização e seleção visual de cores.",
-  "changes": [
-    "Receptores registrados na nuvem aparecem como destinatários mesmo sem o painel instalado.",
-    "Mensagens, mídias, respostas e alterações de papel de parede chegam pela entrega cloud, respeitando bloqueio de mídia e validação do OWNER.",
-    "O painel registra primeiro o computador antes de salvar o perfil, eliminando a falha 409 da chave estrangeira no Supabase.",
-    "Campos de cor abrem um seletor flutuante e mostram uma amostra ao lado do código hexadecimal."
-  ]
+    "version":  "2.5.16.0",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
+    "sha256":  "62614D005BDB41F114AC59FA7C543B7AF727516F9A0DA018DC61DE3A1054BE7B",
+    "summary":  "Atualização de receptores registrados na nuvem, com confirmação da versão instalada.",
+    "changes":  [
+                    "O OWNER pode atualizar receptores registrados na nuvem mesmo sem pareamento TCP local.",
+                    "Se a conexão direta falhar, o painel envia o instalador oficial pela nuvem.",
+                    "A atualização só aparece como concluída após o receptor publicar a nova versão; pedidos sem confirmação ficam pendentes."
+                ]
 }
