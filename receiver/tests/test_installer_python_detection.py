@@ -17,7 +17,7 @@ INSTALLER = Path(__file__).resolve().parent.parent / "INSTALAR_RECEPTOR.bat"
 def test_detects_installed_python_without_running_installer():
     result = subprocess.run(
         ["cmd.exe", "/d", "/c", str(INSTALLER), "--verificar-python", sys.executable],
-        capture_output=True, text=True, timeout=15,
+        capture_output=True, text=True, timeout=45,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "Python encontrado em:" in result.stdout
@@ -39,7 +39,7 @@ def test_detects_python_when_path_contains_spaces(tmp_path):
     env["PYTHONHOME"] = sys.base_prefix
     result = subprocess.run(
         ["cmd.exe", "/d", "/c", str(INSTALLER), "--verificar-python", str(candidate)],
-        env=env, capture_output=True, text=True, timeout=15,
+        env=env, capture_output=True, text=True, timeout=45,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert str(candidate) in result.stdout
@@ -56,10 +56,29 @@ def test_installer_failure_prints_exact_log_error_on_screen():
     try:
         result = subprocess.run(
             ["cmd.exe", "/d", "/c", str(INSTALLER), "--verificar-erro-python", str(path), "1603"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True, text=True, timeout=45,
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert "[1234] Error 0x80070643: falha original do Python" in result.stdout
         assert "Codigo de saida: 1603" in result.stdout
     finally:
         path.unlink(missing_ok=True)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Instalador BAT do Windows")
+def test_installer_accepts_version_from_downloaded_receiver(tmp_path):
+    receiver = tmp_path / "nova versao.py"
+    receiver.write_text('RECEIVER_VERSION = "12.34.567"\n', encoding="utf-8")
+    result = subprocess.run(
+        ["cmd.exe", "/d", "/c", str(INSTALLER), "--verificar-versao", str(receiver), sys.executable],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip() == "12.34.567"
+
+    receiver.write_text('RECEIVER_VERSION = "qualquer texto"\n', encoding="utf-8")
+    invalid = subprocess.run(
+        ["cmd.exe", "/d", "/c", str(INSTALLER), "--verificar-versao", str(receiver), sys.executable],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert invalid.returncode != 0

@@ -1,6 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-set "RECEIVER_VERSION=2.5.8"
+set "RECEIVER_VERSION=mais recente"
 if not defined COMUNICADOR_SOURCE_DIR set "COMUNICADOR_SOURCE_DIR=%~dp0"
 
 rem Modo de diagnostico seguro: testa a deteccao sem instalar nem pedir UAC.
@@ -18,6 +18,15 @@ if /I "%~1"=="--verificar-erro-python" (
     set "PYTHON_INSTALL_CODE=%~3"
     call :mostrar_erro_python
     exit /b 0
+)
+if /I "%~1"=="--verificar-versao" (
+    set "PYTHON_EXE=%~3"
+    set "VERSION_CHECK_FILE=%TEMP%\Comunicador-version-%RANDOM%%RANDOM%.txt"
+    call :obter_versao "%~2" "!VERSION_CHECK_FILE!"
+    set "VERSION_CHECK_CODE=!errorlevel!"
+    if "!VERSION_CHECK_CODE!"=="0" echo !RECEIVER_VERSION!
+    del /q "!VERSION_CHECK_FILE!" >nul 2>nul
+    exit /b !VERSION_CHECK_CODE!
 )
 
 rem Python e notificacoes devem rodar na conta que fez login. Elevar o BAT
@@ -63,7 +72,7 @@ echo.
 set "REPO_RAW=https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/receiver"
 set "INSTALL_ROOT=%LOCALAPPDATA%\Comunicador\Receptor"
 set "INSTALL_DIR=%INSTALL_ROOT%\app"
-set "DOWNLOAD_DIR=%TEMP%\Comunicador-Receptor-%RECEIVER_VERSION%-%RANDOM%%RANDOM%"
+set "DOWNLOAD_DIR=%TEMP%\Comunicador-Receptor-%RANDOM%%RANDOM%"
 set "CACHE_BUSTER=%RANDOM%%RANDOM%%RANDOM%"
 set "COMUNICADOR_RECEPTOR_SCRIPT=%LOCALAPPDATA%\Comunicador\Receptor\app\receptor.py"
 set "TASK_NAME=Comunicador Receptor"
@@ -132,28 +141,28 @@ if errorlevel 1 (
 )
 
 echo.
-echo [4/8] Baixando e validando o receptor %RECEIVER_VERSION%...
+echo [4/8] Baixando e validando a versao mais recente do receptor...
 curl.exe --help all 2>nul | findstr /L /C:"--parallel" >nul
 if errorlevel 1 (
     rem Versoes antigas do curl nao suportam --parallel; usa o fluxo anterior.
     echo       Download paralelo indisponivel; tentando arquivo por arquivo...
-    curl.exe -fsSL -o "%DOWNLOAD_DIR%\receptor.py" "%REPO_RAW%/receptor.py?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
+    curl.exe -fsSL -o "%DOWNLOAD_DIR%\receptor.py" "%REPO_RAW%/receptor.py?t=!CACHE_BUSTER!"
     if errorlevel 1 goto :erro_download
-    curl.exe -fsSL -o "%DOWNLOAD_DIR%\protocolo.py" "%REPO_RAW%/protocolo.py?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
+    curl.exe -fsSL -o "%DOWNLOAD_DIR%\protocolo.py" "%REPO_RAW%/protocolo.py?t=!CACHE_BUSTER!"
     if errorlevel 1 goto :erro_download
-    curl.exe -fsSL -o "%DOWNLOAD_DIR%\requirements.txt" "%REPO_RAW%/requirements.txt?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
+    curl.exe -fsSL -o "%DOWNLOAD_DIR%\requirements.txt" "%REPO_RAW%/requirements.txt?t=!CACHE_BUSTER!"
     if errorlevel 1 goto :erro_download
-    curl.exe -fsSL -o "%DOWNLOAD_DIR%\DIAGNOSTICO.bat" "%REPO_RAW%/DIAGNOSTICO.bat?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
+    curl.exe -fsSL -o "%DOWNLOAD_DIR%\DIAGNOSTICO.bat" "%REPO_RAW%/DIAGNOSTICO.bat?t=!CACHE_BUSTER!"
     if errorlevel 1 goto :erro_download
-    curl.exe -fsSL -o "%DOWNLOAD_DIR%\DESINSTALAR_RECEPTOR.bat" "%REPO_RAW%/DESINSTALAR_RECEPTOR.bat?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
+    curl.exe -fsSL -o "%DOWNLOAD_DIR%\DESINSTALAR_RECEPTOR.bat" "%REPO_RAW%/DESINSTALAR_RECEPTOR.bat?t=!CACHE_BUSTER!"
     if errorlevel 1 goto :erro_download
 ) else (
     curl.exe --parallel --parallel-immediate --fail-early -fsSL ^
-        -o "%DOWNLOAD_DIR%\receptor.py" "%REPO_RAW%/receptor.py?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!" ^
-        -o "%DOWNLOAD_DIR%\protocolo.py" "%REPO_RAW%/protocolo.py?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!" ^
-        -o "%DOWNLOAD_DIR%\requirements.txt" "%REPO_RAW%/requirements.txt?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!" ^
-        -o "%DOWNLOAD_DIR%\DIAGNOSTICO.bat" "%REPO_RAW%/DIAGNOSTICO.bat?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!" ^
-        -o "%DOWNLOAD_DIR%\DESINSTALAR_RECEPTOR.bat" "%REPO_RAW%/DESINSTALAR_RECEPTOR.bat?v=%RECEIVER_VERSION%&t=!CACHE_BUSTER!"
+        -o "%DOWNLOAD_DIR%\receptor.py" "%REPO_RAW%/receptor.py?t=!CACHE_BUSTER!" ^
+        -o "%DOWNLOAD_DIR%\protocolo.py" "%REPO_RAW%/protocolo.py?t=!CACHE_BUSTER!" ^
+        -o "%DOWNLOAD_DIR%\requirements.txt" "%REPO_RAW%/requirements.txt?t=!CACHE_BUSTER!" ^
+        -o "%DOWNLOAD_DIR%\DIAGNOSTICO.bat" "%REPO_RAW%/DIAGNOSTICO.bat?t=!CACHE_BUSTER!" ^
+        -o "%DOWNLOAD_DIR%\DESINSTALAR_RECEPTOR.bat" "%REPO_RAW%/DESINSTALAR_RECEPTOR.bat?t=!CACHE_BUSTER!"
     if errorlevel 1 goto :erro_download
 )
 for %%F in (receptor.py protocolo.py requirements.txt DIAGNOSTICO.bat DESINSTALAR_RECEPTOR.bat) do (
@@ -166,12 +175,12 @@ if errorlevel 1 (
     echo ERRO: os arquivos baixados nao passaram na validacao do Python.
     goto :erro_download
 )
-findstr /L /C:"RECEIVER_VERSION = " "%DOWNLOAD_DIR%\receptor.py" | findstr /L /C:"%RECEIVER_VERSION%" >nul
+call :obter_versao "%DOWNLOAD_DIR%\receptor.py" "%DOWNLOAD_DIR%\version.txt"
 if errorlevel 1 (
-    echo ERRO: o GitHub ainda nao entregou a versao %RECEIVER_VERSION% esperada.
-    echo        Aguarde alguns segundos e execute o instalador novamente.
+    echo ERRO: nao foi possivel identificar a versao do receptor baixado.
     goto :erro_download
 )
+echo       Versao mais recente encontrada: %RECEIVER_VERSION%
 findstr /L /C:"--verificar" "%DOWNLOAD_DIR%\DESINSTALAR_RECEPTOR.bat" >nul
 if errorlevel 1 (
     echo ERRO: o GitHub entregou uma copia antiga do desinstalador.
@@ -359,6 +368,14 @@ rem Instalador compartilhado da conferencia deve continuar disponivel em Z:.
 if /I "%COMUNICADOR_SOURCE_DIR%"=="Z:\CONTROLES\conferencia\9\" exit /b 0
 set "COMUNICADOR_SELF_DELETE=%~f0"
 powershell -NoProfile -NonInteractive -Command "$cleanup='Start-Sleep -Seconds 2; Remove-Item -LiteralPath $env:COMUNICADOR_SELF_DELETE -Force -ErrorAction SilentlyContinue'; $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cleanup)); Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-NonInteractive','-WindowStyle','Hidden','-EncodedCommand',$encoded) -WindowStyle Hidden"
+exit /b 0
+
+:obter_versao
+set "RECEIVER_VERSION="
+"!PYTHON_EXE!" -c "import ast, pathlib, re, sys; tree=ast.parse(pathlib.Path(sys.argv[1]).read_text(encoding='utf-8-sig')); values=[node.value.value for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id=='RECEIVER_VERSION' for target in node.targets) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)]; version=values[0] if len(values)==1 else ''; assert re.fullmatch(r'[0-9]+(?:\.[0-9]+){2,3}', version), 'versao invalida'; print(version)" "%~1" > "%~2"
+if errorlevel 1 exit /b 1
+set /p "RECEIVER_VERSION="<"%~2"
+if not defined RECEIVER_VERSION exit /b 1
 exit /b 0
 
 :validar_python
