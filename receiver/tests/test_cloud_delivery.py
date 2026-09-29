@@ -83,3 +83,49 @@ def test_cloud_wallpaper_requires_owner_and_reports_success(monkeypatch):
     assert applied == [image]
     assert worker.updated == [("delivery-3", "Papel de parede atualizado.")]
     assert not hasattr(worker.ui, "args")
+
+
+def test_admin_response_is_left_for_panel_without_toast_or_ack():
+    worker = _worker()
+    confirmed = []
+    worker._confirmar_resposta = confirmed.append
+
+    worker._mostrar_resposta({
+        "id": "admin-result",
+        "payload": {"kind": "admin_command", "command": "run_cmd"},
+        "response_text": "Código de saída: 0",
+    })
+
+    assert confirmed == []
+    assert not hasattr(worker.ui, "args")
+
+
+def test_response_search_excludes_admin_commands_but_keeps_messages():
+    from urllib.parse import parse_qs, urlsplit
+
+    worker = _worker()
+    worker.config.computer_id = "panel-1"
+    requested = []
+    worker._autorizado = lambda path: requested.append(path) or []
+
+    worker._buscar_respostas()
+
+    query = parse_qs(urlsplit(requested[0]).query)
+    assert query["or"] == [
+        "(payload->>kind.is.null,payload->>kind.neq.admin_command)"]
+    assert query["sender_device_id"] == ["eq.panel-1"]
+
+
+def test_normal_response_still_shows_notification_and_is_acknowledged():
+    worker = _worker()
+    confirmed = []
+    worker._confirmar_resposta = confirmed.append
+
+    worker._mostrar_resposta({
+        "id": "message-reply",
+        "payload": {"kind": "notification", "title": "Aviso"},
+        "response_text": "Recebido",
+    })
+
+    assert confirmed == ["message-reply"]
+    assert worker.ui.args[1:3] == ("Resposta: Aviso", "Recebido")

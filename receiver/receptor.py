@@ -43,7 +43,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.12"
+RECEIVER_VERSION = "2.5.13"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -898,9 +898,15 @@ class CloudDeliveryWorker(threading.Thread):
 
     def _buscar_respostas(self):
         device = urllib.parse.quote(self.config.computer_id, safe="-")
+        # Painel e receptor podem compartilhar o mesmo device_id. Se o receptor
+        # confirmar uma resposta administrativa, o painel perde o resultado do CMD.
+        # Filtrar no servidor evita que essas respostas ocupem o limite da busca.
+        filtro = urllib.parse.quote(
+            "(payload->>kind.is.null,payload->>kind.neq.admin_command)", safe="")
         caminho = ("/rest/v1/deliveries?select=id,target_device_id,payload,response_text"
                    f"&sender_device_id=eq.{device}&status=eq.responded"
-                   "&sender_notified_at=is.null&order=responded_at.asc&limit=20")
+                   f"&sender_notified_at=is.null&or={filtro}"
+                   "&order=responded_at.asc&limit=20")
         return self._autorizado(caminho) or []
 
     def _confirmar_resposta(self, delivery_id):
@@ -1050,8 +1056,10 @@ class CloudDeliveryWorker(threading.Thread):
             self._atualizar_entrega(delivery["id"], f"Falha ao iniciar o instalador: {exc}"[:1000])
 
     def _mostrar_resposta(self, delivery):
-        self._confirmar_resposta(delivery["id"])
         payload = delivery.get("payload") or {}
+        if payload.get("kind") == "admin_command":
+            return
+        self._confirmar_resposta(delivery["id"])
         texto = delivery.get("response_text") or "O usuário confirmou o recebimento."
         self.ui.mostrar(
             "Comunicador", f"Resposta: {payload.get('title', 'mensagem')}", texto,

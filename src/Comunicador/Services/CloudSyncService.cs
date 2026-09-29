@@ -30,6 +30,7 @@ public sealed class CloudSyncService : IDisposable
     public string? AdminDeviceId { get; private set; }
     public string Status { get; private set; } = "Conectando ao Supabase…";
     public ConfiguracaoGlobalPrograma? GlobalConfig { get; private set; }
+    public long GlobalConfigRevision { get; private set; }
 
     public async Task SaveGlobalConfigAsync(ConfiguracaoGlobalPrograma config, CancellationToken ct = default)
     {
@@ -288,7 +289,11 @@ public sealed class CloudSyncService : IDisposable
             UpdatedAt = profile.UpdatedAt.ToUniversalTime().ToString("o"),
             UpdatedBy = profile.DeviceId,
         }));
-        DevicesReceived?.Invoke(await devicesTask.ConfigureAwait(false));
+        var devices = await devicesTask.ConfigureAwait(false);
+        _profiles.PrepararPerfisLegados(
+            devices.Where(device => CanEdit(device.DeviceId)).Select(device => device.DeviceId),
+            cloudProfiles.Select(profile => profile.DeviceId));
+        DevicesReceived?.Invoke(devices);
         Status = "Sincronização Supabase ativa.";
         StateChanged?.Invoke();
     }
@@ -309,6 +314,7 @@ public sealed class CloudSyncService : IDisposable
         if (string.Equals(fingerprint, _lastGlobalConfigJson, StringComparison.Ordinal)) return;
         _lastGlobalConfigJson = fingerprint;
         GlobalConfig = config;
+        GlobalConfigRevision++;
         GlobalConfigReceived?.Invoke(config);
     }
 

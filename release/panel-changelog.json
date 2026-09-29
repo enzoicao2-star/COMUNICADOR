@@ -222,5 +222,16 @@
       "Uma gravação antiga não substitui uma edição mais recente do mesmo apelido.",
       "Ao abrir um painel que ficou fechado, os apelidos atuais são carregados do banco."
     ]
+  },
+  {
+    "version": "2.5.19.0",
+    "summary": "Cards compactos, ping individual e respostas de CMD sem avisos.",
+    "changes": [
+      "Apelidos locais de versões antigas são publicados para computadores registrados quando ainda não há perfil no banco.",
+      "Cards em grade mostram ping individual ao lado do nome e brilho suave que acompanha o mouse.",
+      "Atualizações periódicas deixam de reconstruir badges sem mudanças; a média do ping continua ativa.",
+      "Os atalhos passam a abrir o aplicativo diretamente para manter o ícone correto na barra de tarefas.",
+      "O receptor 2.5.13 deixa respostas de comandos administrativos para o painel e não abre notificações para elas."
+    ]
   }
 ]

@@ -175,9 +175,11 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     private void AtualizarPingMedio(double? pingMs)
     {
+        var textoAnterior = PingTexto;
+        var nivelAnterior = PingNivel;
         _pingMedioMs = pingMs;
-        OnPropertyChanged(nameof(PingTexto));
-        OnPropertyChanged(nameof(PingNivel));
+        if (textoAnterior != PingTexto) OnPropertyChanged(nameof(PingTexto));
+        if (nivelAnterior != PingNivel) OnPropertyChanged(nameof(PingNivel));
     }
 
     private void OnCloudResponseReceived(CloudDelivery resposta) => UiDispatcher.Invoke(() =>

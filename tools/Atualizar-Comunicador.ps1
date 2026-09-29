@@ -268,9 +268,11 @@ function Install-Shortcuts([string]$Root, [string]$ExePath) {
         foreach ($shortcutPath in $shortcutLocations) {
             New-Item -ItemType Directory -Force -Path (Split-Path -Parent $shortcutPath) | Out-Null
             $shortcut = $shell.CreateShortcut($shortcutPath)
-            $shortcut.TargetPath = $env:ComSpec
-            $shortcut.Arguments = '/d /c ""' + $installedLauncher + '""'
-            $shortcut.WorkingDirectory = $Root
+            # O atalho deve apontar para o aplicativo: se apontar para cmd.exe,
+            # o Windows pode exibir o ícone genérico na barra de tarefas.
+            $shortcut.TargetPath = $ExePath
+            $shortcut.Arguments = ''
+            $shortcut.WorkingDirectory = Split-Path -Parent $ExePath
             $shortcut.IconLocation = $ExePath + ',0'
             $shortcut.Description = 'Abrir o Comunicador'
             $shortcut.WindowStyle = 7

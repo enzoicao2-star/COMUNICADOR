@@ -187,6 +187,10 @@ public sealed class Computador : ObservableModel
         set
         {
             var badges = value ?? new();
+            // A nuvem consulta periodicamente os mesmos perfis. Preservar as
+            // instâncias evita recriar controles/animações e piscar as badges.
+            if (_badges.Count == badges.Count
+                && _badges.Zip(badges).All(pair => MesmaBadge(pair.First, pair.Second))) return;
             foreach (var badge in badges) badge.ComputerId = Id;
             if (SetField(ref _badges, badges))
             {
@@ -197,6 +201,13 @@ public sealed class Computador : ObservableModel
             }
         }
     }
+
+    private static bool MesmaBadge(BadgeUsuario a, BadgeUsuario b) =>
+        a.Id == b.Id && a.Texto == b.Texto && a.Cor == b.Cor
+        && a.Estilo == b.Estilo && a.Icone == b.Icone
+        && a.IconePersonalizadoBase64 == b.IconePersonalizadoBase64
+        && a.Brilho == b.Brilho && a.EfeitoMouse == b.EfeitoMouse
+        && a.AnimacaoFlutuante == b.AnimacaoFlutuante && a.RoleId == b.RoleId;
 
     [JsonIgnore] public bool TemBadgeOwner => Badges.Any(b => b.Id == "owner");
     [JsonIgnore] public bool EhAdminDelegado => Badges.Any(b => b.Id == "admin");
@@ -331,7 +342,18 @@ public sealed class Computador : ObservableModel
         ? "registrado na nuvem" : EnderecoIp;
     public int PortaTcp { get => _portaTcp; set => SetField(ref _portaTcp, value); }
     [JsonIgnore]
-    public double? PingMs { get => _pingMs; set => SetField(ref _pingMs, value); }
+    public double? PingMs
+    {
+        get => _pingMs;
+        set
+        {
+            var textoAnterior = PingTexto;
+            if (SetField(ref _pingMs, value) && textoAnterior != PingTexto)
+                OnPropertyChanged(nameof(PingTexto));
+        }
+    }
+    [JsonIgnore] public string PingTexto => Status == StatusComputador.Online && PingMs is { } ping
+        ? $"{ping:0} ms" : "— ms";
     public bool Pareado
     {
         get => _pareado;
@@ -344,6 +366,15 @@ public sealed class Computador : ObservableModel
         }
     }
     public string? Token { get => _token; set => SetField(ref _token, value); }
-    public StatusComputador Status { get => _status; set => SetField(ref _status, value); }
+    public StatusComputador Status
+    {
+        get => _status;
+        set
+        {
+            var textoAnterior = PingTexto;
+            if (SetField(ref _status, value) && textoAnterior != PingTexto)
+                OnPropertyChanged(nameof(PingTexto));
+        }
+    }
     public DateTime UltimaVezVisto { get => _ultimaVezVisto; set => SetField(ref _ultimaVezVisto, value); }
 }

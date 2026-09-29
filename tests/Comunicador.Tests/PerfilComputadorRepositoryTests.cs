@@ -197,6 +197,41 @@ public sealed class PerfilComputadorRepositoryTests
         });
     }
 
+    [Fact]
+    public void PerfisDeVersoesAntigas_PublicaApenasApelidoRegistradoSemPerfilNaNuvem()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Comunicador-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var store = new JsonStore<PerfilComputador>(Path.Combine(directory, "perfis.json"));
+            store.Save([
+                new PerfilComputador { ComputerId = "registrado", NomePublico = "Apelido antigo" },
+                new PerfilComputador { ComputerId = "removido", NomePublico = "Fantasma" },
+                new PerfilComputador { ComputerId = "ja-publicado", NomePublico = "Nome desatualizado" },
+            ]);
+            var repository = new PerfilComputadorRepository(store);
+            repository.MesclarDaNuvem([new PerfilComputadorSincronizado
+            {
+                ComputerId = "ja-publicado", DisplayName = "Nome do banco",
+                UpdatedBy = "ja-publicado", UpdatedAt = DateTime.UtcNow.ToString("o"),
+            }]);
+
+            var preparados = repository.PrepararPerfisLegados(
+                ["registrado", "ja-publicado"], ["ja-publicado"]);
+
+            Assert.Equal(1, preparados);
+            Assert.Equal("Apelido antigo", Assert.Single(repository.ObterPendentes()).NomePublico);
+            Assert.Equal("Nome do banco", repository.Obter("ja-publicado")?.NomePublico);
+            Assert.Null(repository.Obter("removido")?.RevisaoLocalPendente);
+            Assert.Single(new PerfilComputadorRepository(store).ObterPendentes());
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static void WithRepository(Action<PerfilComputadorRepository> assertion)
     {
         var directory = Path.Combine(Path.GetTempPath(), "Comunicador-tests", Guid.NewGuid().ToString("N"));

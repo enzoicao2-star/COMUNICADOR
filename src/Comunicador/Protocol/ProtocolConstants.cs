@@ -3,8 +3,8 @@ namespace Comunicador.Protocol;
 public static class ProtocolConstants
 {
     public const int Version = 1;
-    public const string CurrentReceiverVersion = "2.5.12";
-    public const string CurrentPanelVersion = "2.5.18";
+    public const string CurrentReceiverVersion = "2.5.13";
+    public const string CurrentPanelVersion = "2.5.19";
     public const string MinimumManagedReceiverVersion = "2.1.0";
 
     public static bool SupportsRemoteManagement(string? receiverVersion) =>

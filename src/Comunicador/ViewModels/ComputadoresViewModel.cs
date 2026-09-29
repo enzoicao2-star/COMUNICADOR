@@ -32,6 +32,10 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private string _resultadoComandoRemoto = "Digite um comando e clique em Executar.";
     private string? _comandoRemotoRequestId;
     private string? _comandoRemotoTargetId;
+    private bool _autoridadeAplicada;
+    private bool _ultimoIsAdmin;
+    private string? _ultimoAdminDeviceId;
+    private long _ultimaConfiguracaoGlobalRevision;
 
     public ObservableCollection<Computador> Computadores { get; } = new();
 
@@ -627,10 +631,17 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
     private void AplicarAutoridadeCloud() => UiDispatcher.Invoke(() =>
     {
+        if (_autoridadeAplicada && _ultimoIsAdmin == _cloud.IsAdmin
+            && string.Equals(_ultimoAdminDeviceId, _cloud.AdminDeviceId,
+                StringComparison.OrdinalIgnoreCase)
+            && _ultimaConfiguracaoGlobalRevision == _cloud.GlobalConfigRevision) return;
+        _autoridadeAplicada = true;
+        _ultimoIsAdmin = _cloud.IsAdmin;
+        _ultimoAdminDeviceId = _cloud.AdminDeviceId;
+        _ultimaConfiguracaoGlobalRevision = _cloud.GlobalConfigRevision;
         foreach (var computador in Computadores) AplicarPerfil(computador);
         OnPropertyChanged(nameof(ModelosBadgeGlobal));
         CommandManager.InvalidateRequerySuggested();
-        Persist();
     });
 
     private void OnCloudDevicesReceived(IReadOnlyList<CloudDevice> devices) => UiDispatcher.Invoke(() =>

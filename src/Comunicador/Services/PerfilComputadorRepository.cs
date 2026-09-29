@@ -148,6 +148,34 @@ public sealed class PerfilComputadorRepository
         }
     }
 
+    /// <summary>
+    /// Perfis gravados por versões antigas não tinham revisão pendente. Depois de
+    /// receber o banco, recupera apenas os que ainda não existem lá e pertencem
+    /// a dispositivos registrados que este painel pode editar.
+    /// </summary>
+    public int PrepararPerfisLegados(IEnumerable<string> deviceIdsEditaveis,
+        IEnumerable<string> deviceIdsComPerfilNaNuvem)
+    {
+        var editaveis = deviceIdsEditaveis.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var existentesNaNuvem = deviceIdsComPerfilNaNuvem.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var preparados = 0;
+        lock (_gate)
+        {
+            foreach (var profile in _profiles)
+            {
+                if (profile.RevisaoLocalPendente is not null || profile.SincronizadoPelaNuvem
+                    || string.IsNullOrWhiteSpace(profile.NomePublico)
+                    || !editaveis.Contains(profile.ComputerId)
+                    || existentesNaNuvem.Contains(profile.ComputerId)) continue;
+
+                profile.RevisaoLocalPendente = Guid.NewGuid().ToString("N");
+                preparados++;
+            }
+            if (preparados > 0) ApararEPersistir();
+        }
+        return preparados;
+    }
+
     public void ConfirmarSincronizacao(string computerId, string? revisao)
     {
         if (revisao is null) return;

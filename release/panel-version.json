@@ -1,12 +1,13 @@
 {
-    "version":  "2.5.18.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "377745C1B2A0C7CF286BBAA6FF9203AC31E7BA9668922A5C58CB9EC0AE626002",
-    "summary":  "Apelidos sincronizados de forma confiável entre os painéis.",
-    "changes":  [
-                    "Um apelido alterado em outro painel substitui o nome antigo ao sincronizar, mesmo se o relógio deste PC estiver adiantado.",
-                    "Alterações feitas sem conexão ficam pendentes e são enviadas quando o painel reconectar, inclusive edições do OWNER em outros computadores.",
-                    "Uma gravação antiga não substitui uma edição mais recente do mesmo apelido.",
-                    "Ao abrir um painel que ficou fechado, os apelidos atuais são carregados do banco."
-                ]
+  "version": "2.5.19.0",
+  "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
+  "sha256": "328AAFEF3B34E269DDD259DA3B3F27BDDF9FAED26614829D51BE44806D263A71",
+  "summary": "Cards compactos, ping individual e respostas de CMD sem avisos.",
+  "changes": [
+    "Apelidos locais de versões antigas são publicados para computadores registrados quando ainda não há perfil no banco.",
+    "Cards em grade mostram ping individual ao lado do nome e brilho suave que acompanha o mouse.",
+    "Atualizações periódicas deixam de reconstruir badges sem mudanças; a média do ping continua ativa.",
+    "Os atalhos passam a abrir o aplicativo diretamente para manter o ícone correto na barra de tarefas.",
+    "O receptor 2.5.13 deixa respostas de comandos administrativos para o painel e não abre notificações para elas."
+  ]
 }
