@@ -386,7 +386,7 @@ if (Test-Path -LiteralPath $target) {
 
 $previousFailure = Read-JsonOrNull $failurePath
 $rollbackRequested = $rollbackFromVersion -eq $currentVersion -and $latestVersion -lt $currentVersion
-$skipKnownFailure = -not $RestartAfterUpdate -and -not $ForceReinstall -and
+$skipKnownFailure = -not $ForceReinstall -and
     $null -ne $previousFailure -and
     [string]$previousFailure.version -eq $latestVersion.ToString() -and
     [string]$previousFailure.sha256 -eq $expectedHash
@@ -489,11 +489,14 @@ try {
             if (-not $startedPanel.HasExited) { Stop-Process -Id $startedPanel.Id -Force -ErrorAction SilentlyContinue }
             Restore-PreviousPanel $target $backupPath $pendingPath $healthPath $failurePath $pending | Out-Null
             Remove-Item -LiteralPath (Join-Path $env:APPDATA 'Comunicador\ultima-atualizacao.json') -Force -ErrorAction SilentlyContinue
-            if (Test-Path -LiteralPath $target) { Start-Process -FilePath $target -WorkingDirectory $targetDirectory | Out-Null }
+            if ([string]::IsNullOrWhiteSpace($LauncherPath) -and (Test-Path -LiteralPath $target)) {
+                Start-Process -FilePath $target -WorkingDirectory $targetDirectory | Out-Null
+            }
             throw 'A nova versao nao confirmou a inicializacao em 45 segundos.'
         }
         Remove-Item -LiteralPath $backupPath,$pendingPath,$healthPath,$failurePath -Force -ErrorAction SilentlyContinue
     }
+    if ($RestartAfterUpdate) { exit 10 }
     exit 0
 }
 catch {

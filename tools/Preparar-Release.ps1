@@ -40,6 +40,32 @@ if ([version]$actualVersion -ne [version]$Version) {
     throw "Versao do executavel: $actualVersion; versao pedida: $Version."
 }
 
+# A atualização transfere apenas Comunicador.exe. Bibliotecas WPF deixadas ao
+# lado do arquivo indicam um publish incompleto, que cairia antes de abrir.
+$sourceDirectory = Split-Path -Parent $source
+foreach ($nativeLibrary in @('PresentationNative_cor3.dll', 'wpfgfx_cor3.dll',
+    'PenImc_cor3.dll', 'D3DCompiler_47_cor3.dll', 'vcruntime140_cor3.dll')) {
+    if (Test-Path -LiteralPath (Join-Path $sourceDirectory $nativeLibrary) -PathType Leaf) {
+        throw "Publicacao incompleta: $nativeLibrary ficou fora do executavel. Recompile com IncludeNativeLibrariesForSelfExtract=true."
+    }
+}
+
+$smokeMarker = Join-Path ([IO.Path]::GetTempPath()) ('Comunicador-smoke-' + [guid]::NewGuid().ToString('N') + '.txt')
+try {
+    $smoke = Start-Process -FilePath $source -ArgumentList ('--smoke-test=' + $smokeMarker) `
+        -WorkingDirectory $sourceDirectory -WindowStyle Hidden -PassThru
+    if (-not $smoke.WaitForExit(30000)) {
+        Stop-Process -Id $smoke.Id -Force -ErrorAction SilentlyContinue
+        throw 'O teste de abertura do painel excedeu 30 segundos.'
+    }
+    if ($smoke.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $smokeMarker -PathType Leaf)) {
+        throw "O executavel nao abriu a interface WPF no teste (codigo $($smoke.ExitCode))."
+    }
+}
+finally {
+    Remove-Item -LiteralPath $smokeMarker -Force -ErrorAction SilentlyContinue
+}
+
 if ($null -ne $existingManifest -and [version]$Version -eq [version]$existingManifest.version -and
     [string]$existingManifest.sha256 -ne 'PENDING_BUILD') {
     $sourceHash = (Get-Sha256 $source).ToUpperInvariant()

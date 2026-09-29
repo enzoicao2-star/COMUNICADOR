@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 set "ROOT=%~dp0"
 set "COMUNICADOR_ROOT=%~dp0"
-set "VERSAO_ESPERADA=2.5.19.0"
+set "VERSAO_ESPERADA=2.5.20.0"
 set "REPO_RAW=https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main"
 cd /d "%ROOT%"
 
@@ -35,7 +35,7 @@ if "!MODO_DEV!"=="1" if /I "!PAINEL_EXE!"=="%ROOT%dist\Comunicador.exe" (
             "if($atual -lt $expected -or $novo -gt $item.LastWriteTimeUtc){'1'}else{'0'}"') do set "PRECISA_COMPILAR=%%I"
     )
     if "!PRECISA_COMPILAR!"=="1" (
-        echo A fonte local mudou. Compilando a versao 2.5.19...
+        echo A fonte local mudou. Compilando a versao 2.5.20...
         call "%ROOT%build.bat"
         if errorlevel 1 (
             echo.
@@ -57,13 +57,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "} catch { exit 1 }"
 if not errorlevel 1 move /y "!UPDATER_NOVO!" "!UPDATER!" >nul
 
+set "REINICIAR_APOS_ATUALIZAR=-RestartAfterUpdate"
+if /I "%~1"=="--verificar" set "REINICIAR_APOS_ATUALIZAR="
 if exist "!UPDATER!" (
     if "!MODO_DEV!"=="1" (
-        powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATER!" -ExecutablePath "!PAINEL_EXE!"
+        powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATER!" -ExecutablePath "!PAINEL_EXE!" !REINICIAR_APOS_ATUALIZAR!
     ) else (
-        powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATER!" -ExecutablePath "!PAINEL_EXE!" -InstallRoot "!INSTALL_ROOT!" -LauncherPath "%~f0"
+        powershell -NoProfile -ExecutionPolicy Bypass -File "!UPDATER!" -ExecutablePath "!PAINEL_EXE!" -InstallRoot "!INSTALL_ROOT!" -LauncherPath "%~f0" !REINICIAR_APOS_ATUALIZAR!
     )
-    if errorlevel 1 (
+    set "RESULTADO_ATUALIZADOR=!errorlevel!"
+    if "!RESULTADO_ATUALIZADOR!"=="10" exit /b 0
+    if not "!RESULTADO_ATUALIZADOR!"=="0" (
         echo AVISO: a verificacao online falhou.
         if not exist "!PAINEL_EXE!" goto :sem_executavel
         echo Abrindo a copia instalada.

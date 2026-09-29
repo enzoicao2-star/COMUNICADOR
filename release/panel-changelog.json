@@ -233,5 +233,15 @@
       "Os atalhos passam a abrir o aplicativo diretamente para manter o ícone correto na barra de tarefas.",
       "O receptor 2.5.13 deixa respostas de comandos administrativos para o painel e não abre notificações para elas."
     ]
+  },
+  {
+    "version": "2.5.20.0",
+    "summary": "Corrige a abertura do Comunicador depois da atualização automática.",
+    "changes": [
+      "O executável de atualização inclui as bibliotecas nativas necessárias para abrir a interface.",
+      "A preparação da versão testa a abertura real do painel antes de publicar o arquivo.",
+      "Ao atualizar pelo BAT, o painel reinicia e confirma a abertura; se falhar, a versão anterior é restaurada.",
+      "Versões que falharam não são instaladas de novo automaticamente."
+    ]
   }
 ]

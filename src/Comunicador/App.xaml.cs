@@ -1,9 +1,11 @@
 using System.Diagnostics;
+using System.IO;
 using System.Security.Principal;
 using System.Windows;
 using System.Windows.Threading;
 using Comunicador.Services;
 using Comunicador.ViewModels;
+using Comunicador.Views;
 
 namespace Comunicador;
 
@@ -21,6 +23,43 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        var smokeArgument = e.Args.FirstOrDefault(arg =>
+            arg.StartsWith("--smoke-test=", StringComparison.OrdinalIgnoreCase));
+        if (smokeArgument is not null)
+        {
+            try
+            {
+                var marker = smokeArgument["--smoke-test=".Length..];
+                var smokeWindow = new Window
+                {
+                    Content = new ComputadoresView(),
+                    Width = 1,
+                    Height = 1,
+                    Left = -10000,
+                    Top = -10000,
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    WindowStyle = WindowStyle.None,
+                    ShowInTaskbar = false,
+                    ShowActivated = false,
+                    Opacity = 0,
+                };
+                smokeWindow.ContentRendered += (_, _) =>
+                {
+                    File.WriteAllText(marker, "Comunicador WPF iniciado.");
+                    smokeWindow.Close();
+                    Shutdown(0);
+                };
+                MainWindow = smokeWindow;
+                smokeWindow.Show();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Falha no teste de abertura: {ex}");
+                Shutdown(1);
+            }
+            return;
+        }
 
         if (!ClaimSingleInstance())
         {
