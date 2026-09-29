@@ -493,6 +493,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         var perfil = _perfis.Obter(computador.Id);
         if (perfil is null)
         {
+            computador.Apelido = null;
             var atuais = computador.Badges.Where(b => b.Id != "owner").ToList();
             if (ehAdmin) atuais.Insert(0, CriarBadgeOwner(computador.Id));
             computador.Badges = atuais.Take(ProtocolConstants.MaxBadgesPerComputer).ToList();

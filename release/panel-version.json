@@ -1,14 +1,12 @@
 {
-    "version":  "2.5.17.0",
+    "version":  "2.5.18.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "BB2F31FC0428411FB532D231720EC250CF9C7E67AB4006D2AE9E99292047C3AA",
-    "summary":  "CMD remoto sem avisos e atualização silenciosa de receptores.",
+    "sha256":  "377745C1B2A0C7CF286BBAA6FF9203AC31E7BA9668922A5C58CB9EC0AE626002",
+    "summary":  "Apelidos sincronizados de forma confiável entre os painéis.",
     "changes":  [
-                    "O painel mostra o estado de espera antes de enviar o comando, para não sobrescrever uma resposta que chegue rapidamente.",
-                    "Cada execução tem um identificador próprio; respostas antigas não substituem o resultado do comando atual, e a resposta aparece somente no campo CMD.",
-                    "A reinstalação remota do receptor roda sem janela de CMD e sem notificação de instalação.",
-                    "O receptor atualizado para 2.5.12 não abre console durante a reinstalação em segundo plano.",
-                    "Ao instalar o painel em um PC com receptor, os dois aproveitam a mesma identidade e aparecem em um único cartão.",
-                    "Cartões de PCs com painel mostram as versões do painel e do receptor juntos."
+                    "Um apelido alterado em outro painel substitui o nome antigo ao sincronizar, mesmo se o relógio deste PC estiver adiantado.",
+                    "Alterações feitas sem conexão ficam pendentes e são enviadas quando o painel reconectar, inclusive edições do OWNER em outros computadores.",
+                    "Uma gravação antiga não substitui uma edição mais recente do mesmo apelido.",
+                    "Ao abrir um painel que ficou fechado, os apelidos atuais são carregados do banco."
                 ]
 }

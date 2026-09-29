@@ -212,5 +212,15 @@
       "Ao instalar o painel em um PC com receptor, os dois aproveitam a mesma identidade e aparecem em um único cartão.",
       "Cartões de PCs com painel mostram as versões do painel e do receptor juntos."
     ]
+  },
+  {
+    "version": "2.5.18.0",
+    "summary": "Apelidos sincronizados de forma confiável entre os painéis.",
+    "changes": [
+      "Um apelido alterado em outro painel substitui o nome antigo ao sincronizar, mesmo se o relógio deste PC estiver adiantado.",
+      "Alterações feitas sem conexão ficam pendentes e são enviadas quando o painel reconectar, inclusive edições do OWNER em outros computadores.",
+      "Uma gravação antiga não substitui uma edição mais recente do mesmo apelido.",
+      "Ao abrir um painel que ficou fechado, os apelidos atuais são carregados do banco."
+    ]
   }
 ]

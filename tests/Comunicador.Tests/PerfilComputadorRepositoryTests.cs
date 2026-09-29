@@ -60,6 +60,143 @@ public sealed class PerfilComputadorRepositoryTests
         });
     }
 
+    [Fact]
+    public void MesclarDaNuvem_ApelidoRemotoSubstituiCacheComRelogioAdiantado()
+    {
+        WithRepository(repository =>
+        {
+            repository.Mesclar([new PerfilComputadorSincronizado
+            {
+                ComputerId = "painel-a", DisplayName = "Nome antigo", UpdatedBy = "painel-a",
+                UpdatedAt = DateTime.UtcNow.AddDays(2).ToString("o"),
+            }]);
+
+            var changed = repository.MesclarDaNuvem([new PerfilComputadorSincronizado
+            {
+                ComputerId = "painel-a", DisplayName = "Nome novo", UpdatedBy = "painel-a",
+                UpdatedAt = DateTime.UtcNow.ToString("o"),
+            }]);
+
+            Assert.Equal(1, changed);
+            Assert.Equal("Nome novo", repository.Obter("painel-a")?.NomePublico);
+        });
+    }
+
+    [Fact]
+    public void MesclarDaRede_CacheAntigoNaoSubstituiApelidoConfirmadoPeloBanco()
+    {
+        WithRepository(repository =>
+        {
+            repository.MesclarDaNuvem([new PerfilComputadorSincronizado
+            {
+                ComputerId = "painel-a", DisplayName = "Nome atual", UpdatedBy = "painel-a",
+                UpdatedAt = DateTime.UtcNow.ToString("o"),
+            }]);
+
+            var changed = repository.Mesclar([new PerfilComputadorSincronizado
+            {
+                ComputerId = "painel-a", DisplayName = "Nome antigo", UpdatedBy = "painel-a",
+                UpdatedAt = DateTime.UtcNow.AddDays(2).ToString("o"),
+            }]);
+
+            Assert.Equal(0, changed);
+            Assert.Equal("Nome atual", repository.Obter("painel-a")?.NomePublico);
+        });
+    }
+
+    [Fact]
+    public void MesclarDaNuvem_ConfirmaPerfilIgualRecebidoDaRede()
+    {
+        WithRepository(repository =>
+        {
+            var timestamp = DateTime.UtcNow.ToString("o");
+            repository.Mesclar([new PerfilComputadorSincronizado
+            {
+                ComputerId = "painel-a", DisplayName = "Nome atual", UpdatedBy = "painel-a",
+                UpdatedAt = timestamp,
+            }]);
+            repository.MesclarDaNuvem([new PerfilComputadorSincronizado
+            {
+                ComputerId = "painel-a", DisplayName = "Nome atual", UpdatedBy = "painel-a",
+                UpdatedAt = timestamp,
+            }]);
+
+            Assert.True(repository.Obter("painel-a")?.SincronizadoPelaNuvem);
+        });
+    }
+
+    [Fact]
+    public void EdicaoOffline_PermanecePendenteAteConfirmacaoMesmoAposReabrir()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Comunicador-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var store = new JsonStore<PerfilComputador>(Path.Combine(directory, "perfis.json"));
+            var repository = new PerfilComputadorRepository(store);
+            repository.Salvar("painel-a", "Nome offline", false, [], "painel-a");
+            var pending = Assert.Single(repository.ObterPendentes());
+
+            var reopened = new PerfilComputadorRepository(store);
+            Assert.Single(reopened.ObterPendentes());
+            reopened.MesclarDaNuvem([new PerfilComputadorSincronizado
+            {
+                ComputerId = "painel-a", DisplayName = "Nome antigo", UpdatedBy = "painel-a",
+                UpdatedAt = DateTime.UtcNow.AddDays(2).ToString("o"),
+            }]);
+            Assert.Equal("Nome offline", reopened.Obter("painel-a")?.NomePublico);
+
+            reopened.ConfirmarSincronizacao("painel-a", "revisao-antiga");
+            Assert.Single(reopened.ObterPendentes());
+            reopened.ConfirmarSincronizacao("painel-a", pending.RevisaoLocalPendente);
+            Assert.Empty(reopened.ObterPendentes());
+            reopened.MesclarDaNuvem([new PerfilComputadorSincronizado
+            {
+                ComputerId = "painel-a", DisplayName = "Nome de outro painel", UpdatedBy = "painel-a",
+                UpdatedAt = DateTime.UtcNow.ToString("o"),
+            }]);
+            Assert.Equal("Nome de outro painel", reopened.Obter("painel-a")?.NomePublico);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void EdicaoRemotaDoOwner_FicaPendenteParaReenvio()
+    {
+        WithRepository(repository =>
+        {
+            repository.Salvar("painel-b", "Novo apelido", false, [], "painel-a", adminOverride: true);
+            var pending = Assert.Single(repository.ObterPendentes());
+            Assert.Equal("painel-b", pending.ComputerId);
+            Assert.Equal("Novo apelido", pending.NomePublico);
+
+            repository.MesclarDaNuvem([new PerfilComputadorSincronizado
+            {
+                ComputerId = "painel-b", DisplayName = "Novo apelido", UpdatedBy = "painel-b",
+                UpdatedAt = DateTime.UtcNow.ToString("o"),
+            }]);
+            Assert.Empty(repository.ObterPendentes());
+        });
+    }
+
+    [Fact]
+    public void ConfirmarSincronizacao_AtrasadaNaoDescartaEdicaoMaisNova()
+    {
+        WithRepository(repository =>
+        {
+            repository.Salvar("painel-a", "Primeiro nome", false, [], "painel-a");
+            var primeiraRevisao = Assert.Single(repository.ObterPendentes()).RevisaoLocalPendente;
+            repository.Salvar("painel-a", "Segundo nome", false, [], "painel-a");
+
+            repository.ConfirmarSincronizacao("painel-a", primeiraRevisao);
+
+            Assert.Equal("Segundo nome", Assert.Single(repository.ObterPendentes()).NomePublico);
+        });
+    }
+
     private static void WithRepository(Action<PerfilComputadorRepository> assertion)
     {
         var directory = Path.Combine(Path.GetTempPath(), "Comunicador-tests", Guid.NewGuid().ToString("N"));

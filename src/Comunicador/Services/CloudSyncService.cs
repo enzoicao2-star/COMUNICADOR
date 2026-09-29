@@ -14,9 +14,9 @@ public sealed class CloudSyncService : IDisposable
     private readonly PerfilComputadorRepository _profiles;
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _deviceRegistrationGate = new(1, 1);
+    private readonly SemaphoreSlim _profileWriteGate = new(1, 1);
     private readonly HashSet<string> _responsesSeen = new(StringComparer.OrdinalIgnoreCase);
     private Task? _loop;
-    private string? _lastUploadedProfile;
     private CloudPanelProfile? _lastCloudOwnProfile;
     private string? _lastGlobalConfigJson;
 
@@ -92,6 +92,14 @@ public sealed class CloudSyncService : IDisposable
         // first request has completed.
         await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
         if (!CanEdit(deviceId)) throw new UnauthorizedAccessException("Somente o próprio painel ou o admin pode alterar este perfil.");
+        var normalized = NormalizeBadges(deviceId, badges);
+        var revisao = _profiles.Obter(deviceId)?.RevisaoLocalPendente;
+        await UploadProfileAsync(deviceId, displayName, normalized, revisao, ct).ConfigureAwait(false);
+        await SynchronizeOnceAsync(ct).ConfigureAwait(false);
+    }
+
+    private List<BadgeUsuario> NormalizeBadges(string deviceId, IEnumerable<BadgeUsuario> badges)
+    {
         var normalized = badges.Where(b => b.Id != "owner").Select(b => b.Clone()).ToList();
         if (string.Equals(deviceId, AdminDeviceId, StringComparison.OrdinalIgnoreCase))
         {
@@ -102,11 +110,27 @@ public sealed class CloudSyncService : IDisposable
             };
             normalized.Insert(0, owner);
         }
-        await _client.UpsertProfileAsync(deviceId, displayName, normalized, ct)
-            .ConfigureAwait(false);
-        if (string.Equals(deviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
-            _lastUploadedProfile = JsonSerializer.Serialize(new { displayName, Badges = normalized });
-        await SynchronizeOnceAsync(ct).ConfigureAwait(false);
+        return normalized;
+    }
+
+    private async Task<bool> UploadProfileAsync(string deviceId, string displayName,
+        IEnumerable<BadgeUsuario> badges, string? revisao, CancellationToken ct)
+    {
+        await _profileWriteGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            // Uma edição mais nova pode ter sido feita enquanto a requisição
+            // anterior aguardava. Nunca publique a versão antiga por último.
+            if (revisao is not null && _profiles.Obter(deviceId)?.RevisaoLocalPendente != revisao)
+                return false;
+            await _client.UpsertProfileAsync(deviceId, displayName, badges, ct).ConfigureAwait(false);
+            _profiles.ConfirmarSincronizacao(deviceId, revisao);
+            return true;
+        }
+        finally
+        {
+            _profileWriteGate.Release();
+        }
     }
 
     public bool CanEdit(string deviceId)
@@ -255,7 +279,7 @@ public sealed class CloudSyncService : IDisposable
             string.Equals(profile.DeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
             ?.Badges.Any(b => b.Id == "admin" || b.RoleId is not null && globalConfig?.ModelosBadge
                 .Any(role => role.Id == b.RoleId && role.Permissoes.Contains("manage_profiles")) == true) == true;
-        _profiles.Mesclar(cloudProfiles.Select(profile => new PerfilComputadorSincronizado
+        _profiles.MesclarDaNuvem(cloudProfiles.Select(profile => new PerfilComputadorSincronizado
         {
             ComputerId = profile.DeviceId,
             DisplayName = profile.DisplayName,
@@ -298,31 +322,37 @@ public sealed class CloudSyncService : IDisposable
                 // Primeiro recebe o perfil compartilhado. Enviar o cache local antes
                 // disso restaurava apelidos antigos por cima da edicao de outro painel.
                 await SynchronizeOnceAsync(ct, state).ConfigureAwait(false);
-                var own = _profiles.Obter(_settings.PainelId);
-                if (own is null && _lastCloudOwnProfile is null)
+                if (_profiles.Obter(_settings.PainelId) is null && _lastCloudOwnProfile is null)
                 {
                     _profiles.Salvar(_settings.PainelId, _settings.NomePainel, IsAdmin,
                         [], _settings.PainelId);
-                    own = _profiles.Obter(_settings.PainelId);
                 }
-                if (own is not null)
+                var profileChanged = false;
+                var pendingRejected = false;
+                foreach (var pending in _profiles.ObterPendentes())
                 {
-                    var displayName = string.IsNullOrWhiteSpace(own.NomePublico)
-                        ? _settings.NomePainel : own.NomePublico;
-                    var fingerprint = JsonSerializer.Serialize(new { displayName, own.Badges });
-                    var cloudFingerprint = _lastCloudOwnProfile is { } published
-                        ? JsonSerializer.Serialize(new { displayName = published.DisplayName, Badges = published.Badges })
-                        : null;
-                    if (!string.Equals(fingerprint, cloudFingerprint, StringComparison.Ordinal)
-                        && !string.Equals(_lastUploadedProfile, fingerprint, StringComparison.Ordinal)
-                        && (_lastCloudOwnProfile is null
-                            || own.AtualizadoEmUtc > _lastCloudOwnProfile.UpdatedAt.ToUniversalTime()))
+                    if (!CanEdit(pending.ComputerId))
                     {
-                        await _client.UpsertProfileAsync(_settings.PainelId,
-                            displayName, own.Badges, ct).ConfigureAwait(false);
-                        _lastUploadedProfile = fingerprint;
+                        _profiles.DescartarPendente(pending.ComputerId, pending.RevisaoLocalPendente);
+                        pendingRejected = true;
+                        continue;
+                    }
+                    try
+                    {
+                        profileChanged |= await UploadProfileAsync(pending.ComputerId,
+                            pending.NomePublico, NormalizeBadges(pending.ComputerId, pending.Badges),
+                            pending.RevisaoLocalPendente, ct).ConfigureAwait(false);
+                    }
+                    catch (HttpRequestException ex) when (!ct.IsCancellationRequested)
+                    {
+                        // Um perfil sem permissão não deve impedir mensagens e
+                        // lembretes de serem recebidos neste mesmo ciclo.
+                        Logger.Warning($"Perfil de {pending.ComputerId} ainda não sincronizado: {ex.Message}");
+                        Status = $"Perfil pendente de sincronização: {ex.Message}";
+                        StateChanged?.Invoke();
                     }
                 }
+                if (profileChanged || pendingRejected) await SynchronizeOnceAsync(ct).ConfigureAwait(false);
                 var deliveriesTask = _client.ClaimDueDeliveriesAsync(ct);
                 var responsesTask = _client.GetResponsesAsync(_settings.PainelId, ct);
                 await Task.WhenAll(deliveriesTask, responsesTask).ConfigureAwait(false);
@@ -383,5 +413,6 @@ public sealed class CloudSyncService : IDisposable
         try { _loop?.Wait(TimeSpan.FromSeconds(1)); } catch { }
         _cts.Dispose();
         _deviceRegistrationGate.Dispose();
+        _profileWriteGate.Dispose();
     }
 }
