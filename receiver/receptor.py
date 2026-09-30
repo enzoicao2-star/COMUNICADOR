@@ -43,7 +43,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.13"
+RECEIVER_VERSION = "2.5.14"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -52,6 +52,7 @@ SUPABASE_KEY = "sb_publishable_9vE6ehPLNhoByGInnUAlug_Ndd_fTam"
 CLOUD_POLL_SECONDS = 8
 MAX_REMOTE_COMMAND_LENGTH = 500
 MAX_REMOTE_RESULT_LENGTH = 950
+MAX_REMOTE_COMMAND_SECONDS = 300
 AUDIO_CONTROL_ZLIB = "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"
 
 
@@ -62,6 +63,52 @@ def remote_command_is_fresh(expires_at):
         return expiry.tzinfo is not None and now <= expiry <= now + timedelta(minutes=6)
     except (AttributeError, TypeError, ValueError):
         return False
+
+
+def remote_command_cancel_path(request_id):
+    try:
+        request_id = uuid.UUID(str(request_id)).hex
+    except (ValueError, TypeError, AttributeError):
+        return None
+    base = Path(os.environ.get("LOCALAPPDATA") or Path.home())
+    return base / "Comunicador" / "RemoteCmdCancel" / f"{request_id}.cancel"
+
+
+def request_remote_command_cancel(request_id):
+    path = remote_command_cancel_path(request_id)
+    if path is None:
+        return False
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(datetime.now(timezone.utc).isoformat(), encoding="ascii")
+        return True
+    except OSError:
+        logging.exception("Não foi possível registrar o cancelamento do comando remoto.")
+        return False
+
+
+def remote_command_cancel_requested(request_id):
+    path = remote_command_cancel_path(request_id)
+    if path is None:
+        return False
+    try:
+        if datetime.now(timezone.utc).timestamp() - path.stat().st_mtime <= 300:
+            return True
+        path.unlink(missing_ok=True)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        logging.debug("Não foi possível verificar o marcador de cancelamento remoto.", exc_info=True)
+    return False
+
+
+def clear_remote_command_cancel(request_id):
+    path = remote_command_cancel_path(request_id)
+    if path is not None:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def parse_audio_command(command):
@@ -82,12 +129,15 @@ def parse_audio_command(command):
     return None, None, None
 
 
-def executar_cmd_local(command):
+def executar_cmd_local(command, request_id=None):
     """Roda CMD na sessão atual, sem pedir elevação e sem janela de console."""
     if not isinstance(command, str) or not command.strip() or len(command) > MAX_REMOTE_COMMAND_LENGTH or "\0" in command:
         return "Comando vazio ou longo demais (máximo de 500 caracteres)."
     if os.name != "nt":
         return "CMD remoto disponível somente no Windows."
+    if remote_command_cancel_requested(request_id):
+        clear_remote_command_cancel(request_id)
+        return "Comando cancelado pelo OWNER."
     import ctypes
     if ctypes.windll.shell32.IsUserAnAdmin():
         return "Comando recusado: o receptor está aberto como administrador. Inicie-o normalmente."
@@ -124,9 +174,20 @@ def executar_cmd_local(command):
 
         reader = threading.Thread(target=drain_output, daemon=True, name="cmd-output")
         reader.start()
-        try:
-            proc.wait(timeout=30)
-        except subprocess.TimeoutExpired:
+        deadline = time.monotonic() + MAX_REMOTE_COMMAND_SECONDS
+        cancelled = False
+        while proc.poll() is None:
+            if remote_command_cancel_requested(request_id):
+                cancelled = True
+                break
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                proc.wait(timeout=min(0.2, remaining))
+            except subprocess.TimeoutExpired:
+                continue
+        if cancelled or proc.poll() is None:
             try:
                 subprocess.run(["taskkill.exe", "/PID", str(proc.pid), "/T", "/F"],
                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -137,12 +198,15 @@ def executar_cmd_local(command):
             if proc.poll() is None:
                 proc.kill()
             proc.wait(timeout=5)
-            return "Comando encerrado após 30 segundos."
+            reader.join(timeout=5)
+            return "Comando cancelado pelo OWNER." if cancelled else "Comando encerrado após 5 minutos."
         reader.join(timeout=5)
         text = bytes(captured).decode(encoding, errors="replace").strip()
         return f"Código de saída: {proc.returncode}\n{text}"[:MAX_REMOTE_RESULT_LENGTH]
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         return f"Falha ao executar CMD: {exc}"[:MAX_REMOTE_RESULT_LENGTH]
+    finally:
+        clear_remote_command_cancel(request_id)
 CAROUSEL_WORKER_ZLIB = "eNrNWetu4zYW/u+nIDIGLDWRmsy2iyBFgDp20qbNDXEyA2wSBIxEO5yRSC1Jx3GneZjuv/3dR8iL7SGpu+gkU+wCa8w4lnR4eC7fuVEZFjj1egg+V1IJymY3/XPO1RlW92gXeb9wygJz0SfsYefodDQ8Gp6djYcXQzQY8XTOaIRjLq5HWPC5JMnA38i5LaiK7m/6pywirVtjsTyfs57f6/X3heBiGCnK2ZkgUyIIkMPGg4ni2aB3QhbBoSIpMt8Xy4ygMRUkUlwsUXDABRDn4pVS/45O5yo4mSdJr5/w6HOuSk2TknSw4OIzEaEmG/T69uoILoC+zzSHKRfI62MFu2cK7m7+gMqrIFHo+00UYBZbahSQf6Ial4p2fd1HX4wRFAhuf+lPc8uryVICeXh4Gh7QhNzs7JxmhHmlFhtooG+cipEgWJEBXJ8THH8U1F6ccEYGvmH+hCIMtq6zPDzdf4xIpk19UxNhorBQwSQhJEPBMU0SKknEWSzR+81N9A4NZ3MsYow4srIizBQRFOwCf1LKMNzJnv+UaG1MZEJnWKyFVoTeU49OwXou04A5EHmkCm0iSxUwrlCOjMJWwzgOjM+DoZQkvUuWJzglKFfpI2UxX8gQUJDKN9CPBV4Avi0UXTzCYZYlAGdjoZ2dfYbvEvKByjlOJmqZEOn5oFJfRoJmaifKAa+XlnBpP9yjKsVZ5/EDlRR4XzJFE+33MXjzgqba48eUfcDJnPR60zkzcYG0j4Mivn6RnHllqGpUFNYqrdiF0f4jlUp6llybXhA1FyxH7ZNZnt/yfiIqGHHwMQOEHwGyBE5s2Jjv4BwvULDPIh6DBOjy4mAbIg4WPBChDgRPAy2hNlSlwAQ/kBcU2EBX/O4TBPVN36heKNTXocMFhojZRWuGNFRpttbwYKWkCYNhklyQR+VVazcAgYZtJeYFN0KiYAzhcI+2/Y2SnV4caqUKDYExIwuvP8WJJL6/Yu8Rz5aNPXPF+kqAPisWjUlCFKkta1ptlHAJZiM63A5TPCM1P+cxxQhywdGvhXcVWw7C8FCOqcxgn1ijwklixPD8HCXGLy6ynI/nv0hWRoJNEK+rYwOorpCb4g37t2KxSFE1mN7zRd3eHZRSBhCd2OxYiNTxkoXuXbHZVTP7hIYGnK9DReMgD0pXbcCQ5WscmrlqEglCWM7oDGqb8tyEo7mQXADhGZdU6+mHHyENgyxD4F+rRDQ2dfLqGOSxicgrf+NHL1cJuGu6dfT+uw34v+nndvGMuPnTb9BmuO3XXHFP6OxevYH7z5bQst/abrPPH3f4Ty22dLtwalKJs0iY7+YiE/C63zB+SVHMUa2rGbSI9fo9LmIiTEHQ6w7oI4nHFCd81qYGvWhKfyN7/FGjzmSQ9u48O+ZSC2AyRevpHo4+j3gCpbaLI3M/d/9QzO4844/tDfS3v7fsAhFMAZ4TkMTBR98ucpyBwEbhrTYb0ygUINKqH2MGpbGtNVR3nFO09zIwzTcrV5VQD4/IVHve+ruBpyCHp4++Re/zBrO5FgzZXppjJSj1MYtrWmU0gpJH3oCbM0sJjuysDse2dwMgJHVbFI+1fY95bLDyD85TB4lN7rtF0mh7D2qx4Al0J3HsFWs6voHU5bVv7unkdcEBIZAcXs/L00ZwrEyebSFfb2kuVXTCF1r+PHd6ZRJt9Kq11He3Kqmre8EXjtytW7dl2WO403dxeYHFjKgV+dyUo2YbWrSWzq7Ic84VWHeSJA51VvBRYPuPtXzn341AayVv23nVSmK7EOWtVyGqVryPQe8H8tJsYynCT9DpwGwjFTjkJXJDUFCLOfuV6LZr8POvo8ud6wmfqgVE1fUxjQSXcHWdR8g11BcY2tQHIiQ44hrsNuhVhWxxDzUOLGr6oJo9m6XOxrGRF/bs9Luopm1jTWu8yDkEkDBty5ObgJhO3rQ4d5AZPtd6mZJLTqqMh0wrMoiMB26pdsHAb4mrP+8QjDyQ7B4wIBgGWSmf/02lHpDojMsfECPsfp4WcxPjDxz0hvQIsxQAF0oN/CsSTYd5S/huBSkHuHZ3XTdX8buzyjFzgeFTDrz0qH0meAad8rKYrnNABGagqg/+5dwPQ0E1y6MJuJ2pZKljhjIA/1NHAuOKxt0mjYWsGw8lml+Cg12v0WB/hpJIjdFbGtteM7dwddvl5FKMq0xGc6l4mg8rP35BNYa7DnYaAY/qFjxMHu3ZgbnG6nauIh1cg5bKLQMwvnCm0iZVPDfFw6pY30AbAbYwBtCsAsgkdWZnWEBu7S70oZpeMlBFSJxo2lr+Lc0cN+O5lKZQ1ibXGm/zwAnDfI0W78cyEE3USR/K35wp105fFSN/PU7+P2LFHS9dyNjiD/zM3rtVzWtY9cpa/Mbpjdqcemb785+IOshZeiVz34ZQdfnF1mZ9CgVbQ8NDbUdN2cPzHwmNeThwCWuoOnXJWVW9tjZTnkAr7vuVGKvT3OpDkVICv1JiLR8HMLgLisBOtcOaQwlH81FXrCO3LTI+PDBBkt+N58I0zrey3hx1g2t9/b8cRRW881WCZASvJK+SYthIb313hLuWlBlQ56V6Y/iyQSAvTYwlvQEf+Ct3cgR61f3YnyvXRnkMOgnccVmmvM23BOfbDddPQRBFJFCYuKybBh7dFo91mm8+xI/Fw1U+XMWsqwEikE9XcNFHhecY+pdUnxwzmkKzs1JOSBhmIO7SVOLCCLflf6UVO1g6try8wn6vweZr4VKJ0x1c/sKoUL6CaEwKnmOAaqgBSc/r34blkX54DG0HBLu/tqolMqdrWpvVXU7Lou4hrrDv1v/QsL0XSm9jzVsO8sd8/wGcIV1tzIvnqObVTkct75WTVNNwdU1nMrNrWvZd/nAfK75mKfOyzTXmvEMTqGafMCMJ3kAYZeL5T4hFXBRpItXzH3DfhAyXunzHUB2f/8UiindgQo3nv1GBsKxxTAiFuRUb4tqs+W01SOon36MMC4y2UAZWkWSm556wdgbCk6Tx0mn3befb5uVUkZzQ1qa+esMrrc5+xVECmlKGk2T58qlu9f6qdjTx1PsPLFDT5w=="
 _carousel_lock = threading.RLock()
 
@@ -999,16 +1063,20 @@ class CloudDeliveryWorker(threading.Thread):
         """Executa apenas os comandos remotos explicitamente liberados ao OWNER pelo RLS."""
         payload = delivery.get("payload") or {}
         command = payload.get("command")
-        if command == "run_cmd":
+        if command in {"run_cmd", "cancel_cmd"}:
             try:
                 state = self._autorizado("/rest/v1/rpc/get_admin_state", "POST", {}) or []
                 admin_id = state[0].get("admin_device_id") if state else None
+                request_id = payload.get("request_id")
                 if not admin_id or str(admin_id).lower() != str(delivery.get("sender_device_id", "")).lower():
                     result = "Comando recusado: o remetente não é o OWNER atual."
                 elif not remote_command_is_fresh(payload.get("expires_at")):
-                    result = "Comando expirado. Envie novamente."
+                    result = "Pedido de cancelamento expirado." if command == "cancel_cmd" else "Comando expirado. Envie novamente."
+                elif command == "cancel_cmd":
+                    result = "Pedido de cancelamento recebido pelo computador." if request_remote_command_cancel(request_id) \
+                        else "Pedido de cancelamento inválido."
                 else:
-                    result = executar_cmd_local(payload.get("line"))
+                    result = executar_cmd_local(payload.get("line"), request_id)
                 logging.info("CMD remoto %s de %s", "recusado" if result.startswith("Comando recusado") else "concluído",
                              delivery.get("sender_device_id", "remetente"))
                 self._atualizar_entrega(delivery["id"], result)

@@ -32,6 +32,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private string _resultadoComandoRemoto = "Digite um comando e clique em Executar.";
     private string? _comandoRemotoRequestId;
     private string? _comandoRemotoTargetId;
+    private bool _comandoRemotoEmAndamento;
+    private bool _cancelamentoCmdSolicitado;
     private bool _autoridadeAplicada;
     private bool _ultimoIsAdmin;
     private string? _ultimoAdminDeviceId;
@@ -64,6 +66,12 @@ public sealed class ComputadoresViewModel : ViewModelBase
     {
         get => _resultadoComandoRemoto;
         set => SetField(ref _resultadoComandoRemoto, value);
+    }
+
+    public bool ComandoRemotoEmAndamento
+    {
+        get => _comandoRemotoEmAndamento;
+        private set => SetField(ref _comandoRemotoEmAndamento, value);
     }
 
     public string? StatusMensagem
@@ -106,6 +114,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public ICommand BloquearPainelRemotoCommand { get; }
     public ICommand HabilitarPainelRemotoCommand { get; }
     public ICommand EnviarCmdRemotoCommand { get; }
+    public ICommand CancelarCmdRemotoCommand { get; }
 
     public IReadOnlyList<string> EstilosBadge { get; } = ["Holográfica", "Metal", "Pílula", "Contorno", "Selo"];
     public IReadOnlyList<string> IconesBadge { get; } =
@@ -152,6 +161,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
         EnviarCmdRemotoCommand = new AsyncRelayCommand(EnviarCmdRemotoAsync,
             param => _cloud.IsAdmin && param is Computador computador
                 && !string.Equals(computador.Id, _settings.PainelId, StringComparison.OrdinalIgnoreCase));
+        CancelarCmdRemotoCommand = new AsyncRelayCommand(CancelarCmdRemotoAsync,
+            _ => ComandoRemotoEmAndamento && !_cancelamentoCmdSolicitado);
 
         _discovery.ReceptorDescoberto += OnReceptorDescoberto;
 
@@ -490,6 +501,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         computador.EhOwner = ehAdmin;
         computador.PodeGerenciarAdmin = _cloud.IsAdmin && !ehAdmin;
         computador.PodeUsarCmdRemoto = _cloud.IsAdmin
+            && computador.RegistradoNaNuvem
             && !string.Equals(computador.Id, _settings.PainelId, StringComparison.OrdinalIgnoreCase);
         computador.PodeAdministrarRemotamente = !_cloud.IsAdmin
             ? new[] { "remote_install", "remote_panel_access", "remote_receiver" }.Any(_cloud.HasPermission)
@@ -534,6 +546,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private bool PodeEnviarComandoAdmin(object? param, string command) =>
         param is Computador computador
         && !string.Equals(computador.Id, _settings.PainelId, StringComparison.OrdinalIgnoreCase)
+        && computador.RegistradoNaNuvem
         && command switch
         {
             "install_panel" => _cloud.HasPermission("remote_install") && !computador.TemPainel && computador.Pareado,
@@ -566,7 +579,11 @@ public sealed class ComputadoresViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            StatusMensagem = $"Não foi possível enviar a ação para {computador.NomeExibicao}: {ex.Message}";
+            var detalhe = ex.Message.Contains("deliveries_target_device_id_fkey", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("23503", StringComparison.OrdinalIgnoreCase)
+                ? "Este computador não está mais registrado na nuvem. Abra o Comunicador ou Receptor nele, aguarde a conexão e atualize a lista."
+                : ex.Message;
+            StatusMensagem = $"Não foi possível enviar a ação para {computador.NomeExibicao}: {detalhe}";
         }
     }
 
@@ -585,6 +602,9 @@ public sealed class ComputadoresViewModel : ViewModelBase
             var requestId = Guid.NewGuid().ToString("N");
             _comandoRemotoRequestId = requestId;
             _comandoRemotoTargetId = computador.Id;
+            _cancelamentoCmdSolicitado = false;
+            ComandoRemotoEmAndamento = true;
+            CommandManager.InvalidateRequerySuggested();
             ResultadoComandoRemoto = $"> {line}\nAguardando resposta de {computador.NomeExibicao}…";
             await _cloud.QueueRemoteCommandAsync(computador.Id, line, requestId).ConfigureAwait(true);
         }
@@ -592,7 +612,37 @@ public sealed class ComputadoresViewModel : ViewModelBase
         {
             _comandoRemotoRequestId = null;
             _comandoRemotoTargetId = null;
+            ComandoRemotoEmAndamento = false;
+            _cancelamentoCmdSolicitado = false;
+            CommandManager.InvalidateRequerySuggested();
             ResultadoComandoRemoto = $"Falha no envio: {ex.Message}";
+        }
+    }
+
+    private async Task CancelarCmdRemotoAsync(object? _)
+    {
+        var requestId = _comandoRemotoRequestId;
+        var targetId = _comandoRemotoTargetId;
+        if (string.IsNullOrWhiteSpace(requestId) || string.IsNullOrWhiteSpace(targetId)
+            || _cancelamentoCmdSolicitado) return;
+
+        _cancelamentoCmdSolicitado = true;
+        CommandManager.InvalidateRequerySuggested();
+        ResultadoComandoRemoto += "\nSolicitando cancelamento…";
+        try
+        {
+            await _cloud.QueueRemoteCommandCancellationAsync(targetId, requestId).ConfigureAwait(true);
+            ResultadoComandoRemoto += "\nAguardando o computador interromper o processo e seus subprocessos.";
+        }
+        catch (Exception ex)
+        {
+            _cancelamentoCmdSolicitado = false;
+            CommandManager.InvalidateRequerySuggested();
+            var detalhe = ex.Message.Contains("deliveries_target_device_id_fkey", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("23503", StringComparison.OrdinalIgnoreCase)
+                ? "Este computador não está mais registrado na nuvem. Abra o Comunicador ou Receptor nele e aguarde a conexão."
+                : ex.Message;
+            ResultadoComandoRemoto += $"\nNão foi possível solicitar o cancelamento: {detalhe}";
         }
     }
 
@@ -606,6 +656,9 @@ public sealed class ComputadoresViewModel : ViewModelBase
             ResultadoComandoRemoto = result;
             _comandoRemotoRequestId = null;
             _comandoRemotoTargetId = null;
+            ComandoRemotoEmAndamento = false;
+            _cancelamentoCmdSolicitado = false;
+            CommandManager.InvalidateRequerySuggested();
         });
     }
 
@@ -751,8 +804,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
         if (changed)
         {
             Persist();
-            CommandManager.InvalidateRequerySuggested();
         }
+        CommandManager.InvalidateRequerySuggested();
     });
 
     private static Dictionary<string, string[]> FindMigratedReceiverAliases(

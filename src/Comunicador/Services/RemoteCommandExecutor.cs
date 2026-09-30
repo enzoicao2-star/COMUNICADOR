@@ -11,7 +11,7 @@ public static class RemoteCommandExecutor
 {
     public const int MaxCommandLength = 500;
     public const int MaxResultLength = 950; // respond_to_delivery limita a resposta a 1000 caracteres.
-    public static readonly TimeSpan MaxDuration = TimeSpan.FromSeconds(30);
+    public static readonly TimeSpan MaxDuration = TimeSpan.FromMinutes(5);
 
     public static bool IsValid(string? command) => !string.IsNullOrWhiteSpace(command)
         && command.Length <= MaxCommandLength && !command.Contains('\0');
@@ -38,7 +38,7 @@ public static class RemoteCommandExecutor
         return (null, null, null);
     }
 
-    public static async Task<string> RunAsync(string command, CancellationToken ct = default)
+    public static async Task<string> RunAsync(string command, CancellationToken ct = default, string? requestId = null)
     {
         if (!IsValid(command)) return "Comando vazio ou longo demais (máximo de 500 caracteres).";
         using var identity = WindowsIdentity.GetCurrent();
@@ -80,20 +80,24 @@ public static class RemoteCommandExecutor
             startInfo.StandardErrorEncoding = Encoding.UTF8;
         }
         using var process = new Process { StartInfo = startInfo };
+        using var cancellationMonitor = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var cancellationTask = MonitorCancellationFileAsync(requestId, cancellationMonitor);
         try
         {
             process.Start();
             process.StandardInput.Close();
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(MaxDuration);
+            using var waitToken = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, cancellationMonitor.Token);
             var stdout = DrainAsync(process.StandardOutput, MaxResultLength);
             var stderr = DrainAsync(process.StandardError, MaxResultLength);
-            try { await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false); }
+            try { await process.WaitForExitAsync(waitToken.Token).ConfigureAwait(false); }
             catch (OperationCanceledException)
             {
                 if (!process.HasExited) process.Kill(entireProcessTree: true);
                 await Task.WhenAll(stdout, stderr).ConfigureAwait(false);
-                return ct.IsCancellationRequested ? "Comando cancelado." : "Comando encerrado após 30 segundos.";
+                return ct.IsCancellationRequested || RemoteCommandCancellation.IsRequested(requestId)
+                    ? "Comando cancelado pelo OWNER." : "Comando encerrado após 5 minutos.";
             }
             var output = (await stdout.ConfigureAwait(false) + await stderr.ConfigureAwait(false)).Trim();
             var result = $"Código de saída: {process.ExitCode}\n{output}";
@@ -102,6 +106,27 @@ public static class RemoteCommandExecutor
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
         {
             return $"Falha ao executar CMD: {ex.Message}"[..Math.Min(MaxResultLength, $"Falha ao executar CMD: {ex.Message}".Length)];
+        }
+        finally
+        {
+            cancellationMonitor.Cancel();
+            RemoteCommandCancellation.Clear(requestId);
+            try { await cancellationTask.ConfigureAwait(false); }
+            catch (OperationCanceledException) { }
+        }
+    }
+
+    private static async Task MonitorCancellationFileAsync(string? requestId, CancellationTokenSource cancellation)
+    {
+        if (!Guid.TryParse(requestId, out _)) return;
+        while (!cancellation.IsCancellationRequested)
+        {
+            if (RemoteCommandCancellation.IsRequested(requestId))
+            {
+                cancellation.Cancel();
+                return;
+            }
+            await Task.Delay(150, cancellation.Token).ConfigureAwait(false);
         }
     }
 

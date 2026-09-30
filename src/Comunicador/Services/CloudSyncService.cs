@@ -254,6 +254,21 @@ public sealed class CloudSyncService : IDisposable
             .ConfigureAwait(false);
     }
 
+    public async Task QueueRemoteCommandCancellationAsync(
+        string targetDeviceId, string requestId, CancellationToken ct = default)
+    {
+        if (!IsAdmin) throw new UnauthorizedAccessException("Somente o OWNER pode cancelar comandos remotos.");
+        if (!Guid.TryParse(requestId, out _))
+            throw new ArgumentException("Identificador do comando inválido.", nameof(requestId));
+        if (string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Escolha outro computador para esta ação.");
+        await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
+            new { kind = "admin_command", command = "cancel_cmd", request_id = requestId,
+                expires_at = DateTimeOffset.UtcNow.AddMinutes(5).ToString("O"), sender = _settings.NomePainel }, ct)
+            .ConfigureAwait(false);
+    }
+
     public Task RespondToDeliveryAsync(string deliveryId, string response, CancellationToken ct = default) =>
         _client.RespondToDeliveryAsync(deliveryId, response, ct);
 

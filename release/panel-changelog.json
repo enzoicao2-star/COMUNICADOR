@@ -251,5 +251,14 @@
       "Imagens, vídeos e áudios enviados pelo OWNER a computadores com bloqueio de mídia seguem pela entrega autenticada na nuvem.",
       "O bloqueio continua ativo para outros painéis; o receptor valida a identidade OWNER antes de exibir a mídia."
     ]
+  },
+  {
+    "version": "2.5.22.0",
+    "summary": "CMD remoto pode durar até 5 minutos e ser cancelado; cadastro antigo agora mostra como recuperar ações remotas.",
+    "changes": [
+      "O OWNER pode cancelar um comando CMD remoto, com execução máxima de 5 minutos, e encerrar processos filhos.",
+      "O painel e o receptor 2.5.14 atendem ao cancelamento mesmo quando estão instalados juntos no mesmo computador.",
+      "Ações remotas ficam indisponíveis para cadastros locais que já não existem na nuvem; a tela explica como o computador pode se registrar novamente."
+    ]
   }
 ]

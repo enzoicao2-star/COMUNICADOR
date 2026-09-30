@@ -117,7 +117,10 @@ public sealed class Computador : ObservableModel
         set
         {
             if (SetField(ref _registradoNaNuvem, value))
+            {
                 OnPropertyChanged(nameof(PodeAtualizarReceptor));
+                OnPropertyChanged(nameof(RegistradoNaNuvem));
+            }
         }
     }
     public bool MidiasBloqueadas

@@ -1,10 +1,11 @@
 {
-  "version": "2.5.21.0",
-  "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-  "sha256": "3AA23EBB7A0BFE6F3BFB302066EC8D583012586FB54A98EE2D27F543AA28678D",
-  "summary": "O OWNER consegue enviar mídias a computadores que bloquearam recebimentos.",
-  "changes": [
-    "Imagens, vídeos e áudios enviados pelo OWNER a computadores com bloqueio de mídia seguem pela entrega autenticada na nuvem.",
-    "O bloqueio continua ativo para outros painéis; o receptor valida a identidade OWNER antes de exibir a mídia."
-  ]
+    "version":  "2.5.22.0",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
+    "sha256":  "4D15BE45504F873D2AD646287658A8B3DF5AAD4BEBAC97854952D5B953C4FC6F",
+    "summary":  "Comandos remotos podem ser cancelados, e ações em computadores sem cadastro na nuvem exibem a orientação correta.",
+    "changes":  [
+                    "O OWNER pode cancelar um comando CMD remoto de até 5 minutos e encerrar o processo junto com seus subprocessos.",
+                    "O painel e o receptor 2.5.14 atendem ao cancelamento mesmo quando estão instalados juntos no mesmo computador.",
+                    "Ações remotas ficam indisponíveis para cadastros locais que já não existem na nuvem; a tela explica como o computador pode se registrar novamente."
+                ]
 }

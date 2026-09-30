@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Text.Json;
 using System.Windows.Input;
@@ -22,6 +23,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     private readonly SyncCoordinatorService _sync;
     private readonly PanelUpdateService _panelUpdate;
     private readonly CloudSyncService _cloudSync;
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _remoteCommands = new(StringComparer.OrdinalIgnoreCase);
 
     private object _secaoAtual;
     private double? _pingMedioMs;
@@ -366,14 +368,14 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var command = payload.TryGetProperty("command", out var commandNode) ? commandNode.GetString() : null;
         var requiredPermission = command switch
         {
-            "run_cmd" => "owner_only",
+            "run_cmd" or "cancel_cmd" => "owner_only",
             "install_panel" or "reinstall_panel" => "remote_install",
             "disable_panel" or "enable_panel" => "remote_panel_access",
             "reinstall_receiver" => "remote_receiver",
             _ => string.Empty,
         };
         var trustedSender = !string.IsNullOrWhiteSpace(requiredPermission)
-            && (command == "run_cmd"
+            && (command is "run_cmd" or "cancel_cmd"
                 ? await _cloudSync.IsCurrentAdminDeviceAsync(delivery.SenderDeviceId).ConfigureAwait(true)
                 : _cloudSync.HasPermissionForDevice(delivery.SenderDeviceId, requiredPermission));
         string result;
@@ -388,11 +390,21 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
                 case "run_cmd":
                     var line = payload.TryGetProperty("line", out var lineNode) ? lineNode.GetString() : null;
                     var expiresAt = payload.TryGetProperty("expires_at", out var expiresNode) ? expiresNode.GetString() : null;
+                    var requestId = payload.TryGetProperty("request_id", out var requestNode) ? requestNode.GetString() : null;
                     result = !RemoteCommandExecutor.IsFresh(expiresAt)
                         ? "Comando expirado. Envie novamente."
-                        : !RemoteCommandExecutor.IsValid(line)
+                        : !RemoteCommandExecutor.IsValid(line) || !Guid.TryParse(requestId, out _)
                             ? "Comando vazio ou longo demais."
-                            : await RemoteCommandExecutor.RunAsync(line!).ConfigureAwait(true);
+                            : await ExecutarCmdRemotoAsync(line!, requestId!).ConfigureAwait(true);
+                    break;
+                case "cancel_cmd":
+                    var commandRequestId = payload.TryGetProperty("request_id", out var cancelRequestNode)
+                        ? cancelRequestNode.GetString() : null;
+                    var cancelExpiry = payload.TryGetProperty("expires_at", out var cancelExpiryNode)
+                        ? cancelExpiryNode.GetString() : null;
+                    result = !RemoteCommandExecutor.IsFresh(cancelExpiry) || !Guid.TryParse(commandRequestId, out _)
+                        ? "Pedido de cancelamento expirado ou inválido."
+                        : CancelarCmdRemoto(commandRequestId!);
                     break;
                 case "disable_panel":
                     Settings.EntradaPainelHabilitada = false;
@@ -425,6 +437,29 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             }
         }
         await _cloudSync.RespondToDeliveryAsync(delivery.Id, result).ConfigureAwait(true);
+    }
+
+    private async Task<string> ExecutarCmdRemotoAsync(string line, string requestId)
+    {
+        using var cancellation = new CancellationTokenSource();
+        if (!_remoteCommands.TryAdd(requestId, cancellation))
+            return "Este comando já está em execução.";
+        try
+        {
+            return await RemoteCommandExecutor.RunAsync(line, cancellation.Token, requestId).ConfigureAwait(true);
+        }
+        finally
+        {
+            _remoteCommands.TryRemove(requestId, out _);
+        }
+    }
+
+    private string CancelarCmdRemoto(string requestId)
+    {
+        if (!RemoteCommandCancellation.Request(requestId))
+            return "Não foi possível registrar o cancelamento neste computador.";
+        if (_remoteCommands.TryGetValue(requestId, out var cancellation)) cancellation.Cancel();
+        return "Pedido de cancelamento recebido pelo computador.";
     }
 
     public void Start()
