@@ -79,6 +79,9 @@ public partial class App : Application
         _mainViewModel.Start();
 
         var window = new MainWindow { DataContext = _mainViewModel };
+#if TEST_BUILD
+        window.Title = "Comunicador — Teste";
+#endif
         if (e.Args.Any(arg => arg.Equals("--monitor=2", StringComparison.OrdinalIgnoreCase)))
         {
             var secondary = System.Windows.Forms.Screen.AllScreens.FirstOrDefault(screen => !screen.Primary);
@@ -98,7 +101,11 @@ public partial class App : Application
     private bool ClaimSingleInstance()
     {
         var user = WindowsIdentity.GetCurrent().User?.Value ?? Environment.UserName;
+#if TEST_BUILD
+        var prefix = @"Local\Comunicador.Teste." + user;
+#else
         var prefix = @"Local\Comunicador." + user;
+#endif
         _activationEvent = new EventWaitHandle(false, EventResetMode.AutoReset, prefix + ".activate");
         _instanceMutex = new Mutex(false, prefix + ".instance");
         try { _ownsInstanceMutex = _instanceMutex.WaitOne(0); }

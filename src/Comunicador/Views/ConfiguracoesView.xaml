@@ -530,6 +530,13 @@
                                                 <Button Content="Remover" Style="{StaticResource BotaoSecundario}" HorizontalAlignment="Right"
                                                         Command="{Binding DataContext.RemoverModeloBadgeGlobalCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
                                             </Grid>
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,2" VerticalAlignment="Center">
+                                                <TextBlock Text="Prévia" Style="{StaticResource Subtitulo}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                                <controls:InteractiveBadge Text="{Binding Texto}" Color="{Binding Cor}"
+                                                    Icon="{Binding Icone}" BadgeStyle="{Binding Estilo}"
+                                                    Glow="{Binding Brilho}" Interactive="{Binding EfeitoMouse}"
+                                                    FloatAnimation="{Binding AnimacaoFlutuante}" />
+                                            </StackPanel>
                                             <WrapPanel Margin="0,8,0,4">
                                                 <TextBox Width="140" Margin="0,0,8,6" ToolTip="Texto da badge" Text="{Binding Texto, UpdateSourceTrigger=PropertyChanged}" />
                                                 <controls:ColorPickerPopover Width="126" Margin="0,0,8,6"

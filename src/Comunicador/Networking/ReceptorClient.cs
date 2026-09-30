@@ -107,7 +107,7 @@ public sealed class ReceptorClient
         string modoExibicao = ProtocolConstants.DisplayMode.Toast,
         ConteudoImagem? imagem = null,
         List<ImagemMonitor>? imagensPorMonitor = null,
-        int? duracaoImagemSegundos = null,
+        double? duracaoImagemSegundos = null,
         bool? permitirFecharManualmente = null,
         AparenciaNotificacao? aparencia = null,
         ConteudoVideo? video = null,

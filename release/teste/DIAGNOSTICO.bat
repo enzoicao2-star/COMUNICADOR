@@ -1,0 +1,142 @@
+@echo off
+setlocal enabledelayedexpansion
+
+rem Reune num so lugar tudo que costuma explicar "o painel nao me encontra".
+rem Nao altera nada: so le e mostra. Pode rodar sem administrador.
+
+set "BASE=%LOCALAPPDATA%\Comunicador-Teste\Receptor"
+set "INSTALL_DIR=%BASE%\app"
+set "PORT_TCP=58931"
+set "PORT_UDP=58932"
+set "TASK_NAME=Comunicador Receptor Teste"
+set "EXPECTED_VERSION=2.5.15.1"
+
+echo ===============================================
+echo   Comunicador Receptor Teste %EXPECTED_VERSION% - diagnostico
+echo ===============================================
+echo.
+echo Computador: %COMPUTERNAME%
+echo Usuario:    %USERNAME%
+echo Data:       %DATE% %TIME%
+echo.
+
+echo [1] PYTHON
+for /f "delims=" %%P in ('where python 2^>nul') do (
+    call :validar_python "%%P"
+)
+if not defined PY for /f "delims=" %%P in ('py -3 -c "import sys; print(sys.executable)" 2^>nul') do call :validar_python "%%P"
+if not defined PY for /d %%D in ("%ProgramFiles%\Python3*") do call :validar_python "%%D\python.exe"
+if not defined PY for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do call :validar_python "%%D\python.exe"
+if defined PY (
+    echo     Python real encontrado: !PY!
+    "!PY!" --version 2>&1
+) else (
+    echo     PYTHON REAL NAO ENCONTRADO.
+    echo     O atalho WindowsApps/Microsoft Store, se aparecer no PATH, foi ignorado.
+    echo     Execute INSTALAR_RECEPTOR.bat para instalar automaticamente.
+)
+echo.
+
+echo [2] ARQUIVOS E VERSAO DO RECEPTOR
+if exist "%INSTALL_DIR%\receptor.py" (
+    echo     receptor.py  OK
+) else (
+    echo     receptor.py  FALTANDO  ^<-- a instalacao nao completou
+)
+if exist "%INSTALL_DIR%\protocolo.py" (
+    echo     protocolo.py OK
+) else (
+    echo     protocolo.py FALTANDO  ^<-- receptor nao consegue nem iniciar
+)
+if exist "%INSTALL_DIR%\receptor.py" (
+    findstr /L /C:"RECEIVER_VERSION = " "%INSTALL_DIR%\receptor.py" | findstr /L /C:"%EXPECTED_VERSION%" >nul
+    if not errorlevel 1 (
+        echo     Versao:       %EXPECTED_VERSION% ^(ATUALIZADA^)
+    ) else (
+        echo     Versao:       ANTIGA - execute INSTALAR_RECEPTOR.bat novamente
+    )
+)
+echo.
+
+echo [3] O RECEPTOR ESTA RODANDO?
+powershell -NoProfile -Command ^
+    "$p = Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'python*' -and $_.CommandLine -like '*receptor.py*' };" ^
+    "if ($p) { $p | ForEach-Object { Write-Host ('    RODANDO - PID ' + $_.ProcessId) } } else { Write-Host '    NAO ESTA RODANDO' }"
+echo.
+
+echo [4] ESCUTANDO NA PORTA %PORT_TCP%?
+powershell -NoProfile -Command ^
+    "try { $c = New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1', %PORT_TCP%); $c.Close();" ^
+    "  Write-Host '    SIM - porta %PORT_TCP% respondendo' } catch { Write-Host '    NAO - nada escutando na porta %PORT_TCP%' }"
+echo     Se o painel estiver aberto neste PC, o receptor pode usar outra porta
+echo     automaticamente e continuar conectado pela conexao reversa.
+echo.
+
+echo [5] INICIALIZACAO AUTOMATICA
+schtasks /query /tn "%TASK_NAME%" >nul 2>nul
+if %errorlevel%==0 (
+    echo     Tarefa agendada: CONFIGURADA
+) else (
+    echo     Tarefa agendada: nao existe
+)
+powershell -NoProfile -Command ^
+    "$l = Join-Path ([Environment]::GetFolderPath('Startup')) 'Comunicador Receptor Teste.lnk';" ^
+    "if (Test-Path $l) { Write-Host '    Pasta Inicializar: CONFIGURADA' } else { Write-Host '    Pasta Inicializar: nao existe' }"
+echo.
+
+echo [6] REDE E FIREWALL
+powershell -NoProfile -Command ^
+    "Get-NetConnectionProfile | ForEach-Object { Write-Host ('    Rede: ' + $_.Name + ' = ' + $_.NetworkCategory) }"
+netsh advfirewall firewall show rule name="Comunicador Receptor Teste" >nul 2>nul
+if %errorlevel%==0 (
+    echo     Regra de firewall TCP: EXISTE
+) else (
+    echo     Regra de firewall TCP: nao existe ^(normal se usar conexao reversa^)
+)
+echo.
+
+echo [7] PAINEIS VISIVEIS NA REDE ^(porta %PORT_TCP%^)
+echo     procurando, aguarde...
+powershell -NoProfile -Command ^
+    "$meu = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.PrefixLength -eq 24 } | Select-Object -First 1).IPAddress;" ^
+    "if (-not $meu) { Write-Host '    nao identifiquei a sub-rede'; exit };" ^
+    "$rede = ($meu -split '\.')[0..2] -join '.';" ^
+    "Write-Host ('    varrendo ' + $rede + '.1-254 ...');" ^
+    "$t = 1..254 | ForEach-Object { $c = New-Object Net.Sockets.TcpClient; [PSCustomObject]@{ IP = \"$rede.$_\"; C = $c; T = $c.ConnectAsync(\"$rede.$_\", %PORT_TCP%) } };" ^
+    "Start-Sleep -Seconds 5;" ^
+    "$achou = $false;" ^
+    "foreach ($x in $t) { if ($x.T.Status -eq 'RanToCompletion') { Write-Host ('    RESPONDEU: ' + $x.IP); $achou = $true }; $x.C.Close() };" ^
+    "if (-not $achou) { Write-Host '    nenhum host respondeu - o painel esta aberto na outra maquina?' }"
+echo.
+
+echo [8] ULTIMAS LINHAS DO LOG
+rem Log vazio conta como "nunca rodou": o arquivo e criado na inicializacao,
+rem entao 0 bytes significa que o processo morreu antes de registrar qualquer coisa.
+powershell -NoProfile -Command ^
+    "$log = '%BASE%\receptor.log';" ^
+    "if (-not (Test-Path $log)) {" ^
+    "  Write-Host '    receptor.log NAO EXISTE';" ^
+    "  Write-Host '    -> o receptor nunca iniciou. Rode INSTALAR_RECEPTOR.bat de novo.' }" ^
+    "elseif ((Get-Item $log).Length -eq 0) {" ^
+    "  Write-Host '    receptor.log esta VAZIO';" ^
+    "  Write-Host '    -> o receptor morreu logo ao iniciar. Rode INSTALAR_RECEPTOR.bat de novo.' }" ^
+    "else { Get-Content $log -Tail 15 | ForEach-Object { Write-Host ('    ' + $_) } }"
+echo.
+
+echo ===============================================
+echo   Fim do diagnostico. Tire um print desta tela
+echo   e mande para quem esta ajudando.
+echo ===============================================
+pause
+exit /b 0
+
+:validar_python
+if defined PY exit /b 0
+set "CANDIDATO_PY=%~1"
+if not exist "!CANDIDATO_PY!" exit /b 0
+echo(!CANDIDATO_PY!| findstr /I /C:"\WindowsApps\python.exe" >nul
+if not errorlevel 1 exit /b 0
+"!CANDIDATO_PY!" -c "import sys, tkinter; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>nul
+if errorlevel 1 exit /b 0
+for %%Q in ("!CANDIDATO_PY!") do if exist "%%~dpQpythonw.exe" set "PY=%%~fQ"
+exit /b 0

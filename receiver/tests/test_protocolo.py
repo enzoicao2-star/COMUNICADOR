@@ -23,6 +23,33 @@ def test_valid_notification_passes():
     protocolo.validate(make_valid_notification())
 
 
+@pytest.mark.parametrize("duration", [0.5, 0.6, 1.25, 3, 3600])
+def test_center_image_accepts_fractional_display_duration(duration):
+    msg = make_valid_notification()
+    msg.update(
+        display_mode=protocolo.DISPLAY_MODE_CENTER_IMAGE,
+        image_duration_seconds=duration,
+        allow_manual_close=True,
+        image={"name": "pixel.png", "mime_type": "image/png",
+               "data_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="},
+    )
+    protocolo.validate(msg)
+
+
+@pytest.mark.parametrize("duration", [0.49, 3600.1, float("nan"), float("inf"), True])
+def test_center_image_rejects_invalid_display_duration(duration):
+    msg = make_valid_notification()
+    msg.update(
+        display_mode=protocolo.DISPLAY_MODE_CENTER_IMAGE,
+        image_duration_seconds=duration,
+        allow_manual_close=True,
+        image={"name": "pixel.png", "mime_type": "image/png",
+               "data_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="},
+    )
+    with pytest.raises(ProtocolError):
+        protocolo.validate(msg)
+
+
 @pytest.mark.parametrize("modo", [protocolo.DISPLAY_MODE_TOAST,
                                   protocolo.DISPLAY_MODE_CENTER_MESSAGE])
 def test_confirmation_required_can_be_combined_with_position(modo):

@@ -260,5 +260,31 @@
       "O painel e o receptor 2.5.14 atendem ao cancelamento mesmo quando estão instalados juntos no mesmo computador.",
       "Ações remotas ficam indisponíveis para cadastros locais que já não existem na nuvem; a tela explica como o computador pode se registrar novamente."
     ]
+  },
+  {
+    "version": "2.5.23.0",
+    "summary": "Duplo clique no cartão abre as configurações completas daquele computador.",
+    "changes": [
+      "Duplo clique em qualquer área do cartão abre a mesma tela de gerenciamento do botão de configurações."
+    ]
+  },
+  {
+    "version": "2.5.24.0",
+    "summary": "Prévia ao vivo para os modelos de badge e navegação rápida para as configurações do computador.",
+    "changes": [
+      "Duplo clique em qualquer área do cartão abre a mesma tela de gerenciamento do botão de configurações.",
+      "A área de tags padrão mostra a badge renderizada com as opções visuais atuais."
+    ]
+  },
+  {
+    "version": "2.5.25.0",
+    "summary": "GIF por monitor com prévia e duração mínima de 0,5 segundo; instalação inclui desinstalador e downloads de teste separados.",
+    "changes": [
+      "A miniatura por monitor decodifica o primeiro quadro de GIFs e imagens comuns.",
+      "O campo de duração também aparece para imagens escolhidas por monitor e aceita décimos de segundo, a partir de 0,5 s.",
+      "Painel e receptor suportam duração fracionária de imagem; receptor está na versão 2.5.15.",
+      "A primeira instalação do painel deixa o desinstalador completo disponível.",
+      "As edições de teste usam arquivos, dados e portas separados; todo painel de teste é OWNER e não lista computadores de produção."
+    ]
   }
 ]

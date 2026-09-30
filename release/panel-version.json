@@ -1,11 +1,13 @@
 {
-    "version":  "2.5.22.0",
+    "version":  "2.5.25.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "4D15BE45504F873D2AD646287658A8B3DF5AAD4BEBAC97854952D5B953C4FC6F",
-    "summary":  "Comandos remotos podem ser cancelados, e ações em computadores sem cadastro na nuvem exibem a orientação correta.",
+    "sha256":  "F3A5171EBECAB90C8B5D234AA66A1648742BD6FA6582230BF83CA82748524F1B",
+    "summary":  "Prévia correta de GIF por monitor, duração mínima de 0,5 segundo e downloads independentes de teste.",
     "changes":  [
-                    "O OWNER pode cancelar um comando CMD remoto de até 5 minutos e encerrar o processo junto com seus subprocessos.",
-                    "O painel e o receptor 2.5.14 atendem ao cancelamento mesmo quando estão instalados juntos no mesmo computador.",
-                    "Ações remotas ficam indisponíveis para cadastros locais que já não existem na nuvem; a tela explica como o computador pode se registrar novamente."
+                    "A miniatura por monitor mostra o primeiro quadro da imagem ou GIF escolhido.",
+                    "O tempo aparece quando uma imagem é escolhida para monitor específico e aceita décimos, a partir de 0,5 s; receptor 2.5.15 aplica durações fracionárias.",
+                    "Duplo clique no cartão abre as configurações; modelos de badge exibem prévia ao vivo.",
+                    "A instalação inicial inclui desinstalador completo do painel.",
+                    "Painel e receptor de teste usam dados e portas separados; painéis de teste são OWNER e não consultam computadores de produção."
                 ]
 }

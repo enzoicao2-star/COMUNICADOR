@@ -17,6 +17,11 @@ public sealed class PanelUpdateService
 
     public async Task<PanelUpdateInfo> CheckAsync(CancellationToken cancellationToken = default)
     {
+#if TEST_BUILD
+        // O executavel de teste nunca consulta nem instala uma release estavel.
+        return new PanelUpdateInfo(CurrentVersion, CurrentVersion, false,
+            "Versão de teste isolada.", Array.Empty<string>());
+#else
         using var request = new HttpRequestMessage(HttpMethod.Get,
             $"{ManifestUrl}?t={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}");
         request.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true };
@@ -30,6 +35,7 @@ public sealed class PanelUpdateService
             throw new InvalidDataException("Versão publicada inválida.");
         return new PanelUpdateInfo(CurrentVersion, latest, latest > CurrentVersion,
             manifest.Summary ?? string.Empty, manifest.Changes ?? Array.Empty<string>());
+#endif
     }
 
     public async Task StartUpdateAsync(

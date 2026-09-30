@@ -43,7 +43,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.14"
+RECEIVER_VERSION = "2.5.15"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -214,7 +214,7 @@ MEDIA_PLAYER_SCRIPT = r'''param(
     [Parameter(Mandatory=$true)][string]$MediaPath,
     [Parameter(Mandatory=$true)][string]$Kind,
     [int]$X = 0, [int]$Y = 0, [int]$MonitorWidth = 1280, [int]$MonitorHeight = 720,
-    [int]$WidthPercent = 70, [switch]$Loop, [int]$DurationSeconds = 0,
+      [int]$WidthPercent = 70, [switch]$Loop, [double]$DurationSeconds = 0,
     [switch]$AllowClose
 )
 Add-Type -AssemblyName PresentationFramework
@@ -467,12 +467,33 @@ def aplicar_papel_parede(image: dict, config: "Config") -> None:
         raise ValueError("Formato de papel de parede não suportado.")
     dados = base64.b64decode(image["data_base64"], validate=True)
     destino = config.directory.parent / f"wallpaper{extensao}"
+    backup = config.directory.parent / "wallpaper-original.txt"
+    if not backup.exists():
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Desktop") as key:
+            original, _ = winreg.QueryValueEx(key, "WallPaper")
+        if original and Path(original).is_file():
+            backup.write_text(original, encoding="utf-8")
     temporario = destino.with_suffix(extensao + ".tmp")
     temporario.write_bytes(dados)
     temporario.replace(destino)
     import ctypes
     if not ctypes.windll.user32.SystemParametersInfoW(20, 0, str(destino), 3):
         raise OSError("O Windows recusou a alteração do papel de parede.")
+
+
+def restaurar_papel_parede(config: "Config") -> str:
+    backup = config.directory.parent / "wallpaper-original.txt"
+    if not backup.is_file():
+        raise FileNotFoundError("Este computador ainda não tem um papel de parede anterior salvo.")
+    original = backup.read_text(encoding="utf-8").strip()
+    if not original or not Path(original).is_file():
+        raise FileNotFoundError("O arquivo do papel de parede anterior não está mais disponível.")
+    import ctypes
+    if not ctypes.windll.user32.SystemParametersInfoW(20, 0, original, 3):
+        raise OSError("O Windows recusou a restauração do papel de parede anterior.")
+    backup.unlink()
+    return original
 
 
 def aplicar_tela_bloqueio(image: dict, config: "Config") -> None:
@@ -1359,7 +1380,7 @@ class NotificationUi:
                     "-MonitorWidth", str(max(1, monitor.get("width", 1280))),
                     "-MonitorHeight", str(max(1, monitor.get("height", 720))),
                     "-WidthPercent", str(percentual),
-                    "-DurationSeconds", str(int(duracao or 0)),
+                      "-DurationSeconds", str(float(duracao or 0)),
                 ]
                 if repetir:
                     comando.append("-Loop")
@@ -2118,6 +2139,13 @@ class ReverseConnection(threading.Thread):
             ack = protocolo.base_message(MessageType.ACK)
             ack["in_reply_to"] = msg["id"]
             ack["status"] = status
+            self._enviar(ack)
+            return
+        if msg.get("display_mode") == protocolo.DISPLAY_MODE_RESTORE_WALLPAPER:
+            restaurar_papel_parede(self.config)
+            ack = protocolo.base_message(MessageType.ACK)
+            ack["in_reply_to"] = msg["id"]
+            ack["status"] = "wallpaper_restored"
             self._enviar(ack)
             return
         if msg.get("display_mode") in (protocolo.DISPLAY_MODE_WALLPAPER, protocolo.DISPLAY_MODE_LOCK_SCREEN):

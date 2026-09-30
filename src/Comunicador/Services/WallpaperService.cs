@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
+using Microsoft.Win32;
 using Comunicador.Protocol;
 using Comunicador.Storage;
 
@@ -26,6 +27,7 @@ public static class WallpaperService
         };
         var bytes = Convert.FromBase64String(image.DataBase64);
         AppPaths.EnsureCreated();
+        SaveOriginalWallpaper();
         var path = Path.Combine(AppPaths.LocalSharedDir, "wallpaper" + extension);
         var temporary = path + ".tmp";
         File.WriteAllBytes(temporary, bytes);
@@ -33,5 +35,29 @@ public static class WallpaperService
         if (!SystemParametersInfo(SpiSetDesktopWallpaper, 0, path, UpdateIniFile | SendWinIniChange))
             throw new Win32Exception(Marshal.GetLastWin32Error());
         return path;
+    }
+
+    public static string Restore()
+    {
+        var backup = Path.Combine(AppPaths.LocalSharedDir, "wallpaper-original.txt");
+        if (!File.Exists(backup))
+            throw new FileNotFoundException("Este computador ainda não tem um papel de parede anterior salvo.");
+        var originalPath = File.ReadAllText(backup).Trim();
+        if (string.IsNullOrWhiteSpace(originalPath) || !File.Exists(originalPath))
+            throw new FileNotFoundException("O arquivo do papel de parede anterior não está mais disponível.");
+        if (!SystemParametersInfo(SpiSetDesktopWallpaper, 0, originalPath, UpdateIniFile | SendWinIniChange))
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        File.Delete(backup);
+        return originalPath;
+    }
+
+    private static void SaveOriginalWallpaper()
+    {
+        var backup = Path.Combine(AppPaths.LocalSharedDir, "wallpaper-original.txt");
+        if (File.Exists(backup)) return;
+        using var key = Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop", writable: false);
+        var originalPath = key?.GetValue("WallPaper") as string;
+        if (!string.IsNullOrWhiteSpace(originalPath) && File.Exists(originalPath))
+            File.WriteAllText(backup, originalPath);
     }
 }

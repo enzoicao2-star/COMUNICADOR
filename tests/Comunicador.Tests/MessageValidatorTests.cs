@@ -24,6 +24,53 @@ public class MessageValidatorTests
     }
 
     [Fact]
+    public void RestoreWallpaperNotification_WithoutMedia_Passes()
+    {
+        var msg = ValidNotification();
+        msg.DisplayMode = ProtocolConstants.DisplayMode.RestoreWallpaper;
+        msg.AllowReply = false;
+        Assert.True(MessageValidator.Validate(msg).IsValid);
+    }
+
+    [Theory]
+    [InlineData(0.5)]
+    [InlineData(0.75)]
+    [InlineData(3)]
+    public void CenterImage_AcceptsFractionalDuration(double seconds)
+    {
+        var msg = ValidNotification();
+        msg.DisplayMode = ProtocolConstants.DisplayMode.CenterImage;
+        msg.Image = new ConteudoImagem
+        {
+            Name = "pixel.png",
+            MimeType = "image/png",
+            DataBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        };
+        msg.ImageDurationSeconds = seconds;
+        msg.AllowManualClose = true;
+        Assert.True(MessageValidator.Validate(msg).IsValid);
+    }
+
+    [Theory]
+    [InlineData(0.49)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void CenterImage_RejectsDurationBelowMinimumOrNonFinite(double seconds)
+    {
+        var msg = ValidNotification();
+        msg.DisplayMode = ProtocolConstants.DisplayMode.CenterImage;
+        msg.Image = new ConteudoImagem
+        {
+            Name = "pixel.png",
+            MimeType = "image/png",
+            DataBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        };
+        msg.ImageDurationSeconds = seconds;
+        msg.AllowManualClose = true;
+        Assert.False(MessageValidator.Validate(msg).IsValid);
+    }
+
+    [Fact]
     public void MissingField_Fails()
     {
         var msg = ValidNotification();

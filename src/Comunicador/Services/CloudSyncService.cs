@@ -57,9 +57,19 @@ public sealed class CloudSyncService : IDisposable
         _client = client;
         _settings = settings;
         _profiles = profiles;
+#if TEST_BUILD
+        _loop = Task.CompletedTask;
+        IsAdmin = true;
+        AdminDeviceId = settings.PainelId;
+        settings.EstePainelEhOwner = true;
+#endif
     }
 
+#if TEST_BUILD
+    public void Start() { }
+#else
     public void Start() => _loop ??= Task.Run(() => RunAsync(_cts.Token));
+#endif
 
     public async Task<CloudAdminResult> ToggleAdminAsync(string password, CancellationToken ct = default)
     {

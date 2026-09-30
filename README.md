@@ -1,4 +1,4 @@
-# Comunicador 2.5.13
+# Comunicador 2.5.25
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
@@ -208,6 +208,13 @@ Rodar os testes do receptor localmente:
 python -m pip install -r receiver/requirements-dev.txt
 python -m pytest receiver/tests -q
 ```
+
+## Edição de teste isolada
+
+- `BAIXAR_PAINEL_TESTE.bat` baixa e valida o executável **Comunicador-Teste**, com arquivos e configurações separados do painel normal.
+- `BAIXAR_RECEPTOR_TESTE.bat` instala o receptor de teste em uma pasta e portas próprias. Assim ele aparece nos painéis de teste da rede, e não na lista do painel normal.
+- Todo painel de teste é OWNER localmente; podem existir vários ao mesmo tempo. O painel de teste não consulta os computadores de produção nem atualiza para a edição estável.
+- Na instalação inicial do painel normal, `DESINSTALAR_COMUNICADOR.bat` fica na pasta instalada e remove os dados do painel, preservando o receptor separado.
 
 ## Estrutura
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import math
 import json
 import re
 import uuid
@@ -36,7 +37,7 @@ MAX_GIF_BYTES = 16 * 1024 * 1024
 MAX_IMAGE_NAME_LENGTH = 255
 MAX_IMAGE_BASE64_LENGTH = ((MAX_IMAGE_BYTES + 2) // 3) * 4
 MAX_GIF_BASE64_LENGTH = ((MAX_GIF_BYTES + 2) // 3) * 4
-MIN_IMAGE_DURATION_SECONDS = 3
+MIN_IMAGE_DURATION_SECONDS = 0.5
 MAX_IMAGE_DURATION_SECONDS = 3600
 MAX_MONITORS = 12
 MAX_SCREEN_IMAGES = 12
@@ -67,12 +68,13 @@ DISPLAY_MODE_AUDIO = "audio"
 DISPLAY_MODE_CENTER_ALERT = "center_alert"
 DISPLAY_MODE_CENTER_MESSAGE = "center_message"
 DISPLAY_MODE_WALLPAPER = "wallpaper"
+DISPLAY_MODE_RESTORE_WALLPAPER = "restore_wallpaper"
 DISPLAY_MODE_LOCK_SCREEN = "lock_screen"
 DISPLAY_MODE_CAROUSEL = "carousel"
 DISPLAY_MODES = {
     DISPLAY_MODE_TOAST, DISPLAY_MODE_CENTER_IMAGE, DISPLAY_MODE_CENTER_VIDEO,
     DISPLAY_MODE_AUDIO, DISPLAY_MODE_CENTER_ALERT, DISPLAY_MODE_CENTER_MESSAGE,
-    DISPLAY_MODE_WALLPAPER, DISPLAY_MODE_LOCK_SCREEN, DISPLAY_MODE_CAROUSEL,
+    DISPLAY_MODE_WALLPAPER, DISPLAY_MODE_RESTORE_WALLPAPER, DISPLAY_MODE_LOCK_SCREEN, DISPLAY_MODE_CAROUSEL,
 }
 SOUND_TYPES = {"information", "warning", "error"}
 TOAST_POSITIONS = {"bottom_right", "top_right"}
@@ -421,18 +423,19 @@ def _validar_conteudo_visual(msg: dict) -> None:
         raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Modo de áudio não aceita imagem ou vídeo.")
 
     duracao = msg.get("image_duration_seconds")
-    if modo == DISPLAY_MODE_CENTER_IMAGE and not isinstance(duracao, int):
+    if modo == DISPLAY_MODE_CENTER_IMAGE and not isinstance(duracao, (int, float)):
         raise ProtocolError(ErrorCode.MISSING_FIELD, "Aviso central precisa do campo 'image_duration_seconds'.")
     if modo == DISPLAY_MODE_CENTER_VIDEO and not isinstance(msg.get("video_loop"), bool):
         raise ProtocolError(ErrorCode.MISSING_FIELD, "Vídeo central precisa do campo 'video_loop'.")
     if modo == DISPLAY_MODE_AUDIO and not isinstance(msg.get("audio_loop"), bool):
         raise ProtocolError(ErrorCode.MISSING_FIELD, "Reprodução de áudio precisa do campo 'audio_loop'.")
-    if modo == DISPLAY_MODE_CENTER_VIDEO and msg.get("video_loop") is True and not isinstance(duracao, int):
+    if modo == DISPLAY_MODE_CENTER_VIDEO and msg.get("video_loop") is True and not isinstance(duracao, (int, float)):
         raise ProtocolError(ErrorCode.MISSING_FIELD, "Vídeo em loop precisa do campo 'image_duration_seconds'.")
-    if modo == DISPLAY_MODE_AUDIO and msg.get("audio_loop") is True and not isinstance(duracao, int):
+    if modo == DISPLAY_MODE_AUDIO and msg.get("audio_loop") is True and not isinstance(duracao, (int, float)):
         raise ProtocolError(ErrorCode.MISSING_FIELD, "Áudio em loop precisa do campo 'image_duration_seconds'.")
     if duracao is not None and (
-            not isinstance(duracao, int) or isinstance(duracao, bool)
+            not isinstance(duracao, (int, float)) or isinstance(duracao, bool)
+            or not math.isfinite(duracao)
             or not MIN_IMAGE_DURATION_SECONDS <= duracao <= MAX_IMAGE_DURATION_SECONDS):
         raise ProtocolError(
             ErrorCode.INVALID_FIELD_TYPE,

@@ -3,8 +3,13 @@ namespace Comunicador.Protocol;
 public static class ProtocolConstants
 {
     public const int Version = 1;
-    public const string CurrentReceiverVersion = "2.5.14";
-    public const string CurrentPanelVersion = "2.5.22";
+#if TEST_BUILD
+    public const string CurrentReceiverVersion = "2.5.15.1";
+    public const string CurrentPanelVersion = "2.5.25.1";
+#else
+    public const string CurrentReceiverVersion = "2.5.15";
+    public const string CurrentPanelVersion = "2.5.25";
+#endif
     public const string MinimumManagedReceiverVersion = "2.1.0";
 
     public static bool SupportsRemoteManagement(string? receiverVersion) =>
@@ -12,10 +17,17 @@ public static class ProtocolConstants
         && System.Version.TryParse(MinimumManagedReceiverVersion, out var minimum)
         && installed >= minimum;
 
+#if TEST_BUILD
+    public const int TcpPort = 58931;
+    public const int UdpDiscoveryPort = 58932;
+    public const int PanelFallbackTcpPort = 58933;
+    public const int PanelFallbackUdpDiscoveryPort = 58934;
+#else
     public const int TcpPort = 57931;
     public const int UdpDiscoveryPort = 57932;
     public const int PanelFallbackTcpPort = 57933;
     public const int PanelFallbackUdpDiscoveryPort = 57934;
+#endif
 
     // GIFs de 16 MiB viram aproximadamente 21,4 MiB em Base64. O quadro TCP
     // comporta esse crescimento, inclusive quando imagens são destinadas a monitores.
@@ -35,8 +47,8 @@ public static class ProtocolConstants
     public const int MaxImageNameLength = 255;
     public const int MaxImageBase64Length = ((MaxImageBytes + 2) / 3) * 4;
     public const int MaxGifBase64Length = ((MaxGifBytes + 2) / 3) * 4;
-    public const int MinImageDurationSeconds = 3;
-    public const int MaxImageDurationSeconds = 3600;
+    public const double MinImageDurationSeconds = 0.5;
+    public const double MaxImageDurationSeconds = 3600;
     public const int MaxMonitors = 12;
     public const int MaxScreenImages = 12;
     public const int MaxTotalImageBytes = 16 * 1024 * 1024;
@@ -97,12 +109,14 @@ public static class ProtocolConstants
         public const string CenterAlert = "center_alert";
         public const string CenterMessage = "center_message";
         public const string Wallpaper = "wallpaper";
+        public const string RestoreWallpaper = "restore_wallpaper";
         public const string LockScreen = "lock_screen";
         public const string Carousel = "carousel";
 
         public static readonly IReadOnlySet<string> All = new HashSet<string>
         {
-            Toast, CenterImage, CenterVideo, Audio, CenterAlert, CenterMessage, Wallpaper, LockScreen, Carousel,
+            Toast, CenterImage, CenterVideo, Audio, CenterAlert, CenterMessage, Wallpaper, RestoreWallpaper,
+            LockScreen, Carousel,
         };
     }
 

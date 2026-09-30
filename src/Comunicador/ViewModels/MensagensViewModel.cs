@@ -160,6 +160,7 @@ public sealed class MensagensViewModel : ViewModelBase
         : null;
 
     public bool TemImagem => _dadosImagem is { Length: > 0 };
+    public bool TemImagemConfigurada => TemImagem || MonitoresDestino.Any(m => m.Midias.Any(i => i.EhImagem));
     public bool ImagemCompativelPapelParede => TemImagem
         && (_mimeImagem == "image/png" || _mimeImagem == "image/jpeg");
     public bool TemVideo => _dadosVideo is { Length: > 0 };
@@ -310,7 +311,7 @@ public sealed class MensagensViewModel : ViewModelBase
     {
         get => _tempoImagemSegundos;
         set => SetField(ref _tempoImagemSegundos, Math.Round(Math.Clamp(
-            value, ProtocolConstants.MinImageDurationSeconds, 300)));
+            value, ProtocolConstants.MinImageDurationSeconds, 300), 1));
     }
 
     public bool PermitirFecharImagem
@@ -457,6 +458,7 @@ public sealed class MensagensViewModel : ViewModelBase
                     }
                 }
                 OnPropertyChanged(nameof(TemVideoConfigurado));
+                OnPropertyChanged(nameof(TemImagemConfigurada));
                 CommandManager.InvalidateRequerySuggested();
             }
         });
@@ -894,6 +896,7 @@ public sealed class MensagensViewModel : ViewModelBase
         destino.Midias.Add(midia);
         GuardarMidias(destino);
         OnPropertyChanged(nameof(TemVideoConfigurado));
+        OnPropertyChanged(nameof(TemImagemConfigurada));
         StatusOperacao = $"{midia.Nome} adicionada ao {destino.Titulo}.";
     }
 
@@ -1178,6 +1181,7 @@ public sealed class MensagensViewModel : ViewModelBase
         OnPropertyChanged(nameof(TemAudio));
         OnPropertyChanged(nameof(TemMidia));
         OnPropertyChanged(nameof(TemVideoConfigurado));
+        OnPropertyChanged(nameof(TemImagemConfigurada));
         OnPropertyChanged(nameof(PodeConfigurarMonitores));
         OnPropertyChanged(nameof(CaminhoMidia));
         OnPropertyChanged(nameof(NomeMidia));
@@ -1275,7 +1279,7 @@ public sealed class MensagensViewModel : ViewModelBase
             modoExibicao: modo,
             imagem: imagens.Count > 0 ? null : imagem,
             imagensPorMonitor: imagens,
-            duracaoImagemSegundos: (int)TempoImagemSegundos,
+            duracaoImagemSegundos: TempoImagemSegundos,
             permitirFecharManualmente: true,
             aparencia: aparencia,
             video: videos.Count > 0 ? null : video,

@@ -178,11 +178,13 @@ O campo opcional `display_mode` define a apresentação:
 - `audio`: áudio reproduzido em segundo plano, sem janela ou elemento visual;
 - `center_alert`: aviso modal central que exige confirmação.
 - `wallpaper`: aplica PNG/JPEG como papel de parede da área de trabalho, sem abrir janela;
+- `restore_wallpaper`: restaura a imagem da área de trabalho salva antes da última alteração;
 - `lock_screen`: aplica PNG/JPEG à tela de bloqueio da conta do receptor, sem abrir janela.
 - `carousel`: gerencia uma sequência persistente de imagens do sistema, sem abrir janela.
 
 Os modos `wallpaper` e `lock_screen` exigem `image`, aceitam `title` e `message`
 vazios e confirmam respectivamente `wallpaper_applied` e `lock_screen_applied`.
+`restore_wallpaper` não aceita mídia e confirma `wallpaper_restored` quando havia uma cópia anterior disponível.
 O modo `lock_screen` requer receptor 2.5.4 ou posterior.
 
 `carousel` requer receptor 2.5.5 ou posterior. O objeto `carousel` inclui
@@ -197,7 +199,7 @@ Para imagem central, `screen_images` contém objetos com
 transportada no próprio JSON por `{ name, mime_type, data_base64 }`;
 são aceitos PNG, JPEG, GIF e BMP após validação do MIME, Base64,
 tamanho e assinatura real do arquivo. `image_duration_seconds`
-(3–3600) controla o fechamento automático e `allow_manual_close`
+(0,5–3600 segundos; pode incluir décimos) controla o fechamento automático e `allow_manual_close`
 controla se um clique na própria imagem pode fechá-la. Nesse modo, `title`
 e `message` podem ser strings vazias; o receptor exibe somente a imagem,
 sem cartão, cabeçalho, fundo ou botões.

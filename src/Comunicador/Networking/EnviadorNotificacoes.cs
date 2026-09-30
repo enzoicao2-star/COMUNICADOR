@@ -29,7 +29,7 @@ public sealed class EnviadorNotificacoes
         string modoExibicao = ProtocolConstants.DisplayMode.Toast,
         ConteudoImagem? imagem = null,
         IReadOnlyList<ImagemMonitor>? imagensPorMonitor = null,
-        int? duracaoImagemSegundos = null,
+        double? duracaoImagemSegundos = null,
         bool? permitirFecharManualmente = null,
         AparenciaNotificacao? aparencia = null,
         ConteudoVideo? video = null,

@@ -87,6 +87,7 @@ function Test-ReceiverInstalled {
 function Test-CompleteInstall([string]$Root, [object]$Metadata) {
     $required = @(
         'ABRIR_COMUNICADOR.bat',
+        'DESINSTALAR_COMUNICADOR.bat',
         'LIBERAR_FIREWALL.bat',
         'REVERTER_CONFIGURACOES.bat',
         'README.md',
@@ -145,6 +146,7 @@ function Install-RepositorySnapshot(
 
         $requiredSnapshotFiles = @(
             'ABRIR_COMUNICADOR.bat',
+            'DESINSTALAR_COMUNICADOR.bat',
             'LIBERAR_FIREWALL.bat',
             'REVERTER_CONFIGURACOES.bat',
             'release\Comunicador.exe',

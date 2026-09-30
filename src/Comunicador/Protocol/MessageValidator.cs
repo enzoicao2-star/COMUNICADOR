@@ -225,7 +225,7 @@ public static class MessageValidator
     private static ValidationResult? ValidarConteudoVisual(
         string? modo, ConteudoImagem? imagem, List<ImagemMonitor>? imagensPorMonitor,
         ConteudoVideo? video, List<VideoMonitor>? videosPorMonitor,
-        int? duracaoSegundos, bool? permitirFechar, bool? repetirVideo,
+        double? duracaoSegundos, bool? permitirFechar, bool? repetirVideo,
         ConteudoAudio? audio, bool? repetirAudio, CarouselCommand? carousel)
     {
         modo ??= DisplayMode.Toast;
@@ -259,6 +259,13 @@ public static class MessageValidator
         if (modo == DisplayMode.Wallpaper && imagem is null)
         {
             return ValidationResult.Fail(ErrorCode.MissingField, "Papel de parede precisa do campo 'image'.");
+        }
+        if (modo == DisplayMode.RestoreWallpaper
+            && (imagem is not null || imagensPorMonitor is { Count: > 0 }
+                || video is not null || videosPorMonitor is { Count: > 0 } || audio is not null))
+        {
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType,
+                "Restauração do papel de parede não aceita arquivos de mídia.");
         }
         if (modo == DisplayMode.LockScreen && imagem is null)
         {
@@ -329,7 +336,9 @@ public static class MessageValidator
 
         if ((modo is DisplayMode.CenterImage or DisplayMode.CenterVideo or DisplayMode.Audio)
             && duracaoSegundos.HasValue
-            && (duracaoSegundos < MinImageDurationSeconds || duracaoSegundos > MaxImageDurationSeconds))
+            && (!double.IsFinite(duracaoSegundos.Value)
+                || duracaoSegundos < MinImageDurationSeconds
+                || duracaoSegundos > MaxImageDurationSeconds))
         {
             return ValidationResult.Fail(
                 ErrorCode.InvalidFieldType,

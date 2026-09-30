@@ -462,6 +462,26 @@ public sealed class EmbeddedReceptorServer : IDisposable
             return;
         }
 
+        if (msg.DisplayMode == ProtocolConstants.DisplayMode.RestoreWallpaper)
+        {
+            var restoreAck = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ack);
+            restoreAck.InReplyTo = msg.Id;
+            try
+            {
+                WallpaperService.Restore();
+                restoreAck.Status = "wallpaper_restored";
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                or System.ComponentModel.Win32Exception)
+            {
+                await EnviarAsync(stream, ComunicadorMessage.Error(
+                    ProtocolConstants.ErrorCode.InternalError, ex.Message, msg.Id), ct).ConfigureAwait(false);
+                return;
+            }
+            await EnviarAsync(stream, restoreAck, ct).ConfigureAwait(false);
+            return;
+        }
+
         var allowReply = msg.AllowReply == true;
         var systemImage = msg.DisplayMode is ProtocolConstants.DisplayMode.Wallpaper
             or ProtocolConstants.DisplayMode.LockScreen;

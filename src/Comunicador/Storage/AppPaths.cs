@@ -4,8 +4,13 @@ namespace Comunicador.Storage;
 
 public static class AppPaths
 {
+#if TEST_BUILD
+    private const string ApplicationFolder = "Comunicador-Teste";
+#else
+    private const string ApplicationFolder = "Comunicador";
+#endif
     public static string RootDir { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Comunicador");
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), ApplicationFolder);
 
     public static string ComputadoresFile => Path.Combine(RootDir, "computadores.json");
     public static string PaineisPareadosFile => Path.Combine(RootDir, "paineis_pareados.json");
@@ -16,7 +21,7 @@ public static class AppPaths
     public static string ConfiguracoesFile => Path.Combine(RootDir, "config.json");
     public static string LogFile => Path.Combine(RootDir, "comunicador.log");
     public static string LocalSharedDir { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Comunicador");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), ApplicationFolder);
     public static string DeviceIdentityFile => Path.Combine(LocalSharedDir, "device.json");
     public static string CloudSessionFile => Path.Combine(LocalSharedDir, "cloud_session.json");
     public static string ReenviosDir => Path.Combine(RootDir, "reenvios");

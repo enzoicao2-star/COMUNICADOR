@@ -133,7 +133,7 @@ public sealed class ComunicadorMessage
     public bool? AudioLoop { get; set; }
 
     [JsonPropertyName("image_duration_seconds")]
-    public int? ImageDurationSeconds { get; set; }
+    public double? ImageDurationSeconds { get; set; }
 
     [JsonPropertyName("allow_manual_close")]
     public bool? AllowManualClose { get; set; }

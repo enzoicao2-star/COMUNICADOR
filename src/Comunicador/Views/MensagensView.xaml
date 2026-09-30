@@ -406,14 +406,14 @@
                                         <Style TargetType="StackPanel">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding TemImagem}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                                <DataTrigger Binding="{Binding TemImagemConfigurada}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
                                                 <DataTrigger Binding="{Binding AlterarImagemSistema}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
-                                    <TextBlock Text="Tempo na tela" Style="{StaticResource RotuloCampo}" />
+                                    <TextBlock Text="Tempo na tela (mínimo 0,5 s)" Style="{StaticResource RotuloCampo}" />
                                     <DockPanel LastChildFill="False">
-                                        <TextBox Width="96" Text="{Binding TempoImagemSegundos, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBox Width="96" ToolTip="Aceita décimos de segundo; mínimo 0,5" Text="{Binding TempoImagemSegundos, UpdateSourceTrigger=LostFocus}" />
                                         <TextBlock Text="segundos" VerticalAlignment="Center" Margin="8,0,0,0"
                                                    Style="{StaticResource Subtitulo}" />
                                     </DockPanel>
@@ -521,16 +521,7 @@
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
                                                             <Grid Width="{Binding PreviewWidth}" MaxHeight="130" Margin="3">
-                                                                <controls:AnimatedImage DataBase64="{Binding DadosBase64}"
-                                                                                        MimeType="{Binding MimeType}"
-                                                                                        MaxHeight="130" Stretch="Uniform">
-                                                                    <controls:AnimatedImage.Style>
-                                                                        <Style TargetType="controls:AnimatedImage">
-                                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                                            <Style.Triggers><DataTrigger Binding="{Binding EhImagem}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
-                                                                        </Style>
-                                                                    </controls:AnimatedImage.Style>
-                                                                </controls:AnimatedImage>
+                                                                <Image Source="{Binding ImagemPreview}" MaxHeight="130" Stretch="Uniform" />
                                                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                                                     <StackPanel.Style>
                                                                         <Style TargetType="StackPanel">

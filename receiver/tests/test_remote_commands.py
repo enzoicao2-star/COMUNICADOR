@@ -55,7 +55,8 @@ def test_owner_command_runs_and_returns_response(monkeypatch):
     responses = []
     worker._autorizado = lambda *args: [{"admin_device_id": "the-owner"}]
     worker._atualizar_entrega = lambda delivery_id, result: responses.append((delivery_id, result))
-    monkeypatch.setattr(receptor, "executar_cmd_local", lambda command: "Código de saída: 0\nok")
+    monkeypatch.setattr(receptor, "executar_cmd_local",
+                        lambda command, request_id=None: "Código de saída: 0\nok")
     worker._executar_comando_admin({"id": "delivery", "sender_device_id": "the-owner",
                                   "payload": {"command": "run_cmd", "line": "echo ok",
                                               "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()}})

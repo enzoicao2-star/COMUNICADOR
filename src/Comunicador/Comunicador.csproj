@@ -6,12 +6,17 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <AssemblyName>Comunicador</AssemblyName>
+    <AssemblyName Condition="'$(TestBuild)' != 'true'">Comunicador</AssemblyName>
+    <AssemblyName Condition="'$(TestBuild)' == 'true'">Comunicador-Teste</AssemblyName>
     <RootNamespace>Comunicador</RootNamespace>
     <Platforms>x64</Platforms>
-    <Version>2.5.22</Version>
-    <AssemblyVersion>2.5.22.0</AssemblyVersion>
-    <FileVersion>2.5.22.0</FileVersion>
+    <Version Condition="'$(TestBuild)' != 'true'">2.5.25</Version>
+    <AssemblyVersion Condition="'$(TestBuild)' != 'true'">2.5.25.0</AssemblyVersion>
+    <FileVersion Condition="'$(TestBuild)' != 'true'">2.5.25.0</FileVersion>
+    <Version Condition="'$(TestBuild)' == 'true'">2.5.25.1</Version>
+    <AssemblyVersion Condition="'$(TestBuild)' == 'true'">2.5.25.1</AssemblyVersion>
+    <FileVersion Condition="'$(TestBuild)' == 'true'">2.5.25.1</FileVersion>
+    <DefineConstants Condition="'$(TestBuild)' == 'true'">$(DefineConstants);TEST_BUILD</DefineConstants>
     <EnableCompressionInSingleFile Condition="'$(Configuration)' == 'Release'">true</EnableCompressionInSingleFile>
     <IncludeNativeLibrariesForSelfExtract Condition="'$(Configuration)' == 'Release'">true</IncludeNativeLibrariesForSelfExtract>
     <Product>Comunicador</Product>
@@ -26,12 +31,20 @@
     <Resource Include="Assets\Comunicador.ico" />
     <EmbeddedResource Include="..\..\receiver\receptor.py"
                       Link="ReceiverResources\receptor.py"
-                      LogicalName="Comunicador.Receiver.receptor.py" />
+                      LogicalName="Comunicador.Receiver.receptor.py"
+                      Condition="'$(TestBuild)' != 'true'" />
+    <EmbeddedResource Include="..\..\release\teste\receiver\receptor.py"
+                      LogicalName="Comunicador.Receiver.receptor.py"
+                      Condition="'$(TestBuild)' == 'true'" />
     <EmbeddedResource Include="..\..\release\panel-changelog.json"
                       LogicalName="Comunicador.Release.panel-changelog.json" />
     <EmbeddedResource Include="..\..\receiver\protocolo.py"
                       Link="ReceiverResources\protocolo.py"
-                      LogicalName="Comunicador.Receiver.protocolo.py" />
+                      LogicalName="Comunicador.Receiver.protocolo.py"
+                      Condition="'$(TestBuild)' != 'true'" />
+    <EmbeddedResource Include="..\..\release\teste\receiver\protocolo.py"
+                      LogicalName="Comunicador.Receiver.protocolo.py"
+                      Condition="'$(TestBuild)' == 'true'" />
     <EmbeddedResource Include="..\..\receiver\carousel-worker.ps1"
                       Link="ReceiverResources\carousel-worker.ps1"
                       LogicalName="Comunicador.Receiver.carousel-worker.ps1" />

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Windows.Media.Imaging;
 using Comunicador.Models;
 using Comunicador.Protocol;
 
@@ -29,6 +30,8 @@ public sealed class MidiaMonitorEditavel : ViewModelBase
 {
     private double _tamanhoPercentual = 70;
     private string? _dadosBase64;
+    private BitmapSource? _imagemPreview;
+    private bool _imagemPreviewCarregada;
 
     public string Caminho { get; init; } = string.Empty;
     public string Nome { get; init; } = string.Empty;
@@ -38,6 +41,43 @@ public sealed class MidiaMonitorEditavel : ViewModelBase
     public TipoMidiaMonitor Tipo { get; init; }
     public bool EhImagem => Tipo == TipoMidiaMonitor.Imagem;
     public bool EhVideo => Tipo == TipoMidiaMonitor.Video;
+    public BitmapSource? ImagemPreview
+    {
+        get
+        {
+            if (_imagemPreviewCarregada || !EhImagem || Dados.Length == 0) return _imagemPreview;
+            _imagemPreviewCarregada = true;
+            try
+            {
+                using var stream = new MemoryStream(Dados, writable: false);
+                BitmapSource frame;
+                if (MimeType.Equals("image/gif", StringComparison.OrdinalIgnoreCase))
+                {
+                    var decoder = new GifBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat,
+                        BitmapCacheOption.OnLoad);
+                    frame = decoder.Frames[0];
+                }
+                else
+                {
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.StreamSource = stream;
+                    bitmap.EndInit();
+                    frame = bitmap;
+                }
+
+                if (frame.CanFreeze) frame.Freeze();
+                _imagemPreview = frame;
+            }
+            catch (Exception)
+            {
+                _imagemPreview = null;
+            }
+
+            return _imagemPreview;
+        }
+    }
 
     public double TamanhoPercentual
     {

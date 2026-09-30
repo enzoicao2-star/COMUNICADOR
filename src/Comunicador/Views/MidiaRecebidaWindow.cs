@@ -157,7 +157,7 @@ internal sealed class MidiaRecebidaWindow : Window
         bool repetirVideo,
         ConteudoAudio? audio,
         bool repetirAudio,
-        int? duracaoSegundos,
+        double? duracaoSegundos,
         bool permitirFechar)
     {
         var tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);

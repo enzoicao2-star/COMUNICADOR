@@ -113,6 +113,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public ICommand ReinstalarPainelRemotoCommand { get; }
     public ICommand BloquearPainelRemotoCommand { get; }
     public ICommand HabilitarPainelRemotoCommand { get; }
+    public ICommand RestaurarPapelParedeCommand { get; }
     public ICommand EnviarCmdRemotoCommand { get; }
     public ICommand CancelarCmdRemotoCommand { get; }
 
@@ -158,6 +159,19 @@ public sealed class ComputadoresViewModel : ViewModelBase
             param => PodeEnviarComandoAdmin(param, "disable_panel"));
         HabilitarPainelRemotoCommand = new AsyncRelayCommand(param => EnviarComandoAdminAsync(param, "enable_panel"),
             param => PodeEnviarComandoAdmin(param, "enable_panel"));
+        RestaurarPapelParedeCommand = new AsyncRelayCommand(async param =>
+        {
+            if (param is not Computador computador || string.IsNullOrWhiteSpace(computador.Token)) return;
+            var resultado = await _client.SendNotificationAsync(
+                computador.EnderecoIp, computador.PortaTcp, computador.Token,
+                title: "Restaurar papel de parede anterior", message: string.Empty,
+                allowReply: false, modoExibicao: ProtocolConstants.DisplayMode.RestoreWallpaper)
+                .ConfigureAwait(true);
+            StatusMensagem = resultado.Delivered
+                ? $"Papel de parede anterior restaurado em {computador.NomeExibicao}."
+                : $"Não foi possível restaurar o papel de parede de {computador.NomeExibicao}: {resultado.ErrorMessage}";
+        }, param => _cloud.IsAdmin && param is Computador computador
+            && computador.Pareado && !string.IsNullOrWhiteSpace(computador.Token));
         EnviarCmdRemotoCommand = new AsyncRelayCommand(EnviarCmdRemotoAsync,
             param => _cloud.IsAdmin && param is Computador computador
                 && !string.Equals(computador.Id, _settings.PainelId, StringComparison.OrdinalIgnoreCase));
