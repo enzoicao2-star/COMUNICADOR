@@ -1413,8 +1413,18 @@ public sealed class MensagensViewModel : ViewModelBase
             NotificationResult resultado;
             try
             {
-                if (!computador.Pareado && computador.RegistradoNaNuvem)
+                var possuiMidia = envio.Imagem is not null || envio.ImagensPorMonitor.Count > 0
+                    || envio.Video is not null || envio.VideosPorMonitor.Count > 0
+                    || envio.Audio is not null;
+                var midiaOwnerParaDestinoBloqueado = _cloud.IsAdmin
+                    && computador.MidiasBloqueadas
+                    && computador.RegistradoNaNuvem && possuiMidia;
+                if ((!computador.Pareado && computador.RegistradoNaNuvem)
+                    || midiaOwnerParaDestinoBloqueado)
                 {
+                    // O receptor valida o OWNER pela identidade registrada na nuvem.
+                    // Para destinos com bloqueio de mídia, usar sempre essa rota evita
+                    // que a recusa da conexão pareada descarte uma mídia do OWNER.
                     await _cloud.QueueNotificationAsync(computador.Id, envio).ConfigureAwait(true);
                     resultado = new NotificationResult(true, false, false, null, null);
                 }

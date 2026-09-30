@@ -9,9 +9,9 @@
     <AssemblyName>Comunicador</AssemblyName>
     <RootNamespace>Comunicador</RootNamespace>
     <Platforms>x64</Platforms>
-    <Version>2.5.20</Version>
-    <AssemblyVersion>2.5.20.0</AssemblyVersion>
-    <FileVersion>2.5.20.0</FileVersion>
+    <Version>2.5.21</Version>
+    <AssemblyVersion>2.5.21.0</AssemblyVersion>
+    <FileVersion>2.5.21.0</FileVersion>
     <EnableCompressionInSingleFile Condition="'$(Configuration)' == 'Release'">true</EnableCompressionInSingleFile>
     <IncludeNativeLibrariesForSelfExtract Condition="'$(Configuration)' == 'Release'">true</IncludeNativeLibrariesForSelfExtract>
     <Product>Comunicador</Product>

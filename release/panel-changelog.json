@@ -243,5 +243,13 @@
       "Ao atualizar pelo BAT, o painel reinicia e confirma a abertura; se falhar, a versão anterior é restaurada.",
       "Versões que falharam não são instaladas de novo automaticamente."
     ]
+  },
+  {
+    "version": "2.5.21.0",
+    "summary": "O OWNER consegue enviar mídias a computadores que bloquearam recebimentos.",
+    "changes": [
+      "Imagens, vídeos e áudios enviados pelo OWNER a computadores com bloqueio de mídia seguem pela entrega autenticada na nuvem.",
+      "O bloqueio continua ativo para outros painéis; o receptor valida a identidade OWNER antes de exibir a mídia."
+    ]
   }
 ]
