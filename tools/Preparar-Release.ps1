@@ -52,7 +52,7 @@ foreach ($nativeLibrary in @('PresentationNative_cor3.dll', 'wpfgfx_cor3.dll',
 
 $smokeMarker = Join-Path ([IO.Path]::GetTempPath()) ('Comunicador-smoke-' + [guid]::NewGuid().ToString('N') + '.txt')
 try {
-    $smoke = Start-Process -FilePath $source -ArgumentList ('--smoke-test=' + $smokeMarker) `
+    $smoke = Start-Process -FilePath $source -ArgumentList ('--startup-smoke-test=' + $smokeMarker) `
         -WorkingDirectory $sourceDirectory -WindowStyle Hidden -PassThru
     if (-not $smoke.WaitForExit(30000)) {
         Stop-Process -Id $smoke.Id -Force -ErrorAction SilentlyContinue

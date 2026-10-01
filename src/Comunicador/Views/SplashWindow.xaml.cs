@@ -11,36 +11,32 @@ public partial class SplashWindow : Window
         InitializeComponent();
         Loaded += (_, _) =>
         {
-            var pulse = new DoubleAnimation(0.35, 0.88, TimeSpan.FromSeconds(1.9))
+            var easing = new SineEase { EasingMode = EasingMode.EaseInOut };
+            var duration = TimeSpan.FromMilliseconds(850);
+            PulseScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.91, 1.07, duration)
             {
                 AutoReverse = true,
                 RepeatBehavior = RepeatBehavior.Forever,
-                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
-            };
-            OuterGlow.BeginAnimation(OpacityProperty, pulse);
-            GlowScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.92, 1.06,
-                TimeSpan.FromSeconds(1.9)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever,
-                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } });
-            GlowScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.92, 1.06,
-                TimeSpan.FromSeconds(1.9)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever,
-                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } });
-            var beam = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(1.35))
+                EasingFunction = easing,
+            });
+            PulseScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.91, 1.07, duration)
             {
                 AutoReverse = true,
                 RepeatBehavior = RepeatBehavior.Forever,
-                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
-            };
-            LoadingBeam.BeginAnimation(OpacityProperty, new DoubleAnimation(0.45, 1,
-                TimeSpan.FromSeconds(1.35)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever });
-            LoadingBeam.BeginAnimation(FrameworkElement.WidthProperty,
-                new DoubleAnimation(64, 360, beam.Duration) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever,
-                    EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } });
+                EasingFunction = easing,
+            });
+            PulseIcon.BeginAnimation(OpacityProperty, new DoubleAnimation(0.65, 1, duration)
+            {
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever,
+                EasingFunction = easing,
+            });
         };
     }
 
     public async Task AnimateExitAsync()
     {
-        var duration = TimeSpan.FromMilliseconds(650);
+        var duration = TimeSpan.FromMilliseconds(240);
         BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, duration)
         {
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn },

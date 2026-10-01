@@ -1,7 +1,7 @@
 {
-    "version":  "2.5.26.1",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/codex/test-download-2-5-26-1/release/teste/Comunicador-Teste.exe",
-    "sha256":  "1F5E2489BE508D8CF0075F2E17A7CAD074CF1AD26A883F1021776EBB81F84D11",
+    "version":  "2.5.27.1",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/codex/test-download-2-5-27-1/release/teste/Comunicador-Teste.exe",
+    "sha256":  "C1786BDE9F7566E135967AF7BDA971E05757DA4335C83FC12D652B93ACAEF94A",
     "summary":  "Painel separado para validar receptores de teste.",
     "changes":  [
                     "Usa portas e dados proprios e e sempre OWNER.",

@@ -295,5 +295,15 @@
       "Teste a comunicação com um ping autenticado pela tela de gerenciamento, sem abrir janelas ou mostrar mensagem ou imagem no computador remoto.",
       "O CMD remoto permanece oculto tanto no receptor Python quanto no receptor embutido do painel."
     ]
+  },
+  {
+    "version": "2.5.27.0",
+    "summary": "A versão 2.5.27 corrige a abertura do Comunicador e esclarece qual instalação está sendo atualizada.",
+    "changes": [
+      "O ícone inicial agora é nítido, aparece sozinho e pulsa sobre fundo transparente.",
+      "A janela principal abre rapidamente, sem a transformação que impedia a versão 2.5.26 de iniciar.",
+      "O aviso de atualização mostra a versão realmente em execução e o caminho da cópia aberta.",
+      "A validação da release agora percorre também a animação inicial antes da publicação."
+    ]
   }
 ]

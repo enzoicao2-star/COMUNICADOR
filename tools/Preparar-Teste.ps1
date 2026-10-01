@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.5.26.1',
+    [string]$Version = '2.5.27.1',
     [string]$ReceiverVersion = '2.5.15.1'
 )
 
@@ -65,7 +65,7 @@ $actualVersion = (Get-Item -LiteralPath $testExe).VersionInfo.FileVersion
 if ([version]$actualVersion -ne [version]$Version) { throw "Versao inesperada no painel de teste: $actualVersion." }
 $marker = Join-Path ([IO.Path]::GetTempPath()) ('Comunicador-Teste-smoke-' + [guid]::NewGuid().ToString('N') + '.txt')
 try {
-    $smoke = Start-Process -FilePath $testExe -ArgumentList ('--smoke-test=' + $marker) `
+    $smoke = Start-Process -FilePath $testExe -ArgumentList ('--startup-smoke-test=' + $marker) `
         -WorkingDirectory $output -WindowStyle Hidden -PassThru
     if (-not $smoke.WaitForExit(30000)) {
         Stop-Process -Id $smoke.Id -Force -ErrorAction SilentlyContinue

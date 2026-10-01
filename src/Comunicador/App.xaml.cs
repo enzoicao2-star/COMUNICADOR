@@ -61,6 +61,51 @@ public partial class App : Application
             return;
         }
 
+        var startupSmokeArgument = e.Args.FirstOrDefault(arg =>
+            arg.StartsWith("--startup-smoke-test=", StringComparison.OrdinalIgnoreCase));
+        if (startupSmokeArgument is not null)
+        {
+            try
+            {
+                var marker = startupSmokeArgument["--startup-smoke-test=".Length..];
+                var smokeSplash = new SplashWindow
+                {
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    Left = -10000,
+                    Top = -10000,
+                    Topmost = false,
+                };
+                var smokeWindow = new Window
+                {
+                    Content = new ComputadoresView(),
+                    Width = 1,
+                    Height = 1,
+                    Left = -10000,
+                    Top = -10000,
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    WindowStyle = WindowStyle.None,
+                    ShowInTaskbar = false,
+                    ShowActivated = false,
+                    Opacity = 0,
+                };
+                MainWindow = smokeWindow;
+                smokeSplash.Show();
+                var smokeSplashTime = Stopwatch.StartNew();
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+                await ShowMainWindowAsync(smokeWindow, smokeSplash, smokeSplashTime);
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+                File.WriteAllText(marker, "A abertura WPF e o ícone inicial foram exibidos.");
+                smokeWindow.Close();
+                Shutdown(0);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Falha no teste da abertura completa: {ex}");
+                Shutdown(1);
+            }
+            return;
+        }
+
         if (!ClaimSingleInstance())
         {
             Shutdown();
@@ -77,47 +122,51 @@ public partial class App : Application
 
         var splash = new SplashWindow();
         splash.Show();
+        var splashTime = Stopwatch.StartNew();
+        try
+        {
+            // A animação só começa depois que o primeiro quadro foi desenhado.
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+            _mainViewModel = new MainViewModel();
+            _mainViewModel.Start();
 
-        _mainViewModel = new MainViewModel();
-        _mainViewModel.Start();
-
-        var window = new MainWindow { DataContext = _mainViewModel };
+            var window = new MainWindow { DataContext = _mainViewModel };
 #if TEST_BUILD
-        window.Title = "Comunicador — Teste";
+            window.Title = "Comunicador — Teste";
 #endif
-        if (e.Args.Any(arg => arg.Equals("--monitor=2", StringComparison.OrdinalIgnoreCase)))
-        {
-            var secondary = System.Windows.Forms.Screen.AllScreens.FirstOrDefault(screen => !screen.Primary);
-            if (secondary is not null)
+            if (e.Args.Any(arg => arg.Equals("--monitor=2", StringComparison.OrdinalIgnoreCase)))
             {
-                var bounds = secondary.WorkingArea;
-                window.WindowStartupLocation = WindowStartupLocation.Manual;
-                window.Left = bounds.Left + Math.Max(0, (bounds.Width - window.Width) / 2);
-                window.Top = bounds.Top + Math.Max(0, (bounds.Height - window.Height) / 2);
+                var secondary = System.Windows.Forms.Screen.AllScreens.FirstOrDefault(screen => !screen.Primary);
+                if (secondary is not null)
+                {
+                    var bounds = secondary.WorkingArea;
+                    window.WindowStartupLocation = WindowStartupLocation.Manual;
+                    window.Left = bounds.Left + Math.Max(0, (bounds.Width - window.Width) / 2);
+                    window.Top = bounds.Top + Math.Max(0, (bounds.Height - window.Height) / 2);
+                }
             }
+            MainWindow = window;
+            await ShowMainWindowAsync(window, splash, splashTime);
+            _mainViewModel.ShowUpdateSummary(window);
         }
-        MainWindow = window;
-        await Task.Delay(TimeSpan.FromMilliseconds(4400));
-        window.Opacity = 0;
-        var scale = new System.Windows.Media.ScaleTransform(0.12, 0.12);
-        window.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
-        window.RenderTransform = scale;
+        catch (Exception ex)
+        {
+            splash.Topmost = false;
+            splash.Hide();
+            Logger.Error($"Falha ao abrir o Comunicador: {ex}");
+            MessageBox.Show($"Não foi possível abrir o Comunicador:\n\n{ex.Message}\n\nDetalhes em: {Storage.AppPaths.LogFile}",
+                "Comunicador", MessageBoxButton.OK, MessageBoxImage.Error);
+            splash.Close();
+            Shutdown(1);
+        }
+    }
+
+    private static async Task ShowMainWindowAsync(Window window, SplashWindow splash, Stopwatch splashTime)
+    {
+        var remaining = 1500 - (int)splashTime.ElapsedMilliseconds;
+        if (remaining > 0) await Task.Delay(remaining);
         window.Show();
-        var duration = TimeSpan.FromMilliseconds(650);
-        var easing = new System.Windows.Media.Animation.CubicEase
-        {
-            EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut,
-        };
-        window.BeginAnimation(Window.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, duration)
-        {
-            EasingFunction = easing,
-        });
-        scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty,
-            new System.Windows.Media.Animation.DoubleAnimation(0.12, 1, duration) { EasingFunction = easing });
-        scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleYProperty,
-            new System.Windows.Media.Animation.DoubleAnimation(0.12, 1, duration) { EasingFunction = easing });
         await splash.AnimateExitAsync();
-        _mainViewModel.ShowUpdateSummary(window);
     }
 
     private bool ClaimSingleInstance()
@@ -173,6 +222,11 @@ public partial class App : Application
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         Logger.Error($"Exceção não tratada (UI): {e.Exception}");
+        foreach (var splash in Current.Windows.OfType<SplashWindow>())
+        {
+            splash.Topmost = false;
+            splash.Hide();
+        }
         MessageBox.Show(
             $"Ocorreu um erro inesperado:\n\n{e.Exception.Message}\n\nDetalhes em: {Storage.AppPaths.LogFile}",
             "Comunicador", MessageBoxButton.OK, MessageBoxImage.Error);

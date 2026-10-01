@@ -127,4 +127,5 @@ finally {
     $file.Dispose()
 }
 
+[System.IO.File]::WriteAllBytes((Join-Path $directory 'Comunicador-Splash.png'), (New-IconPng -Size 512))
 Write-Host "Icone gerado em: $OutputPath"

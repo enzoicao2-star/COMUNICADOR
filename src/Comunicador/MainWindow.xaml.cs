@@ -73,6 +73,8 @@ public partial class MainWindow : Window
         _ = Services.PanelUpdateService.ReportHealthyStartupAsync();
         if (string.IsNullOrWhiteSpace(App.BenchmarkFile))
         {
+            // Aguarda o ícone inicial sair antes de abrir qualquer diálogo.
+            await Task.Delay(300);
             await VerificarAtualizacaoAoIniciarAsync(_viewModel);
             return;
         }
@@ -175,7 +177,10 @@ public partial class MainWindow : Window
         try
         {
             var resposta = MessageBox.Show(this,
-                $"A versão {info.LatestVersion} do Comunicador está disponível.\n\n{info.Summary}\n\nDeseja atualizar agora?",
+                $"Versão em uso: {info.CurrentVersion}\n" +
+                $"Nova versão: {info.LatestVersion}\n\n" +
+                $"Cópia aberta: {Environment.ProcessPath}\n\n" +
+                $"{info.Summary}\n\nDeseja atualizar agora?",
                 "Atualização do Comunicador", MessageBoxButton.YesNo, MessageBoxImage.Information);
             if (resposta == MessageBoxResult.Yes)
             {

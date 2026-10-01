@@ -5,7 +5,7 @@ set "ROOT=%~dp0"
 cd /d "%ROOT%"
 
 echo ===============================================
-echo   Comunicador 2.5.26 - validar e subir ao GitHub
+echo   Comunicador 2.5.27 - validar e subir ao GitHub
 echo ===============================================
 echo.
 
@@ -29,7 +29,7 @@ if errorlevel 1 goto :erro
 
 echo.
 echo [2/5] Preparando o executavel da atualizacao automatica...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%tools\Preparar-Release.ps1" -Version "2.5.26.0"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%tools\Preparar-Release.ps1" -Version "2.5.27.0"
 if errorlevel 1 goto :erro
 
 echo.
@@ -39,7 +39,7 @@ if errorlevel 1 goto :erro
 
 git diff --cached --quiet
 if errorlevel 1 (
-    set "MENSAGEM=Comunicador 2.5.26 - atraso de imagem e teste de comunicação"
+    set "MENSAGEM=Comunicador 2.5.27 - corrige abertura e aviso de atualização"
     if not "%~1"=="" set "MENSAGEM=%~1"
     git commit -m "!MENSAGEM!"
     if errorlevel 1 goto :erro
@@ -62,13 +62,13 @@ git push origin main
 if errorlevel 1 goto :erro
 
 echo Publicando o executavel de teste em um canal separado...
-git switch -C codex/test-download-2-5-26-1 origin/main
+git switch -C codex/test-download-2-5-27-1 origin/main
 if errorlevel 1 goto :erro
 git add -f "release/teste/Comunicador-Teste.exe"
 if errorlevel 1 goto :erro
-git commit -m "Publica painel de teste 2.5.26.1"
+git commit -m "Publica painel de teste 2.5.27.1"
 if errorlevel 1 goto :erro
-git push -u origin codex/test-download-2-5-26-1
+git push -u origin codex/test-download-2-5-27-1
 if errorlevel 1 goto :erro
 git switch main
 if errorlevel 1 goto :erro
@@ -77,7 +77,7 @@ echo.
 echo ===============================================
 echo   Tudo enviado ao GitHub com sucesso.
 echo   Receptor publicado: 2.5.15
-echo   Painel publicado:    2.5.26
+echo   Painel publicado:    2.5.27
 echo   Versoes de teste:    release\teste\ (painel e receptor separados)
 echo ===============================================
 echo Esta janela fecha sozinha em 5 segundos...

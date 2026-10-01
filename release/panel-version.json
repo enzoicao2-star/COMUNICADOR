@@ -1,13 +1,12 @@
 {
-  "version": "2.5.26.0",
-  "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-  "sha256": "44C4F5F6F7D6FEC7D2A82DD0470D326AF33ED091FDC07B60FFDA6B6D13BC5587",
-  "summary": "A versão 2.5.26 melhora presença e ping, unifica painel e receptor no mesmo computador e aprimora a atualização do painel.",
-  "changes": [
-    "O status online/offline tolera falhas transitórias e o ping individual é atualizado sem piscar os cartões.",
-    "Computadores com painel e receptor são consolidados em um cartão, preservando os dados de painel ao atualizar o receptor.",
-    "As configurações de um computador abrem dentro da tela principal; removido o tooltip do nome.",
-    "A atualização do painel exibe progresso e informa o reinício automático; comandos remotos permanecem ocultos.",
-    "As permissões individuais incluem papel de parede e CMD remoto, com sincronização e validação no banco."
-  ]
+    "version":  "2.5.27.0",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
+    "sha256":  "1206E45248DE0B04A14014F10EDC009581C19F74FE2A9C2534636F3FFB7C609A",
+    "summary":  "A versão 2.5.27 corrige a abertura do Comunicador e esclarece qual instalação está sendo atualizada.",
+    "changes":  [
+                    "O ícone inicial agora é nítido, aparece sozinho e pulsa sobre fundo transparente.",
+                    "A janela principal abre rapidamente, sem a transformação que impedia a versão 2.5.26 de iniciar.",
+                    "O aviso de atualização mostra a versão realmente em execução e o caminho da cópia aberta.",
+                    "A validação da release agora percorre também a animação inicial antes da publicação."
+                ]
 }
