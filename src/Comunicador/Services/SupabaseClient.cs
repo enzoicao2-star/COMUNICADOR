@@ -1,5 +1,6 @@
 using System.IO;
 using System.Net.Http;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -14,12 +15,22 @@ public sealed class SupabaseClient
 {
     public const string ProjectUrl = "https://yofxuiajeyxeacophgdy.supabase.co";
     public const string PublishableKey = "sb_publishable_9vE6ehPLNhoByGInnUAlug_Ndd_fTam";
+    private static readonly HttpClient SharedHttpClient = new(new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+        MaxConnectionsPerServer = 8,
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+    })
+    {
+        Timeout = TimeSpan.FromSeconds(15),
+    };
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         PropertyNameCaseInsensitive = true,
     };
-    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(15) };
+    private readonly HttpClient _http = SharedHttpClient;
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private CloudSession? _session;
 
@@ -111,7 +122,10 @@ public sealed class SupabaseClient
         {
             device_id = deviceId,
             display_name = displayName,
-            badges = badges.Take(ProtocolConstants.MaxBadgesPerComputer).Select(b => b.Clone()).ToList(),
+            badges = badges.Where(b => b.Id != "__individual_permissions")
+                .Take(ProtocolConstants.MaxBadgesPerComputer).Select(b => b.Clone())
+                .Concat(badges.Where(b => b.Id == "__individual_permissions").Take(1)
+                    .Select(b => b.Clone())).ToList(),
         }, JsonOptions);
         using var request = await CreateRequestAsync(HttpMethod.Post,
             "/rest/v1/panel_profiles?on_conflict=device_id", body, ct).ConfigureAwait(false);

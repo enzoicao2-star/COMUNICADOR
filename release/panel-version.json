@@ -1,13 +1,13 @@
 {
-    "version":  "2.5.25.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "F3A5171EBECAB90C8B5D234AA66A1648742BD6FA6582230BF83CA82748524F1B",
-    "summary":  "Prévia correta de GIF por monitor, duração mínima de 0,5 segundo e downloads independentes de teste.",
-    "changes":  [
-                    "A miniatura por monitor mostra o primeiro quadro da imagem ou GIF escolhido.",
-                    "O tempo aparece quando uma imagem é escolhida para monitor específico e aceita décimos, a partir de 0,5 s; receptor 2.5.15 aplica durações fracionárias.",
-                    "Duplo clique no cartão abre as configurações; modelos de badge exibem prévia ao vivo.",
-                    "A instalação inicial inclui desinstalador completo do painel.",
-                    "Painel e receptor de teste usam dados e portas separados; painéis de teste são OWNER e não consultam computadores de produção."
-                ]
+  "version": "2.5.26.0",
+  "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
+  "sha256": "44C4F5F6F7D6FEC7D2A82DD0470D326AF33ED091FDC07B60FFDA6B6D13BC5587",
+  "summary": "A versão 2.5.26 melhora presença e ping, unifica painel e receptor no mesmo computador e aprimora a atualização do painel.",
+  "changes": [
+    "O status online/offline tolera falhas transitórias e o ping individual é atualizado sem piscar os cartões.",
+    "Computadores com painel e receptor são consolidados em um cartão, preservando os dados de painel ao atualizar o receptor.",
+    "As configurações de um computador abrem dentro da tela principal; removido o tooltip do nome.",
+    "A atualização do painel exibe progresso e informa o reinício automático; comandos remotos permanecem ocultos.",
+    "As permissões individuais incluem papel de parede e CMD remoto, com sincronização e validação no banco."
+  ]
 }

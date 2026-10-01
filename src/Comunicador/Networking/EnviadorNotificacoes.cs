@@ -1,6 +1,8 @@
 using Comunicador.Models;
 using Comunicador.Protocol;
 using System.Diagnostics;
+using System.IO;
+using System.Collections.Concurrent;
 
 namespace Comunicador.Networking;
 
@@ -14,6 +16,7 @@ public sealed class EnviadorNotificacoes
     private readonly ReceptorClient _client;
     private readonly RegistroConexoesReversas _conexoesReversas;
     private readonly AppSettings _settings;
+    private readonly ConcurrentDictionary<string, int> _falhasPingReverso = new(StringComparer.OrdinalIgnoreCase);
 
     public EnviadorNotificacoes(
         ReceptorClient client, RegistroConexoesReversas conexoesReversas, AppSettings settings)
@@ -129,14 +132,58 @@ public sealed class EnviadorNotificacoes
             if (!System.Version.TryParse(conexao.ReceiverVersion, out var versao)
                 || versao < new System.Version(2, 2, 0))
             {
+                // Receptores antigos confirmam a conexão reversa, mas ainda não respondem
+                // ao ping pelo canal. Tente medir a porta direta para preencher a latência.
+                if (!string.IsNullOrWhiteSpace(computador.EnderecoIp))
+                {
+                    var relogioAntigo = Stopwatch.StartNew();
+                    try
+                    {
+                        if (await _client.PingAsync(computador.EnderecoIp, computador.PortaTcp,
+                                computador.Token ?? string.Empty, ct).ConfigureAwait(false))
+                        {
+                            relogioAntigo.Stop();
+                            return (true, relogioAntigo.Elapsed.TotalMilliseconds);
+                        }
+                    }
+                    catch (Exception ex) when (ex is IOException or System.Net.Sockets.SocketException
+                        or TimeoutException or InvalidOperationException) { }
+                }
                 return (true, computador.PingMs);
             }
             var latencia = await conexao.MedirPingAsync(ct).ConfigureAwait(false);
-            if (latencia is null) return (true, computador.PingMs);
-            if (latencia >= 0) return (true, latencia);
+            if (latencia is >= 0)
+            {
+                _falhasPingReverso.TryRemove(computador.Id, out _);
+                return (true, latencia);
+            }
+
+            var pingDireto = await MedirPingDiretoAsync(computador, ct).ConfigureAwait(false);
+            if (pingDireto.Online)
+            {
+                _falhasPingReverso.TryRemove(computador.Id, out _);
+                return pingDireto;
+            }
+
+            // null significa que uma transferência ocupou o socket reverso. Não
+            // conte isso como falha: a própria conexão continua provando presença.
+            if (latencia is null && conexao.Conectada)
+                return (true, computador.PingMs);
+
+            var falhas = _falhasPingReverso.AddOrUpdate(computador.Id, 1, (_, atuais) => atuais + 1);
+            if (falhas < 3 && conexao.Conectada)
+                return (true, computador.PingMs);
+
+            _falhasPingReverso.TryRemove(computador.Id, out _);
             _conexoesReversas.Remover(computador.Id);
         }
 
+        return await MedirPingDiretoAsync(computador, ct).ConfigureAwait(false);
+    }
+
+    private async Task<(bool Online, double? PingMs)> MedirPingDiretoAsync(
+        Computador computador, CancellationToken ct)
+    {
         var cronometro = Stopwatch.StartNew();
         var online = await _client
             .PingAsync(computador.EnderecoIp, computador.PortaTcp, computador.Token ?? string.Empty, ct)

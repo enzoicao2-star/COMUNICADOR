@@ -30,6 +30,23 @@ public sealed class MensagensViewModelTests
     }
 
     [Fact]
+    public void AtrasoDeImagemAceitaSegundosEZeroMantemEnvioImediato()
+    {
+        var pasta = Path.Combine(Path.GetTempPath(), $"comunicador-atraso-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(pasta);
+        using var contexto = CriarContexto(pasta);
+
+        Assert.Equal(0, contexto.Mensagens.AtrasoEnvioImagemSegundos);
+        Assert.Equal("envio imediato", contexto.Mensagens.TextoAtrasoEnvioImagem);
+
+        contexto.Mensagens.AtrasoEnvioImagemSegundos = 12;
+        Assert.Equal("envio em 12 s", contexto.Mensagens.TextoAtrasoEnvioImagem);
+
+        contexto.Mensagens.AtrasoEnvioImagemSegundos = 5000;
+        Assert.Equal(3600, contexto.Mensagens.AtrasoEnvioImagemSegundos);
+    }
+
+    [Fact]
     public void Monitores_e_imagem_seguem_somente_o_computador_selecionado()
     {
         var pasta = Path.Combine(Path.GetTempPath(), $"comunicador-mensagens-{Guid.NewGuid():N}");
@@ -86,6 +103,7 @@ public sealed class MensagensViewModelTests
         var discovery = new DiscoveryService(settings);
         var client = new ReceptorClient(settings.PainelId, settings.NomePainel);
         var conexoes = new RegistroConexoesReversas();
+        var enviador = new EnviadorNotificacoes(client, conexoes, settings);
         var perfis = new PerfilComputadorRepository(
             new JsonStore<PerfilComputador>(Path.Combine(pasta, "perfis.json")));
         var cloud = new CloudSyncService(new SupabaseClient(), settings, perfis);
@@ -93,13 +111,14 @@ public sealed class MensagensViewModelTests
             new JsonStore<Computador>(Path.Combine(pasta, "computadores.json")),
             discovery,
             client,
+            enviador,
             new AtualizadorReceptor(client, conexoes),
             settings,
             perfis,
             cloud);
         var mensagens = new MensagensViewModel(
             computadores,
-            new EnviadorNotificacoes(client, conexoes, settings),
+            enviador,
             new HistoricoRepository(new JsonStore<HistoricoEntry>(Path.Combine(pasta, "historico.json"))),
             cloud,
             new ReenvioRepository(Path.Combine(pasta, "reenvios")));

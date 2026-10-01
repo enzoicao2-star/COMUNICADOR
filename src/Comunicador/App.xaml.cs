@@ -20,7 +20,7 @@ public partial class App : Application
     private Task? _activationListener;
     private bool _ownsInstanceMutex;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -75,6 +75,9 @@ public partial class App : Application
         BenchmarkFile = e.Args.FirstOrDefault(arg =>
             arg.StartsWith("--benchmark-file=", StringComparison.OrdinalIgnoreCase))?[17..];
 
+        var splash = new SplashWindow();
+        splash.Show();
+
         _mainViewModel = new MainViewModel();
         _mainViewModel.Start();
 
@@ -94,7 +97,26 @@ public partial class App : Application
             }
         }
         MainWindow = window;
+        await Task.Delay(TimeSpan.FromMilliseconds(4400));
+        window.Opacity = 0;
+        var scale = new System.Windows.Media.ScaleTransform(0.12, 0.12);
+        window.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
+        window.RenderTransform = scale;
         window.Show();
+        var duration = TimeSpan.FromMilliseconds(650);
+        var easing = new System.Windows.Media.Animation.CubicEase
+        {
+            EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut,
+        };
+        window.BeginAnimation(Window.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, duration)
+        {
+            EasingFunction = easing,
+        });
+        scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(0.12, 1, duration) { EasingFunction = easing });
+        scale.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleYProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(0.12, 1, duration) { EasingFunction = easing });
+        await splash.AnimateExitAsync();
         _mainViewModel.ShowUpdateSummary(window);
     }
 

@@ -51,7 +51,7 @@
                 <StackPanel Orientation="Horizontal">
                     <Ellipse x:Name="IndicadorEnvio" Width="7" Height="7" Fill="{DynamicResource AccentBrush}"
                              VerticalAlignment="Center" />
-                    <TextBlock Text="envio imediato" Style="{StaticResource Subtitulo}" FontSize="11" Margin="7,0,0,0" />
+                    <TextBlock Text="{Binding TextoAtrasoEnvioImagem}" Style="{StaticResource Subtitulo}" FontSize="11" Margin="7,0,0,0" />
                 </StackPanel>
             </Border>
         </Grid>
@@ -140,7 +140,16 @@
                     </StackPanel>
                 </Border>
 
-                <Border x:Name="CardDestinatarios" Style="{StaticResource CardBorder}" Padding="19">
+                <Border x:Name="CardDestinatarios" Padding="19">
+                    <Border.Style>
+                        <Style TargetType="Border" BasedOn="{StaticResource CardBorder}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ModoEnvioIndividual}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <StackPanel>
                         <TextBlock Text="Enviar para" Style="{StaticResource TituloCard}" />
                         <TextBlock Text="Marque um ou mais computadores conectados."
@@ -411,6 +420,13 @@
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
+                                    <TextBlock Text="Enviar a imagem após" Style="{StaticResource RotuloCampo}" />
+                                    <DockPanel LastChildFill="False" Margin="0,0,0,8">
+                                        <TextBox Width="96" ToolTip="0 envia imediatamente; máximo 3600 segundos"
+                                                 Text="{Binding AtrasoEnvioImagemSegundos, UpdateSourceTrigger=LostFocus}" />
+                                        <TextBlock Text="segundos (0 = agora)" VerticalAlignment="Center" Margin="8,0,0,0"
+                                                   Style="{StaticResource Subtitulo}" />
+                                    </DockPanel>
                                     <TextBlock Text="Tempo na tela (mínimo 0,5 s)" Style="{StaticResource RotuloCampo}" />
                                     <DockPanel LastChildFill="False">
                                         <TextBox Width="96" ToolTip="Aceita décimos de segundo; mínimo 0,5" Text="{Binding TempoImagemSegundos, UpdateSourceTrigger=LostFocus}" />

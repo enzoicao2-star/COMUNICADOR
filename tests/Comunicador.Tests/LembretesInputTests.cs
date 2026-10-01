@@ -23,13 +23,13 @@ public sealed class LembretesInputTests
         using var cloud = new CloudSyncService(new SupabaseClient(), settings, profiles);
         var client = new ReceptorClient(settings.PainelId, settings.NomePainel);
         var connections = new RegistroConexoesReversas();
+        var enviador = new EnviadorNotificacoes(client, connections, settings);
         var computers = new ComputadoresViewModel(
             new JsonStore<Computador>(Path.Combine(folder, "computers.json")),
-            discovery, client, new AtualizadorReceptor(client, connections), settings, profiles, cloud);
+            discovery, client, enviador, new AtualizadorReceptor(client, connections), settings, profiles, cloud);
         var history = new HistoricoRepository(
             new JsonStore<HistoricoEntry>(Path.Combine(folder, "history.json")));
-        using var scheduler = new LembreteSchedulerService(() => [], _ => null,
-            new EnviadorNotificacoes(client, connections, settings));
+        using var scheduler = new LembreteSchedulerService(() => [], _ => null, enviador);
         var viewModel = new LembretesViewModel(
             new JsonStore<Lembrete>(Path.Combine(folder, "reminders.json")),
             computers, history, scheduler, cloud);

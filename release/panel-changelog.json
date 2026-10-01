@@ -286,5 +286,14 @@
       "A primeira instalação do painel deixa o desinstalador completo disponível.",
       "As edições de teste usam arquivos, dados e portas separados; todo painel de teste é OWNER e não lista computadores de produção."
     ]
+  },
+  {
+    "version": "2.5.26.0",
+    "summary": "Atraso opcional para envio de imagens e teste de comunicação sem exibir conteúdo no PC remoto.",
+    "changes": [
+      "Escolha aguardar de 0 a 3600 segundos antes de enviar uma imagem; o painel mostra a contagem regressiva e zero mantém o envio imediato.",
+      "Teste a comunicação com um ping autenticado pela tela de gerenciamento, sem abrir janelas ou mostrar mensagem ou imagem no computador remoto.",
+      "O CMD remoto permanece oculto tanto no receptor Python quanto no receptor embutido do painel."
+    ]
   }
 ]

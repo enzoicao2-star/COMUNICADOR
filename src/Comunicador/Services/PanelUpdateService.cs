@@ -14,6 +14,7 @@ public sealed class PanelUpdateService
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
     public Version CurrentVersion => Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0);
+    public string ProgressFilePath => Path.Combine(AppPaths.RootDir, "atualizacao-painel-progresso.json");
 
     public async Task<PanelUpdateInfo> CheckAsync(CancellationToken cancellationToken = default)
     {
@@ -44,11 +45,19 @@ public sealed class PanelUpdateService
         var executable = Environment.ProcessPath
             ?? throw new InvalidOperationException("Não foi possível localizar o executável atual.");
         var updater = FindUpdater(executable);
-        if (updater is null)
+        if (updater is null || !SupportsProgress(updater))
         {
-            updater = Path.Combine(Path.GetTempPath(), $"Atualizar-Comunicador-{Guid.NewGuid():N}.ps1");
-            await File.WriteAllTextAsync(updater, await Http.GetStringAsync(UpdaterUrl, cancellationToken), cancellationToken);
+            try
+            {
+                var updatedScript = await Http.GetStringAsync(UpdaterUrl, cancellationToken);
+                updater = Path.Combine(AppPaths.RootDir, "Atualizar-Comunicador-atualizado.ps1");
+                await File.WriteAllTextAsync(updater, updatedScript, cancellationToken);
+            }
+            catch (Exception ex) when (updater is not null
+                && ex is HttpRequestException or IOException or UnauthorizedAccessException) { }
         }
+        if (updater is null) throw new InvalidOperationException("Não foi possível localizar o atualizador do Comunicador.");
+        var suportaProgresso = SupportsProgress(updater);
 
         var process = new ProcessStartInfo("powershell.exe")
         {
@@ -62,6 +71,14 @@ public sealed class PanelUpdateService
         process.ArgumentList.Add("Bypass");
         process.ArgumentList.Add("-File");
         process.ArgumentList.Add(updater);
+        if (suportaProgresso)
+        {
+            if (File.Exists(ProgressFilePath)) File.Delete(ProgressFilePath);
+            process.ArgumentList.Add("-ProgressPath");
+            process.ArgumentList.Add(ProgressFilePath);
+            process.ArgumentList.Add("-PanelProcessId");
+            process.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
         process.ArgumentList.Add("-ExecutablePath");
         process.ArgumentList.Add(executable);
         var root = FindInstallRoot(executable);
@@ -72,7 +89,7 @@ public sealed class PanelUpdateService
         }
         process.ArgumentList.Add("-RestartAfterUpdate");
         if (forceReinstall) process.ArgumentList.Add("-ForceReinstall");
-        var started = Process.Start(process);
+        using var started = Process.Start(process);
         if (started is null) throw new InvalidOperationException("O atualizador não pôde ser iniciado.");
     }
 
@@ -170,6 +187,12 @@ public sealed class PanelUpdateService
         return null;
     }
 
+    private static bool SupportsProgress(string path)
+    {
+        try { return File.ReadAllText(path).Contains("[string]$ProgressPath", StringComparison.Ordinal); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+
     private static string? FindInstallRoot(string executable)
     {
         var directory = Path.GetDirectoryName(executable);
@@ -190,3 +213,11 @@ public sealed class PanelUpdateService
 
 public sealed record PanelUpdateInfo(
     Version CurrentVersion, Version LatestVersion, bool IsAvailable, string Summary, IReadOnlyList<string> Changes);
+
+public sealed class PanelUpdateProgress
+{
+    public string Phase { get; set; } = "running";
+    public int Percent { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public int RemainingSeconds { get; set; }
+}

@@ -1,0 +1,55 @@
+<Window x:Class="Comunicador.Views.AtualizacaoPainelWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Atualizando o Comunicador" Width="520" Height="245"
+        MinWidth="470" MinHeight="230" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" Background="#111720"
+        Foreground="#F2F5FF" ShowInTaskbar="False">
+    <Border CornerRadius="18" Padding="24" BorderThickness="1" BorderBrush="#3B4B67">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Grid Width="30" Height="30" Margin="0,0,13,0">
+                    <Ellipse Width="26" Height="26" Stroke="#50617A" StrokeThickness="3" />
+                    <Ellipse x:Name="Spinner" Width="26" Height="26" Stroke="#9B83FF"
+                             StrokeThickness="3" StrokeDashArray="2,4" StrokeStartLineCap="Round"
+                             RenderTransformOrigin="0.5,0.5">
+                        <Ellipse.RenderTransform><RotateTransform /></Ellipse.RenderTransform>
+                        <Ellipse.Triggers>
+                            <EventTrigger RoutedEvent="Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard RepeatBehavior="Forever">
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                         From="0" To="360" Duration="0:0:0.85" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </Ellipse.Triggers>
+                    </Ellipse>
+                </Grid>
+                <TextBlock Text="Atualizando..." FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock x:Name="StatusTexto" Grid.Row="1" Text="Preparando a atualização..."
+                       Margin="43,12,0,12" Foreground="#BAC7DD" TextWrapping="Wrap" />
+            <Grid Grid.Row="2" Margin="0,2,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="58" />
+                </Grid.ColumnDefinitions>
+                <ProgressBar x:Name="Progresso" Height="12" Minimum="0" Maximum="100"
+                             VerticalAlignment="Center" Foreground="#8876FF" Background="#273348" />
+                <TextBlock x:Name="Porcentagem" Grid.Column="1" Text="0%" FontSize="14"
+                           FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
+            <TextBlock x:Name="AvisoReinicio" Grid.Row="3" Margin="43,12,0,0"
+                       Foreground="#D7CBFF" TextWrapping="Wrap" Visibility="Collapsed" />
+            <Button x:Name="Fechar" Grid.Row="3" Content="Fechar" HorizontalAlignment="Right"
+                    Margin="0,12,0,0" Padding="18,6" Visibility="Collapsed" Click="Fechar_Click" />
+        </Grid>
+    </Border>
+</Window>

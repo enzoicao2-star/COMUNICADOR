@@ -1,0 +1,52 @@
+<Window x:Class="Comunicador.Views.SplashWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="500" Height="340" WindowStyle="None" ResizeMode="NoResize"
+        AllowsTransparency="True" Background="Transparent" ShowInTaskbar="False"
+        ShowActivated="False" Topmost="True" WindowStartupLocation="CenterScreen"
+        Title="Comunicador">
+    <Border CornerRadius="26" Padding="28" BorderThickness="1"
+            BorderBrush="#685B9FFF" Background="#F20B1019">
+        <Border.Effect>
+            <DropShadowEffect Color="#765CFF" BlurRadius="38" ShadowDepth="0" Opacity="0.38" />
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid Width="184" Height="184" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Ellipse x:Name="OuterGlow" Width="176" Height="176" Stroke="#665C86FF" StrokeThickness="1"
+                         Opacity="0.35" RenderTransformOrigin="0.5,0.5">
+                    <Ellipse.RenderTransform><ScaleTransform x:Name="GlowScale" ScaleX="0.94" ScaleY="0.94" /></Ellipse.RenderTransform>
+                </Ellipse>
+                <Ellipse Width="140" Height="140" Stroke="#4B7A9FFF" StrokeThickness="1" Opacity="0.5" />
+                <Border Width="112" Height="112" CornerRadius="32" Background="#171E2C"
+                        BorderBrush="#796EFF" BorderThickness="1.5" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border.Effect><DropShadowEffect Color="#785DFF" BlurRadius="28" ShadowDepth="0" Opacity="0.8" /></Border.Effect>
+                    <Image Source="/Comunicador;component/Assets/Comunicador.ico" Width="76" Height="76"
+                           Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+            </Grid>
+            <StackPanel Grid.Row="1" HorizontalAlignment="Center" Margin="0,6,0,0">
+                <TextBlock Text="C O M U N I C A D O R" FontSize="16" FontWeight="Bold"
+                           Foreground="#F4F6FF" HorizontalAlignment="Center" />
+                <TextBlock Text="Conectando seus computadores" FontSize="12" Margin="0,6,0,0"
+                           Foreground="#A8B3C8" HorizontalAlignment="Center" />
+            </StackPanel>
+            <Grid Grid.Row="2" Height="3" Margin="20,22,20,2" ClipToBounds="True">
+                <Border Background="#242C3B" CornerRadius="2" />
+                <Border x:Name="LoadingBeam" Width="82" HorizontalAlignment="Left" CornerRadius="2">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#5C8CFF" Offset="0" />
+                            <GradientStop Color="#B495FF" Offset="0.55" />
+                            <GradientStop Color="#5C8CFF" Offset="1" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

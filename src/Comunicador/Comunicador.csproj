@@ -10,12 +10,12 @@
     <AssemblyName Condition="'$(TestBuild)' == 'true'">Comunicador-Teste</AssemblyName>
     <RootNamespace>Comunicador</RootNamespace>
     <Platforms>x64</Platforms>
-    <Version Condition="'$(TestBuild)' != 'true'">2.5.25</Version>
-    <AssemblyVersion Condition="'$(TestBuild)' != 'true'">2.5.25.0</AssemblyVersion>
-    <FileVersion Condition="'$(TestBuild)' != 'true'">2.5.25.0</FileVersion>
-    <Version Condition="'$(TestBuild)' == 'true'">2.5.25.1</Version>
-    <AssemblyVersion Condition="'$(TestBuild)' == 'true'">2.5.25.1</AssemblyVersion>
-    <FileVersion Condition="'$(TestBuild)' == 'true'">2.5.25.1</FileVersion>
+    <Version Condition="'$(TestBuild)' != 'true'">2.5.26</Version>
+    <AssemblyVersion Condition="'$(TestBuild)' != 'true'">2.5.26.0</AssemblyVersion>
+    <FileVersion Condition="'$(TestBuild)' != 'true'">2.5.26.0</FileVersion>
+    <Version Condition="'$(TestBuild)' == 'true'">2.5.26.1</Version>
+    <AssemblyVersion Condition="'$(TestBuild)' == 'true'">2.5.26.1</AssemblyVersion>
+    <FileVersion Condition="'$(TestBuild)' == 'true'">2.5.26.1</FileVersion>
     <DefineConstants Condition="'$(TestBuild)' == 'true'">$(DefineConstants);TEST_BUILD</DefineConstants>
     <EnableCompressionInSingleFile Condition="'$(Configuration)' == 'Release'">true</EnableCompressionInSingleFile>
     <IncludeNativeLibrariesForSelfExtract Condition="'$(Configuration)' == 'Release'">true</IncludeNativeLibrariesForSelfExtract>

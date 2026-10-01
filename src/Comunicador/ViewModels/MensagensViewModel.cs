@@ -28,6 +28,7 @@ public sealed class MensagensViewModel : ViewModelBase
     private bool _exibirAvisoObrigatorio;
     private bool _exibirMensagemCentral;
     private double _tempoImagemSegundos = 15;
+    private int _atrasoEnvioImagemSegundos;
     private bool _permitirFecharImagem = true;
     private bool _tocarSom = true;
     private string _tipoSom = ProtocolConstants.SoundType.Information;
@@ -57,6 +58,10 @@ public sealed class MensagensViewModel : ViewModelBase
     private string _novoModeloNome = string.Empty;
     private GrupoComputadoresGlobal? _grupoSelecionado;
     private ModeloMensagemGlobal? _modeloSelecionado;
+    private bool _modoEnvioIndividual;
+    private string? _idDestinatarioIndividual;
+    private string? _nomeDestinatarioIndividual;
+    private Dictionary<string, bool>? _selecaoAnterior;
 
     public ObservableCollection<ComputadorSelecionavel> Destinatarios { get; } = new();
     public ObservableCollection<DestinoMonitor> MonitoresDestino { get; } = new();
@@ -77,6 +82,12 @@ public sealed class MensagensViewModel : ViewModelBase
     public string NovoModeloNome { get => _novoModeloNome; set => SetField(ref _novoModeloNome, value); }
     public bool PodeGerenciarBiblioteca => _cloud.IsAdmin && _cloud.GlobalConfig is not null;
     public bool PodeGerenciarCarrossel => _cloud.IsAdmin;
+    public bool ModoEnvioIndividual
+    {
+        get => _modoEnvioIndividual;
+        private set => SetField(ref _modoEnvioIndividual, value);
+    }
+    public string? NomeDestinatarioIndividual => _nomeDestinatarioIndividual;
 
     /// <summary>Botões de resposta rápida que vão junto com o aviso.</summary>
     public ObservableCollection<BotaoRespostaEditavel> Botoes { get; } = new();
@@ -172,8 +183,40 @@ public sealed class MensagensViewModel : ViewModelBase
     public string? NomeMidia => NomeImagem ?? _nomeVideo ?? _nomeAudio;
     public string TipoMidiaTexto => TemAudio ? "Áudio" : TemVideo ? "Vídeo"
         : TemImagem ? (_mimeImagem == "image/gif" ? "GIF" : "Imagem") : "Mídia";
-    public bool PodeAlterarPapelParede => _cloud.IsAdmin
+    public bool PodeAlterarPapelParede => _cloud.HasPermission("change_wallpaper")
         && _cloud.GlobalConfig?.PermitirPapelParedeRemoto != false;
+
+    public void IniciarEnvioIndividual(Computador computador, bool imagem)
+    {
+        if (!_cloud.HasPermission("send_media")) return;
+        _selecaoAnterior = Destinatarios.ToDictionary(d => d.Computador.Id, d => d.Selecionado,
+            StringComparer.OrdinalIgnoreCase);
+        _idDestinatarioIndividual = computador.Id;
+        _nomeDestinatarioIndividual = computador.NomeExibicao;
+        ModoEnvioIndividual = true;
+        OnPropertyChanged(nameof(NomeDestinatarioIndividual));
+        AtualizarDestinatarios();
+        ExibirImagemCentral = imagem;
+        if (!imagem) StatusOperacao = $"Preparando mensagem para {_nomeDestinatarioIndividual}.";
+        else StatusOperacao = $"Escolha a imagem que será enviada para {_nomeDestinatarioIndividual}.";
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    public void FinalizarEnvioIndividual()
+    {
+        ModoEnvioIndividual = false;
+        _idDestinatarioIndividual = null;
+        _nomeDestinatarioIndividual = null;
+        OnPropertyChanged(nameof(NomeDestinatarioIndividual));
+        if (_selecaoAnterior is not null)
+        {
+            foreach (var destinatario in Destinatarios)
+                destinatario.Selecionado = _selecaoAnterior.GetValueOrDefault(destinatario.Computador.Id);
+        }
+        _selecaoAnterior = null;
+        AtualizarMonitoresDestino();
+        CommandManager.InvalidateRequerySuggested();
+    }
     public bool AlterarImagemSistema => DefinirComoPapelDeParede || DefinirComoTelaDeBloqueio;
     public bool DefinirComoPapelDeParede
     {
@@ -314,6 +357,20 @@ public sealed class MensagensViewModel : ViewModelBase
             value, ProtocolConstants.MinImageDurationSeconds, 300), 1));
     }
 
+    public int AtrasoEnvioImagemSegundos
+    {
+        get => _atrasoEnvioImagemSegundos;
+        set
+        {
+            if (SetField(ref _atrasoEnvioImagemSegundos, Math.Clamp(value, 0, 3600)))
+                OnPropertyChanged(nameof(TextoAtrasoEnvioImagem));
+        }
+    }
+
+    public string TextoAtrasoEnvioImagem => AtrasoEnvioImagemSegundos == 0
+        ? "envio imediato"
+        : $"envio em {AtrasoEnvioImagemSegundos} s";
+
     public bool PermitirFecharImagem
     {
         get => _permitirFecharImagem;
@@ -380,7 +437,7 @@ public sealed class MensagensViewModel : ViewModelBase
         _reenvios = reenvios;
         _cloud.StateChanged += () => UiDispatcher.Invoke(() =>
         {
-            if (!_cloud.IsAdmin) { DefinirComoPapelDeParede = false; DefinirComoTelaDeBloqueio = false; }
+            if (!PodeAlterarPapelParede) { DefinirComoPapelDeParede = false; DefinirComoTelaDeBloqueio = false; }
             OnPropertyChanged(nameof(PodeAlterarPapelParede));
             OnPropertyChanged(nameof(PodeGerenciarCarrossel));
             OnPropertyChanged(nameof(PodeGerenciarBiblioteca));
@@ -388,7 +445,8 @@ public sealed class MensagensViewModel : ViewModelBase
         });
         _cloud.GlobalConfigReceived += config => UiDispatcher.Invoke(() =>
         {
-            if (!config.PermitirPapelParedeRemoto) { DefinirComoPapelDeParede = false; DefinirComoTelaDeBloqueio = false; }
+            if (!config.PermitirPapelParedeRemoto || !_cloud.HasPermission("change_wallpaper"))
+            { DefinirComoPapelDeParede = false; DefinirComoTelaDeBloqueio = false; }
             OnPropertyChanged(nameof(PodeAlterarPapelParede));
             AtualizarBiblioteca(config);
             OnPropertyChanged(nameof(PodeGerenciarBiblioteca));
@@ -625,7 +683,9 @@ public sealed class MensagensViewModel : ViewModelBase
 
     private void AtualizarDestinatarios()
     {
-        var idsSelecionados = Destinatarios.Where(d => d.Selecionado).Select(d => d.Computador.Id).ToHashSet();
+        var idsSelecionados = ModoEnvioIndividual && _idDestinatarioIndividual is not null
+            ? new HashSet<string>([_idDestinatarioIndividual], StringComparer.OrdinalIgnoreCase)
+            : Destinatarios.Where(d => d.Selecionado).Select(d => d.Computador.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         foreach (var destinatario in Destinatarios)
         {
@@ -744,12 +804,25 @@ public sealed class MensagensViewModel : ViewModelBase
 
     private bool PodeEnviar()
     {
+        if (!_cloud.HasPermission("send_media")) return false;
+        var selecionados = Destinatarios.Where(d => d.Selecionado).ToList();
+        if (ModoEnvioIndividual)
+        {
+            if (selecionados.Count != 1
+                || !string.Equals(selecionados[0].Computador.Id, _idDestinatarioIndividual, StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+        else if (selecionados.Count < 2)
+        {
+            return false;
+        }
+
         var temConteudo = AlterarImagemSistema
             ? PodeAlterarPapelParede && ImagemCompativelPapelParede
             : ExibirImagemCentral
             ? TemMidia || DestinatariosComMidiaEspecifica()
             : !string.IsNullOrWhiteSpace(Titulo) && !string.IsNullOrWhiteSpace(Mensagem);
-        return temConteudo && Destinatarios.Any(d => d.Selecionado);
+        return temConteudo && selecionados.Count > 0;
     }
 
     private bool DestinatariosComMidiaEspecifica()
@@ -1313,6 +1386,19 @@ public sealed class MensagensViewModel : ViewModelBase
             ToastDurationSeconds = (int)TempoAvisoSegundos,
             ToastPosition = PosicaoAviso,
         };
+        var haImagemParaEnviar = imagem is not null || selecionados.Any(destino =>
+            CriarImagensPorMonitor(destino.Computador.Id).Count > 0);
+        if (AtrasoEnvioImagemSegundos > 0 && haImagemParaEnviar)
+        {
+            var enviarApos = DateTimeOffset.UtcNow.AddSeconds(AtrasoEnvioImagemSegundos);
+            while (true)
+            {
+                var restantes = (int)Math.Ceiling((enviarApos - DateTimeOffset.UtcNow).TotalSeconds);
+                if (restantes <= 0) break;
+                StatusOperacao = $"Imagem será enviada em {restantes} segundo(s)...";
+                await Task.Delay(TimeSpan.FromSeconds(Math.Min(1, restantes))).ConfigureAwait(true);
+            }
+        }
         StatusOperacao = $"Enviando para {selecionados.Count} computador(es)...";
 
         var enviados = 0;

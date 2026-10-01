@@ -460,17 +460,21 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         }
     }
 
-    public async Task AtualizarPainelAsync()
+    public string CaminhoProgressoAtualizacaoPainel => _panelUpdate.ProgressFilePath;
+
+    public async Task<bool> AtualizarPainelAsync()
     {
-        if (_ultimaVerificacaoPainel is not { IsAvailable: true } info) return;
+        if (_ultimaVerificacaoPainel is not { IsAvailable: true } info) return false;
         StatusAtualizacaoPainel = "Baixando a atualização. O painel reiniciará sozinho…";
         try
         {
             await _panelUpdate.StartUpdateAsync(info).ConfigureAwait(true);
+            return true;
         }
         catch (Exception ex) when (ex is IOException or HttpRequestException or InvalidOperationException or System.ComponentModel.Win32Exception)
         {
             StatusAtualizacaoPainel = $"Falha ao iniciar a atualização: {ex.Message}";
+            return false;
         }
     }
 

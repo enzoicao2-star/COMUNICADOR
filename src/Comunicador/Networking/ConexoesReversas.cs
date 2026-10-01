@@ -214,7 +214,19 @@ public sealed class ConexaoReversa : IDisposable
     /// ela está ocupada com uma notificação/resposta; nesse caso continua online.</summary>
     public async Task<double?> MedirPingAsync(CancellationToken ct)
     {
-        if (!await _envioLock.WaitAsync(0, ct).ConfigureAwait(false)) return null;
+        // Aguarda uma transferência em andamento por um curto período. Antes disso,
+        // a maioria dos pings era descartada durante notificações e o card ficava em "— ms".
+        using var espera = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        espera.CancelAfter(TimeSpan.FromSeconds(2));
+        try
+        {
+            if (!await _envioLock.WaitAsync(TimeSpan.FromSeconds(2), espera.Token).ConfigureAwait(false))
+                return null;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return null;
+        }
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);

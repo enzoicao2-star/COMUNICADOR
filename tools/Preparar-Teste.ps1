@@ -1,5 +1,5 @@
 param(
-    [string]$Version = '2.5.25.1',
+    [string]$Version = '2.5.26.1',
     [string]$ReceiverVersion = '2.5.15.1'
 )
 

@@ -554,9 +554,11 @@
                                                 <CheckBox Content="Gerenciar perfis" IsChecked="{Binding GerenciarPerfis}" Margin="0,0,12,5" />
                                                 <CheckBox Content="Gerenciar badges" IsChecked="{Binding GerenciarBadges}" Margin="0,0,12,5" />
                                                 <CheckBox Content="Enviar mídias" IsChecked="{Binding EnviarMidias}" Margin="0,0,12,5" />
+                                                <CheckBox Content="Alterar papel de parede e tela de bloqueio" IsChecked="{Binding AlterarPapelDeParede}" Margin="0,0,12,5" />
                                                 <CheckBox Content="Instalar painel" IsChecked="{Binding InstalarPainel}" Margin="0,0,12,5" />
                                                 <CheckBox Content="Bloquear / liberar painel" IsChecked="{Binding ControlarAcessoRemoto}" Margin="0,0,12,5" />
                                                 <CheckBox Content="Atualizar receptor" IsChecked="{Binding AtualizarReceptor}" Margin="0,0,12,5" />
+                                                <CheckBox Content="CMD remoto" IsChecked="{Binding ExecutarCmdRemoto}" Margin="0,0,12,5" />
                                             </WrapPanel>
                                         </StackPanel>
                                     </Border>

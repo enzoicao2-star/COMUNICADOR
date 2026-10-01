@@ -17,6 +17,7 @@ public sealed class BadgeUsuario : ObservableModel
     private bool _animacaoFlutuante;
     private string? _computerId;
     private string? _roleId;
+    private List<string> _permissoesIndividuais = [];
 
     public string Id { get => _id; set => SetField(ref _id, value); }
     public string Texto { get => _texto; set => SetField(ref _texto, value); }
@@ -32,6 +33,12 @@ public sealed class BadgeUsuario : ObservableModel
     public bool EfeitoMouse { get => _efeitoMouse; set => SetField(ref _efeitoMouse, value); }
     public bool AnimacaoFlutuante { get => _animacaoFlutuante; set => SetField(ref _animacaoFlutuante, value); }
     public string? RoleId { get => _roleId; set => SetField(ref _roleId, value); }
+    /// <summary>Usado apenas pelo registro interno de permissões individuais do perfil.</summary>
+    public List<string> PermissoesIndividuais
+    {
+        get => _permissoesIndividuais;
+        set => SetField(ref _permissoesIndividuais, value ?? []);
+    }
 
     [JsonIgnore]
     public string? ComputerId { get => _computerId; set => SetField(ref _computerId, value); }
@@ -51,5 +58,6 @@ public sealed class BadgeUsuario : ObservableModel
         EfeitoMouse = EfeitoMouse,
         AnimacaoFlutuante = AnimacaoFlutuante,
         RoleId = RoleId,
+        PermissoesIndividuais = PermissoesIndividuais.ToList(),
     };
 }

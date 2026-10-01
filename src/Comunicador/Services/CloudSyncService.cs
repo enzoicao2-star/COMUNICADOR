@@ -91,7 +91,14 @@ public sealed class CloudSyncService : IDisposable
 
     public async Task SaveProfileAsync(Computador computer, CancellationToken ct = default)
     {
-        await SaveProfileAsync(computer.Id, computer.NomeExibicao, computer.Badges, ct).ConfigureAwait(false);
+        var badges = computer.Badges.Select(b => b.Clone()).ToList();
+        if (computer.PermissoesIndividuais.Count > 0)
+            badges.Add(new BadgeUsuario
+            {
+                Id = "__individual_permissions",
+                PermissoesIndividuais = computer.PermissoesIndividuais.ToList(),
+            });
+        await SaveProfileAsync(computer.Id, computer.NomeExibicao, badges, ct).ConfigureAwait(false);
     }
 
     public async Task SaveProfileAsync(
@@ -174,6 +181,8 @@ public sealed class CloudSyncService : IDisposable
     {
         if (string.Equals(deviceId, AdminDeviceId, StringComparison.OrdinalIgnoreCase)) return true;
         var profile = _profiles.Obter(deviceId);
+        if (profile?.Badges.FirstOrDefault(b => b.Id == "__individual_permissions")?
+                .PermissoesIndividuais.Contains(permission, StringComparer.Ordinal) == true) return true;
         if (permission == "manage_profiles" && profile?.Badges.Any(b => b.Id == "admin") == true) return true;
         if (GlobalConfig?.ModelosBadge is not { } roles || profile is null) return false;
         return profile.Badges.Any(b => b.RoleId is not null
@@ -250,7 +259,8 @@ public sealed class CloudSyncService : IDisposable
     public async Task QueueRemoteCommandAsync(
         string targetDeviceId, string command, string requestId, CancellationToken ct = default)
     {
-        if (!IsAdmin) throw new UnauthorizedAccessException("Somente o OWNER pode enviar comandos CMD remotos.");
+        if (!HasPermission("remote_command"))
+            throw new UnauthorizedAccessException("Este painel não tem permissão para enviar comandos CMD remotos.");
         if (!RemoteCommandExecutor.IsValid(command))
             throw new ArgumentException("Digite um comando de até 500 caracteres.", nameof(command));
         if (string.IsNullOrWhiteSpace(requestId))

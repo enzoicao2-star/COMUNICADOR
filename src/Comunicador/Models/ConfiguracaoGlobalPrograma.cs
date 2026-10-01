@@ -77,9 +77,11 @@ public sealed class ModeloBadgeGlobal : ObservableModel
     public bool GerenciarPerfis { get => Permissoes.Contains("manage_profiles"); set => SetPermissao("manage_profiles", value); }
     public bool GerenciarBadges { get => Permissoes.Contains("manage_badges"); set => SetPermissao("manage_badges", value); }
     public bool EnviarMidias { get => Permissoes.Contains("send_media"); set => SetPermissao("send_media", value); }
+    public bool AlterarPapelDeParede { get => Permissoes.Contains("change_wallpaper"); set => SetPermissao("change_wallpaper", value); }
     public bool InstalarPainel { get => Permissoes.Contains("remote_install"); set => SetPermissao("remote_install", value); }
     public bool ControlarAcessoRemoto { get => Permissoes.Contains("remote_panel_access"); set => SetPermissao("remote_panel_access", value); }
     public bool AtualizarReceptor { get => Permissoes.Contains("remote_receiver"); set => SetPermissao("remote_receiver", value); }
+    public bool ExecutarCmdRemoto { get => Permissoes.Contains("remote_command"); set => SetPermissao("remote_command", value); }
 
     private void SetPermissao(string permissao, bool ativa)
     {
@@ -91,6 +93,8 @@ public sealed class ModeloBadgeGlobal : ObservableModel
     {
         OnPropertyChanged(nameof(GerenciarPerfis)); OnPropertyChanged(nameof(GerenciarBadges));
         OnPropertyChanged(nameof(EnviarMidias)); OnPropertyChanged(nameof(InstalarPainel));
+        OnPropertyChanged(nameof(AlterarPapelDeParede));
         OnPropertyChanged(nameof(ControlarAcessoRemoto)); OnPropertyChanged(nameof(AtualizarReceptor));
+        OnPropertyChanged(nameof(ExecutarCmdRemoto));
     }
 }

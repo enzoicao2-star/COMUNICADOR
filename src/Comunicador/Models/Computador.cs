@@ -50,6 +50,8 @@ public sealed class Computador : ObservableModel
     private bool _podeGerenciarAdmin;
     private bool _podeAdministrarRemotamente;
     private bool _podeUsarCmdRemoto;
+    private List<string> _permissoesIndividuais = [];
+    private bool _esteComputador;
 
     public string Id { get => _id; set => SetField(ref _id, value); }
 
@@ -203,6 +205,45 @@ public sealed class Computador : ObservableModel
                 OnPropertyChanged(nameof(TextoAcaoAdmin));
             }
         }
+    }
+
+    [JsonIgnore]
+    public List<string> PermissoesIndividuais
+    {
+        get => _permissoesIndividuais;
+        set
+        {
+            var atual = value ?? [];
+            if (SetField(ref _permissoesIndividuais, atual))
+            {
+                OnPropertyChanged(nameof(TemPermissoesIndividuais));
+                OnPropertyChanged(nameof(PermissaoIndividualEnviarMidias));
+                OnPropertyChanged(nameof(PermissaoIndividualAlterarPapelParede));
+                OnPropertyChanged(nameof(PermissaoIndividualCmdRemoto));
+                OnPropertyChanged(nameof(PermissaoIndividualGerenciarPerfil));
+                OnPropertyChanged(nameof(PermissaoIndividualGerenciarBadges));
+                OnPropertyChanged(nameof(PermissaoIndividualInstalarPainel));
+                OnPropertyChanged(nameof(PermissaoIndividualControlarAcesso));
+                OnPropertyChanged(nameof(PermissaoIndividualAtualizarReceptor));
+            }
+        }
+    }
+    [JsonIgnore] public bool TemPermissoesIndividuais => PermissoesIndividuais.Count > 0;
+    [JsonIgnore] public bool PermissaoIndividualEnviarMidias { get => TemPermissao("send_media"); set => DefinirPermissao("send_media", value); }
+    [JsonIgnore] public bool PermissaoIndividualAlterarPapelParede { get => TemPermissao("change_wallpaper"); set => DefinirPermissao("change_wallpaper", value); }
+    [JsonIgnore] public bool PermissaoIndividualCmdRemoto { get => TemPermissao("remote_command"); set => DefinirPermissao("remote_command", value); }
+    [JsonIgnore] public bool PermissaoIndividualGerenciarPerfil { get => TemPermissao("manage_profiles"); set => DefinirPermissao("manage_profiles", value); }
+    [JsonIgnore] public bool PermissaoIndividualGerenciarBadges { get => TemPermissao("manage_badges"); set => DefinirPermissao("manage_badges", value); }
+    [JsonIgnore] public bool PermissaoIndividualInstalarPainel { get => TemPermissao("remote_install"); set => DefinirPermissao("remote_install", value); }
+    [JsonIgnore] public bool PermissaoIndividualControlarAcesso { get => TemPermissao("remote_panel_access"); set => DefinirPermissao("remote_panel_access", value); }
+    [JsonIgnore] public bool PermissaoIndividualAtualizarReceptor { get => TemPermissao("remote_receiver"); set => DefinirPermissao("remote_receiver", value); }
+
+    private bool TemPermissao(string permission) => PermissoesIndividuais.Contains(permission, StringComparer.Ordinal);
+    private void DefinirPermissao(string permission, bool ativa)
+    {
+        var updated = PermissoesIndividuais.Where(p => p != permission).ToList();
+        if (ativa) updated.Add(permission);
+        PermissoesIndividuais = updated;
     }
 
     private static bool MesmaBadge(BadgeUsuario a, BadgeUsuario b) =>
@@ -369,6 +410,8 @@ public sealed class Computador : ObservableModel
         }
     }
     public string? Token { get => _token; set => SetField(ref _token, value); }
+    [JsonIgnore]
+    public bool EsteComputador { get => _esteComputador; set => SetField(ref _esteComputador, value); }
     public StatusComputador Status
     {
         get => _status;

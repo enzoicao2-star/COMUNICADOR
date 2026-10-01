@@ -5,6 +5,8 @@ param(
     [string]$LauncherPath = '',
     [string]$ManifestUrl = 'https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/panel-version.json',
     [string]$RepositoryArchiveUrl = 'https://github.com/enzoicao2-star/COMUNICADOR/archive/refs/heads/main.zip',
+    [string]$ProgressPath = '',
+    [int]$PanelProcessId = 0,
     [switch]$SkipShortcuts,
     [switch]$RestartAfterUpdate,
     [switch]$ForceReinstall
@@ -12,6 +14,59 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+$script:ProgressPath = $ProgressPath
+
+function Write-UpdateProgress([string]$Phase, [int]$Percent, [string]$Message, [int]$RemainingSeconds = 0) {
+    if ([string]::IsNullOrWhiteSpace($script:ProgressPath)) { return }
+    try {
+        $parent = Split-Path -Parent $script:ProgressPath
+        if (-not [string]::IsNullOrWhiteSpace($parent)) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
+        $temporary = $script:ProgressPath + '.tmp'
+        $state = [ordered]@{ phase=$Phase; percent=[Math]::Max(0,[Math]::Min(100,$Percent));
+            message=$Message; remaining_seconds=[Math]::Max(0,$RemainingSeconds) }
+        [IO.File]::WriteAllText($temporary,($state | ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
+        Move-Item -LiteralPath $temporary -Destination $script:ProgressPath -Force
+    }
+    catch { }
+}
+
+function Download-FileWithProgress(
+    [string]$Uri, [string]$Destination, [string]$Message, [int]$StartPercent, [int]$EndPercent
+) {
+    $client = [System.Net.Http.HttpClient]::new()
+    $response = $null
+    $source = $null
+    $destinationStream = $null
+    try {
+        $requestUri = [Uri]$Uri
+        $response = $client.GetAsync($requestUri,[System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
+        $response.EnsureSuccessStatusCode()
+        $total = $response.Content.Headers.ContentLength
+        $source = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
+        $destinationStream = [IO.File]::Open($Destination,[IO.FileMode]::Create,[IO.FileAccess]::Write,[IO.FileShare]::None)
+        $buffer = New-Object byte[] 65536
+        [long]$downloaded = 0
+        while ($true) {
+            $read = $source.ReadAsync($buffer,0,$buffer.Length).GetAwaiter().GetResult()
+            if ($read -le 0) { break }
+            $destinationStream.Write($buffer,0,$read)
+            $downloaded += $read
+            if ($total -gt 0) {
+                $ratio = [Math]::Min(1.0,($downloaded / [double]$total))
+                $percent = $StartPercent + [int][Math]::Floor(($EndPercent-$StartPercent)*$ratio)
+                Write-UpdateProgress 'running' $percent $Message
+            }
+        }
+        if ($total -gt 0 -and $downloaded -ne $total) { throw 'O download terminou incompleto.' }
+        Write-UpdateProgress 'running' $EndPercent $Message
+    }
+    finally {
+        if ($null -ne $destinationStream) { $destinationStream.Dispose() }
+        if ($null -ne $source) { $source.Dispose() }
+        if ($null -ne $response) { $response.Dispose() }
+        $client.Dispose()
+    }
+}
 
 function Get-VersionOrZero([string]$Value) {
     try { return [version]$Value }
@@ -130,9 +185,9 @@ function Install-RepositorySnapshot(
     try {
         New-Item -ItemType Directory -Force -Path $extractPath | Out-Null
         Write-Host 'Baixando todos os arquivos do Comunicador publicados no GitHub...'
+        Write-UpdateProgress 'running' 7 'Baixando os arquivos auxiliares...'
         $archiveRequest = Add-CacheBuster $ArchiveUrl 't' ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString())
-        Invoke-WebRequest -UseBasicParsing -Headers @{ 'Cache-Control' = 'no-cache' } `
-            -Uri $archiveRequest -OutFile $archivePath -ErrorAction Stop
+        Download-FileWithProgress $archiveRequest $archivePath 'Baixando os arquivos do programa...' 8 42
         Expand-Archive -LiteralPath $archivePath -DestinationPath $extractPath -Force
 
         $topLevelDirectories = @(Get-ChildItem -LiteralPath $extractPath -Directory -Force)
@@ -165,7 +220,9 @@ function Install-RepositorySnapshot(
         $launcherFull = if ([string]::IsNullOrWhiteSpace($CurrentLauncher)) { '' } else { [IO.Path]::GetFullPath($CurrentLauncher) }
         $pendingLauncher = $null
         $sourceFiles = @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -File -Force)
+        $copyIndex = 0
         foreach ($sourceFile in $sourceFiles) {
+            $copyIndex++
             $relativePath = $sourceFile.FullName.Substring($sourceRoot.Length).TrimStart('\')
             $destinationPath = Get-SafeInstallPath $Root $relativePath
             if ($relativePath -eq 'receiver\INSTALAR_RECEPTOR.bat' -and (Test-ReceiverInstalled)) {
@@ -180,6 +237,7 @@ function Install-RepositorySnapshot(
             if ($isRunningLauncher) {
                 $pendingLauncher = Join-Path $Root 'ABRIR_COMUNICADOR.pending.bat'
                 Copy-Item -LiteralPath $sourceFile.FullName -Destination $pendingLauncher -Force
+                Write-UpdateProgress 'running' (42 + [int][Math]::Floor(20*$copyIndex/[Math]::Max(1,$sourceFiles.Count)) ) 'Preparando os arquivos do Comunicador...'
                 continue
             }
             $isBatchFile = $sourceFile.Extension.Equals('.bat', [StringComparison]::OrdinalIgnoreCase)
@@ -191,6 +249,7 @@ function Install-RepositorySnapshot(
                 -or -not (Test-Path -LiteralPath $destinationPath -PathType Leaf)) {
                 Copy-Item -LiteralPath $sourceFile.FullName -Destination $destinationPath -Force
             }
+            Write-UpdateProgress 'running' (42 + [int][Math]::Floor(20*$copyIndex/[Math]::Max(1,$sourceFiles.Count)) ) 'Preparando os arquivos do Comunicador...'
         }
 
         if ($null -ne $pendingLauncher -and -not [string]::IsNullOrWhiteSpace($launcherFull)) {
@@ -331,6 +390,7 @@ if ($null -ne $previousPending) {
 
 try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Write-UpdateProgress 'running' 2 'Verificando a versão publicada...'
     $manifestRequest = Add-CacheBuster $ManifestUrl 't' ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString())
     $manifest = Invoke-RestMethod -UseBasicParsing -Headers @{ 'Cache-Control' = 'no-cache' } -Uri $manifestRequest
     $latestVersion = Get-VersionOrZero ([string]$manifest.version)
@@ -341,13 +401,16 @@ try {
         -or $expectedHash -notmatch '^[A-F0-9]{64}$') {
         throw 'O manifesto publicado esta incompleto.'
     }
+    Write-UpdateProgress 'running' 5 ('Preparando a versão ' + $latestVersion + '...')
 }
 catch {
     if (Test-Path -LiteralPath $target) {
         $fallbackVersion = Get-VersionOrZero (Get-Item -LiteralPath $target).VersionInfo.FileVersion
+        Write-UpdateProgress 'failed' 100 ('Não foi possível verificar a atualização: ' + $_.Exception.Message)
         Write-Host ('Sem acesso ao GitHub; abrindo a versao instalada ' + $fallbackVersion + '.')
         exit 0
     }
+    Write-UpdateProgress 'failed' 100 ('Falha ao consultar a versão publicada: ' + $_.Exception.Message)
     Write-Host ('Falha ao consultar a versao publicada: ' + $_.Exception.Message)
     exit 2
 }
@@ -404,6 +467,7 @@ if ($isCurrent) {
     }
     if ($skipKnownFailure) { Write-Host ('A versao ' + $latestVersion + ' falhou antes; mantendo a versao ' + $currentVersion + '.') }
     else { Write-Host ('Comunicador ' + $currentVersion + ' ja esta atualizado.') }
+    Write-UpdateProgress 'up_to_date' 100 'Este Comunicador já está na versão mais recente.'
     exit 0
 }
 
@@ -418,8 +482,9 @@ $downloadPath = Join-Path $targetDirectory 'Comunicador.download.exe'
 try {
     Remove-Item -LiteralPath $downloadPath -Force -ErrorAction SilentlyContinue
     $downloadRequest = Add-CacheBuster $downloadUrl 'v' $latestVersion.ToString()
-    Invoke-WebRequest -UseBasicParsing -Uri $downloadRequest -OutFile $downloadPath -ErrorAction Stop
+    Download-FileWithProgress $downloadRequest $downloadPath 'Baixando a nova versão do Comunicador...' 70 92
 
+    Write-UpdateProgress 'running' 94 'Validando a atualização...'
     $actualHash = (Get-Sha256 $downloadPath).ToUpperInvariant()
     if ($actualHash -ne $expectedHash) {
         throw 'O SHA-256 do arquivo baixado nao corresponde ao manifesto.'
@@ -474,6 +539,14 @@ try {
         catch { Write-Host ('AVISO: nao foi possivel salvar o resumo da atualizacao: ' + $_.Exception.Message) }
     }
     if ($RestartAfterUpdate) {
+        for ($remaining = 15; $remaining -gt 0; $remaining--) {
+            Write-UpdateProgress 'restart_wait' 100 'Atualização concluída.' $remaining
+            Start-Sleep -Seconds 1
+        }
+        Write-UpdateProgress 'launching' 100 'Reiniciando o Comunicador...'
+        if ($PanelProcessId -gt 0) {
+            try { Wait-Process -Id $PanelProcessId -Timeout 20 -ErrorAction SilentlyContinue } catch { }
+        }
         $startedPanel = Start-Process -FilePath $target -WorkingDirectory $targetDirectory -PassThru
         $healthy = $false
         for ($attempt = 0; $attempt -lt 90; $attempt++) {
@@ -497,6 +570,7 @@ try {
             throw 'A nova versao nao confirmou a inicializacao em 45 segundos.'
         }
         Remove-Item -LiteralPath $backupPath,$pendingPath,$healthPath,$failurePath -Force -ErrorAction SilentlyContinue
+        Write-UpdateProgress 'done' 100 'Atualização concluída. O Comunicador foi reiniciado.'
     }
     if ($RestartAfterUpdate) { exit 10 }
     exit 0
@@ -506,6 +580,7 @@ catch {
     if ((Test-Path -LiteralPath $pendingPath) -and (Test-Path -LiteralPath $backupPath)) {
         Restore-PreviousPanel $target $backupPath $pendingPath $healthPath $failurePath (Read-JsonOrNull $pendingPath) | Out-Null
     }
+    Write-UpdateProgress 'failed' 100 ('Falha na atualização: ' + $_.Exception.Message)
     Write-Host ('Falha na atualizacao automatica: ' + $_.Exception.Message)
     if (Test-Path -LiteralPath $target) { exit 3 }
     exit 3

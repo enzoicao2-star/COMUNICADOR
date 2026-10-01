@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Net.Http;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Comunicador.Models;
 using Comunicador.Networking;
 using Comunicador.Protocol;
@@ -18,6 +19,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private readonly JsonStore<Computador> _store;
     private readonly DiscoveryService _discovery;
     private readonly ReceptorClient _client;
+    private readonly EnviadorNotificacoes _enviador;
     private readonly AtualizadorReceptor _atualizador;
     private readonly AppSettings _settings;
     private readonly PerfilComputadorRepository _perfis;
@@ -25,6 +27,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private readonly ConcurrentDictionary<string, ReceiverCloudUpdateConfirmation> _cloudReceiverUpdates =
         new(StringComparer.OrdinalIgnoreCase);
     private string? _statusMensagem;
+    private string _testeComunicacaoStatus = "O teste envia apenas um ping, sem abrir conteúdo no outro computador.";
     private string _novoIp = string.Empty;
     private string _novaPorta = ProtocolConstants.TcpPort.ToString();
     private Computador? _computadorGerenciado;
@@ -38,6 +41,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private bool _ultimoIsAdmin;
     private string? _ultimoAdminDeviceId;
     private long _ultimaConfiguracaoGlobalRevision;
+    private DispatcherTimer? _avisoTopoTimer;
+    private string? _avisoTopo;
 
     public ObservableCollection<Computador> Computadores { get; } = new();
 
@@ -55,6 +60,30 @@ public sealed class ComputadoresViewModel : ViewModelBase
     }
 
     public bool PodeGerenciarGlobalmente => _cloud.IsAdmin;
+    public bool PodeEnviarMidias => _cloud.HasPermission("send_media");
+    public bool PodeAbrirAcoesIndividuais => _cloud.IsAdmin || new[]
+    {
+        "manage_profiles", "manage_badges", "send_media", "change_wallpaper",
+        "remote_install", "remote_panel_access", "remote_receiver", "remote_command",
+    }.Any(_cloud.HasPermission);
+    public string? AvisoTopo
+    {
+        get => _avisoTopo;
+        private set => SetField(ref _avisoTopo, value);
+    }
+
+    public void MostrarAvisoTopo(string mensagem)
+    {
+        AvisoTopo = mensagem;
+        _avisoTopoTimer?.Stop();
+        _avisoTopoTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        _avisoTopoTimer.Tick += (_, _) =>
+        {
+            _avisoTopoTimer.Stop();
+            AvisoTopo = null;
+        };
+        _avisoTopoTimer.Start();
+    }
 
     public string ComandoRemoto
     {
@@ -78,6 +107,12 @@ public sealed class ComputadoresViewModel : ViewModelBase
     {
         get => _statusMensagem;
         set => SetField(ref _statusMensagem, value);
+    }
+
+    public string TesteComunicacaoStatus
+    {
+        get => _testeComunicacaoStatus;
+        private set => SetField(ref _testeComunicacaoStatus, value);
     }
 
     public string NovoIp
@@ -114,6 +149,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public ICommand BloquearPainelRemotoCommand { get; }
     public ICommand HabilitarPainelRemotoCommand { get; }
     public ICommand RestaurarPapelParedeCommand { get; }
+    public ICommand TestarComunicacaoCommand { get; }
     public ICommand EnviarCmdRemotoCommand { get; }
     public ICommand CancelarCmdRemotoCommand { get; }
 
@@ -124,12 +160,14 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
     public ComputadoresViewModel(
         JsonStore<Computador> store, DiscoveryService discovery, ReceptorClient client,
+        EnviadorNotificacoes enviador,
         AtualizadorReceptor atualizador, AppSettings settings,
         PerfilComputadorRepository perfis, CloudSyncService cloud)
     {
         _store = store;
         _discovery = discovery;
         _client = client;
+        _enviador = enviador;
         _atualizador = atualizador;
         _settings = settings;
         _perfis = perfis;
@@ -145,6 +183,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 computador.Monitores = MonitoresOuPadrao(null);
             }
             AplicarPerfil(computador);
+            computador.EsteComputador = EhComputadorLocal(computador);
             Computadores.Add(computador);
         }
 
@@ -172,8 +211,30 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 : $"Não foi possível restaurar o papel de parede de {computador.NomeExibicao}: {resultado.ErrorMessage}";
         }, param => _cloud.IsAdmin && param is Computador computador
             && computador.Pareado && !string.IsNullOrWhiteSpace(computador.Token));
+        TestarComunicacaoCommand = new AsyncRelayCommand(async param =>
+        {
+            if (param is not Computador computador) return;
+            TesteComunicacaoStatus = $"Testando conexão com {computador.NomeExibicao}...";
+            try
+            {
+                var (online, pingMs) = await _enviador.MedirStatusAsync(computador).ConfigureAwait(true);
+                AtualizarStatus(computador.Id,
+                    online ? StatusComputador.Online : StatusComputador.Offline, pingMs);
+                TesteComunicacaoStatus = online
+                    ? pingMs is { } ping
+                        ? $"Comunicação funcionando · {ping:0} ms. Nenhuma mensagem ou imagem foi exibida."
+                        : "Conexão ativa. Nenhuma mensagem ou imagem foi exibida."
+                    : "Sem resposta do receptor. Nenhuma mensagem ou imagem foi enviada.";
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException
+                or System.Net.Sockets.SocketException or OperationCanceledException)
+            {
+                TesteComunicacaoStatus = $"Falha no teste de conexão: {ex.Message}";
+            }
+        }, param => param is Computador { Pareado: true } computador
+            && !string.IsNullOrWhiteSpace(computador.Token));
         EnviarCmdRemotoCommand = new AsyncRelayCommand(EnviarCmdRemotoAsync,
-            param => _cloud.IsAdmin && param is Computador computador
+            param => _cloud.HasPermission("remote_command") && param is Computador computador
                 && !string.Equals(computador.Id, _settings.PainelId, StringComparison.OrdinalIgnoreCase));
         CancelarCmdRemotoCommand = new AsyncRelayCommand(CancelarCmdRemotoAsync,
             _ => ComandoRemotoEmAndamento && !_cancelamentoCmdSolicitado);
@@ -470,8 +531,16 @@ public sealed class ComputadoresViewModel : ViewModelBase
         }
         computador.Badges = badges.Take(ProtocolConstants.MaxBadgesPerComputer).ToList();
         computador.EhOwner = ehAdminAlvo;
-        _perfis.Salvar(computador.Id, nome, ehAdminAlvo, computador.Badges,
-            _settings.PainelId, adminOverride: _cloud.IsAdmin);
+        var badgesDePerfil = computador.Badges.Select(b => b.Clone()).ToList();
+        if (computador.PermissoesIndividuais.Count > 0)
+            badgesDePerfil.Add(new BadgeUsuario
+            {
+                Id = "__individual_permissions",
+                Texto = string.Empty,
+                PermissoesIndividuais = computador.PermissoesIndividuais.ToList(),
+            });
+        _perfis.Salvar(computador.Id, nome, ehAdminAlvo, badgesDePerfil,
+            _settings.PainelId, adminOverride: _cloud.CanEdit(computador.Id));
         Persist();
         try
         {
@@ -514,7 +583,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         var ehAdmin = string.Equals(computador.Id, _cloud.AdminDeviceId, StringComparison.OrdinalIgnoreCase);
         computador.EhOwner = ehAdmin;
         computador.PodeGerenciarAdmin = _cloud.IsAdmin && !ehAdmin;
-        computador.PodeUsarCmdRemoto = _cloud.IsAdmin
+        computador.PodeUsarCmdRemoto = _cloud.HasPermission("remote_command")
             && computador.RegistradoNaNuvem
             && !string.Equals(computador.Id, _settings.PainelId, StringComparison.OrdinalIgnoreCase);
         computador.PodeAdministrarRemotamente = !_cloud.IsAdmin
@@ -524,13 +593,16 @@ public sealed class ComputadoresViewModel : ViewModelBase
         if (perfil is null)
         {
             computador.Apelido = null;
+            computador.PermissoesIndividuais = [];
             var atuais = computador.Badges.Where(b => b.Id != "owner").ToList();
             if (ehAdmin) atuais.Insert(0, CriarBadgeOwner(computador.Id));
             computador.Badges = atuais.Take(ProtocolConstants.MaxBadgesPerComputer).ToList();
             return;
         }
         computador.Apelido = string.IsNullOrWhiteSpace(perfil.NomePublico) ? null : perfil.NomePublico;
-        var badges = perfil.Badges.Where(b => b.Id != "owner").Select(b =>
+        computador.PermissoesIndividuais = perfil.Badges
+            .FirstOrDefault(b => b.Id == "__individual_permissions")?.PermissoesIndividuais.ToList() ?? [];
+        var badges = perfil.Badges.Where(b => b.Id is not ("owner" or "__individual_permissions")).Select(b =>
         {
             var clone = b.Clone();
             clone.ComputerId = computador.Id;
@@ -555,6 +627,16 @@ public sealed class ComputadoresViewModel : ViewModelBase
             badges.Insert(0, owner);
         }
         computador.Badges = badges.Take(ProtocolConstants.MaxBadgesPerComputer).ToList();
+    }
+
+    private void MigrarApelidoDeIdentidadeAntiga(string novoId, IEnumerable<string> idsAntigos)
+    {
+        if (_perfis.Obter(novoId) is not null || !_cloud.CanEdit(novoId)) return;
+        var perfilAntigo = idsAntigos.Select(_perfis.Obter).FirstOrDefault(p => p is not null);
+        if (perfilAntigo is null) return;
+        var ehOwner = string.Equals(novoId, _cloud.AdminDeviceId, StringComparison.OrdinalIgnoreCase);
+        _perfis.Salvar(novoId, perfilAntigo.NomePublico, ehOwner, perfilAntigo.Badges,
+            _settings.PainelId, adminOverride: true);
     }
 
     private bool PodeEnviarComandoAdmin(object? param, string command) =>
@@ -603,7 +685,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
     private async Task EnviarCmdRemotoAsync(object? param)
     {
-        if (!_cloud.IsAdmin || param is not Computador computador || !computador.PodeUsarCmdRemoto)
+        if (!_cloud.HasPermission("remote_command") || param is not Computador computador || !computador.PodeUsarCmdRemoto)
             return;
         if (!RemoteCommandExecutor.IsValid(ComandoRemoto))
         {
@@ -748,7 +830,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
                     Nome = device.MachineName,
                     EnderecoIp = string.Empty,
                     PortaTcp = _settings.PortaTcp,
-                    Status = device.LastSeenAt > DateTimeOffset.UtcNow.AddSeconds(-45)
+                    Status = device.LastSeenAt > DateTimeOffset.UtcNow.AddSeconds(-120)
                         ? StatusComputador.Online : StatusComputador.Offline,
                     UltimaVezVisto = device.LastSeenAt.UtcDateTime,
                 };
@@ -772,14 +854,14 @@ public sealed class ComputadoresViewModel : ViewModelBase
             }
             if (!computador.Pareado)
             {
-                var status = device.LastSeenAt > DateTimeOffset.UtcNow.AddSeconds(-45)
+                var status = device.LastSeenAt > DateTimeOffset.UtcNow.AddSeconds(-120)
                     ? StatusComputador.Online : StatusComputador.Offline;
                 if (computador.Status != status) { computador.Status = status; changed = true; }
                 computador.UltimaVezVisto = device.LastSeenAt.UtcDateTime;
             }
             else if (migratedIdentity)
             {
-                computador.Status = device.LastSeenAt > DateTimeOffset.UtcNow.AddSeconds(-45)
+                computador.Status = device.LastSeenAt > DateTimeOffset.UtcNow.AddSeconds(-120)
                     ? StatusComputador.Online : StatusComputador.Offline;
                 computador.UltimaVezVisto = device.LastSeenAt.UtcDateTime;
                 computador.PingMs = null;
@@ -813,6 +895,9 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 computador.VersaoReceptor = device.ReceiverVersion;
                 changed = true;
             }
+            computador.EsteComputador = EhComputadorLocal(computador);
+            if (aliasesByPanelId.TryGetValue(device.DeviceId, out var nicknameAliases))
+                MigrarApelidoDeIdentidadeAntiga(device.DeviceId, nicknameAliases);
             if (created || migratedIdentity) AplicarPerfil(computador);
         }
         if (changed)
@@ -830,8 +915,13 @@ public sealed class ComputadoresViewModel : ViewModelBase
             .Where(d => !string.IsNullOrWhiteSpace(d.MachineName) && !string.IsNullOrWhiteSpace(d.DeviceId))
             .GroupBy(d => d.MachineName.Trim(), StringComparer.OrdinalIgnoreCase))
         {
-            var panels = group.Where(d => d.HasPanel).ToArray();
-            var receivers = group.Where(d => !d.HasPanel).ToArray();
+            // Some receiver builds share the machine's registration and report
+            // has_panel=false. Prefer a reported panel version when both rows
+            // exist; older panel registrations may have only the has_panel flag.
+            var withPanelVersion = group.Where(d => !string.IsNullOrWhiteSpace(d.PanelVersion)).ToArray();
+            var panels = withPanelVersion.Length > 0 ? withPanelVersion : group.Where(d => d.HasPanel).ToArray();
+            var panelIds = panels.Select(d => d.DeviceId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var receivers = group.Where(d => !panelIds.Contains(d.DeviceId)).ToArray();
             if (panels.Length == 1 && receivers.Length == 1
                 && !string.Equals(panels[0].DeviceId, receivers[0].DeviceId, StringComparison.OrdinalIgnoreCase))
                 aliases[panels[0].DeviceId] = [receivers[0].DeviceId];
@@ -928,8 +1018,12 @@ public sealed class ComputadoresViewModel : ViewModelBase
             if (computador is not null)
             {
                 computador.Status = status;
-                computador.PingMs = status == StatusComputador.Online ? pingMs : null;
-                computador.UltimaVezVisto = DateTime.UtcNow;
+                if (status == StatusComputador.Offline)
+                    computador.PingMs = null;
+                else if (pingMs is { } measuredPing)
+                    computador.PingMs = measuredPing;
+                if (status == StatusComputador.Online)
+                    computador.UltimaVezVisto = DateTime.UtcNow;
             }
 
             PublicarPingMedio();
@@ -1238,7 +1332,12 @@ public sealed class ComputadoresViewModel : ViewModelBase
         }
     }
 
-    private void Persist() => _store.Save(Computadores);
+    private void Persist()
+    {
+        foreach (var computador in Computadores)
+            computador.EsteComputador = EhComputadorLocal(computador);
+        _store.Save(Computadores);
+    }
 
     private static List<MonitorInfo> MonitoresOuPadrao(IReadOnlyList<MonitorInfo>? monitores) =>
         monitores is { Count: > 0 }

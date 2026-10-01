@@ -27,6 +27,11 @@ public partial class MainWindow : Window
     private int _warmupGeneration;
     private int _navigationPauseGeneration;
     private bool _navigationTransitionActive;
+    private bool _janelaFoiReativada;
+    private bool _verificandoAtualizacao;
+    private bool _dialogoAtualizacaoAberto;
+    private string? _versaoRecusada;
+    private AtualizacaoPainelWindow? _janelaAtualizacao;
     private readonly Forms.NotifyIcon _trayIcon;
     private bool _allowExit;
 
@@ -43,6 +48,8 @@ public partial class MainWindow : Window
         ContentRendered += OnContentRendered;
         Closing += OnWindowClosing;
         IsVisibleChanged += OnWindowVisibilityChanged;
+        Deactivated += (_, _) => _janelaFoiReativada = true;
+        Activated += OnMainWindowActivated;
         Closed += (_, _) =>
         {
             _trayIcon.Dispose();
@@ -141,11 +148,57 @@ public partial class MainWindow : Window
         var info = await viewModel.Configuracoes.VerificarAtualizacaoPainelAsync();
         if (info is not { IsAvailable: true }) return;
 
-        var resposta = MessageBox.Show(this,
-            $"A versão {info.LatestVersion} do Comunicador está disponível.\n\n{info.Summary}\n\nDeseja atualizar agora?",
-            "Atualização do Comunicador", MessageBoxButton.YesNo, MessageBoxImage.Information);
-        if (resposta == MessageBoxResult.Yes)
-            await viewModel.Configuracoes.AtualizarPainelAsync();
+        await PerguntarAtualizacaoAsync(viewModel, info);
+    }
+
+    private async void OnMainWindowActivated(object? sender, EventArgs e)
+    {
+        if (!_janelaFoiReativada || _verificandoAtualizacao || _dialogoAtualizacaoAberto
+            || _viewModel is null || _janelaAtualizacao is { IsVisible: true })
+            return;
+
+        _janelaFoiReativada = false;
+        _verificandoAtualizacao = true;
+        try
+        {
+            var info = await _viewModel.Configuracoes.VerificarAtualizacaoPainelAsync();
+            if (info is { IsAvailable: true } && _versaoRecusada != info.LatestVersion.ToString())
+                await PerguntarAtualizacaoAsync(_viewModel, info);
+        }
+        finally { _verificandoAtualizacao = false; }
+    }
+
+    private async Task PerguntarAtualizacaoAsync(MainViewModel viewModel, Services.PanelUpdateInfo info)
+    {
+        if (_dialogoAtualizacaoAberto) return;
+        _dialogoAtualizacaoAberto = true;
+        try
+        {
+            var resposta = MessageBox.Show(this,
+                $"A versão {info.LatestVersion} do Comunicador está disponível.\n\n{info.Summary}\n\nDeseja atualizar agora?",
+                "Atualização do Comunicador", MessageBoxButton.YesNo, MessageBoxImage.Information);
+            if (resposta == MessageBoxResult.Yes)
+            {
+                if (!await viewModel.Configuracoes.AtualizarPainelAsync()) return;
+                _janelaAtualizacao?.Close();
+                _janelaAtualizacao = new AtualizacaoPainelWindow(
+                    viewModel.Configuracoes.CaminhoProgressoAtualizacaoPainel) { Owner = this };
+                _janelaAtualizacao.ReinicioPronto += (_, _) =>
+                {
+                    _allowExit = true;
+                    Close();
+                };
+                _janelaAtualizacao.Closed += (_, _) => _janelaAtualizacao = null;
+                _janelaAtualizacao.Show();
+                return;
+            }
+
+            _versaoRecusada = info.LatestVersion.ToString();
+            MessageBox.Show(this,
+                $"A atualização {info.LatestVersion} continua disponível. Você pode instalá-la em Configurações > Atualização do painel.",
+                "Atualização disponível", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        finally { _dialogoAtualizacaoAberto = false; }
     }
 
     private void OnWindowLoaded(object sender, RoutedEventArgs e)

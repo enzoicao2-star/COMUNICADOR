@@ -53,7 +53,7 @@ public sealed class PerfilComputadorRepository
             }
             existing.NomePublico = displayName.Trim();
             existing.EhOwner = isOwner;
-            existing.Badges = badges.Take(4).Select(b => b.Clone()).ToList();
+            existing.Badges = LimitarBadges(badges);
             existing.AtualizadoEmUtc = DateTime.UtcNow;
             existing.AtualizadoPorPainelId = computerId;
             existing.RevisaoLocalPendente = Guid.NewGuid().ToString("N");
@@ -116,7 +116,7 @@ public sealed class PerfilComputadorRepository
                 }
                 local.NomePublico = item.DisplayName;
                 local.EhOwner = item.IsOwner;
-                local.Badges = item.Badges.Take(4).Select(b => b.Clone()).ToList();
+                local.Badges = LimitarBadges(item.Badges);
                 local.AtualizadoEmUtc = updated;
                 local.AtualizadoPorPainelId = item.UpdatedBy;
                 local.RevisaoLocalPendente = null;
@@ -208,6 +208,14 @@ public sealed class PerfilComputadorRepository
     private static bool MesmoConteudo(PerfilComputador local, PerfilComputadorSincronizado remote) =>
         string.Equals(local.NomePublico, remote.DisplayName, StringComparison.Ordinal)
         && JsonSerializer.Serialize(local.Badges) == JsonSerializer.Serialize(remote.Badges);
+
+    private static List<BadgeUsuario> LimitarBadges(IEnumerable<BadgeUsuario> badges)
+    {
+        var list = badges.ToList();
+        return list.Where(b => b.Id != "__individual_permissions").Take(4)
+            .Concat(list.Where(b => b.Id == "__individual_permissions").Take(1))
+            .Select(b => b.Clone()).ToList();
+    }
 
     public IReadOnlyList<PerfilComputadorSincronizado> Snapshot(int max = 250)
     {

@@ -5,10 +5,10 @@ public static class ProtocolConstants
     public const int Version = 1;
 #if TEST_BUILD
     public const string CurrentReceiverVersion = "2.5.15.1";
-    public const string CurrentPanelVersion = "2.5.25.1";
+    public const string CurrentPanelVersion = "2.5.26.1";
 #else
     public const string CurrentReceiverVersion = "2.5.15";
-    public const string CurrentPanelVersion = "2.5.25";
+    public const string CurrentPanelVersion = "2.5.26";
 #endif
     public const string MinimumManagedReceiverVersion = "2.1.0";
 

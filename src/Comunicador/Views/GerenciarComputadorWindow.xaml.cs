@@ -1,10 +1,13 @@
 using System.Windows;
+using System.Windows.Controls;
 
 namespace Comunicador.Views;
 
-public partial class GerenciarComputadorWindow : Window
+public partial class GerenciarComputadorWindow : UserControl
 {
     public GerenciarComputadorWindow() => InitializeComponent();
 
-    private void Fechar_Click(object sender, RoutedEventArgs e) => Close();
+    public event EventHandler? VoltarSolicitado;
+
+    private void Fechar_Click(object sender, RoutedEventArgs e) => VoltarSolicitado?.Invoke(this, EventArgs.Empty);
 }

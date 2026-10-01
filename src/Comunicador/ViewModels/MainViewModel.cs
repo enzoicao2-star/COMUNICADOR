@@ -120,7 +120,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var atualizador = new AtualizadorReceptor(client, _conexoesReversas);
 
         Computadores = new ComputadoresViewModel(
-            computadoresStore, _discovery, client, atualizador, Settings, perfis, _cloudSync);
+            computadoresStore, _discovery, client, enviador, atualizador, Settings, perfis, _cloudSync);
         _sync = new SyncCoordinatorService(
             Computadores.Snapshot, client, _conexoesReversas, _historicoRepositorio, _logsRepositorio, perfis);
         Historico = new HistoricoViewModel(_historicoRepositorio, reenvios, Computadores, enviador);

@@ -48,7 +48,8 @@
             </Setter>
         </Style>
     </UserControl.Resources>
-    <DockPanel LastChildFill="True">
+    <Grid>
+      <DockPanel x:Name="ListaComputadores" LastChildFill="True">
 
         <Grid DockPanel.Dock="Top" Margin="0,0,0,20">
             <StackPanel>
@@ -86,6 +87,17 @@
                     <Button Grid.Column="4" Style="{StaticResource BotaoPrimario}" Content="Adicionar"
                             Command="{Binding AdicionarManualCommand}" />
                 </Grid>
+            </StackPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Top" Margin="0,0,0,12" CornerRadius="4" Padding="12,8"
+                Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                Visibility="{Binding AvisoTopo, Converter={StaticResource TextoParaVisibilidadeConverter}}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                           Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding AvisoTopo}" Margin="8,0,0,0" VerticalAlignment="Center"
+                           FontSize="13" TextWrapping="Wrap" />
             </StackPanel>
         </Border>
 
@@ -159,9 +171,23 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding NomeExibicao}"
-                                               FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
-                                               VerticalAlignment="Center" ToolTip="{Binding NomeExibicao}" />
+                                    <DockPanel Grid.Column="0" LastChildFill="True" VerticalAlignment="Center">
+                                        <Border DockPanel.Dock="Right" CornerRadius="5" Padding="5,2" Margin="5,0,0,0"
+                                                Background="{DynamicResource AccentBrush}"
+                                                Visibility="{Binding EsteComputador, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                ToolTip="Este é o computador onde o Comunicador está aberto">
+                                            <TextBlock Text="EU" FontSize="9" FontWeight="Bold" Foreground="White" />
+                                        </Border>
+                                        <Border DockPanel.Dock="Right" Width="18" Height="18" CornerRadius="4" Padding="0"
+                                                Margin="5,0,0,0" Background="{DynamicResource AccentBrush}"
+                                                Visibility="{Binding TemPermissoesIndividuais, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                ToolTip="Este usuário tem permissões individuais">
+                                            <TextBlock Text="+" FontSize="14" FontWeight="Bold" Foreground="White"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Text="{Binding NomeExibicao}" FontSize="15" FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    </DockPanel>
                                     <Border Grid.Column="1" CornerRadius="8" Padding="6,3"
                                             Background="{DynamicResource SurfaceAltBrush}" Margin="7,0,6,0"
                                             VerticalAlignment="Center" ToolTip="Latência individual medida com este computador">
@@ -233,5 +259,9 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
-    </DockPanel>
+      </DockPanel>
+      <ContentControl x:Name="ConfiguracoesComputadorHost" Visibility="Collapsed"
+                      Panel.ZIndex="2" HorizontalContentAlignment="Stretch"
+                      VerticalContentAlignment="Stretch" />
+    </Grid>
 </UserControl>
