@@ -36,10 +36,22 @@
     <FontFamily x:Key="AppFont">Segoe UI Variable Text, Segoe UI</FontFamily>
     <FontFamily x:Key="DisplayFont">Segoe UI Variable Display, Segoe UI</FontFamily>
 
-    <CornerRadius x:Key="ControlRadius">4</CornerRadius>
-    <CornerRadius x:Key="CardRadius">12</CornerRadius>
-    <DropShadowEffect x:Key="GlassCardShadow" Color="#000000" BlurRadius="18"
-                      ShadowDepth="2" Direction="270" Opacity="0.26" />
+    <CornerRadius x:Key="ControlRadius">8</CornerRadius>
+    <CornerRadius x:Key="CardRadius">16</CornerRadius>
+    <DropShadowEffect x:Key="GlassCardShadow" Color="#000000" BlurRadius="22"
+                      ShadowDepth="3" Direction="270" Opacity="0.30" />
+
+    <!-- Contorno sólido de foco para navegação por teclado, com o acento do tema. -->
+    <Style x:Key="FocoTeclado" TargetType="Control">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Border Margin="-3" CornerRadius="8" BorderThickness="2"
+                            BorderBrush="{DynamicResource AccentBrush}" IsHitTestVisible="False" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 
     <Style TargetType="Window">
         <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
@@ -59,7 +71,7 @@
     <!-- Tipografia Fluent -->
     <Style x:Key="TituloSecao" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
-        <Setter Property="FontSize" Value="28" />
+        <Setter Property="FontSize" Value="30" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Margin" Value="0,0,0,4" />
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
@@ -119,6 +131,7 @@
     </Style>
 
     <Style x:Key="NavButton" TargetType="Button">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocoTeclado}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{DynamicResource TextOnDarkBrush}" />
         <Setter Property="BorderThickness" Value="0" />
@@ -131,7 +144,8 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Grid Margin="6,2">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" />
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="{StaticResource ControlRadius}" />
                         <!-- barra de selecao a esquerda, igual a NavigationView do WinUI -->
                         <Border x:Name="Indicador" Width="3" Height="18" CornerRadius="2" HorizontalAlignment="Left"
                                 Margin="1,0,0,0" Background="Transparent" />
@@ -153,11 +167,12 @@
     </Style>
 
     <Style x:Key="BotaoPrimario" TargetType="Button">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocoTeclado}" />
         <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
         <Setter Property="Foreground" Value="White" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="20,0" />
-        <Setter Property="Height" Value="34" />
+        <Setter Property="Height" Value="38" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Cursor" Value="Hand" />
@@ -246,19 +261,21 @@
 
     <!-- Caixa de texto Fluent: borda fina, cantos 4px e sublinhado de acento no foco -->
     <Style TargetType="TextBox">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocoTeclado}" />
         <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}" />
         <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
         <Setter Property="Padding" Value="11,0" />
-        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="MinHeight" Value="38" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TextBox">
                     <Grid>
-                        <Border x:Name="Bd" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="6"
+                        <Border x:Name="Bd" Background="{DynamicResource SurfaceAltBrush}"
+                                CornerRadius="{StaticResource ControlRadius}"
                                 BorderBrush="{DynamicResource ControlBorderBrush}" BorderThickness="1" />
                         <Border x:Name="Foco" CornerRadius="0,0,4,4" Height="2" VerticalAlignment="Bottom"
                                 Background="Transparent" Margin="1,0,1,0" RenderTransformOrigin="0.5,0.5">
@@ -272,6 +289,7 @@
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                             <Setter TargetName="Foco" Property="Background" Value="{DynamicResource AccentBrush}" />
                             <Trigger.EnterActions>
                                 <BeginStoryboard><Storyboard>
@@ -300,6 +318,7 @@
     </Style>
 
     <Style TargetType="CheckBox">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocoTeclado}" />
         <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
@@ -349,15 +368,15 @@
     </Style>
 
     <Style TargetType="ComboBox">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocoTeclado}" />
         <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
         <Setter Property="Padding" Value="11,6" />
-        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="MinHeight" Value="38" />
         <Setter Property="MaxDropDownHeight" Value="280" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBox">
@@ -368,7 +387,7 @@
                                 <ControlTemplate TargetType="ToggleButton">
                                     <Border x:Name="Outer" Background="{DynamicResource SurfaceAltBrush}"
                                             BorderBrush="{DynamicResource ControlBorderBrush}" BorderThickness="1"
-                                            CornerRadius="7">
+                                            CornerRadius="{StaticResource ControlRadius}">
                                         <Path x:Name="Arrow" Data="M 0,0 L 4,4 L 8,0" Stroke="{DynamicResource TextSecondaryBrush}"
                                               StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                                               HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,13,0"
@@ -431,7 +450,8 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBoxItem">
-                    <Border x:Name="ItemBorder" Background="{TemplateBinding Background}" CornerRadius="7"
+                    <Border x:Name="ItemBorder" Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource ControlRadius}"
                             Padding="{TemplateBinding Padding}" RenderTransformOrigin="0.5,0.5">
                         <Border.RenderTransform><TranslateTransform /></Border.RenderTransform>
                         <Grid>
