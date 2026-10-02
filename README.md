@@ -1,4 +1,4 @@
-# Comunicador 2.5.27
+# Comunicador 2.5.28
 
 Painel de avisos para rede local: um `Comunicador.exe` (C#/.NET, WPF)
 manda notificações para outros computadores da rede, que podem
@@ -35,7 +35,7 @@ bloqueio local também vale quando apenas o receptor estiver aberto.
 
 - Interface WPF responsiva com moldura própria, temas claro/escuro,
   paletas predefinidas ou criadas pelo usuário e nove opções de fundo animado.
-- Navegação superior por ícones, transições e configurações salvas automaticamente.
+- Navegação superior em janela única, com transições suaves e botão Voltar entre telas.
 - Ping médio em tempo real com indicador verde, amarelo, vermelho ou sem conexão.
 - Avisos comuns, alertas centrais, imagens e vídeos por monitor, além de áudio invisível em segundo plano.
 - Identidade permanente por computador, nomes públicos e badges sincronizados pelo Supabase.

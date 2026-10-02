@@ -1,9 +1,12 @@
 using System.Windows;
+using System.Windows.Controls;
 
 namespace Comunicador.Views;
 
-public partial class AlterarSenhaAdminWindow : Window
+public partial class AlterarSenhaAdminWindow : UserControl
 {
+    public event EventHandler? ConfirmarSolicitado;
+    public event EventHandler? VoltarSolicitado;
     public string SenhaAtual => AtualBox.Password;
     public string NovaSenha => NovaBox.Password;
 
@@ -12,6 +15,8 @@ public partial class AlterarSenhaAdminWindow : Window
         InitializeComponent();
         Loaded += (_, _) => AtualBox.Focus();
     }
+
+    public void MostrarErro(string mensagem) => Erro.Text = mensagem;
 
     private void Confirmar_OnClick(object sender, RoutedEventArgs e)
     {
@@ -30,8 +35,8 @@ public partial class AlterarSenhaAdminWindow : Window
             Erro.Text = "Digite a senha atual.";
             return;
         }
-        DialogResult = true;
+        ConfirmarSolicitado?.Invoke(this, EventArgs.Empty);
     }
 
-    private void Cancelar_OnClick(object sender, RoutedEventArgs e) => DialogResult = false;
+    private void Cancelar_OnClick(object sender, RoutedEventArgs e) => VoltarSolicitado?.Invoke(this, EventArgs.Empty);
 }

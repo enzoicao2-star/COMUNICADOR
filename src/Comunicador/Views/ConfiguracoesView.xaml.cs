@@ -124,63 +124,80 @@ public partial class ConfiguracoesView : UserControl
         _ = AbrirLoginAdministradorAsync();
     }
 
-    private async Task AbrirLoginAdministradorAsync()
+    private Task AbrirLoginAdministradorAsync()
     {
-        if (_viewModel is null || _abrindoLoginAdmin) return;
+        if (_viewModel is null || _abrindoLoginAdmin) return Task.CompletedTask;
         _abrindoLoginAdmin = true;
-        var dialogo = new AdminLoginWindow(_viewModel.EstePainelEhOwner)
-        {
-            Owner = Window.GetWindow(this),
-        };
-        if (dialogo.ShowDialog() != true || string.IsNullOrWhiteSpace(dialogo.Senha))
+        if (Window.GetWindow(this) is not MainWindow main)
         {
             _abrindoLoginAdmin = false;
-            return;
+            return Task.CompletedTask;
         }
-
-        IsEnabled = false;
-        try
+        AdminOperationStatus.Visibility = Visibility.Collapsed;
+        var dialogo = new AdminLoginWindow(_viewModel.EstePainelEhOwner);
+        dialogo.VoltarSolicitado += (_, _) => main.NavegarVoltar();
+        dialogo.ContinuarSolicitado += async (_, _) =>
         {
-            var resultado = await _viewModel.AlternarAdministradorAsync(dialogo.Senha).ConfigureAwait(true);
-            var texto = resultado switch
+            dialogo.IsEnabled = false;
+            try
             {
-                "created" => "Senha criada. Este computador agora é o administrador supremo.",
-                "transferred" => "O acesso administrativo foi recuperado neste computador.",
-                "disabled" => "O acesso administrativo foi desativado neste computador.",
-                "invalid_password" => "Senha incorreta.",
-                "password_too_short" => "Use uma senha com pelo menos 8 caracteres.",
-                _ => "Não foi possível concluir a validação agora.",
-            };
-            MessageBox.Show(texto, "Administrador", MessageBoxButton.OK,
-                resultado is "created" or "transferred" or "disabled"
-                    ? MessageBoxImage.Information : MessageBoxImage.Warning);
-        }
-        finally
-        {
-            IsEnabled = true;
-            _abrindoLoginAdmin = false;
-        }
+                var resultado = await _viewModel!.AlternarAdministradorAsync(dialogo.Senha).ConfigureAwait(true);
+                var sucesso = resultado is "created" or "transferred" or "disabled";
+                var texto = resultado switch
+                {
+                    "created" => "Senha criada. Este computador agora é o administrador supremo.",
+                    "transferred" => "O acesso administrativo foi recuperado neste computador.",
+                    "disabled" => "O acesso administrativo foi desativado neste computador.",
+                    "invalid_password" => "Senha incorreta.",
+                    "password_too_short" => "Use uma senha com pelo menos 8 caracteres.",
+                    _ => "Não foi possível concluir a validação agora.",
+                };
+                if (!sucesso)
+                {
+                    dialogo.MostrarErro(texto);
+                    return;
+                }
+                AdminOperationStatus.Text = texto;
+                AdminOperationStatus.Visibility = Visibility.Visible;
+                main.NavegarVoltar();
+            }
+            finally { dialogo.IsEnabled = true; }
+        };
+        main.NavegarPara(dialogo, () => _abrindoLoginAdmin = false);
+        return Task.CompletedTask;
     }
 
-    private async void AlterarSenhaAdmin_OnClick(object sender, RoutedEventArgs e)
+    private void AlterarSenhaAdmin_OnClick(object sender, RoutedEventArgs e)
     {
         if (_viewModel?.EstePainelEhOwner != true) return;
-        var dialog = new AlterarSenhaAdminWindow { Owner = Window.GetWindow(this) };
-        if (dialog.ShowDialog() != true) return;
-        IsEnabled = false;
-        try
+        if (Window.GetWindow(this) is not MainWindow main) return;
+        AdminOperationStatus.Visibility = Visibility.Collapsed;
+        var dialog = new AlterarSenhaAdminWindow();
+        dialog.VoltarSolicitado += (_, _) => main.NavegarVoltar();
+        dialog.ConfirmarSolicitado += async (_, _) =>
         {
-            var result = await _viewModel.AlterarSenhaAdminAsync(dialog.SenhaAtual, dialog.NovaSenha);
-            var message = result switch
+            dialog.IsEnabled = false;
+            try
             {
-                "changed" => "Senha administrativa alterada e sincronizada.",
-                "invalid_password" => "A senha atual está incorreta.",
-                "password_too_short" => "A nova senha deve ter de 8 a 256 caracteres.",
-                _ => "Não foi possível alterar a senha agora.",
-            };
-            MessageBox.Show(message, "Administrador", MessageBoxButton.OK,
-                result == "changed" ? MessageBoxImage.Information : MessageBoxImage.Warning);
-        }
-        finally { IsEnabled = true; }
+                var result = await _viewModel!.AlterarSenhaAdminAsync(dialog.SenhaAtual, dialog.NovaSenha);
+                var message = result switch
+                {
+                    "changed" => "Senha administrativa alterada e sincronizada.",
+                    "invalid_password" => "A senha atual está incorreta.",
+                    "password_too_short" => "A nova senha deve ter de 8 a 256 caracteres.",
+                    _ => "Não foi possível alterar a senha agora.",
+                };
+                if (result != "changed")
+                {
+                    dialog.MostrarErro(message);
+                    return;
+                }
+                AdminOperationStatus.Text = message;
+                AdminOperationStatus.Visibility = Visibility.Visible;
+                main.NavegarVoltar();
+            }
+            finally { dialog.IsEnabled = true; }
+        };
+        main.NavegarPara(dialog);
     }
 }

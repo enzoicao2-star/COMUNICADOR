@@ -10,7 +10,7 @@ using Microsoft.Win32;
 
 namespace Comunicador.Views;
 
-public partial class CarrosselWindow : Window
+public partial class CarrosselWindow : UserControl
 {
     private readonly EnviadorNotificacoes _enviador;
     private readonly Func<bool> _canStart;
@@ -30,8 +30,9 @@ public partial class CarrosselWindow : Window
         _recipients = recipients.ToList();
         ImagesList.ItemsSource = _images;
         RecipientsList.ItemsSource = _recipients;
-        Closed += (_, _) => _closing.Cancel();
     }
+
+    public void CancelarOperacoes() => _closing.Cancel();
 
     private void AddImages_Click(object sender, RoutedEventArgs e)
     {
@@ -42,7 +43,7 @@ public partial class CarrosselWindow : Window
             Multiselect = true,
             CheckFileExists = true,
         };
-        if (dialog.ShowDialog(this) != true) return;
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
         var rejected = 0;
         foreach (var path in dialog.FileNames)
         {

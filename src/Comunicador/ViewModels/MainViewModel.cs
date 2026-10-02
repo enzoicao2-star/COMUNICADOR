@@ -473,15 +473,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         Configuracoes.AtualizarStatusReceptor();
     }
 
-    public void ShowUpdateSummary(System.Windows.Window owner)
-    {
-        var resumo = _panelUpdate.ConsumeUpdateSummary();
-        if (!string.IsNullOrWhiteSpace(resumo))
-        {
-            var window = new Views.AtualizacaoConcluidaWindow(resumo) { Owner = owner };
-            window.Show();
-        }
-    }
+    public string? ConsumeUpdateSummary() => _panelUpdate.ConsumeUpdateSummary();
 
     public void Dispose()
     {

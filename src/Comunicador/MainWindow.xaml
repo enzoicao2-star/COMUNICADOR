@@ -5,7 +5,7 @@
         xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Comunicador" Height="820" Width="1260" MinHeight="600" MinWidth="760"
-        Loaded="OnWindowLoaded" StateChanged="OnWindowStateChanged"
+        Loaded="OnWindowLoaded" StateChanged="OnWindowStateChanged" PreviewKeyDown="OnMainWindowPreviewKeyDown"
         WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResize"
         Background="{DynamicResource BackgroundBrush}" Icon="Assets/Comunicador.ico">
     <shell:WindowChrome.WindowChrome>
@@ -252,6 +252,11 @@
                     </UniformGrid>
                 </Grid>
 
+                <Button x:Name="NavigationBackButton" Grid.Row="0" Content="‹  Voltar"
+                        HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14,7,0,0"
+                        Padding="12,8" MinWidth="88" Height="38" Click="OnNavigationBackClick"
+                        Style="{StaticResource BotaoSecundario}" Visibility="Collapsed" Panel.ZIndex="6" />
+
                 <Border Grid.Row="1" Margin="28,10,28,24" Background="Transparent">
                     <ContentControl x:Name="SectionContent">
                         <ContentControl.RenderTransform>
@@ -262,6 +267,17 @@
                         </ContentControl.RenderTransform>
                     </ContentControl>
                 </Border>
+            </Grid>
+
+            <Grid x:Name="StartupOverlay" Background="{DynamicResource BackgroundBrush}" Panel.ZIndex="20">
+                <Image x:Name="StartupIcon" Width="160" Height="160"
+                       Source="/Assets/Comunicador-Splash.png" Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="HighQuality" RenderTransformOrigin="0.5,0.5"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
+                    <Image.RenderTransform>
+                        <ScaleTransform x:Name="StartupScale" ScaleX="1" ScaleY="1" />
+                    </Image.RenderTransform>
+                </Image>
             </Grid>
         </Grid>
     </Border>

@@ -28,21 +28,19 @@ public partial class ComputadoresView : UserControl
             return;
         }
 
-        var mainViewModel = Window.GetWindow(this)?.DataContext as MainViewModel;
+        var main = Window.GetWindow(this) as MainWindow;
+        var mainViewModel = main?.DataContext as MainViewModel;
+        if (main is null || mainViewModel is null) return;
         viewModel.ComputadorGerenciado = computador;
-        var janela = new AcoesComputadorWindow(computador, viewModel, mainViewModel?.Mensagens)
+        var acoes = new AcoesComputadorWindow(computador, viewModel, mainViewModel.Mensagens);
+        acoes.ConfigurarSolicitado += (_, _) => AbrirConfiguracoes(main, computador, viewModel);
+        acoes.EnviarSolicitado += imagem =>
         {
-            Owner = Window.GetWindow(this),
+            mainViewModel.Mensagens.IniciarEnvioIndividual(computador, imagem);
+            var compositor = new MensagensView { DataContext = mainViewModel.Mensagens };
+            main.NavegarPara(compositor, mainViewModel.Mensagens.FinalizarEnvioIndividual);
         };
-        var abrirConfiguracoes = false;
-        janela.ConfigurarSolicitado += (_, _) =>
-        {
-            abrirConfiguracoes = true;
-            janela.Close();
-        };
-        janela.ShowDialog();
-        if (abrirConfiguracoes) ExibirConfiguracoes(computador, viewModel);
-        else viewModel.ComputadorGerenciado = null;
+        main.NavegarPara(acoes, () => viewModel.ComputadorGerenciado = null);
         e.Handled = true;
     }
 
@@ -51,23 +49,18 @@ public partial class ComputadoresView : UserControl
         if (sender is not FrameworkElement { DataContext: Computador computador }
             || DataContext is not ComputadoresViewModel viewModel) return;
 
-        ExibirConfiguracoes(computador, viewModel);
+        if (Window.GetWindow(this) is MainWindow main)
+            AbrirConfiguracoes(main, computador, viewModel, limparSelecaoAoVoltar: true);
         e.Handled = true;
     }
 
-    private void ExibirConfiguracoes(Computador computador, ComputadoresViewModel viewModel)
+    private static void AbrirConfiguracoes(MainWindow main, Computador computador,
+        ComputadoresViewModel viewModel, bool limparSelecaoAoVoltar = false)
     {
         viewModel.ComputadorGerenciado = computador;
         var painel = new GerenciarComputadorWindow { DataContext = viewModel };
-        painel.VoltarSolicitado += (_, _) =>
-        {
-            ConfiguracoesComputadorHost.Content = null;
-            ConfiguracoesComputadorHost.Visibility = Visibility.Collapsed;
-            ListaComputadores.Visibility = Visibility.Visible;
-            viewModel.ComputadorGerenciado = null;
-        };
-        ListaComputadores.Visibility = Visibility.Collapsed;
-        ConfiguracoesComputadorHost.Content = painel;
-        ConfiguracoesComputadorHost.Visibility = Visibility.Visible;
+        painel.VoltarSolicitado += (_, _) => main.NavegarVoltar();
+        main.NavegarPara(painel, limparSelecaoAoVoltar
+            ? () => viewModel.ComputadorGerenciado = null : null);
     }
 }

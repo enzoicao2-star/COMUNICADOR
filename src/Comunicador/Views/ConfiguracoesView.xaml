@@ -578,6 +578,8 @@
                                        Style="{StaticResource Subtitulo}" Margin="0,4,0,10" />
                             <Button Content="Alterar senha administrativa" Style="{StaticResource BotaoSecundario}"
                                     HorizontalAlignment="Left" Click="AlterarSenhaAdmin_OnClick" />
+                            <TextBlock x:Name="AdminOperationStatus" TextWrapping="Wrap" Margin="0,10,0,0"
+                                       Foreground="{DynamicResource AccentBrush}" Visibility="Collapsed" />
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,14,0,0">

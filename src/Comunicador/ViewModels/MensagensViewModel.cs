@@ -418,6 +418,8 @@ public sealed class MensagensViewModel : ViewModelBase
     public ICommand AtualizarDestinatariosCommand { get; }
     public ICommand SelecionarImagemCommand { get; }
     public ICommand AbrirCarrosselCommand { get; }
+    public event EventHandler? AbrirCarrosselSolicitado;
+    internal EnviadorNotificacoes Enviador => _enviador;
     public ICommand SelecionarVideoCommand { get; }
     public ICommand SelecionarAudioCommand { get; }
     public ICommand RemoverImagemCommand { get; }
@@ -470,15 +472,8 @@ public sealed class MensagensViewModel : ViewModelBase
             () => PodeGerenciarBiblioteca && ModeloSelecionado is not null);
         AtualizarDestinatariosCommand = new RelayCommand(_ => AtualizarDestinatarios());
         SelecionarImagemCommand = new RelayCommand(_ => SelecionarImagem());
-        AbrirCarrosselCommand = new RelayCommand(_ =>
-        {
-            var window = new Views.CarrosselWindow(_enviador, Destinatarios,
-                () => PodeGerenciarCarrossel, () => PodeGerenciarCarrossel)
-            {
-                Owner = System.Windows.Application.Current.MainWindow,
-            };
-            window.ShowDialog();
-        }, _ => PodeGerenciarCarrossel);
+        AbrirCarrosselCommand = new RelayCommand(_ => AbrirCarrosselSolicitado?.Invoke(this, EventArgs.Empty),
+            _ => PodeGerenciarCarrossel);
         SelecionarVideoCommand = new RelayCommand(_ => SelecionarVideo());
         SelecionarAudioCommand = new RelayCommand(_ => SelecionarAudio());
         RemoverImagemCommand = new RelayCommand(_ => RemoverMidia(), _ => TemMidia);

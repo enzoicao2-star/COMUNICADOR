@@ -1,12 +1,13 @@
 using System.IO;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using Comunicador.Services;
 
 namespace Comunicador.Views;
 
-public partial class AtualizacaoPainelWindow : Window
+public partial class AtualizacaoPainelWindow : UserControl
 {
     private readonly string _progressPath;
     private readonly DispatcherTimer _timer;
@@ -14,6 +15,7 @@ public partial class AtualizacaoPainelWindow : Window
 
     public event EventHandler? ReinicioPronto;
     public event EventHandler? FinalizadaSemReinicio;
+    public event EventHandler? FalhaOcorreu;
 
     public AtualizacaoPainelWindow(string progressPath)
     {
@@ -22,7 +24,7 @@ public partial class AtualizacaoPainelWindow : Window
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         _timer.Tick += AtualizarProgresso;
         _timer.Start();
-        Closed += (_, _) => _timer.Stop();
+        Unloaded += (_, _) => _timer.Stop();
     }
 
     private async void AtualizarProgresso(object? sender, EventArgs e)
@@ -55,7 +57,6 @@ public partial class AtualizacaoPainelWindow : Window
             {
                 _timer.Stop();
                 FinalizadaSemReinicio?.Invoke(this, EventArgs.Empty);
-                Close();
             }
             else if (progresso.Phase == "failed")
             {
@@ -65,6 +66,7 @@ public partial class AtualizacaoPainelWindow : Window
                 Fechar.Visibility = Visibility.Visible;
                 StatusTexto.TextWrapping = TextWrapping.Wrap;
                 Progresso.Foreground = System.Windows.Media.Brushes.IndianRed;
+                FalhaOcorreu?.Invoke(this, EventArgs.Empty);
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
@@ -74,5 +76,7 @@ public partial class AtualizacaoPainelWindow : Window
         }
     }
 
-    private void Fechar_Click(object sender, RoutedEventArgs e) => Close();
+    public event EventHandler? VoltarSolicitado;
+
+    private void Fechar_Click(object sender, RoutedEventArgs e) => VoltarSolicitado?.Invoke(this, EventArgs.Empty);
 }

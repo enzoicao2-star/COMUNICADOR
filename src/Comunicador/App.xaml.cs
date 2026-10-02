@@ -20,7 +20,7 @@ public partial class App : Application
     private Task? _activationListener;
     private bool _ownsInstanceMutex;
 
-    protected override async void OnStartup(StartupEventArgs e)
+    protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -68,35 +68,41 @@ public partial class App : Application
             try
             {
                 var marker = startupSmokeArgument["--startup-smoke-test=".Length..];
-                var smokeSplash = new SplashWindow
+                var smokeWindow = new MainWindow
                 {
-                    WindowStartupLocation = WindowStartupLocation.Manual,
-                    Left = -10000,
-                    Top = -10000,
-                    Topmost = false,
-                };
-                var smokeWindow = new Window
-                {
-                    Content = new ComputadoresView(),
-                    Width = 1,
-                    Height = 1,
+                    Width = 760,
+                    Height = 600,
                     Left = -10000,
                     Top = -10000,
                     WindowStartupLocation = WindowStartupLocation.Manual,
-                    WindowStyle = WindowStyle.None,
                     ShowInTaskbar = false,
                     ShowActivated = false,
                     Opacity = 0,
                 };
                 MainWindow = smokeWindow;
-                smokeSplash.Show();
-                var smokeSplashTime = Stopwatch.StartNew();
-                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
-                await ShowMainWindowAsync(smokeWindow, smokeSplash, smokeSplashTime);
-                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
-                File.WriteAllText(marker, "A abertura WPF e o ícone inicial foram exibidos.");
-                smokeWindow.Close();
-                Shutdown(0);
+                smokeWindow.ContentRendered += (_, _) =>
+                {
+                    try
+                    {
+                        smokeWindow.NavegarPara(new System.Windows.Controls.Grid());
+                        var onlyOneWindow = Current.Windows.OfType<Window>().Count() == 1;
+                        var openedInsideMainWindow = smokeWindow.TelaAninhadaAtiva;
+                        smokeWindow.NavegarVoltar();
+                        var returnedToMainScreen = !smokeWindow.TelaAninhadaAtiva;
+                        smokeWindow.UpdateLayout();
+                        if (!onlyOneWindow || !openedInsideMainWindow || !returnedToMainScreen)
+                            throw new InvalidOperationException("A navegação não permaneceu em uma única janela principal.");
+                        File.WriteAllText(marker, "Primeiro quadro, troca de tela e Voltar validados com uma única janela.");
+                        smokeWindow.Close();
+                        Shutdown(0);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error($"Falha no teste da abertura completa: {ex}");
+                        Shutdown(1);
+                    }
+                };
+                smokeWindow.Show();
             }
             catch (Exception ex)
             {
@@ -120,15 +126,9 @@ public partial class App : Application
         BenchmarkFile = e.Args.FirstOrDefault(arg =>
             arg.StartsWith("--benchmark-file=", StringComparison.OrdinalIgnoreCase))?[17..];
 
-        var splash = new SplashWindow();
-        splash.Show();
-        var splashTime = Stopwatch.StartNew();
         try
         {
-            // A animação só começa depois que o primeiro quadro foi desenhado.
-            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
             _mainViewModel = new MainViewModel();
-            _mainViewModel.Start();
 
             var window = new MainWindow { DataContext = _mainViewModel };
 #if TEST_BUILD
@@ -146,27 +146,20 @@ public partial class App : Application
                 }
             }
             MainWindow = window;
-            await ShowMainWindowAsync(window, splash, splashTime);
-            _mainViewModel.ShowUpdateSummary(window);
+            window.Show();
+            // Deixa o WPF desenhar a primeira tela antes de iniciar descoberta,
+            // sincronização na nuvem e monitoramento em segundo plano.
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(_mainViewModel.Start));
+            var resumo = _mainViewModel.ConsumeUpdateSummary();
+            if (!string.IsNullOrWhiteSpace(resumo)) window.MostrarResumoAtualizacao(resumo);
         }
         catch (Exception ex)
         {
-            splash.Topmost = false;
-            splash.Hide();
             Logger.Error($"Falha ao abrir o Comunicador: {ex}");
             MessageBox.Show($"Não foi possível abrir o Comunicador:\n\n{ex.Message}\n\nDetalhes em: {Storage.AppPaths.LogFile}",
                 "Comunicador", MessageBoxButton.OK, MessageBoxImage.Error);
-            splash.Close();
             Shutdown(1);
         }
-    }
-
-    private static async Task ShowMainWindowAsync(Window window, SplashWindow splash, Stopwatch splashTime)
-    {
-        var remaining = 1500 - (int)splashTime.ElapsedMilliseconds;
-        if (remaining > 0) await Task.Delay(remaining);
-        window.Show();
-        await splash.AnimateExitAsync();
     }
 
     private bool ClaimSingleInstance()
@@ -222,11 +215,6 @@ public partial class App : Application
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         Logger.Error($"Exceção não tratada (UI): {e.Exception}");
-        foreach (var splash in Current.Windows.OfType<SplashWindow>())
-        {
-            splash.Topmost = false;
-            splash.Hide();
-        }
         MessageBox.Show(
             $"Ocorreu um erro inesperado:\n\n{e.Exception.Message}\n\nDetalhes em: {Storage.AppPaths.LogFile}",
             "Comunicador", MessageBoxButton.OK, MessageBoxImage.Error);

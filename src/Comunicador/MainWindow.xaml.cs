@@ -17,13 +17,20 @@ namespace Comunicador;
 
 public partial class MainWindow : Window
 {
+    private sealed record NavigationFrame(object? Content, Action? OnExit, bool Locked, bool BackAllowed);
+    internal bool TelaAninhadaAtiva => _navigationStack.Count > 0;
+
     [DllImport("kernel32.dll")]
     private static extern uint GetCurrentThreadId();
 
     private readonly Dictionary<object, FrameworkElement> _sectionViews =
         new(ReferenceEqualityComparer.Instance);
     private readonly Grid _sectionHost = new();
+    private readonly Stack<NavigationFrame> _navigationStack = new();
     private MainViewModel? _viewModel;
+    private Action? _currentNavigationCleanup;
+    private bool _navigationLocked;
+    private bool _currentBackAllowed = true;
     private int _warmupGeneration;
     private int _navigationPauseGeneration;
     private bool _navigationTransitionActive;
@@ -31,7 +38,6 @@ public partial class MainWindow : Window
     private bool _verificandoAtualizacao;
     private bool _dialogoAtualizacaoAberto;
     private string? _versaoRecusada;
-    private AtualizacaoPainelWindow? _janelaAtualizacao;
     private readonly Forms.NotifyIcon _trayIcon;
     private bool _allowExit;
 
@@ -147,16 +153,21 @@ public partial class MainWindow : Window
 
     private async Task VerificarAtualizacaoAoIniciarAsync(MainViewModel viewModel)
     {
-        var info = await viewModel.Configuracoes.VerificarAtualizacaoPainelAsync();
-        if (info is not { IsAvailable: true }) return;
-
-        await PerguntarAtualizacaoAsync(viewModel, info);
+        if (_verificandoAtualizacao || _dialogoAtualizacaoAberto
+            || SectionContent.Content is AtualizacaoDisponivelWindow or AtualizacaoPainelWindow) return;
+        _verificandoAtualizacao = true;
+        try
+        {
+            var info = await viewModel.Configuracoes.VerificarAtualizacaoPainelAsync();
+            if (info is { IsAvailable: true }) await PerguntarAtualizacaoAsync(viewModel, info);
+        }
+        finally { _verificandoAtualizacao = false; }
     }
 
     private async void OnMainWindowActivated(object? sender, EventArgs e)
     {
         if (!_janelaFoiReativada || _verificandoAtualizacao || _dialogoAtualizacaoAberto
-            || _viewModel is null || _janelaAtualizacao is { IsVisible: true })
+            || _viewModel is null || SectionContent.Content is AtualizacaoDisponivelWindow or AtualizacaoPainelWindow)
             return;
 
         _janelaFoiReativada = false;
@@ -170,40 +181,47 @@ public partial class MainWindow : Window
         finally { _verificandoAtualizacao = false; }
     }
 
-    private async Task PerguntarAtualizacaoAsync(MainViewModel viewModel, Services.PanelUpdateInfo info)
+    private Task PerguntarAtualizacaoAsync(MainViewModel viewModel, Services.PanelUpdateInfo info)
     {
-        if (_dialogoAtualizacaoAberto) return;
+        if (_dialogoAtualizacaoAberto) return Task.CompletedTask;
         _dialogoAtualizacaoAberto = true;
         try
         {
-            var resposta = MessageBox.Show(this,
-                $"Versão em uso: {info.CurrentVersion}\n" +
-                $"Nova versão: {info.LatestVersion}\n\n" +
-                $"Cópia aberta: {Environment.ProcessPath}\n\n" +
-                $"{info.Summary}\n\nDeseja atualizar agora?",
-                "Atualização do Comunicador", MessageBoxButton.YesNo, MessageBoxImage.Information);
-            if (resposta == MessageBoxResult.Yes)
+            var tela = new AtualizacaoDisponivelWindow(info);
+            tela.AdiarSolicitado += (_, _) =>
             {
-                if (!await viewModel.Configuracoes.AtualizarPainelAsync()) return;
-                _janelaAtualizacao?.Close();
-                _janelaAtualizacao = new AtualizacaoPainelWindow(
-                    viewModel.Configuracoes.CaminhoProgressoAtualizacaoPainel) { Owner = this };
-                _janelaAtualizacao.ReinicioPronto += (_, _) =>
+                _versaoRecusada = info.LatestVersion.ToString();
+                tela.MostrarAdiada();
+            };
+            tela.AtualizarSolicitado += async (_, _) =>
+            {
+                tela.IsEnabled = false;
+                if (!await viewModel.Configuracoes.AtualizarPainelAsync())
+                {
+                    tela.IsEnabled = true;
+                    tela.MostrarErro("Não foi possível iniciar a atualização. Confira a conexão e tente novamente em Configurações.");
+                    return;
+                }
+
+                var progresso = new AtualizacaoPainelWindow(viewModel.Configuracoes.CaminhoProgressoAtualizacaoPainel);
+                progresso.ReinicioPronto += (_, _) =>
                 {
                     _allowExit = true;
                     Close();
                 };
-                _janelaAtualizacao.Closed += (_, _) => _janelaAtualizacao = null;
-                _janelaAtualizacao.Show();
-                return;
-            }
-
-            _versaoRecusada = info.LatestVersion.ToString();
-            MessageBox.Show(this,
-                $"A atualização {info.LatestVersion} continua disponível. Você pode instalá-la em Configurações > Atualização do painel.",
-                "Atualização disponível", MessageBoxButton.OK, MessageBoxImage.Information);
+                progresso.VoltarSolicitado += (_, _) => NavegarVoltar();
+                progresso.FalhaOcorreu += (_, _) => DesbloquearNavegacao();
+                progresso.FinalizadaSemReinicio += (_, _) =>
+                {
+                    DesbloquearNavegacao();
+                    NavegarVoltar();
+                };
+                NavegarPara(progresso, canGoBack: false, lockNavigation: true);
+            };
+            NavegarPara(tela);
         }
         finally { _dialogoAtualizacaoAberto = false; }
+        return Task.CompletedTask;
     }
 
     private void OnWindowLoaded(object sender, RoutedEventArgs e)
@@ -212,7 +230,45 @@ public partial class MainWindow : Window
         MostrarSecaoAtual();
         AnimarSecao();
         AtualizarMoldura();
+        _ = AnimarAberturaAsync();
         _ = PreaquecerSecoesAsync(++_warmupGeneration);
+    }
+
+    private async Task AnimarAberturaAsync()
+    {
+        var duracaoPulso = TimeSpan.FromMilliseconds(850);
+        var easing = new SineEase { EasingMode = EasingMode.EaseInOut };
+        StartupScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(.91, 1.07, duracaoPulso)
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = easing,
+        });
+        StartupScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(.91, 1.07, duracaoPulso)
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = easing,
+        });
+        StartupIcon.BeginAnimation(OpacityProperty, new DoubleAnimation(.65, 1, duracaoPulso)
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = easing,
+        });
+        await Task.Delay(1500);
+        var animacao = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(220))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn },
+        };
+        animacao.Completed += (_, _) =>
+        {
+            StartupIcon.BeginAnimation(OpacityProperty, null);
+            StartupScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            StartupScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            StartupOverlay.Visibility = Visibility.Collapsed;
+        };
+        StartupOverlay.BeginAnimation(OpacityProperty, animacao);
     }
 
     private static IEnumerable<DependencyObject> EnumerateVisuals(DependencyObject root)
@@ -233,6 +289,7 @@ public partial class MainWindow : Window
         if (_viewModel is null) return;
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        _viewModel.Mensagens.AbrirCarrosselSolicitado += OnAbrirCarrosselSolicitado;
         PrepararSecoes(_viewModel);
         MostrarSecaoAtual();
     }
@@ -250,6 +307,8 @@ public partial class MainWindow : Window
     private void DesconectarViewModel()
     {
         if (_viewModel is not null) _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        if (_viewModel is not null) _viewModel.Mensagens.AbrirCarrosselSolicitado -= OnAbrirCarrosselSolicitado;
+        LimparNavegacaoAninhada();
         _warmupGeneration++;
         _sectionHost.Children.Clear();
         _sectionViews.Clear();
@@ -261,6 +320,8 @@ public partial class MainWindow : Window
         if (e.PropertyName != nameof(MainViewModel.SecaoAtual)) return;
         Dispatcher.BeginInvoke(() =>
         {
+            LimparNavegacaoAninhada();
+            SectionContent.Content = _sectionHost;
             _navigationTransitionActive = true;
             AtualizarAnimacaoFundo();
             MostrarSecaoAtual();
@@ -268,6 +329,82 @@ public partial class MainWindow : Window
             _ = RetomarFundoAsync(++_navigationPauseGeneration);
         }, DispatcherPriority.Render);
     }
+
+    public void NavegarPara(FrameworkElement page, Action? onExit = null,
+        bool canGoBack = true, bool lockNavigation = false)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        _navigationStack.Push(new NavigationFrame(SectionContent.Content, _currentNavigationCleanup,
+            _navigationLocked, _currentBackAllowed));
+        _currentNavigationCleanup = onExit;
+        _currentBackAllowed = canGoBack;
+        _navigationLocked = lockNavigation;
+        SectionContent.Content = page;
+        AtualizarNavegacaoAninhada();
+        AnimarSecao();
+    }
+
+    public void NavegarVoltar()
+    {
+        if (_navigationLocked || !_currentBackAllowed || _navigationStack.Count == 0) return;
+        _currentNavigationCleanup?.Invoke();
+        _currentNavigationCleanup = null;
+        var previous = _navigationStack.Pop();
+        SectionContent.Content = previous.Content;
+        _currentNavigationCleanup = previous.OnExit;
+        _navigationLocked = previous.Locked;
+        _currentBackAllowed = previous.BackAllowed;
+        AtualizarNavegacaoAninhada();
+        AnimarSecao();
+    }
+
+    private void LimparNavegacaoAninhada()
+    {
+        _currentNavigationCleanup?.Invoke();
+        _currentNavigationCleanup = null;
+        foreach (var frame in _navigationStack)
+            frame.OnExit?.Invoke();
+        _navigationStack.Clear();
+        _navigationLocked = false;
+        _currentBackAllowed = true;
+        AtualizarNavegacaoAninhada();
+    }
+
+    private void AtualizarNavegacaoAninhada()
+    {
+        NavigationBackButton.Visibility = _navigationStack.Count > 0 && _currentBackAllowed
+            ? Visibility.Visible : Visibility.Collapsed;
+        TopNavigation.IsEnabled = !_navigationLocked;
+    }
+
+    private void DesbloquearNavegacao()
+    {
+        _navigationLocked = false;
+        _currentBackAllowed = true;
+        AtualizarNavegacaoAninhada();
+    }
+
+    private void OnNavigationBackClick(object sender, RoutedEventArgs e) => NavegarVoltar();
+
+    private void OnMainWindowPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Escape || _navigationStack.Count == 0
+            || _navigationLocked || !_currentBackAllowed) return;
+        NavegarVoltar();
+        e.Handled = true;
+    }
+
+    private void OnAbrirCarrosselSolicitado(object? sender, EventArgs e)
+    {
+        if (_viewModel is null) return;
+        var mensagens = _viewModel.Mensagens;
+        var carrossel = new CarrosselWindow(mensagens.Enviador, mensagens.Destinatarios,
+            () => mensagens.PodeGerenciarCarrossel, () => mensagens.PodeGerenciarCarrossel);
+        NavegarPara(carrossel, carrossel.CancelarOperacoes);
+    }
+
+    public void MostrarResumoAtualizacao(string resumo) =>
+        NavegarPara(new AtualizacaoConcluidaWindow(resumo));
 
     private void MostrarSecaoAtual()
     {

@@ -1,12 +1,14 @@
 using System.Windows;
+using System.Windows.Controls;
 using Comunicador.Models;
 using Comunicador.ViewModels;
 
 namespace Comunicador.Views;
 
-public partial class AcoesComputadorWindow : Window
+public partial class AcoesComputadorWindow : UserControl
 {
     public event EventHandler? ConfigurarSolicitado;
+    public event Action<bool>? EnviarSolicitado;
     private readonly Computador _computador;
     private readonly ComputadoresViewModel _computadores;
     private readonly MensagensViewModel? _mensagens;
@@ -34,27 +36,7 @@ public partial class AcoesComputadorWindow : Window
             return;
         }
 
-        _mensagens.IniciarEnvioIndividual(_computador, imagem);
-        try
-        {
-            var janela = new Window
-            {
-                Title = imagem ? $"Enviar imagem · {_computador.NomeExibicao}" : $"Mensagem beta · {_computador.NomeExibicao}",
-                Owner = this,
-                Width = 1080,
-                Height = 790,
-                MinWidth = 760,
-                MinHeight = 620,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Background = (System.Windows.Media.Brush)FindResource("BackgroundBrush"),
-                Content = new MensagensView { DataContext = _mensagens },
-            };
-            janela.ShowDialog();
-        }
-        finally
-        {
-            _mensagens.FinalizarEnvioIndividual();
-        }
+        EnviarSolicitado?.Invoke(imagem);
     }
 
     private void MostrarCmd_Click(object sender, RoutedEventArgs e) => CmdPanel.Visibility = Visibility.Visible;
@@ -64,5 +46,6 @@ public partial class AcoesComputadorWindow : Window
         ConfigurarSolicitado?.Invoke(this, EventArgs.Empty);
     }
 
-    private void Fechar_Click(object sender, RoutedEventArgs e) => Close();
+    private void Fechar_Click(object sender, RoutedEventArgs e) =>
+        (Window.GetWindow(this) as MainWindow)?.NavegarVoltar();
 }

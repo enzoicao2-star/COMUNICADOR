@@ -1,12 +1,12 @@
 {
-    "version":  "2.5.27.0",
+    "version":  "2.5.28.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "1206E45248DE0B04A14014F10EDC009581C19F74FE2A9C2534636F3FFB7C609A",
-    "summary":  "A versão 2.5.27 corrige a abertura do Comunicador e esclarece qual instalação está sendo atualizada.",
+    "sha256":  "38DAE863ECDA0882953B623843D5D5757EA1DC18711C6C137A1BFE1310507FC4",
+    "summary":  "A versão 2.5.28 abre mais rápido e reúne as telas do Comunicador em uma única janela, com transições suaves e retorno para a tela anterior.",
     "changes":  [
-                    "O ícone inicial agora é nítido, aparece sozinho e pulsa sobre fundo transparente.",
-                    "A janela principal abre rapidamente, sem a transformação que impedia a versão 2.5.26 de iniciar.",
-                    "O aviso de atualização mostra a versão realmente em execução e o caminho da cópia aberta.",
-                    "A validação da release agora percorre também a animação inicial antes da publicação."
+                    "Ações do computador, configurações, carrossel, segurança e atualização agora abrem dentro da janela principal.",
+                    "O botão Voltar e a tecla Escape retornam à tela anterior com uma transição suave.",
+                    "A abertura mostra somente o ícone pulsando dentro da janela principal, sem abrir uma janela de carregamento separada.",
+                    "Descoberta, sincronização e monitoramento começam após a primeira tela aparecer, reduzindo o trabalho antes da abertura."
                 ]
 }

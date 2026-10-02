@@ -260,8 +260,5 @@
             </ItemsControl>
         </ScrollViewer>
       </DockPanel>
-      <ContentControl x:Name="ConfiguracoesComputadorHost" Visibility="Collapsed"
-                      Panel.ZIndex="2" HorizontalContentAlignment="Stretch"
-                      VerticalContentAlignment="Stretch" />
     </Grid>
 </UserControl>

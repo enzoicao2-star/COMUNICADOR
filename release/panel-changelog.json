@@ -305,5 +305,15 @@
       "O aviso de atualização mostra a versão realmente em execução e o caminho da cópia aberta.",
       "A validação da release agora percorre também a animação inicial antes da publicação."
     ]
+  },
+  {
+    "version": "2.5.28.0",
+    "summary": "A versão 2.5.28 abre mais rápido e reúne as telas do Comunicador em uma única janela, com transições suaves e retorno para a tela anterior.",
+    "changes": [
+      "Ações do computador, configurações, carrossel, segurança e atualização agora abrem dentro da janela principal.",
+      "O botão Voltar e a tecla Escape retornam à tela anterior com uma transição suave.",
+      "A abertura mostra somente o ícone pulsando dentro da janela principal, sem abrir uma janela de carregamento separada.",
+      "Descoberta, sincronização e monitoramento começam após a primeira tela aparecer, reduzindo o trabalho antes da abertura."
+    ]
   }
 ]

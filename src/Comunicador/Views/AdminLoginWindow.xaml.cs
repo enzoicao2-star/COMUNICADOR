@@ -1,10 +1,13 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 
 namespace Comunicador.Views;
 
-public partial class AdminLoginWindow : Window
+public partial class AdminLoginWindow : UserControl
 {
+    public event EventHandler? ContinuarSolicitado;
+    public event EventHandler? VoltarSolicitado;
     public string Senha => SenhaBox.Password;
 
     public AdminLoginWindow(bool adminAtivo)
@@ -20,18 +23,23 @@ public partial class AdminLoginWindow : Window
     {
         if (Senha.Length < 8)
         {
-            MessageBox.Show("Use uma senha com pelo menos 8 caracteres.", "Administrador",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            Erro.Text = "Use uma senha com pelo menos 8 caracteres.";
             SenhaBox.Focus();
             return;
         }
-        DialogResult = true;
+        ContinuarSolicitado?.Invoke(this, EventArgs.Empty);
     }
 
-    private void Cancelar_OnClick(object sender, RoutedEventArgs e) => DialogResult = false;
+    public void MostrarErro(string mensagem) => Erro.Text = mensagem;
+
+    private void Cancelar_OnClick(object sender, RoutedEventArgs e) => VoltarSolicitado?.Invoke(this, EventArgs.Empty);
 
     private void SenhaBox_OnKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape) DialogResult = false;
+        if (e.Key == Key.Escape)
+        {
+            VoltarSolicitado?.Invoke(this, EventArgs.Empty);
+            e.Handled = true;
+        }
     }
 }
