@@ -30,6 +30,18 @@ function Write-UpdateProgress([string]$Phase, [int]$Percent, [string]$Message, [
     catch { }
 }
 
+# Windows PowerShell 5.1 nem sempre carrega System.Net.Http automaticamente.
+# Faça a carga depois de definir a gravação de progresso para que qualquer falha
+# apareça na janela em vez de deixá-la girando sem informação.
+try {
+    Add-Type -AssemblyName System.Net.Http
+}
+catch {
+    Write-UpdateProgress 'failed' 100 ('Não foi possível preparar o download: ' + $_.Exception.Message)
+    Write-Host ('Falha ao preparar o atualizador: ' + $_.Exception.Message)
+    exit 3
+}
+
 function Download-FileWithProgress(
     [string]$Uri, [string]$Destination, [string]$Message, [int]$StartPercent, [int]$EndPercent
 ) {
