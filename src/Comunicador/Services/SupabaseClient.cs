@@ -34,6 +34,9 @@ public sealed class SupabaseClient
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private CloudSession? _session;
 
+    public async Task<string> GetRealtimeAccessTokenAsync(CancellationToken ct = default) =>
+        (await EnsureSessionAsync(ct).ConfigureAwait(false)).AccessToken;
+
     public async Task<CloudAdminState> RegisterDeviceAsync(
         string deviceId, string machineName, string? panelVersion, string? receiverVersion,
         bool mediaBlocked,

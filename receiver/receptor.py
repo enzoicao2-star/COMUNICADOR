@@ -43,13 +43,13 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.16"
+RECEIVER_VERSION = "2.5.17"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
 SUPABASE_URL = "https://yofxuiajeyxeacophgdy.supabase.co"
 SUPABASE_KEY = "sb_publishable_9vE6ehPLNhoByGInnUAlug_Ndd_fTam"
-CLOUD_POLL_SECONDS = 8
+CLOUD_POLL_SECONDS = 5
 MAX_REMOTE_COMMAND_LENGTH = 500
 MAX_REMOTE_RESULT_LENGTH = 950
 MAX_REMOTE_COMMAND_SECONDS = 300
@@ -898,6 +898,8 @@ class CloudDeliveryWorker(threading.Thread):
         self._next_receiver_update_check = 0.0
         self._on_open_update_checked = False
         self._receiver_update_started = False
+        self._activity_wake = threading.Event()
+        self._next_device_registration = 0.0
 
     def stop(self):
         self._stop_event.set()
@@ -1003,6 +1005,98 @@ class CloudDeliveryWorker(threading.Thread):
         self._autorizado("/rest/v1/rpc/acknowledge_response", "POST", {
             "p_delivery_id": delivery_id,
         })
+
+    def _listen_realtime(self):
+        try:
+            import websocket
+        except ImportError:
+            logging.warning("websocket-client ausente; entregas usarão a busca de segurança de %s s.",
+                            CLOUD_POLL_SECONDS)
+            return
+
+        retry_delay = 1
+        while not self._stop_event.is_set():
+            connection = None
+            try:
+                session = self._obter_sessao()
+                access_token = str(session["access_token"])
+                topic = f"realtime:comunicador-{self.config.computer_id}"
+                reference = "1"
+                url = ("wss://yofxuiajeyxeacophgdy.supabase.co/realtime/v1/websocket"
+                       f"?apikey={urllib.parse.quote(SUPABASE_KEY, safe='')}&vsn=2.0.0")
+                connection = websocket.create_connection(url, timeout=10, enable_multithread=True)
+                connection.settimeout(2)
+                join = [reference, reference, topic, "phx_join", {
+                    "config": {
+                        "broadcast": {"ack": False, "self": False},
+                        "presence": {"enabled": False},
+                        "postgres_changes": [
+                            {"event": "*", "schema": "public", "table": "deliveries",
+                             "filter": f"target_device_id=eq.{self.config.computer_id}", "select": ["id"]},
+                            {"event": "*", "schema": "public", "table": "deliveries",
+                             "filter": f"sender_device_id=eq.{self.config.computer_id}", "select": ["id"]},
+                        ],
+                        "private": False,
+                    },
+                    "access_token": access_token,
+                }]
+                connection.send(json.dumps(join, separators=(",", ":")))
+                joined = False
+                next_reference = 2
+                next_heartbeat = time.monotonic() + 20
+                next_auth_refresh = time.monotonic() + 45 * 60
+                logging.info("Conectando canal Realtime para entregas do receptor.")
+
+                while not self._stop_event.is_set():
+                    agora = time.monotonic()
+                    if agora >= next_heartbeat:
+                        connection.send(json.dumps(
+                            [reference, str(next_reference), "phoenix", "heartbeat", {}],
+                            separators=(",", ":")))
+                        next_reference += 1
+                        next_heartbeat = agora + 20
+                    if agora >= next_auth_refresh:
+                        renewed = str(self._obter_sessao()["access_token"])
+                        connection.send(json.dumps(
+                            [reference, str(next_reference), topic, "access_token",
+                             {"access_token": renewed}], separators=(",", ":")))
+                        next_reference += 1
+                        next_auth_refresh = agora + 45 * 60
+                        access_token = renewed
+
+                    try:
+                        raw = connection.recv()
+                    except websocket.WebSocketTimeoutException:
+                        continue
+                    if not raw:
+                        raise OSError("Canal Realtime encerrado pelo servidor.")
+                    message = json.loads(raw)
+                    if not isinstance(message, list) or len(message) < 5:
+                        continue
+                    event, payload = message[3], message[4]
+                    if event == "phx_reply" and isinstance(payload, dict):
+                        if payload.get("status") == "error":
+                            raise OSError(f"Inscrição Realtime recusada: {payload}")
+                        if payload.get("status") == "ok":
+                            joined = True
+                            retry_delay = 1
+                            self._activity_wake.set()
+                            logging.info("Canal Realtime do receptor conectado.")
+                    elif joined and event == "postgres_changes":
+                        self._activity_wake.set()
+                    elif event in ("phx_error", "phx_close"):
+                        raise OSError("O Supabase encerrou o canal Realtime.")
+            except Exception as exc:
+                if not self._stop_event.is_set():
+                    logging.warning("Canal Realtime indisponível; será reconectado: %s", exc)
+                    self._stop_event.wait(retry_delay)
+                    retry_delay = min(30, retry_delay * 2)
+            finally:
+                if connection is not None:
+                    try:
+                        connection.close()
+                    except Exception:
+                        pass
 
     def _mostrar_entrega(self, delivery):
         payload = delivery.get("payload") or {}
@@ -1247,9 +1341,14 @@ class CloudDeliveryWorker(threading.Thread):
                 self._on_open_update_checked = False
 
     def run(self):
+        threading.Thread(target=self._listen_realtime, daemon=True,
+                         name="supabase-realtime-entregas").start()
         while not self._stop_event.is_set():
             try:
-                self._registrar()
+                if time.monotonic() >= self._next_device_registration:
+                    self._registrar()
+                    self._next_device_registration = time.monotonic() + 20
+                self._activity_wake.clear()
                 self._atualizar_receptor_automaticamente()
                 for delivery in self._buscar_entregas():
                     self._mostrar_entrega(delivery)
@@ -1257,7 +1356,7 @@ class CloudDeliveryWorker(threading.Thread):
                     self._mostrar_resposta(delivery)
             except (OSError, ValueError, KeyError, urllib.error.URLError) as exc:
                 logging.warning("Sincronização Supabase indisponível: %s", exc)
-            self._stop_event.wait(CLOUD_POLL_SECONDS)
+            self._activity_wake.wait(CLOUD_POLL_SECONDS)
 
 # --------------------------------------------------------------------------- notificações (UI)
 

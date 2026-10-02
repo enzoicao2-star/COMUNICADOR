@@ -15,8 +15,13 @@ public sealed class CloudSyncService : IDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _deviceRegistrationGate = new(1, 1);
     private readonly SemaphoreSlim _profileWriteGate = new(1, 1);
+    private readonly SemaphoreSlim _deliveryWake = new(0, 1);
     private readonly HashSet<string> _responsesSeen = new(StringComparer.OrdinalIgnoreCase);
     private Task? _loop;
+    private Task? _deliveryLoop;
+    private Task? _realtimeLoop;
+    private CloudAdminState? _lastDeviceRegistration;
+    private DateTimeOffset _lastDeviceRegistrationAt = DateTimeOffset.MinValue;
     private CloudPanelProfile? _lastCloudOwnProfile;
     private string? _lastGlobalConfigJson;
 
@@ -68,7 +73,12 @@ public sealed class CloudSyncService : IDisposable
 #if TEST_BUILD
     public void Start() { }
 #else
-    public void Start() => _loop ??= Task.Run(() => RunAsync(_cts.Token));
+    public void Start()
+    {
+        _loop ??= Task.Run(() => RunAsync(_cts.Token));
+        _deliveryLoop ??= Task.Run(() => RunDeliveryActivityAsync(_cts.Token));
+        _realtimeLoop ??= Task.Run(() => RunRealtimeSignalsAsync(_cts.Token));
+    }
 #endif
 
     public async Task<CloudAdminResult> ToggleAdminAsync(string password, CancellationToken ct = default)
@@ -353,6 +363,52 @@ public sealed class CloudSyncService : IDisposable
         GlobalConfigReceived?.Invoke(config);
     }
 
+    private async Task RunDeliveryActivityAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                var deliveriesTask = _client.ClaimDueDeliveriesAsync(ct);
+                var responsesTask = _client.GetResponsesAsync(_settings.PainelId, ct);
+                await Task.WhenAll(deliveriesTask, responsesTask).ConfigureAwait(false);
+
+                foreach (var delivery in await deliveriesTask.ConfigureAwait(false))
+                    DeliveryReceived?.Invoke(delivery);
+
+                foreach (var response in (await responsesTask.ConfigureAwait(false)).OrderBy(r => r.RespondedAt))
+                {
+                    if (!_responsesSeen.Add(response.Id)) continue;
+                    await _client.AcknowledgeResponseAsync(response.Id, ct).ConfigureAwait(false);
+                    ResponseReceived?.Invoke(response);
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException
+                or UnauthorizedAccessException or JsonException)
+            {
+                Logger.Warning($"Busca de entregas pela nuvem será repetida: {ex.Message}");
+            }
+
+            try { await _deliveryWake.WaitAsync(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+        }
+    }
+
+    private async Task RunRealtimeSignalsAsync(CancellationToken ct)
+    {
+        var listener = new SupabaseRealtimeDeliveryListener(_client, _settings.PainelId);
+        await listener.RunAsync(() =>
+        {
+            try { _deliveryWake.Release(); }
+            catch (SemaphoreFullException) { }
+            catch (ObjectDisposedException) { }
+        }, ct).ConfigureAwait(false);
+    }
+
     private async Task RunAsync(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
@@ -394,18 +450,6 @@ public sealed class CloudSyncService : IDisposable
                     }
                 }
                 if (profileChanged || pendingRejected) await SynchronizeOnceAsync(ct).ConfigureAwait(false);
-                var deliveriesTask = _client.ClaimDueDeliveriesAsync(ct);
-                var responsesTask = _client.GetResponsesAsync(_settings.PainelId, ct);
-                await Task.WhenAll(deliveriesTask, responsesTask).ConfigureAwait(false);
-                var deliveries = await deliveriesTask.ConfigureAwait(false);
-                foreach (var delivery in deliveries) DeliveryReceived?.Invoke(delivery);
-                var responses = await responsesTask.ConfigureAwait(false);
-                foreach (var response in responses.OrderBy(r => r.RespondedAt))
-                {
-                    if (!_responsesSeen.Add(response.Id)) continue;
-                    await _client.AcknowledgeResponseAsync(response.Id, ct).ConfigureAwait(false);
-                    ResponseReceived?.Invoke(response);
-                }
             }
             catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException
                 or UnauthorizedAccessException or JsonException)
@@ -425,10 +469,18 @@ public sealed class CloudSyncService : IDisposable
         await _deviceRegistrationGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            if (_lastDeviceRegistration is not null
+                && DateTimeOffset.UtcNow - _lastDeviceRegistrationAt < TimeSpan.FromSeconds(15))
+            {
+                return _lastDeviceRegistration;
+            }
+
             var state = await _client.RegisterDeviceAsync(
                 _settings.PainelId, Environment.MachineName,
                 ProtocolConstants.CurrentPanelVersion, ProtocolConstants.CurrentReceiverVersion,
                 !_settings.AceitarImagensDeOutrosPaineis, ct).ConfigureAwait(false);
+            _lastDeviceRegistration = state;
+            _lastDeviceRegistrationAt = DateTimeOffset.UtcNow;
             SetAdmin(state.IsAdmin, state.AdminDeviceId);
             return state;
         }
@@ -451,8 +503,9 @@ public sealed class CloudSyncService : IDisposable
     public void Dispose()
     {
         _cts.Cancel();
-        try { _loop?.Wait(TimeSpan.FromSeconds(1)); } catch { }
+        try { Task.WaitAll(new[] { _loop, _deliveryLoop, _realtimeLoop }.OfType<Task>().ToArray(), TimeSpan.FromSeconds(2)); } catch { }
         _cts.Dispose();
+        _deliveryWake.Dispose();
         _deviceRegistrationGate.Dispose();
         _profileWriteGate.Dispose();
     }

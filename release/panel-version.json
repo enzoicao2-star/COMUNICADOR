@@ -1,14 +1,14 @@
 {
-    "version":  "2.5.29.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "DA29B7B83A76784ABE24D4AAA8A938B7FAF41458DECC3E8E567310B1BA36C8C4",
-    "summary":  "Receptor ativo junto com o Windows, atualização automática configurável e correção da identidade do Juninho.",
-    "changes":  [
-                    "Ações do computador, configurações, carrossel, segurança e atualização agora abrem dentro da janela principal.",
-                    "O botão Voltar e a tecla Escape retornam à tela anterior com uma transição suave.",
-                    "A abertura mostra somente o ícone pulsando dentro da janela principal, sem abrir uma janela de carregamento separada.",
-                    "O receptor é instalado e iniciado em segundo plano para continuar online com o painel fechado.",
-                    "O OWNER define atualização automática do painel e do receptor ao iniciar ou quando uma versão nova for publicada.",
-                    "Os apelidos do Juninho voltam a sincronizar pelo registro único da máquina na nuvem."
-                ]
+  "version": "2.5.30.0",
+  "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
+  "sha256": "2B15488511069105404F0C89777AAF9AB28748037C1102BB41988BE41E58E8AD",
+  "summary": "Entregas de imagens e comandos remotos pelo canal em tempo real, com atualização automática configurável e receptor sempre ativo.",
+  "changes": [
+    "Imagens e comandos remotos em nuvem acordam o receptor pelo canal em tempo real, mantendo uma consulta de segurança a cada 5 segundos.",
+    "O receptor mantém o registro da máquina por 20 segundos, reduzindo chamadas repetidas ao banco.",
+    "O painel acompanha respostas remotas em um ciclo dedicado, sem aguardar a sincronização geral.",
+    "O receptor instalado junto do painel continua online com o painel fechado e atualiza conforme a política definida pelo OWNER.",
+    "Os apelidos sincronizados e o computador com painel e receptor compartilham uma identidade única.",
+    "Realtime envia somente o ID da entrega; imagens grandes nao sao duplicadas no canal de aviso."
+  ]
 }

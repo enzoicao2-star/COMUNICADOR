@@ -326,5 +326,17 @@
       "Painel e receptor passam a usar o mesmo registro da máquina na nuvem quando versões antigas tinham identificadores divergentes.",
       "Cartões do mesmo computador continuam reunidos, com os apelidos sincronizados entre painéis."
     ]
+  },
+  {
+    "version": "2.5.30.0",
+    "summary": "Entregas remotas chegam pelo canal em tempo real, com recuperação automática e menos chamadas antes do envio.",
+    "changes": [
+      "Imagens, mensagens e comandos remotos acordam painel e receptor assim que a fila muda na nuvem.",
+      "A busca periódica de segurança recupera entregas se a conexão em tempo real cair.",
+      "O receptor consulta a nuvem a cada 5 segundos como reserva e renova seu registro a cada 20 segundos.",
+      "Envios reaproveitam o registro recente do computador e evitam uma chamada extra ao banco antes de cada entrega.",
+      "O canal remoto mantém os filtros de destinatário e remetente protegidos pelas políticas RLS atuais.",
+      "Realtime envia somente o ID da entrega; imagens grandes nao sao duplicadas no canal de aviso."
+    ]
   }
 ]
