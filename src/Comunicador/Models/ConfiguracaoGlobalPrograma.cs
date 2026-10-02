@@ -15,6 +15,8 @@ public sealed class ConfiguracaoGlobalPrograma
     public bool PermitirLinks { get; set; } = true;
     public bool PermitirPapelParedeRemoto { get; set; } = true;
     public string PoliticaInicializacaoWindows { get; set; } = "local";
+    public string PoliticaAtualizacaoPainel { get; set; } = "ask";
+    public string PoliticaAtualizacaoReceptor { get; set; } = "ask";
     public List<ModeloBadgeGlobal> ModelosBadge { get; set; } = [];
     public List<GrupoComputadoresGlobal> GruposComputadores { get; set; } = [];
     public List<ModeloMensagemGlobal> ModelosMensagem { get; set; } = [];
@@ -27,6 +29,8 @@ public sealed class ConfiguracaoGlobalPrograma
         PermitirMidias = PermitirMidias, PermitirLinks = PermitirLinks,
         PermitirPapelParedeRemoto = PermitirPapelParedeRemoto,
         PoliticaInicializacaoWindows = PoliticaInicializacaoWindows,
+        PoliticaAtualizacaoPainel = PoliticaAtualizacaoPainel,
+        PoliticaAtualizacaoReceptor = PoliticaAtualizacaoReceptor,
         ModelosBadge = ModelosBadge.ToList(),
         GruposComputadores = GruposComputadores.ToList(),
         ModelosMensagem = ModelosMensagem.ToList(),

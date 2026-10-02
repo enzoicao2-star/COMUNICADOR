@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Net.Http;
 using System.Text.Json;
 using System.Windows.Input;
 using Comunicador.Models;
@@ -24,6 +25,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     private readonly PanelUpdateService _panelUpdate;
     private readonly CloudSyncService _cloudSync;
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _remoteCommands = new(StringComparer.OrdinalIgnoreCase);
+    private readonly CancellationTokenSource _backgroundUpdatesCts = new();
 
     private object _secaoAtual;
     private double? _pingMedioMs;
@@ -468,6 +470,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         _discovery.Start();
         _statusMonitor.Start();
         _scheduler.Start();
+        ReceiverAutoInstallService.EnsureInstalled();
+        _ = Task.Run(() => MonitorarAtualizacaoAutomaticaPainelAsync(_backgroundUpdatesCts.Token));
         if (Settings.EntradaPainelHabilitada) _embeddedReceptorServer.AtualizarDisponibilidade();
         _sync.Start();
         Configuracoes.AtualizarStatusReceptor();
@@ -475,8 +479,65 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     public string? ConsumeUpdateSummary() => _panelUpdate.ConsumeUpdateSummary();
 
+    private async Task MonitorarAtualizacaoAutomaticaPainelAsync(CancellationToken ct)
+    {
+        var politicaAnterior = string.Empty;
+        var verificacaoAoAbrirConcluida = false;
+        var proximaVerificacao = DateTimeOffset.MinValue;
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                var politica = _cloudSync.GlobalConfig?.PoliticaAtualizacaoPainel ?? "ask";
+                if (politica != politicaAnterior)
+                {
+                    politicaAnterior = politica;
+                    if (politica == "on_open") verificacaoAoAbrirConcluida = false;
+                    proximaVerificacao = DateTimeOffset.MinValue;
+                }
+
+                var agora = DateTimeOffset.UtcNow;
+                var deveVerificar = politica == "on_open"
+                    ? !verificacaoAoAbrirConcluida && agora >= proximaVerificacao
+                    : politica == "available" && agora >= proximaVerificacao;
+                if (deveVerificar)
+                {
+                    var info = await _panelUpdate.CheckAsync(ct).ConfigureAwait(false);
+                    if (politica == "on_open") verificacaoAoAbrirConcluida = true;
+                    proximaVerificacao = politica == "available"
+                        ? agora.AddMinutes(2)
+                        : DateTimeOffset.MaxValue;
+
+                    if (info.IsAvailable
+                        && _cloudSync.GlobalConfig?.PoliticaAtualizacaoPainel == politica)
+                    {
+                        Logger.Info($"Nova versão do painel ({info.LatestVersion}) detectada pela política automática '{politica}'.");
+                        await _panelUpdate.StartUpdateAsync(info, ct).ConfigureAwait(false);
+                        return;
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException
+                or UnauthorizedAccessException or System.ComponentModel.Win32Exception or OperationCanceledException)
+            {
+                // If startup happens offline, keep retrying so a later network
+                // connection can apply the global policy without another click.
+                proximaVerificacao = DateTimeOffset.UtcNow.AddMinutes(2);
+                Logger.Warning($"Verificação automática do painel será repetida: {ex.Message}");
+            }
+
+            try { await Task.Delay(TimeSpan.FromSeconds(15), ct).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+        }
+    }
+
     public void Dispose()
     {
+        _backgroundUpdatesCts.Cancel();
         Computadores.PingMedioAtualizado -= AtualizarPingMedio;
         _cloudSync.ResponseReceived -= OnCloudResponseReceived;
         _cloudSync.DeliveryReceived -= OnCloudDeliveryReceived;

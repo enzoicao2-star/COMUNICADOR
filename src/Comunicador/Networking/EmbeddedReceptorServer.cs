@@ -92,8 +92,8 @@ public sealed class EmbeddedReceptorServer : IDisposable
         SocketException? ultimoErroSocket = null;
         var candidatos = new[]
         {
-            (_settings.PortaTcp, _settings.PortaDescobertaUdp),
             (ProtocolConstants.PanelFallbackTcpPort, ProtocolConstants.PanelFallbackUdpDiscoveryPort),
+            (_settings.PortaTcp, _settings.PortaDescobertaUdp),
         }.Distinct().ToList();
 
         foreach (var (portaTcp, portaUdp) in candidatos)

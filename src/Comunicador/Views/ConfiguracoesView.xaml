@@ -503,6 +503,31 @@
                                     </ComboBox>
                                 </StackPanel>
                             </UniformGrid>
+                            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="9" Padding="12" Margin="0,6,0,8">
+                                <StackPanel>
+                                    <TextBlock Text="Atualização automática em todos os computadores" FontWeight="SemiBold" />
+                                    <TextBlock Text="As escolhas são sincronizadas com painéis e receptores. Aparelhos offline atualizam quando voltarem ou iniciarem."
+                                               Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,3,0,8" />
+                                    <UniformGrid Columns="2">
+                                        <StackPanel Margin="0,0,12,0">
+                                            <TextBlock Text="Painel" Style="{StaticResource RotuloCampo}" />
+                                            <ComboBox SelectedValue="{Binding GlobalPoliticaAtualizacaoPainel}" SelectedValuePath="Tag">
+                                                <ComboBoxItem Content="Perguntar antes" Tag="ask" />
+                                                <ComboBoxItem Content="Ao abrir o painel" Tag="on_open" />
+                                                <ComboBoxItem Content="Assim que uma versão for publicada" Tag="available" />
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Text="Receptor" Style="{StaticResource RotuloCampo}" />
+                                            <ComboBox SelectedValue="{Binding GlobalPoliticaAtualizacaoReceptor}" SelectedValuePath="Tag">
+                                                <ComboBoxItem Content="Perguntar antes" Tag="ask" />
+                                                <ComboBoxItem Content="Ao iniciar com o Windows" Tag="on_open" />
+                                                <ComboBoxItem Content="Assim que uma versão for publicada" Tag="available" />
+                                            </ComboBox>
+                                        </StackPanel>
+                                    </UniformGrid>
+                                </StackPanel>
+                            </Border>
                             <WrapPanel Margin="0,6,0,0">
                                 <CheckBox Content="Reduzir movimento em todos os painéis" IsChecked="{Binding GlobalReduzirMovimento}" Margin="0,0,18,8" />
                                 <CheckBox Content="Permitir recebimento de mídias" IsChecked="{Binding GlobalPermitirMidias}" Margin="0,0,18,8" />

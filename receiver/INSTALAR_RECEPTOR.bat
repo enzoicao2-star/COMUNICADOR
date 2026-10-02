@@ -1,6 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 set "RECEIVER_VERSION=mais recente"
+if /I "%~1"=="--automatic" set "COMUNICADOR_AUTOMATICO=1"
 if not defined COMUNICADOR_SOURCE_DIR set "COMUNICADOR_SOURCE_DIR=%~dp0"
 
 rem Modo de diagnostico seguro: testa a deteccao sem instalar nem pedir UAC.
@@ -326,6 +327,9 @@ if not defined AUTOSTART_OK (
     echo       ERRO: a inicializacao automatica nao foi configurada.
     goto :erro
 )
+>"%INSTALL_ROOT%\instalado-pelo-painel.marker" echo instalado
+>"%INSTALL_ROOT%\pythonw.path" echo !PYTHONW_EXE!
+if not exist "%INSTALL_ROOT%\instalado-pelo-painel.marker" goto :erro
 
 echo.
 echo ===============================================
@@ -355,9 +359,8 @@ echo ===============================================
 echo.
 rem Deu tudo certo: fecha sozinho. So em caso de erro a janela fica
 rem aberta, para a mensagem poder ser lida.
-echo Esta janela fecha sozinha em 2 segundos...
-rem ping em vez de timeout: timeout falha quando a entrada esta redirecionada.
-ping -n 3 127.0.0.1 >nul 2>nul
+if not defined COMUNICADOR_AUTOMATICO echo Esta janela fecha sozinha em 2 segundos...
+if not defined COMUNICADOR_AUTOMATICO ping -n 3 127.0.0.1 >nul 2>nul
 rem Apaga o BAT que acabou de ser executado somente apos o sucesso confirmado.
 rem O atualizador nao o restaura enquanto o receptor continuar instalado.
 call :agendar_autoexclusao
@@ -431,5 +434,5 @@ echo.
 echo ===============================================
 echo   Instalacao FALHOU. Veja os erros acima.
 echo ===============================================
-pause
+if not defined COMUNICADOR_AUTOMATICO pause
 exit /b 1

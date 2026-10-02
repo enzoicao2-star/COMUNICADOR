@@ -1,12 +1,14 @@
 {
-    "version":  "2.5.28.0",
+    "version":  "2.5.29.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "38DAE863ECDA0882953B623843D5D5757EA1DC18711C6C137A1BFE1310507FC4",
-    "summary":  "A versão 2.5.28 abre mais rápido e reúne as telas do Comunicador em uma única janela, com transições suaves e retorno para a tela anterior.",
+    "sha256":  "DA29B7B83A76784ABE24D4AAA8A938B7FAF41458DECC3E8E567310B1BA36C8C4",
+    "summary":  "Receptor ativo junto com o Windows, atualização automática configurável e correção da identidade do Juninho.",
     "changes":  [
                     "Ações do computador, configurações, carrossel, segurança e atualização agora abrem dentro da janela principal.",
                     "O botão Voltar e a tecla Escape retornam à tela anterior com uma transição suave.",
                     "A abertura mostra somente o ícone pulsando dentro da janela principal, sem abrir uma janela de carregamento separada.",
-                    "Descoberta, sincronização e monitoramento começam após a primeira tela aparecer, reduzindo o trabalho antes da abertura."
+                    "O receptor é instalado e iniciado em segundo plano para continuar online com o painel fechado.",
+                    "O OWNER define atualização automática do painel e do receptor ao iniciar ou quando uma versão nova for publicada.",
+                    "Os apelidos do Juninho voltam a sincronizar pelo registro único da máquina na nuvem."
                 ]
 }

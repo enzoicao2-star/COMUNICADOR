@@ -43,7 +43,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.15"
+RECEIVER_VERSION = "2.5.16"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -893,6 +893,11 @@ class CloudDeliveryWorker(threading.Thread):
         self._session_path = config.directory.parent / "cloud_session.json"
         self._session_lock = threading.Lock()
         self._session = None
+        self._auto_update_policy = "ask"
+        self._last_policy_refresh = 0.0
+        self._next_receiver_update_check = 0.0
+        self._on_open_update_checked = False
+        self._receiver_update_started = False
 
     def stop(self):
         self._stop_event.set()
@@ -1154,10 +1159,98 @@ class CloudDeliveryWorker(threading.Thread):
             "Comunicador", f"Resposta: {payload.get('title', 'mensagem')}", texto,
             False, lambda _resultado: None, display_mode="toast")
 
+    @staticmethod
+    def _policy_value(config, snake_key, pascal_key):
+        for key in (snake_key, pascal_key):
+            value = config.get(key)
+            if value in ("ask", "on_open", "available"):
+                return value
+        return "ask"
+
+    def _atualizar_receptor_automaticamente(self):
+        agora = time.monotonic()
+        if self._receiver_update_started:
+            return
+
+        if agora >= self._last_policy_refresh:
+            self._last_policy_refresh = agora + 60
+            try:
+                state = self._autorizado("/rest/v1/rpc/get_global_config", "POST", {}) or []
+                config = state[0].get("config", {}) if state and isinstance(state[0], dict) else {}
+                if isinstance(config, dict):
+                    nova_politica = self._policy_value(
+                        config, "politica_atualizacao_receptor", "PoliticaAtualizacaoReceptor")
+                    if nova_politica != self._auto_update_policy:
+                        self._auto_update_policy = nova_politica
+                        self._on_open_update_checked = False
+                        self._next_receiver_update_check = agora
+            except (OSError, ValueError, KeyError, TypeError, urllib.error.URLError) as exc:
+                logging.info("Política de atualização do receptor indisponível: %s", exc)
+                return
+
+        politica = self._auto_update_policy
+        deve_verificar = (
+            politica == "on_open" and not self._on_open_update_checked
+            or politica == "available" and agora >= self._next_receiver_update_check
+        )
+        if not deve_verificar:
+            return
+
+        self._next_receiver_update_check = agora + 120
+        try:
+            teste = "comunicador-teste" in str(self.config.directory).casefold()
+            base = "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/"
+            manifest_path = "release/teste/receiver/version.json" if teste else "receiver/version.json"
+            installer_path = "release/teste/INSTALAR_RECEPTOR_TESTE.bat" if teste else "receiver/INSTALAR_RECEPTOR.bat"
+            request = urllib.request.Request(
+                f"{base}{manifest_path}?t={int(time.time())}",
+                headers={"User-Agent": "Comunicador-Receiver"})
+            with urllib.request.urlopen(request, timeout=15) as response:
+                manifest = json.loads(response.read(16 * 1024 + 1).decode("utf-8"))
+            version = str(manifest.get("version", ""))
+            if not re.fullmatch(r"\d+(?:\.\d+){2,3}", version):
+                raise ValueError("manifesto de versão do receptor inválido")
+            if tuple(int(part) for part in version.split(".")) <= tuple(
+                    int(part) for part in RECEIVER_VERSION.split(".")):
+                if politica == "on_open":
+                    self._on_open_update_checked = True
+                return
+
+            request = urllib.request.Request(
+                f"{base}{installer_path}?t={int(time.time())}",
+                headers={"User-Agent": "Comunicador-Receiver"})
+            with urllib.request.urlopen(request, timeout=30) as response:
+                installer_bytes = response.read(2 * 1024 * 1024 + 1)
+            if not installer_bytes or len(installer_bytes) > 2 * 1024 * 1024 \
+                    or b"--automatic" not in installer_bytes:
+                raise ValueError("instalador automático do receptor inválido")
+
+            installer = Path(tempfile.gettempdir()) / f"Comunicador-atualizacao-receptor-{uuid.uuid4().hex[:8]}.bat"
+            installer.write_bytes(installer_bytes)
+            command = f'""{installer}" --automatic"'
+            startupinfo = None
+            if os.name == "nt":
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = 0
+            subprocess.Popen(
+                ["cmd.exe", "/d", "/s", "/c", command],
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                startupinfo=startupinfo,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                close_fds=True)
+            self._receiver_update_started = True
+            logging.info("Atualização automática do receptor %s iniciada em segundo plano.", version)
+        except (OSError, ValueError, KeyError, TypeError, urllib.error.URLError, subprocess.SubprocessError) as exc:
+            logging.warning("Não foi possível verificar/baixar a atualização automática do receptor: %s", exc)
+            if politica == "on_open":
+                self._on_open_update_checked = False
+
     def run(self):
         while not self._stop_event.is_set():
             try:
                 self._registrar()
+                self._atualizar_receptor_automaticamente()
                 for delivery in self._buscar_entregas():
                     self._mostrar_entrega(delivery)
                 for delivery in self._buscar_respostas():

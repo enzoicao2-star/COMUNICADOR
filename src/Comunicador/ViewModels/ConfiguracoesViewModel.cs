@@ -54,6 +54,8 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     private bool _globalPermitirLinks = true;
     private bool _globalPermitirPapelParede = true;
     private string _globalPoliticaInicializacaoWindows = "local";
+    private string _globalPoliticaAtualizacaoPainel = "ask";
+    private string _globalPoliticaAtualizacaoReceptor = "ask";
     private string? _statusGlobal;
     private string _statusAuditoria = "Abra a administração para carregar as ações recentes.";
     private PanelUpdateInfo? _ultimaVerificacaoPainel;
@@ -63,6 +65,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     public IReadOnlyList<string> Temas { get; } = ["Escuro", "Claro"];
     public IReadOnlyList<string> Paletas { get; } = ["Azul", "Violeta", "Verde", "Coral"];
     public IReadOnlyList<string> PoliticasInicializacaoWindows { get; } = ["local", "always", "never"];
+    public IReadOnlyList<string> PoliticasAtualizacaoAutomatica { get; } = ["ask", "on_open", "available"];
     public IReadOnlyList<string> EstilosBadge { get; } = ["Holográfica", "Metal", "Pílula", "Contorno", "Selo"];
     public IReadOnlyList<string> IconesBadge { get; } = ["Coroa", "Estrela", "Escudo", "Raio", "Diamante", "Fogo", "Coração", "Usuário", "Código", "Música", "Jogo", "Casa", "Medalha", "Chave", "Globo"];
     public IReadOnlyList<string> Fundos { get; } =
@@ -122,6 +125,8 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     public bool GlobalPermitirLinks { get => _globalPermitirLinks; set => SetField(ref _globalPermitirLinks, value); }
     public bool GlobalPermitirPapelParede { get => _globalPermitirPapelParede; set => SetField(ref _globalPermitirPapelParede, value); }
     public string GlobalPoliticaInicializacaoWindows { get => _globalPoliticaInicializacaoWindows; set => SetField(ref _globalPoliticaInicializacaoWindows, value); }
+    public string GlobalPoliticaAtualizacaoPainel { get => _globalPoliticaAtualizacaoPainel; set => SetField(ref _globalPoliticaAtualizacaoPainel, value); }
+    public string GlobalPoliticaAtualizacaoReceptor { get => _globalPoliticaAtualizacaoReceptor; set => SetField(ref _globalPoliticaAtualizacaoReceptor, value); }
     public ICommand SalvarConfiguracoesGlobaisCommand { get; }
     public ICommand AdicionarModeloBadgeGlobalCommand { get; }
     public ICommand RemoverModeloBadgeGlobalCommand { get; }
@@ -545,6 +550,8 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         _globalPermitirLinks = config.PermitirLinks;
         _globalPermitirPapelParede = config.PermitirPapelParedeRemoto;
         _globalPoliticaInicializacaoWindows = config.PoliticaInicializacaoWindows;
+        _globalPoliticaAtualizacaoPainel = NormalizarPoliticaAtualizacao(config.PoliticaAtualizacaoPainel);
+        _globalPoliticaAtualizacaoReceptor = NormalizarPoliticaAtualizacao(config.PoliticaAtualizacaoReceptor);
         ModelosBadgeGlobal.Clear();
         foreach (var model in config.ModelosBadge) ModelosBadgeGlobal.Add(model);
         OnPropertyChanged(nameof(GlobalTema)); OnPropertyChanged(nameof(GlobalPaleta));
@@ -553,6 +560,8 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         OnPropertyChanged(nameof(GlobalVelocidade)); OnPropertyChanged(nameof(GlobalPermitirMidias));
         OnPropertyChanged(nameof(GlobalPermitirLinks)); OnPropertyChanged(nameof(GlobalPermitirPapelParede));
         OnPropertyChanged(nameof(GlobalPoliticaInicializacaoWindows));
+        OnPropertyChanged(nameof(GlobalPoliticaAtualizacaoPainel));
+        OnPropertyChanged(nameof(GlobalPoliticaAtualizacaoReceptor));
         AplicarConfiguracaoGlobalLocal(config);
         StatusGlobal = "Configurações globais sincronizadas.";
         OnPropertyChanged(nameof(PodeEditarPersonalizacaoLocal));
@@ -605,7 +614,9 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         if (!_cloud.IsAdmin) return;
         if (!Fundos.Contains(GlobalFundo) || GlobalTema is not ("Escuro" or "Claro")
             || GlobalPaleta is not ("Azul" or "Violeta" or "Verde" or "Coral")
-            || !PoliticasInicializacaoWindows.Contains(GlobalPoliticaInicializacaoWindows))
+            || !PoliticasInicializacaoWindows.Contains(GlobalPoliticaInicializacaoWindows)
+            || !PoliticasAtualizacaoAutomatica.Contains(GlobalPoliticaAtualizacaoPainel)
+            || !PoliticasAtualizacaoAutomatica.Contains(GlobalPoliticaAtualizacaoReceptor))
         {
             StatusGlobal = "Revise tema, paleta e fundo antes de aplicar.";
             return;
@@ -630,6 +641,8 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
             VelocidadeFundo = GlobalVelocidade, PermitirMidias = GlobalPermitirMidias,
             PermitirLinks = GlobalPermitirLinks, PermitirPapelParedeRemoto = GlobalPermitirPapelParede,
             PoliticaInicializacaoWindows = GlobalPoliticaInicializacaoWindows,
+            PoliticaAtualizacaoPainel = GlobalPoliticaAtualizacaoPainel,
+            PoliticaAtualizacaoReceptor = GlobalPoliticaAtualizacaoReceptor,
             ModelosBadge = ModelosBadgeGlobal.ToList(),
             GruposComputadores = _cloud.GlobalConfig?.GruposComputadores.ToList() ?? [],
             ModelosMensagem = _cloud.GlobalConfig?.ModelosMensagem.ToList() ?? [],
@@ -646,6 +659,9 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
             StatusGlobal = $"Não foi possível salvar no Supabase: {ex.Message}";
         }
     }
+
+    private static string NormalizarPoliticaAtualizacao(string? policy) =>
+        policy is "on_open" or "available" ? policy : "ask";
 
     private void AgendarSalvamento()
     {

@@ -315,5 +315,16 @@
       "A abertura mostra somente o ícone pulsando dentro da janela principal, sem abrir uma janela de carregamento separada.",
       "Descoberta, sincronização e monitoramento começam após a primeira tela aparecer, reduzindo o trabalho antes da abertura."
     ]
+  },
+  {
+    "version": "2.5.29.0",
+    "summary": "Receptor ativo junto com o Windows, atualização automática configurável e correção da identidade do Juninho.",
+    "changes": [
+      "A instalação inicial do painel instala o receptor em segundo plano e o mantém ativo mesmo depois de fechar o painel.",
+      "O OWNER escolhe se painel e receptor perguntam antes, atualizam ao iniciar ou acompanham novas versões automaticamente.",
+      "A política global é sincronizada; computadores offline aplicam a atualização quando voltam e iniciam o programa correspondente.",
+      "Painel e receptor passam a usar o mesmo registro da máquina na nuvem quando versões antigas tinham identificadores divergentes.",
+      "Cartões do mesmo computador continuam reunidos, com os apelidos sincronizados entre painéis."
+    ]
   }
 ]
