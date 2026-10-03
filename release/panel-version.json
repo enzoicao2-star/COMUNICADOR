@@ -1,14 +1,12 @@
 {
-  "version": "2.5.30.0",
+  "version": "2.5.31.0",
   "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-  "sha256": "2B15488511069105404F0C89777AAF9AB28748037C1102BB41988BE41E58E8AD",
-  "summary": "Entregas de imagens e comandos remotos pelo canal em tempo real, com atualização automática configurável e receptor sempre ativo.",
+  "sha256": "0E989474343EB605890B8BAECA52B5864660FB3FA42CE44C3121CEB1BE4071F2",
+  "summary": "Interface mais clara para acompanhar computadores, ping e estado das conexões.",
   "changes": [
-    "Imagens e comandos remotos em nuvem acordam o receptor pelo canal em tempo real, mantendo uma consulta de segurança a cada 5 segundos.",
-    "O receptor mantém o registro da máquina por 20 segundos, reduzindo chamadas repetidas ao banco.",
-    "O painel acompanha respostas remotas em um ciclo dedicado, sem aguardar a sincronização geral.",
-    "O receptor instalado junto do painel continua online com o painel fechado e atualiza conforme a política definida pelo OWNER.",
-    "Os apelidos sincronizados e o computador com painel e receptor compartilham uma identidade única.",
-    "Realtime envia somente o ID da entrega; imagens grandes nao sao duplicadas no canal de aviso."
+    "A lista mostra o total de computadores e organiza melhor nome, ping, estado e endereço em cada cartão.",
+    "O ping médio acompanha o tema claro ou escuro, e o ping individual continua no cartão de cada máquina.",
+    "Campos, botões e cartões ganharam espaçamento e cantos consistentes em todas as telas.",
+    "A navegação por teclado ganhou um indicador de foco visível."
   ]
 }

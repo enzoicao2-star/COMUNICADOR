@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "project": {
+    "name": "Comunicador",
+    "productType": "Windows desktop application for internal messaging and remote computer management",
+    "stack": ["WPF", ".NET 10", "XAML", "C#"]
+  },
+  "sources": {
+    "tokens": ["src/Comunicador/Resources/Styles.xaml", "src/Comunicador/Services/ThemeService.cs"],
+    "components": ["src/Comunicador/MainWindow.xaml", "src/Comunicador/Views/ComputadoresView.xaml"],
+    "assets": ["src/Comunicador/Assets"],
+    "instructions": []
+  },
+  "design": {
+    "colorMode": "dark and light",
+    "colors": {
+      "background": "#080B11",
+      "surface": "#121923",
+      "surfaceAlt": "#192231",
+      "accent": "#4C8DFF",
+      "textPrimary": "#F7F9FC",
+      "textSecondary": "#B8C3D2"
+    },
+    "typography": {
+      "body": "Segoe UI Variable Text",
+      "display": "Segoe UI Variable Display"
+    },
+    "spacing": {
+      "cardPadding": 14,
+      "gridGap": 12
+    },
+    "radius": {
+      "control": 8,
+      "card": 16
+    },
+    "shadows": {
+      "card": "0 3 22 rgba(0,0,0,0.30)"
+    },
+    "motion": {
+      "reducedMotion": "honor the ReduzirMovimento setting",
+      "status": "change only when data changes; never pulse continuously"
+    },
+    "density": "compact"
+  },
+  "components": {
+    "installed": [],
+    "preferredPrimitives": ["native WPF controls", "shared XAML styles"],
+    "patterns": ["compact device cards", "stable online and offline indicators", "single-window animated navigation"]
+  },
+  "constraints": {
+    "must": [
+      "Keep the existing WPF application and light/dark theme support.",
+      "Keep computer cards compact and preserve nickname, ping, role badges, device status and versions.",
+      "Honor reduced motion and show visible keyboard focus."
+    ],
+    "avoid": [
+      "Do not add a web runtime or open secondary application windows.",
+      "Do not animate status text continuously or hide device actions behind hover only."
+    ]
+  },
+  "decisions": [],
+  "evidence": [],
+  "generatedAt": "2026-10-03T13:25:56.127Z"
+}

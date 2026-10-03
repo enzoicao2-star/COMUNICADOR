@@ -338,5 +338,15 @@
       "O canal remoto mantém os filtros de destinatário e remetente protegidos pelas políticas RLS atuais.",
       "Realtime envia somente o ID da entrega; imagens grandes nao sao duplicadas no canal de aviso."
     ]
+  },
+  {
+    "version": "2.5.31.0",
+    "summary": "Interface mais clara e consistente para acompanhar computadores, ping e estado das conexões.",
+    "changes": [
+      "Os cartões mostram o total de computadores e separam visualmente o estado, o endereço e a versão instalada.",
+      "O ping médio acompanha as cores do tema; o ping individual permanece visível em cada cartão.",
+      "Campos, botões e cartões têm espaçamento e cantos consistentes em todas as telas.",
+      "A navegação por teclado ganhou um contorno de foco visível nos principais controles."
+    ]
   }
 ]

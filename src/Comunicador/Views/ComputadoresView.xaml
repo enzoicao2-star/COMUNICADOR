@@ -53,7 +53,22 @@
 
         <Grid DockPanel.Dock="Top" Margin="0,0,0,20">
             <StackPanel>
-                <TextBlock Text="Computadores" Style="{StaticResource TituloSecao}" />
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Computadores" Style="{StaticResource TituloSecao}" />
+                    <Border Margin="12,5,0,0" Padding="9,4" VerticalAlignment="Top"
+                            CornerRadius="10" Background="{DynamicResource SurfaceAltBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            ToolTip="Computadores visíveis nesta lista">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentBrush}"
+                                     VerticalAlignment="Center" />
+                            <TextBlock Text="Total" Margin="7,0,0,0" FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <TextBlock Text="{Binding Computadores.Count}" Margin="5,0,0,0"
+                                       FontSize="11" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
                 <TextBlock Text="Máquinas encontradas na rede ou registradas na nuvem, inclusive quando estão desconectadas." Style="{StaticResource Subtitulo}" />
             </StackPanel>
             <Button Style="{StaticResource BotaoSecundario}" HorizontalAlignment="Right" VerticalAlignment="Bottom"
@@ -188,8 +203,10 @@
                                         <TextBlock Text="{Binding NomeExibicao}" FontSize="15" FontWeight="SemiBold"
                                                    TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                     </DockPanel>
-                                    <Border Grid.Column="1" CornerRadius="8" Padding="6,3"
-                                            Background="{DynamicResource SurfaceAltBrush}" Margin="7,0,6,0"
+                                    <Border Grid.Column="1" CornerRadius="9" Padding="7,4"
+                                            Background="{DynamicResource SurfaceAltBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                            Margin="7,0,6,0"
                                             VerticalAlignment="Center" ToolTip="Latência individual medida com este computador">
                                         <TextBlock Text="{Binding PingTexto}" FontSize="11" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -213,7 +230,7 @@
                                     </Border>
                                 </StackPanel>
 
-                                <WrapPanel Grid.Row="2" Margin="0,9,0,6" VerticalAlignment="Top">
+                                <WrapPanel Grid.Row="2" Margin="0,6,0,4" VerticalAlignment="Top">
                                     <controls:InteractiveBadge Text="OWNER" Color="#F2B84B" Icon="Coroa"
                                                                BadgeStyle="Holográfica" Glow="True" Interactive="True"
                                                                Margin="0,0,6,4"
@@ -233,21 +250,24 @@
                                     </ItemsControl>
                                 </WrapPanel>
 
-                                <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,2,0,0">
-                                    <Ellipse Width="7" Height="7" VerticalAlignment="Center"
-                                             Fill="{Binding Status, Converter={StaticResource StatusComputadorToBrushConverter}}" />
-                                    <TextBlock Margin="6,0,0,0" FontSize="11"
-                                               Foreground="{DynamicResource TextSecondaryBrush}"
-                                               Text="{Binding Status, Converter={StaticResource StatusComputadorToTextoConverter}}" />
-                                    <TextBlock Margin="6,0,0,0" FontSize="11" Text="·"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                                    <TextBlock Margin="6,0,0,0" MaxWidth="164" FontSize="11"
-                                               TextTrimming="CharacterEllipsis" Text="{Binding EnderecoIpExibicao}"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                                </StackPanel>
+                                <Border Grid.Row="3" Margin="0,1,0,0" Padding="0,6,0,0"
+                                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="7" Height="7" VerticalAlignment="Center"
+                                                 Fill="{Binding Status, Converter={StaticResource StatusComputadorToBrushConverter}}" />
+                                        <TextBlock Margin="6,0,0,0" FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   Text="{Binding Status, Converter={StaticResource StatusComputadorToTextoConverter}}" />
+                                        <TextBlock Margin="6,0,0,0" FontSize="11" Text="·"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Margin="6,0,0,0" MaxWidth="164" FontSize="11"
+                                                   TextTrimming="CharacterEllipsis" Text="{Binding EnderecoIpExibicao}"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    </StackPanel>
+                                </Border>
 
                                 <StackPanel Grid.Row="4" Margin="0,5,0,0">
-                                    <TextBlock Text="{Binding StatusVersoes}" FontSize="10" TextTrimming="CharacterEllipsis"
+                                    <TextBlock Text="{Binding StatusVersoes}" FontSize="11" TextTrimming="CharacterEllipsis"
                                                ToolTip="{Binding StatusVersoes}" Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <TextBlock Text="{Binding StatusRecebimentoMidias}" FontSize="10"
                                                Foreground="#A15C00" Margin="0,2,0,0"
