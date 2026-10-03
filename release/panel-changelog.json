@@ -348,5 +348,16 @@
       "Campos, botões e cartões têm espaçamento e cantos consistentes em todas as telas.",
       "A navegação por teclado ganhou um contorno de foco visível nos principais controles."
     ]
+  },
+  {
+    "version": "2.5.32.0",
+    "summary": "Atualização discreta abaixo do ping e interface renovada para acompanhar os computadores.",
+    "changes": [
+      "A atualização mostra progresso real abaixo do ping, sem trocar para uma tela de carregamento.",
+      "Após o download validado, o aviso permanece por 5 segundos e uma contagem de 10 segundos antecede o reinício.",
+      "Os cartões mostram o estado por uma faixa colorida; o cabeçalho destaca o total de computadores e as abas exibem seus nomes.",
+      "Os temas claro e escuro ganharam superfícies mais nítidas, e a entrada dos cartões deixa de piscar.",
+      "As telas internas deixam de repetir o botão Voltar que já existe na janela principal."
+    ]
   }
 ]

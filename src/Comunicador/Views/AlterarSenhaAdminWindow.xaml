@@ -17,9 +17,8 @@
             <PasswordBox x:Name="ConfirmacaoBox" MinHeight="38" MaxLength="256" />
             <TextBlock x:Name="Erro" Foreground="#D24747" TextWrapping="Wrap" Margin="0,8,0,0" />
             <Grid Margin="0,18,0,0">
-                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                <Button Grid.Column="1" Content="Voltar" Style="{StaticResource BotaoSecundario}" Click="Cancelar_OnClick" />
-                <Button Grid.Column="3" Content="Alterar senha" Style="{StaticResource BotaoPrimario}" Click="Confirmar_OnClick" IsDefault="True" />
+                <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Button Grid.Column="1" Content="Alterar senha" Style="{StaticResource BotaoPrimario}" Click="Confirmar_OnClick" IsDefault="True" />
             </Grid>
         </StackPanel>
       </Border>

@@ -29,28 +29,28 @@ public static class ThemeService
         var colors = dark
             ? new Dictionary<string, string>
             {
-                ["BackgroundBrush"] = "#080B11", ["SurfaceBrush"] = "#121923",
-                ["SurfaceAltBrush"] = "#192231", ["SidebarBrush"] = "#121923",
-                ["CardSurfaceBrush"] = "#B3121923", ["CardHoverBrush"] = "#CC192231",
-                ["CardGlassBorderBrush"] = "#9952637C",
-                ["SidebarHoverBrush"] = "#273347", ["SidebarSelectedBrush"] = "#33435C",
+                ["BackgroundBrush"] = "#0B1020", ["SurfaceBrush"] = "#111A2B",
+                ["SurfaceAltBrush"] = "#1B2A43", ["SidebarBrush"] = "#111A2B",
+                ["CardSurfaceBrush"] = "#E0111A2B", ["CardHoverBrush"] = "#F01B2A43",
+                ["CardGlassBorderBrush"] = "#8053698B",
+                ["SidebarHoverBrush"] = "#283C5D", ["SidebarSelectedBrush"] = "#31517C",
                 ["TextPrimaryBrush"] = "#F7F9FC", ["TextSecondaryBrush"] = "#B8C3D2",
                 ["TextOnDarkBrush"] = "#F7F9FC", ["TextOnDarkDimBrush"] = "#C2CCDA",
-                ["BorderBrush"] = "#344156", ["BorderStrongBrush"] = "#52637C",
-                ["ControlBorderBrush"] = "#6A7A91", ["NavSurfaceBrush"] = "#171D29",
+                ["BorderBrush"] = "#334664", ["BorderStrongBrush"] = "#6884AA",
+                ["ControlBorderBrush"] = "#7285A1", ["NavSurfaceBrush"] = "#172339",
                 ["BackgroundLineBrush"] = "#93B8EA",
             }
             : new Dictionary<string, string>
             {
-                ["BackgroundBrush"] = "#F0F4F9", ["SurfaceBrush"] = "#FFFFFF",
-                ["SurfaceAltBrush"] = "#F8FAFD", ["SidebarBrush"] = "#FFFFFF",
-                ["CardSurfaceBrush"] = "#B3FFFFFF", ["CardHoverBrush"] = "#D9FFFFFF",
-                ["CardGlassBorderBrush"] = "#A6C7D2E0",
-                ["SidebarHoverBrush"] = "#E3EAF3", ["SidebarSelectedBrush"] = "#D6E3F3",
+                ["BackgroundBrush"] = "#E8EEF7", ["SurfaceBrush"] = "#FFFFFF",
+                ["SurfaceAltBrush"] = "#EAF2FF", ["SidebarBrush"] = "#FFFFFF",
+                ["CardSurfaceBrush"] = "#E8FFFFFF", ["CardHoverBrush"] = "#F5FFFFFF",
+                ["CardGlassBorderBrush"] = "#B4BDCEE2",
+                ["SidebarHoverBrush"] = "#DEEAFB", ["SidebarSelectedBrush"] = "#D2E4FB",
                 ["TextPrimaryBrush"] = "#111923", ["TextSecondaryBrush"] = "#4F6074",
                 ["TextOnDarkBrush"] = "#111923", ["TextOnDarkDimBrush"] = "#4F6074",
-                ["BorderBrush"] = "#C7D2E0", ["BorderStrongBrush"] = "#9EADC0",
-                ["ControlBorderBrush"] = "#8292A7", ["NavSurfaceBrush"] = "#FFFFFF",
+                ["BorderBrush"] = "#B9CBE3", ["BorderStrongBrush"] = "#8DA9CC",
+                ["ControlBorderBrush"] = "#8299B9", ["NavSurfaceBrush"] = "#FFFFFF",
                 ["BackgroundLineBrush"] = "#294C76",
             };
 
@@ -72,8 +72,8 @@ public static class ThemeService
         var dark = !settings.Tema.Equals("Claro", StringComparison.OrdinalIgnoreCase);
         var transparency = Math.Clamp(settings.TransparenciaCards, 0, 90) / 100d;
         var opacity = 1d - transparency;
-        var baseColor = dark ? Color.FromRgb(18, 25, 35) : Colors.White;
-        var hoverColor = dark ? Color.FromRgb(25, 34, 49) : Colors.White;
+        var baseColor = dark ? Color.FromRgb(17, 26, 43) : Colors.White;
+        var hoverColor = dark ? Color.FromRgb(27, 42, 67) : Colors.White;
         Application.Current.Resources["CardSurfaceBrush"] = new SolidColorBrush(Color.FromArgb(
             (byte)Math.Round(255 * opacity), baseColor.R, baseColor.G, baseColor.B));
         Application.Current.Resources["CardHoverBrush"] = new SolidColorBrush(Color.FromArgb(

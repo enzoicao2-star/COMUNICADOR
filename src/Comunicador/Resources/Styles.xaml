@@ -7,15 +7,15 @@
 
     <!-- O padrão é escuro, igual ao AppSettings inicial. Isso evita um quadro
          claro durante a primeira aplicação do tema. -->
-    <SolidColorBrush x:Key="BackgroundBrush" Color="#080B11" />
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#121923" />
-    <SolidColorBrush x:Key="SurfaceAltBrush" Color="#192231" />
-    <SolidColorBrush x:Key="CardSurfaceBrush" Color="#B3121923" />
-    <SolidColorBrush x:Key="CardHoverBrush" Color="#CC192231" />
-    <SolidColorBrush x:Key="CardGlassBorderBrush" Color="#9952637C" />
-    <SolidColorBrush x:Key="SidebarBrush" Color="#121923" />
-    <SolidColorBrush x:Key="SidebarHoverBrush" Color="#273347" />
-    <SolidColorBrush x:Key="SidebarSelectedBrush" Color="#33435C" />
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#0B1020" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#111A2B" />
+    <SolidColorBrush x:Key="SurfaceAltBrush" Color="#1B2A43" />
+    <SolidColorBrush x:Key="CardSurfaceBrush" Color="#E0111A2B" />
+    <SolidColorBrush x:Key="CardHoverBrush" Color="#F01B2A43" />
+    <SolidColorBrush x:Key="CardGlassBorderBrush" Color="#8053698B" />
+    <SolidColorBrush x:Key="SidebarBrush" Color="#111A2B" />
+    <SolidColorBrush x:Key="SidebarHoverBrush" Color="#283C5D" />
+    <SolidColorBrush x:Key="SidebarSelectedBrush" Color="#31517C" />
     <SolidColorBrush x:Key="AccentBrush" Color="#4C8DFF" />
     <SolidColorBrush x:Key="AccentHoverBrush" Color="#659DFF" />
     <SolidColorBrush x:Key="AccentPressedBrush" Color="#3377EA" />
@@ -23,21 +23,21 @@
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="#B8C3D2" />
     <SolidColorBrush x:Key="TextOnDarkBrush" Color="#F7F9FC" />
     <SolidColorBrush x:Key="TextOnDarkDimBrush" Color="#C2CCDA" />
-    <SolidColorBrush x:Key="BorderBrush" Color="#344156" />
-    <SolidColorBrush x:Key="BorderStrongBrush" Color="#52637C" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#334664" />
+    <SolidColorBrush x:Key="BorderStrongBrush" Color="#6884AA" />
     <SolidColorBrush x:Key="ControlBorderBrush" Color="#6A7A91" />
     <SolidColorBrush x:Key="OnlineBrush" Color="#0F7B0F" />
     <SolidColorBrush x:Key="OfflineBrush" Color="#C42B1C" />
     <SolidColorBrush x:Key="UnknownBrush" Color="#9D9D9D" />
     <SolidColorBrush x:Key="WarningBrush" Color="#9D5D00" />
-    <SolidColorBrush x:Key="NavSurfaceBrush" Color="#171D29" />
+    <SolidColorBrush x:Key="NavSurfaceBrush" Color="#172339" />
     <SolidColorBrush x:Key="BackgroundLineBrush" Color="#93B8EA" />
 
     <FontFamily x:Key="AppFont">Segoe UI Variable Text, Segoe UI</FontFamily>
     <FontFamily x:Key="DisplayFont">Segoe UI Variable Display, Segoe UI</FontFamily>
 
     <CornerRadius x:Key="ControlRadius">8</CornerRadius>
-    <CornerRadius x:Key="CardRadius">16</CornerRadius>
+    <CornerRadius x:Key="CardRadius">14</CornerRadius>
     <DropShadowEffect x:Key="GlassCardShadow" Color="#000000" BlurRadius="22"
                       ShadowDepth="3" Direction="270" Opacity="0.30" />
 
@@ -105,14 +105,6 @@
         <Setter Property="Padding" Value="16" />
         <Setter Property="Effect" Value="{DynamicResource GlassCardShadow}" />
         <Style.Triggers>
-            <EventTrigger RoutedEvent="Loaded">
-                <BeginStoryboard>
-                    <Storyboard>
-                        <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0.72" To="1"
-                                         Duration="0:0:0.32" FillBehavior="Stop" />
-                    </Storyboard>
-                </BeginStoryboard>
-            </EventTrigger>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
                 <Setter Property="Background" Value="{DynamicResource CardHoverBrush}" />

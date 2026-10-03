@@ -198,7 +198,6 @@
         <DockPanel Grid.Row="2" Margin="0,14,0,0">
             <TextBlock Text="{Binding StatusMensagem}" Style="{StaticResource Subtitulo}" VerticalAlignment="Center" TextWrapping="Wrap" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Voltar para computadores" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,0" Click="Fechar_Click" />
                 <Button Content="Aplicar mudanças e sincronizar" Style="{StaticResource BotaoPrimario}"
                         Command="{Binding SalvarPerfilCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
             </StackPanel>

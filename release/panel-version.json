@@ -1,12 +1,13 @@
 {
-  "version": "2.5.31.0",
+  "version": "2.5.32.0",
   "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-  "sha256": "0E989474343EB605890B8BAECA52B5864660FB3FA42CE44C3121CEB1BE4071F2",
-  "summary": "Interface mais clara para acompanhar computadores, ping e estado das conexões.",
+  "sha256": "C6F8864426BE031ED2A5867B072D2A4EC4DC7F641AA76EC6DC7D9C234579B128",
+  "summary": "Atualização discreta abaixo do ping e interface renovada para acompanhar os computadores.",
   "changes": [
-    "A lista mostra o total de computadores e organiza melhor nome, ping, estado e endereço em cada cartão.",
-    "O ping médio acompanha o tema claro ou escuro, e o ping individual continua no cartão de cada máquina.",
-    "Campos, botões e cartões ganharam espaçamento e cantos consistentes em todas as telas.",
-    "A navegação por teclado ganhou um indicador de foco visível."
+    "A atualização mostra progresso real abaixo do ping, sem trocar para uma tela de carregamento.",
+    "Após o download validado, o aviso permanece por 5 segundos e uma contagem de 10 segundos antecede o reinício.",
+    "Os cartões mostram o estado por uma faixa colorida; o cabeçalho destaca o total de computadores e as abas exibem seus nomes.",
+    "Os temas claro e escuro ganharam superfícies mais nítidas, e a entrada dos cartões deixa de piscar.",
+    "As telas internas deixam de repetir o botão Voltar que já existe na janela principal."
   ]
 }

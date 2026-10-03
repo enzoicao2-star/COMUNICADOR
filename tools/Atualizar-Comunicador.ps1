@@ -506,6 +506,16 @@ try {
         throw ('O arquivo baixado informa a versao ' + $downloadedVersion + ', esperada ' + $latestVersion + '.')
     }
 
+    if ($RestartAfterUpdate) {
+        Write-UpdateProgress 'download_complete' 100 'Download da nova atualização concluído.'
+        Start-Sleep -Seconds 5
+        for ($remaining = 10; $remaining -ge 0; $remaining--) {
+            Write-UpdateProgress 'restart_wait' 100 'O Comunicador será reiniciado em' $remaining
+            if ($remaining -gt 0) { Start-Sleep -Seconds 1 }
+        }
+        Start-Sleep -Milliseconds 450
+    }
+
     Get-CimInstance Win32_Process -Filter "Name='Comunicador.exe'" -ErrorAction SilentlyContinue |
         Where-Object { $_.ExecutablePath -and [IO.Path]::GetFullPath($_.ExecutablePath) -eq $target } |
         ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
@@ -551,10 +561,6 @@ try {
         catch { Write-Host ('AVISO: nao foi possivel salvar o resumo da atualizacao: ' + $_.Exception.Message) }
     }
     if ($RestartAfterUpdate) {
-        for ($remaining = 15; $remaining -gt 0; $remaining--) {
-            Write-UpdateProgress 'restart_wait' 100 'Atualização concluída.' $remaining
-            Start-Sleep -Seconds 1
-        }
         Write-UpdateProgress 'launching' 100 'Reiniciando o Comunicador...'
         if ($PanelProcessId -gt 0) {
             try { Wait-Process -Id $PanelProcessId -Timeout 20 -ErrorAction SilentlyContinue } catch { }

@@ -45,11 +45,12 @@ public sealed class PanelUpdateService
         var executable = Environment.ProcessPath
             ?? throw new InvalidOperationException("Não foi possível localizar o executável atual.");
         var updater = FindUpdater(executable);
-        if (updater is null || !SupportsProgress(updater))
+        if (updater is null || !SupportsStagedRestart(updater))
         {
             try
             {
-                var updatedScript = await Http.GetStringAsync(UpdaterUrl, cancellationToken);
+                var updatedScript = await Http.GetStringAsync(
+                    $"{UpdaterUrl}?t={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}", cancellationToken);
                 updater = Path.Combine(AppPaths.RootDir, "Atualizar-Comunicador-atualizado.ps1");
                 await File.WriteAllTextAsync(updater, updatedScript, cancellationToken);
             }
@@ -57,6 +58,8 @@ public sealed class PanelUpdateService
                 && ex is HttpRequestException or IOException or UnauthorizedAccessException) { }
         }
         if (updater is null) throw new InvalidOperationException("Não foi possível localizar o atualizador do Comunicador.");
+        if (!SupportsStagedRestart(updater))
+            throw new InvalidOperationException("Não foi possível obter o atualizador com reinício programado.");
         var suportaProgresso = SupportsProgress(updater);
 
         var process = new ProcessStartInfo("powershell.exe")
@@ -193,6 +196,12 @@ public sealed class PanelUpdateService
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
     }
 
+    private static bool SupportsStagedRestart(string path)
+    {
+        try { return File.ReadAllText(path).Contains("'download_complete'", StringComparison.Ordinal); }
+        catch { return false; }
+    }
+
     private static string? FindInstallRoot(string executable)
     {
         var directory = Path.GetDirectoryName(executable);
@@ -219,5 +228,6 @@ public sealed class PanelUpdateProgress
     public string Phase { get; set; } = "running";
     public int Percent { get; set; }
     public string Message { get; set; } = string.Empty;
+    [System.Text.Json.Serialization.JsonPropertyName("remaining_seconds")]
     public int RemainingSeconds { get; set; }
 }

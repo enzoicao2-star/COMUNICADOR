@@ -37,6 +37,10 @@ public partial class MainWindow : Window
     private bool _janelaFoiReativada;
     private bool _verificandoAtualizacao;
     private bool _dialogoAtualizacaoAberto;
+    private bool _atualizacaoEmAndamento;
+    private bool _lendoProgressoAtualizacao;
+    private bool _spinnerAtualizacaoVisivel;
+    private readonly DispatcherTimer _temporizadorAtualizacao = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private string? _versaoRecusada;
     private readonly Forms.NotifyIcon _trayIcon;
     private bool _allowExit;
@@ -44,6 +48,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _temporizadorAtualizacao.Tick += AtualizarProgressoPainel;
         _trayIcon = new Forms.NotifyIcon
         {
             Text = "Comunicador — recebendo notificações",
@@ -59,6 +64,7 @@ public partial class MainWindow : Window
         Closed += (_, _) =>
         {
             _trayIcon.Dispose();
+            _temporizadorAtualizacao.Stop();
             DesconectarViewModel();
         };
         var menu = new Forms.ContextMenuStrip();
@@ -153,8 +159,8 @@ public partial class MainWindow : Window
 
     private async Task VerificarAtualizacaoAoIniciarAsync(MainViewModel viewModel)
     {
-        if (_verificandoAtualizacao || _dialogoAtualizacaoAberto
-            || SectionContent.Content is AtualizacaoDisponivelWindow or AtualizacaoPainelWindow) return;
+        if (_verificandoAtualizacao || _dialogoAtualizacaoAberto || _atualizacaoEmAndamento
+            || SectionContent.Content is AtualizacaoDisponivelWindow) return;
         _verificandoAtualizacao = true;
         try
         {
@@ -166,8 +172,8 @@ public partial class MainWindow : Window
 
     private async void OnMainWindowActivated(object? sender, EventArgs e)
     {
-        if (!_janelaFoiReativada || _verificandoAtualizacao || _dialogoAtualizacaoAberto
-            || _viewModel is null || SectionContent.Content is AtualizacaoDisponivelWindow or AtualizacaoPainelWindow)
+        if (!_janelaFoiReativada || _verificandoAtualizacao || _dialogoAtualizacaoAberto || _atualizacaoEmAndamento
+            || _viewModel is null || SectionContent.Content is AtualizacaoDisponivelWindow)
             return;
 
         _janelaFoiReativada = false;
@@ -203,25 +209,103 @@ public partial class MainWindow : Window
                     return;
                 }
 
-                var progresso = new AtualizacaoPainelWindow(viewModel.Configuracoes.CaminhoProgressoAtualizacaoPainel);
-                progresso.ReinicioPronto += (_, _) =>
-                {
-                    _allowExit = true;
-                    Close();
-                };
-                progresso.VoltarSolicitado += (_, _) => NavegarVoltar();
-                progresso.FalhaOcorreu += (_, _) => DesbloquearNavegacao();
-                progresso.FinalizadaSemReinicio += (_, _) =>
-                {
-                    DesbloquearNavegacao();
-                    NavegarVoltar();
-                };
-                NavegarPara(progresso, canGoBack: false, lockNavigation: true);
+                NavegarVoltar();
             };
             NavegarPara(tela);
         }
         finally { _dialogoAtualizacaoAberto = false; }
         return Task.CompletedTask;
+    }
+
+    private void OnAtualizacaoPainelIniciada(object? sender, EventArgs e)
+    {
+        _atualizacaoEmAndamento = true;
+        UpdateStatus.Visibility = Visibility.Visible;
+        DefinirTextoAtualizacao("Atualizando · 0% · preparando download...");
+        UpdateStatusText.ToolTip = null;
+        MostrarSpinnerAtualizacao(true);
+        _temporizadorAtualizacao.Start();
+    }
+
+    private void DefinirTextoAtualizacao(string texto)
+    {
+        if (UpdateStatusText.Text != texto) UpdateStatusText.Text = texto;
+    }
+
+    private void MostrarSpinnerAtualizacao(bool mostrar)
+    {
+        if (_spinnerAtualizacaoVisivel == mostrar) return;
+        _spinnerAtualizacaoVisivel = mostrar;
+        UpdateSpinner.Visibility = mostrar ? Visibility.Visible : Visibility.Collapsed;
+        UpdateSpinnerRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+        if (mostrar && _viewModel?.Configuracoes.ReduzirMovimento != true)
+            UpdateSpinnerRotation.BeginAnimation(RotateTransform.AngleProperty,
+                new DoubleAnimation(0, 360, TimeSpan.FromMilliseconds(850))
+                { RepeatBehavior = RepeatBehavior.Forever });
+    }
+
+    private async void AtualizarProgressoPainel(object? sender, EventArgs e)
+    {
+        if (_lendoProgressoAtualizacao || _viewModel is null) return;
+        var caminho = _viewModel.Configuracoes.CaminhoProgressoAtualizacaoPainel;
+        if (!File.Exists(caminho)) return;
+        _lendoProgressoAtualizacao = true;
+        try
+        {
+            var progresso = JsonSerializer.Deserialize<Services.PanelUpdateProgress>(
+                await File.ReadAllTextAsync(caminho),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (progresso is null) return;
+
+            switch (progresso.Phase)
+            {
+                case "running":
+                    MostrarSpinnerAtualizacao(true);
+                    DefinirTextoAtualizacao($"Atualizando · {Math.Clamp(progresso.Percent, 0, 99)}% · {progresso.Message}");
+                    break;
+                case "download_complete":
+                    MostrarSpinnerAtualizacao(false);
+                    DefinirTextoAtualizacao("Download da nova atualização concluído");
+                    break;
+                case "restart_wait":
+                    MostrarSpinnerAtualizacao(false);
+                    DefinirTextoAtualizacao($"O Comunicador será reiniciado em {progresso.RemainingSeconds}s");
+                    if (progresso.RemainingSeconds == 0)
+                    {
+                        _temporizadorAtualizacao.Stop();
+                        await Task.Delay(450);
+                        _allowExit = true;
+                        Close();
+                    }
+                    break;
+                case "launching":
+                case "done":
+                    _temporizadorAtualizacao.Stop();
+                    _allowExit = true;
+                    Close();
+                    break;
+                case "failed":
+                    _temporizadorAtualizacao.Stop();
+                    _atualizacaoEmAndamento = false;
+                    MostrarSpinnerAtualizacao(false);
+                    DefinirTextoAtualizacao("Falha na atualização · veja Configurações");
+                    UpdateStatusText.ToolTip = progresso.Message;
+                    break;
+                case "up_to_date":
+                    _temporizadorAtualizacao.Stop();
+                    _atualizacaoEmAndamento = false;
+                    MostrarSpinnerAtualizacao(false);
+                    DefinirTextoAtualizacao("O Comunicador já está atualizado");
+                    await Task.Delay(5000);
+                    if (!_atualizacaoEmAndamento) UpdateStatus.Visibility = Visibility.Collapsed;
+                    break;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            // O script troca o arquivo de progresso atomicamente; repetimos na próxima leitura.
+        }
+        finally { _lendoProgressoAtualizacao = false; }
     }
 
     private void OnWindowLoaded(object sender, RoutedEventArgs e)
@@ -289,6 +373,7 @@ public partial class MainWindow : Window
         if (_viewModel is null) return;
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        _viewModel.Configuracoes.AtualizacaoPainelIniciada += OnAtualizacaoPainelIniciada;
         _viewModel.Mensagens.AbrirCarrosselSolicitado += OnAbrirCarrosselSolicitado;
         PrepararSecoes(_viewModel);
         MostrarSecaoAtual();
@@ -307,6 +392,7 @@ public partial class MainWindow : Window
     private void DesconectarViewModel()
     {
         if (_viewModel is not null) _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        if (_viewModel is not null) _viewModel.Configuracoes.AtualizacaoPainelIniciada -= OnAtualizacaoPainelIniciada;
         if (_viewModel is not null) _viewModel.Mensagens.AbrirCarrosselSolicitado -= OnAbrirCarrosselSolicitado;
         LimparNavegacaoAninhada();
         _warmupGeneration++;

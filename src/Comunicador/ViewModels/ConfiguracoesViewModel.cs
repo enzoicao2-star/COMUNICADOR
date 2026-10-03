@@ -12,6 +12,7 @@ namespace Comunicador.ViewModels;
 
 public sealed class ConfiguracoesViewModel : ViewModelBase
 {
+    public event EventHandler? AtualizacaoPainelIniciada;
     private readonly AppSettings _settings;
     private readonly EmbeddedReceptorServer _embeddedReceptorServer;
     private readonly JsonStore<PainelPareado> _paineisPareadosStore;
@@ -474,6 +475,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         try
         {
             await _panelUpdate.StartUpdateAsync(info).ConfigureAwait(true);
+            AtualizacaoPainelIniciada?.Invoke(this, EventArgs.Empty);
             return true;
         }
         catch (Exception ex) when (ex is IOException or HttpRequestException or InvalidOperationException or System.ComponentModel.Win32Exception)
