@@ -491,7 +491,7 @@ public partial class MainWindow : Window
     {
         if (_viewModel is null) return;
         var mensagens = _viewModel.Mensagens;
-        var carrossel = new CarrosselWindow(mensagens.Enviador, mensagens.Destinatarios,
+        var carrossel = new CarrosselView(mensagens.Enviador, mensagens.Destinatarios,
             () => mensagens.PodeGerenciarCarrossel, () => mensagens.PodeGerenciarCarrossel);
         NavegarPara(carrossel, carrossel.CancelarOperacoes);
     }

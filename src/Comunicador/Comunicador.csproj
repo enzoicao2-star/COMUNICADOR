@@ -10,9 +10,9 @@
     <AssemblyName Condition="'$(TestBuild)' == 'true'">Comunicador-Teste</AssemblyName>
     <RootNamespace>Comunicador</RootNamespace>
     <Platforms>x64</Platforms>
-    <Version Condition="'$(TestBuild)' != 'true'">2.5.33</Version>
-    <AssemblyVersion Condition="'$(TestBuild)' != 'true'">2.5.33.0</AssemblyVersion>
-    <FileVersion Condition="'$(TestBuild)' != 'true'">2.5.33.0</FileVersion>
+    <Version Condition="'$(TestBuild)' != 'true'">2.5.34</Version>
+    <AssemblyVersion Condition="'$(TestBuild)' != 'true'">2.5.34.0</AssemblyVersion>
+    <FileVersion Condition="'$(TestBuild)' != 'true'">2.5.34.0</FileVersion>
     <Version Condition="'$(TestBuild)' == 'true'">2.5.27.2</Version>
     <AssemblyVersion Condition="'$(TestBuild)' == 'true'">2.5.27.2</AssemblyVersion>
     <FileVersion Condition="'$(TestBuild)' == 'true'">2.5.27.2</FileVersion>

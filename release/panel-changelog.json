@@ -374,5 +374,16 @@
       "O carrossel permite cancelar a transferência, parar a execução e aplicar novas imagens ou tempos sem interromper o anterior antes da conclusão.",
       "O receptor 2.5.18 adiciona rastro de miniaturas ao movimento do mouse, com duração total e tempo por imagem configuráveis."
     ]
+  },
+  {
+    "version": "2.5.34.0",
+    "summary": "Botão Voltar corrigido e configuração do carrossel integrada ao visual do painel.",
+    "changes": [
+      "O botão Voltar responde ao clique mesmo na barra superior personalizada do Comunicador.",
+      "A configuração do carrossel aparece como tela interna do Comunicador, com cartões, cores e controles no estilo do painel.",
+      "As miniaturas do rastro têm cantos retos e novas imagens só surgem enquanto o mouse do destinatário se move.",
+      "Cada miniatura permanece pelo tempo definido e as já exibidas somem naturalmente quando o carrossel termina.",
+      "O receptor 2.5.19 inclui as miniaturas quadradas do rastro do mouse."
+    ]
   }
 ]

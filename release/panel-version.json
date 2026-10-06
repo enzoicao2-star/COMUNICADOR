@@ -1,14 +1,13 @@
 {
-    "version":  "2.5.33.0",
+    "version":  "2.5.34.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "2C05AC0E63010BE515EADA759F473E0974F7C148DEF28645A099B3359ADE17E9",
-    "summary":  "Carrossel com rastro do mouse, controle durante a execução e interface ajustada.",
+    "sha256":  "C3358BB21BA66ABCBA0A4D9BDC7CDE76B1D5EDA9F8CE60BA240B66364EE4679F",
+    "summary":  "Botão Voltar corrigido e configuração do carrossel integrada ao visual do painel.",
     "changes":  [
-                    "O carrossel pode criar pequenas imagens como rastro somente enquanto o mouse do destinatário se move; cada imagem tem seu próprio tempo de exibição.",
-                    "O rastro repete as imagens até acabar o tempo total e mantém as últimas miniaturas até expirarem.",
-                    "É possível alterar o carrossel ativo, cancelar o envio e parar a execução pelos controles do painel.",
-                    "Comandos remotos mostram uma animação discreta na cor do painel até chegar a resposta.",
-                    "A navegação mostra o nome apenas na aba ativa, sem caixa cinza nem dica de ferramenta; a entrada manual de computadores foi removida.",
-                    "Os calendários e o fundo opcional de ondas interativas acompanham o tema do painel."
+                    "O botão Voltar responde ao clique mesmo na barra superior personalizada do Comunicador.",
+                    "A configuração do carrossel aparece como tela interna do Comunicador, com cartões, cores e controles no estilo do painel.",
+                    "As miniaturas do rastro têm cantos retos e novas imagens só surgem enquanto o mouse do destinatário se move.",
+                    "Cada miniatura permanece pelo tempo definido e as já exibidas somem naturalmente quando o carrossel termina.",
+                    "O receptor 2.5.19 inclui as miniaturas quadradas do rastro do mouse."
                 ]
 }

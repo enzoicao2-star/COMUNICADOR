@@ -1,95 +1,179 @@
-<UserControl x:Class="Comunicador.Views.CarrosselWindow"
+<UserControl x:Class="Comunicador.Views.CarrosselView"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Background="{DynamicResource SurfaceBrush}">
-    <Grid Margin="22">
+        Background="Transparent"
+        Foreground="{DynamicResource TextPrimaryBrush}">
+    <Grid Margin="28,18,28,24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <StackPanel>
-            <TextBlock Text="Carrossel de imagens" FontSize="24" FontWeight="SemiBold" />
-            <TextBlock Text="As imagens aparecerão no centro da tela, uma por vez, sem mudar o papel de parede. O carrossel continua mesmo com o painel fechado ou após reiniciar o computador."
-                       TextWrapping="Wrap" Margin="0,5,0,14" Foreground="{DynamicResource TextSecondaryBrush}" />
-            <TextBlock Text="Para alterar um carrossel em execução, edite as imagens ou os tempos e clique em Aplicar. O atual continua até a transferência terminar."
-                       TextWrapping="Wrap" Margin="0,0,0,10" Foreground="{DynamicResource TextSecondaryBrush}" />
+
+        <StackPanel Margin="0,0,0,16">
+            <TextBlock Text="Carrossel de imagens" Style="{StaticResource TituloSecao}" />
+            <TextBlock Text="Monte a sequência e escolha onde ela vai aparecer. Esta tela fica dentro do Comunicador."
+                       Style="{StaticResource Subtitulo}" />
         </StackPanel>
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel>
-                <TextBlock Text="Imagens na ordem de exibição" FontWeight="SemiBold" Margin="0,0,0,6" />
-                <ListBox x:Name="ImagesList" Height="165" SelectionMode="Extended">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis" ToolTip="{Binding}" />
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-                <WrapPanel Margin="0,7,0,15">
-                    <Button Content="Adicionar imagens" Click="AddImages_Click" Margin="0,0,7,6" />
-                    <Button Content="Remover seleção" Click="RemoveImages_Click" Margin="0,0,7,6" />
-                    <Button Content="Subir" Click="MoveUp_Click" Margin="0,0,7,6" />
-                    <Button Content="Descer" Click="MoveDown_Click" Margin="0,0,7,6" />
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.08*" />
+                <ColumnDefinition Width="0.92*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource CardBorder}" Margin="0,0,8,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="1. Sequência de imagens" Style="{StaticResource TituloCard}" />
+                    <TextBlock Grid.Row="1" Text="Adicione PNG ou JPEG e ajuste a ordem de exibição."
+                               Style="{StaticResource Subtitulo}" Margin="0,0,0,10" />
+                    <ListBox x:Name="ImagesList" Grid.Row="2" Height="154" SelectionMode="Extended"
+                             Background="{DynamicResource SurfaceAltBrush}" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding}" VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <WrapPanel Grid.Row="3" Margin="0,8,0,15">
+                        <Button Content="Adicionar imagens" Style="{StaticResource BotaoPrimario}"
+                                Click="AddImages_Click" Margin="0,0,7,6" />
+                        <Button Content="Remover seleção" Style="{StaticResource BotaoSecundario}"
+                                Click="RemoveImages_Click" Margin="0,0,7,6" />
+                        <Button Content="Subir" Style="{StaticResource BotaoSecundario}"
+                                Click="MoveUp_Click" Margin="0,0,7,6" />
+                        <Button Content="Descer" Style="{StaticResource BotaoSecundario}"
+                                Click="MoveDown_Click" Margin="0,0,7,6" />
+                    </WrapPanel>
+                    <StackPanel Grid.Row="4">
+                        <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,0,0,13" />
+                        <TextBlock Text="2. Computadores de destino" Style="{StaticResource TituloCard}" />
+                        <TextBlock Text="Marque os computadores que devem receber este carrossel."
+                                   Style="{StaticResource Subtitulo}" Margin="0,2,0,8" />
+                        <ListBox x:Name="RecipientsList" MinHeight="90" MaxHeight="180"
+                                 Background="{DynamicResource SurfaceAltBrush}" BorderThickness="0">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding Selecionado, Mode=TwoWay}"
+                                              Content="{Binding Computador.NomeExibicao}" Margin="3" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1" Style="{StaticResource CardBorder}" Margin="8,0,0,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="3. Aparência e tempo" Style="{StaticResource TituloCard}" />
+                        <TextBlock Text="Escolha como as imagens serão mostradas no computador."
+                                   Style="{StaticResource Subtitulo}" Margin="0,2,0,12" />
+
+                        <RadioButton x:Name="CenterRadio" GroupName="DisplayMode" Content="Imagem no centro da tela"
+                                     IsChecked="True" Margin="0,0,0,8" />
+                        <TextBlock Text="Mostra uma imagem por vez, sem alterar o papel de parede."
+                                   Style="{StaticResource Subtitulo}" Margin="27,0,0,10" />
+                        <RadioButton x:Name="MouseTrailRadio" GroupName="DisplayMode"
+                                     Content="Imagens pequenas seguindo o movimento do mouse" Margin="0,0,0,8" />
+                        <TextBlock Text="Só surgem novas miniaturas enquanto o mouse se move. Cada uma some após o tempo escolhido."
+                                   Style="{StaticResource Subtitulo}" Margin="27,0,0,10" />
+
+                        <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,0,12"
+                                IsEnabled="{Binding IsChecked, ElementName=MouseTrailRadio}">
+                            <StackPanel>
+                                <TextBlock Text="Configuração do rastro" Style="{StaticResource RotuloCampo}" />
+                                <Grid Margin="0,3,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="86" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Tempo total" VerticalAlignment="Center" />
+                                    <TextBox x:Name="TrailMinutes" Grid.Column="1" Text="5" />
+                                </Grid>
+                                <Grid Margin="0,9,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="86" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Duração de cada miniatura, em segundos"
+                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBox x:Name="TrailImageSeconds" Grid.Column="1" Text="1,5" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,0,0,12" />
+                        <TextBlock Text="Imagem no centro" Style="{StaticResource RotuloCampo}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="86" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Tempo que cada imagem fica na tela, em segundos"
+                                       VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <TextBox x:Name="DurationSeconds" Grid.Column="1" Text="15"
+                                     IsEnabled="{Binding IsChecked, ElementName=CenterRadio}" />
+                        </Grid>
+                        <TextBlock Text="Intervalo entre imagens, em minutos" Style="{StaticResource RotuloCampo}"
+                                   Margin="0,14,0,6" />
+                        <StackPanel IsEnabled="{Binding IsChecked, ElementName=CenterRadio}">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,7">
+                                <RadioButton x:Name="FixedRadio" GroupName="Interval" Content="Fixo"
+                                             IsChecked="True" VerticalAlignment="Center" />
+                                <TextBox x:Name="FixedMinutes" Text="5" Width="72" Margin="12,0,0,0" />
+                            </StackPanel>
+                            <WrapPanel Margin="0,0,0,5">
+                                <RadioButton x:Name="RandomRadio" GroupName="Interval" Content="Aleatório de"
+                                             VerticalAlignment="Center" />
+                                <TextBox x:Name="RandomMin" Text="5" Width="72" Margin="10,0,6,6"
+                                         IsEnabled="{Binding IsChecked, ElementName=RandomRadio}" />
+                                <TextBlock Text="até" VerticalAlignment="Center" Margin="0,0,6,6" />
+                                <TextBox x:Name="RandomMax" Text="15" Width="72" Margin="0,0,6,6"
+                                         IsEnabled="{Binding IsChecked, ElementName=RandomRadio}" />
+                                <TextBlock Text="minutos" VerticalAlignment="Center" Margin="0,0,0,6" />
+                            </WrapPanel>
+                        </StackPanel>
+                        <CheckBox x:Name="RepeatCheck"
+                                  Content="Repetir desde o início até eu desligar"
+                                  IsChecked="True" IsEnabled="{Binding IsChecked, ElementName=CenterRadio}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2" Style="{StaticResource CardBorder}" Margin="0,14,0,0" Padding="14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                    <TextBlock x:Name="StatusText" Text="Pronto para configurar."
+                               TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <ProgressBar x:Name="TransferProgress" Height="7" Margin="0,8,0,0"
+                                 Minimum="0" Maximum="1" Value="0" />
+                </StackPanel>
+                <WrapPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <Button x:Name="CancelTransferButton" Content="Cancelar envio"
+                            Style="{StaticResource BotaoSecundario}" Visibility="Collapsed"
+                            Click="CancelTransfer_Click" Margin="0,0,8,0" />
+                    <Button x:Name="StopButton" Content="Parar carrossel"
+                            Style="{StaticResource BotaoSecundario}"
+                            Click="Stop_Click" Margin="0,0,8,0" />
+                    <Button x:Name="StartButton" Content="Aplicar carrossel"
+                            Style="{StaticResource BotaoPrimario}" Click="Start_Click" />
                 </WrapPanel>
-
-                <TextBlock Text="Computadores de destino" FontWeight="SemiBold" Margin="0,0,0,5" />
-                <TextBlock Text="Use a mesma seleção de computadores da tela de Mensagens ou marque outros aqui."
-                           Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,5" />
-                <ListBox x:Name="RecipientsList" Height="100">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <CheckBox IsChecked="{Binding Selecionado, Mode=TwoWay}"
-                                      Content="{Binding Computador.NomeExibicao}" Margin="3" />
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-
-                <TextBlock Text="Como mostrar as imagens" FontWeight="SemiBold" Margin="0,15,0,6" />
-                <RadioButton x:Name="CenterRadio" GroupName="DisplayMode" Content="No centro da tela" IsChecked="True" Margin="0,0,0,7" />
-                <RadioButton x:Name="MouseTrailRadio" GroupName="DisplayMode" Content="Pequenas imagens como rastro do mouse" Margin="0,0,0,7" />
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,9" IsEnabled="{Binding IsChecked, ElementName=MouseTrailRadio}">
-                    <TextBlock Text="Duração total do rastro, em minutos" VerticalAlignment="Center" />
-                    <TextBox x:Name="TrailMinutes" Text="5" Width="65" Margin="10,0,0,0" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,9" IsEnabled="{Binding IsChecked, ElementName=MouseTrailRadio}">
-                    <TextBlock Text="Cada miniatura permanece por, em segundos" VerticalAlignment="Center" />
-                    <TextBox x:Name="TrailImageSeconds" Text="1,5" Width="65" Margin="10,0,0,0" />
-                </StackPanel>
-
-                <TextBlock Text="Tempo de cada imagem na tela, em segundos" FontWeight="SemiBold" Margin="0,15,0,6" />
-                <TextBox x:Name="DurationSeconds" Text="15" Width="65" HorizontalAlignment="Left"
-                         IsEnabled="{Binding IsChecked, ElementName=CenterRadio}" />
-                <TextBlock Text="Intervalo entre imagens, em minutos" FontWeight="SemiBold" Margin="0,15,0,6" />
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,5" IsEnabled="{Binding IsChecked, ElementName=CenterRadio}">
-                    <RadioButton x:Name="FixedRadio" GroupName="Interval" Content="Fixo" IsChecked="True" VerticalAlignment="Center" />
-                    <TextBox x:Name="FixedMinutes" Text="5" Width="65" Margin="10,0,0,0" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,9" IsEnabled="{Binding IsChecked, ElementName=CenterRadio}">
-                    <RadioButton x:Name="RandomRadio" GroupName="Interval" Content="Aleatório de" VerticalAlignment="Center" />
-                    <TextBox x:Name="RandomMin" Text="5" Width="65" Margin="10,0,5,0"
-                             IsEnabled="{Binding IsChecked, ElementName=RandomRadio}" />
-                    <TextBlock Text="até" VerticalAlignment="Center" />
-                    <TextBox x:Name="RandomMax" Text="15" Width="65" Margin="5,0,5,0"
-                             IsEnabled="{Binding IsChecked, ElementName=RandomRadio}" />
-                    <TextBlock Text="minutos" VerticalAlignment="Center" />
-                </StackPanel>
-                <CheckBox x:Name="RepeatCheck" Content="Repetir: após a última, voltar para a primeira até eu desligar"
-                          IsChecked="True" IsEnabled="{Binding IsChecked, ElementName=CenterRadio}" />
-            </StackPanel>
-        </ScrollViewer>
-
-        <StackPanel Grid.Row="2" Margin="0,14,0,0">
-            <ProgressBar x:Name="TransferProgress" Height="9" Minimum="0" Maximum="1" Value="0" />
-            <TextBlock x:Name="StatusText" Text="Pronto para configurar." TextWrapping="Wrap"
-                       Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,6,0,12" />
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="CancelTransferButton" Content="Cancelar envio" Visibility="Collapsed"
-                        Click="CancelTransfer_Click" Margin="0,0,8,0" />
-                <Button x:Name="StopButton" Content="Parar carrossel nos selecionados"
-                        Click="Stop_Click" Margin="0,0,8,0" />
-                <Button x:Name="StartButton" Content="Aplicar / iniciar carrossel" Click="Start_Click" />
-            </StackPanel>
-        </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

@@ -104,18 +104,6 @@ function Update-TrailImages {
             $entry.Position.Y - [int]($height / 2))
         $entry.Form.Opacity = [Math]::Max(.01, [Math]::Min(1,
             [Math]::Min($elapsed / 240, $remaining / 260)))
-        $radius = [Math]::Min(18, [int]($width / 5))
-        $diameter = $radius * 2
-        $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-        $path.AddArc(0, 0, $diameter, $diameter, 180, 90)
-        $path.AddArc($width - $diameter, 0, $diameter, $diameter, 270, 90)
-        $path.AddArc($width - $diameter, $height - $diameter, $diameter, $diameter, 0, 90)
-        $path.AddArc(0, $height - $diameter, $diameter, $diameter, 90, 90)
-        $path.CloseFigure()
-        $previousRegion = $entry.Form.Region
-        $entry.Form.Region = [System.Drawing.Region]::new($path)
-        if ($null -ne $previousRegion) { $previousRegion.Dispose() }
-        $path.Dispose()
     }
 }
 

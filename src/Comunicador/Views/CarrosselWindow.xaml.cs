@@ -10,7 +10,7 @@ using Microsoft.Win32;
 
 namespace Comunicador.Views;
 
-public partial class CarrosselWindow : UserControl
+public partial class CarrosselView : UserControl
 {
     private readonly EnviadorNotificacoes _enviador;
     private readonly Func<bool> _canStart;
@@ -21,7 +21,7 @@ public partial class CarrosselWindow : UserControl
     private CancellationTokenSource? _transfer;
     private bool _busy;
 
-    public CarrosselWindow(EnviadorNotificacoes enviador, IEnumerable<ComputadorSelecionavel> recipients,
+    public CarrosselView(EnviadorNotificacoes enviador, IEnumerable<ComputadorSelecionavel> recipients,
         Func<bool> canStart, Func<bool> canStop)
     {
         InitializeComponent();
