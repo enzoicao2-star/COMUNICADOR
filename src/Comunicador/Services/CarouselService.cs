@@ -24,6 +24,9 @@ public static class CarouselService
         [JsonPropertyName("folder")] public string Folder { get; set; } = "";
         [JsonPropertyName("target")] public string Target { get; set; } = "center_image";
         [JsonPropertyName("duration_seconds")] public int DurationSeconds { get; set; } = 15;
+        [JsonPropertyName("trail_minutes")] public int? TrailMinutes { get; set; }
+        [JsonPropertyName("trail_image_seconds")] public double? TrailImageSeconds { get; set; }
+        [JsonPropertyName("expires_at_utc")] public string? ExpiresAtUtc { get; set; }
         [JsonPropertyName("count")] public int Count { get; set; }
         [JsonPropertyName("min_minutes")] public int MinMinutes { get; set; }
         [JsonPropertyName("max_minutes")] public int MaxMinutes { get; set; }
@@ -39,7 +42,7 @@ public static class CarouselService
         {
             var activePath = Path.Combine(Root, "active.json");
             var active = Read(activePath);
-            if (active is null || !active.Enabled || active.Target == "center_image") return false;
+            if (active is null || !active.Enabled || active.Target is "center_image" or "mouse_trail") return false;
             active.Enabled = false;
             Save(activePath, active);
             using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
@@ -81,6 +84,8 @@ public static class CarouselService
                     Folder = folderName,
                     Target = command.Target!,
                     DurationSeconds = command.DurationSeconds!.Value,
+                    TrailMinutes = command.TrailMinutes,
+                    TrailImageSeconds = command.TrailImageSeconds,
                     Count = command.Count!.Value,
                     MinMinutes = command.MinMinutes!.Value,
                     MaxMinutes = command.MaxMinutes!.Value,
@@ -118,6 +123,8 @@ public static class CarouselService
                 throw new InvalidOperationException("Ainda há imagens pendentes; o carrossel anterior continua ativo.");
 
             InstallWorker();
+            if (stage.Target == "mouse_trail")
+                stage.ExpiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(stage.TrailMinutes!.Value).ToString("O");
             stage.Enabled = true;
             Save(Path.Combine(Root, "active.json"), stage);
             try

@@ -1,13 +1,14 @@
 {
-  "version": "2.5.32.0",
-  "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-  "sha256": "C6F8864426BE031ED2A5867B072D2A4EC4DC7F641AA76EC6DC7D9C234579B128",
-  "summary": "Atualização discreta abaixo do ping e interface renovada para acompanhar os computadores.",
-  "changes": [
-    "A atualização mostra progresso real abaixo do ping, sem trocar para uma tela de carregamento.",
-    "Após o download validado, o aviso permanece por 5 segundos e uma contagem de 10 segundos antecede o reinício.",
-    "Os cartões mostram o estado por uma faixa colorida; o cabeçalho destaca o total de computadores e as abas exibem seus nomes.",
-    "Os temas claro e escuro ganharam superfícies mais nítidas, e a entrada dos cartões deixa de piscar.",
-    "As telas internas deixam de repetir o botão Voltar que já existe na janela principal."
-  ]
+    "version":  "2.5.33.0",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
+    "sha256":  "2C05AC0E63010BE515EADA759F473E0974F7C148DEF28645A099B3359ADE17E9",
+    "summary":  "Carrossel com rastro do mouse, controle durante a execução e interface ajustada.",
+    "changes":  [
+                    "O carrossel pode criar pequenas imagens como rastro somente enquanto o mouse do destinatário se move; cada imagem tem seu próprio tempo de exibição.",
+                    "O rastro repete as imagens até acabar o tempo total e mantém as últimas miniaturas até expirarem.",
+                    "É possível alterar o carrossel ativo, cancelar o envio e parar a execução pelos controles do painel.",
+                    "Comandos remotos mostram uma animação discreta na cor do painel até chegar a resposta.",
+                    "A navegação mostra o nome apenas na aba ativa, sem caixa cinza nem dica de ferramenta; a entrada manual de computadores foi removida.",
+                    "Os calendários e o fundo opcional de ondas interativas acompanham o tema do painel."
+                ]
 }

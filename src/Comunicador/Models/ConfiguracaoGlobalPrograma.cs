@@ -6,7 +6,7 @@ public sealed class ConfiguracaoGlobalPrograma
 {
     public string Tema { get; set; } = "Escuro";
     public string Paleta { get; set; } = "Azul";
-    public string FundoPainel { get; set; } = "Topográfico";
+    public string FundoPainel { get; set; } = "Ondas interativas";
     public bool ReduzirMovimento { get; set; }
     public int TransparenciaCards { get; set; } = 70;
     public int BlurCards { get; set; } = 18;

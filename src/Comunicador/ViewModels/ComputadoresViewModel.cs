@@ -28,8 +28,6 @@ public sealed class ComputadoresViewModel : ViewModelBase
         new(StringComparer.OrdinalIgnoreCase);
     private string? _statusMensagem;
     private string _testeComunicacaoStatus = "O teste envia apenas um ping, sem abrir conteúdo no outro computador.";
-    private string _novoIp = string.Empty;
-    private string _novaPorta = ProtocolConstants.TcpPort.ToString();
     private Computador? _computadorGerenciado;
     private string _comandoRemoto = string.Empty;
     private string _resultadoComandoRemoto = "Digite um comando e clique em Executar.";
@@ -115,22 +113,9 @@ public sealed class ComputadoresViewModel : ViewModelBase
         private set => SetField(ref _testeComunicacaoStatus, value);
     }
 
-    public string NovoIp
-    {
-        get => _novoIp;
-        set => SetField(ref _novoIp, value);
-    }
-
-    public string NovaPorta
-    {
-        get => _novaPorta;
-        set => SetField(ref _novaPorta, value);
-    }
-
     public ICommand PairearCommand { get; }
     public ICommand RemoverCommand { get; }
     public ICommand AtualizarAgoraCommand { get; }
-    public ICommand AdicionarManualCommand { get; }
     public ICommand RenomearCommand { get; }
     public ICommand ConfirmarRenomeCommand { get; }
     public ICommand AtualizarReceptorCommand { get; }
@@ -174,7 +159,6 @@ public sealed class ComputadoresViewModel : ViewModelBase
         _cloud = cloud;
         _cloud.ResponseReceived += OnRemoteCommandResponse;
         _cloud.DevicesReceived += OnCloudDevicesReceived;
-        _novaPorta = settings.PortaTcp.ToString();
 
         foreach (var computador in _store.Load())
         {
@@ -270,7 +254,6 @@ public sealed class ComputadoresViewModel : ViewModelBase
         }, param => _cloud.HasPermission("remote_receiver")
             && param is Computador { PodeAtualizarReceptor: true });
 
-        AdicionarManualCommand = new RelayCommand(_ => AdicionarManual(), _ => PodeAdicionarManual());
 
         RenomearCommand = new RelayCommand(param =>
         {
@@ -773,7 +756,10 @@ public sealed class ComputadoresViewModel : ViewModelBase
             return null;
 
         var line = payload.TryGetProperty("line", out var lineNode) ? lineNode.GetString() : null;
-        return $"> {line}\n{response.ResponseText ?? "Sem resposta do computador."}";
+        var reply = response.ResponseText ?? "Sem resposta do computador.";
+        var success = reply.StartsWith("Código de saída: 0\n", StringComparison.Ordinal)
+            || string.Equals(reply, "Código de saída: 0", StringComparison.Ordinal);
+        return $"> {line}\n{(success ? "Comando concluído com sucesso.\n" : string.Empty)}{reply}";
     }
 
     private bool PodeEditar(Computador computador) => _cloud.CanEdit(computador.Id);
@@ -1164,38 +1150,6 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 $"Nenhum receptor encontrado na rede (porta {_settings.PortaTcp}). " +
                 "Confirme que o receptor está rodando no outro computador.";
         }
-    }
-
-    private bool PodeAdicionarManual() =>
-        !string.IsNullOrWhiteSpace(NovoIp) && int.TryParse(NovaPorta, out var porta) && porta is > 0 and <= 65535;
-
-    private void AdicionarManual()
-    {
-        var ip = NovoIp.Trim();
-        var porta = int.Parse(NovaPorta);
-
-        var duplicado = Computadores.Any(c => c.EnderecoIp == ip && c.PortaTcp == porta);
-        if (duplicado)
-        {
-            StatusMensagem = $"{ip}:{porta} já está na lista.";
-            return;
-        }
-
-        Computadores.Add(new Computador
-        {
-            Id = Guid.NewGuid().ToString(),
-            Nome = ip,
-            EnderecoIp = ip,
-            PortaTcp = porta,
-            Pareado = false,
-            Status = StatusComputador.Desconhecido,
-            UltimaVezVisto = DateTime.UtcNow,
-        });
-        Persist();
-
-        StatusMensagem = $"{ip}:{porta} adicionado. Clique em \"Parear\" para conectar.";
-        NovoIp = string.Empty;
-        NovaPorta = ProtocolConstants.TcpPort.ToString();
     }
 
     private async Task PairearAsync(Computador computador)

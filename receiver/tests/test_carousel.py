@@ -1,10 +1,12 @@
 import base64
 import json
 import os
+import re
 import subprocess
 import sys
 import uuid
 import zlib
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -55,6 +57,36 @@ def test_embedded_worker_matches_shared_source():
         source.read_bytes().replace(b"\r\n", b"\n")
 
 
+def test_mouse_trail_expires_and_replaces_running_carousel_only_on_commit(tmp_path):
+    config = SimpleNamespace(directory=tmp_path / "Receptor")
+    root = config.directory / "Carousel"
+    old_session = str(uuid.uuid4())
+    image = {"name": "test.png", "mime_type": "image/png", "data_base64": PNG}
+    def begin(session, target):
+        return {"action": "begin", "session_id": session, "target": target,
+                "count": 1, "min_minutes": 1, "max_minutes": 1, "repeat": True,
+                "duration_seconds": 15, "trail_minutes": 2,
+                "trail_image_seconds": 1.5}
+
+    receptor.handle_carousel(begin(old_session, "center_image"), None, config, test_mode=True)
+    receptor.handle_carousel({"action": "item", "session_id": old_session, "index": 0},
+                             image, config, test_mode=True)
+    receptor.handle_carousel({"action": "commit", "session_id": old_session},
+                             None, config, test_mode=True)
+    new_session = str(uuid.uuid4())
+    receptor.handle_carousel(begin(new_session, "mouse_trail"), None, config, test_mode=True)
+    assert json.loads((root / "active.json").read_text())["session_id"] == old_session
+    receptor.handle_carousel({"action": "item", "session_id": new_session, "index": 0},
+                             image, config, test_mode=True)
+    receptor.handle_carousel({"action": "commit", "session_id": new_session},
+                             None, config, test_mode=True)
+    active = json.loads((root / "active.json").read_text())
+    assert active["target"] == "mouse_trail"
+    assert active["trail_image_seconds"] == 1.5
+    assert active["expires_at_utc"]
+    assert not receptor.disable_legacy_carousel(root, test_mode=True)
+
+
 def test_receiver_desativa_carrossel_legado_ao_iniciar(tmp_path):
     root = tmp_path / "Carousel"
     root.mkdir()
@@ -62,6 +94,42 @@ def test_receiver_desativa_carrossel_legado_ao_iniciar(tmp_path):
     path.write_text(json.dumps({"target": "wallpaper", "enabled": True}), encoding="utf-8")
     assert receptor.disable_legacy_carousel(root, test_mode=True)
     assert json.loads(path.read_text(encoding="utf-8"))["enabled"] is False
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell 5.1")
+def test_mouse_trail_worker_stops_at_configured_deadline(tmp_path):
+    root = tmp_path / "Carousel"
+    root.mkdir()
+    active_path = root / "active.json"
+    active = {"session_id": str(uuid.uuid4()), "enabled": True,
+              "target": "mouse_trail", "images": ["0.png"],
+              "trail_image_seconds": 1.5,
+              "expires_at_utc": (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()}
+    active_path.write_text(json.dumps(active), encoding="utf-8")
+    script = Path(__file__).resolve().parent.parent / "carousel-worker.ps1"
+    powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+    result = subprocess.run([str(powershell), "-NoProfile", "-NonInteractive",
+                             "-ExecutionPolicy", "Bypass", "-File", str(script),
+                             "-RootPath", str(root), "-Once", "-DryRun"],
+                            capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(active_path.read_text(encoding="utf-8"))["enabled"] is False
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell 5.1")
+def test_mouse_trail_window_type_compiles_without_opening_window():
+    source = (Path(__file__).resolve().parent.parent / "carousel-worker.ps1").read_text(encoding="utf-8")
+    match = re.search(r"Add-Type -ReferencedAssemblies System.Windows.Forms,System.Drawing -TypeDefinition @'\n(.*?)\n'@",
+                      source, re.DOTALL)
+    assert match
+    script = ("Add-Type -AssemblyName System.Windows.Forms; "
+              "Add-Type -AssemblyName System.Drawing; "
+              "Add-Type -ReferencedAssemblies System.Windows.Forms,System.Drawing -TypeDefinition @'\n"
+              + match.group(1) + "\n'@")
+    powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+    result = subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-Command", script],
+                            capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell 5.1")

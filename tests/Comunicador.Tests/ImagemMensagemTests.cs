@@ -75,6 +75,29 @@ public sealed class ImagemMensagemTests
     }
 
     [Fact]
+    public void RastroDoMouseExigeDuracaoTotalEDasMiniaturas()
+    {
+        var msg = NotificacaoCentral();
+        msg.DisplayMode = ProtocolConstants.DisplayMode.Carousel;
+        msg.Title = msg.Message = string.Empty;
+        msg.ImageDurationSeconds = null;
+        msg.AllowManualClose = null;
+        msg.Image = null;
+        msg.Carousel = new CarouselCommand
+        {
+            Action = "begin", SessionId = Guid.NewGuid().ToString(), Target = "mouse_trail",
+            Count = 2, MinMinutes = 1, MaxMinutes = 1, Repeat = true,
+            DurationSeconds = 15, TrailMinutes = 5, TrailImageSeconds = 1.5,
+        };
+        Assert.True(MessageValidator.Validate(msg).IsValid);
+        msg.Carousel.TrailImageSeconds = .2;
+        Assert.False(MessageValidator.Validate(msg).IsValid);
+        msg.Carousel.TrailImageSeconds = 1.5;
+        msg.Carousel.TrailMinutes = null;
+        Assert.False(MessageValidator.Validate(msg).IsValid);
+    }
+
+    [Fact]
     public void ImagemCentralValida_Passa()
     {
         Assert.True(MessageValidator.Validate(NotificacaoCentral()).IsValid);

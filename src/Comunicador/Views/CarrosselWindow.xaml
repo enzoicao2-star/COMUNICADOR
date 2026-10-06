@@ -12,6 +12,8 @@
             <TextBlock Text="Carrossel de imagens" FontSize="24" FontWeight="SemiBold" />
             <TextBlock Text="As imagens aparecerão no centro da tela, uma por vez, sem mudar o papel de parede. O carrossel continua mesmo com o painel fechado ou após reiniciar o computador."
                        TextWrapping="Wrap" Margin="0,5,0,14" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Text="Para alterar um carrossel em execução, edite as imagens ou os tempos e clique em Aplicar. O atual continua até a transferência terminar."
+                       TextWrapping="Wrap" Margin="0,0,0,10" Foreground="{DynamicResource TextSecondaryBrush}" />
         </StackPanel>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
@@ -43,14 +45,27 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
 
+                <TextBlock Text="Como mostrar as imagens" FontWeight="SemiBold" Margin="0,15,0,6" />
+                <RadioButton x:Name="CenterRadio" GroupName="DisplayMode" Content="No centro da tela" IsChecked="True" Margin="0,0,0,7" />
+                <RadioButton x:Name="MouseTrailRadio" GroupName="DisplayMode" Content="Pequenas imagens como rastro do mouse" Margin="0,0,0,7" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,9" IsEnabled="{Binding IsChecked, ElementName=MouseTrailRadio}">
+                    <TextBlock Text="Duração total do rastro, em minutos" VerticalAlignment="Center" />
+                    <TextBox x:Name="TrailMinutes" Text="5" Width="65" Margin="10,0,0,0" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,9" IsEnabled="{Binding IsChecked, ElementName=MouseTrailRadio}">
+                    <TextBlock Text="Cada miniatura permanece por, em segundos" VerticalAlignment="Center" />
+                    <TextBox x:Name="TrailImageSeconds" Text="1,5" Width="65" Margin="10,0,0,0" />
+                </StackPanel>
+
                 <TextBlock Text="Tempo de cada imagem na tela, em segundos" FontWeight="SemiBold" Margin="0,15,0,6" />
-                <TextBox x:Name="DurationSeconds" Text="15" Width="65" HorizontalAlignment="Left" />
+                <TextBox x:Name="DurationSeconds" Text="15" Width="65" HorizontalAlignment="Left"
+                         IsEnabled="{Binding IsChecked, ElementName=CenterRadio}" />
                 <TextBlock Text="Intervalo entre imagens, em minutos" FontWeight="SemiBold" Margin="0,15,0,6" />
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,5" IsEnabled="{Binding IsChecked, ElementName=CenterRadio}">
                     <RadioButton x:Name="FixedRadio" GroupName="Interval" Content="Fixo" IsChecked="True" VerticalAlignment="Center" />
                     <TextBox x:Name="FixedMinutes" Text="5" Width="65" Margin="10,0,0,0" />
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,9">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,9" IsEnabled="{Binding IsChecked, ElementName=CenterRadio}">
                     <RadioButton x:Name="RandomRadio" GroupName="Interval" Content="Aleatório de" VerticalAlignment="Center" />
                     <TextBox x:Name="RandomMin" Text="5" Width="65" Margin="10,0,5,0"
                              IsEnabled="{Binding IsChecked, ElementName=RandomRadio}" />
@@ -60,7 +75,7 @@
                     <TextBlock Text="minutos" VerticalAlignment="Center" />
                 </StackPanel>
                 <CheckBox x:Name="RepeatCheck" Content="Repetir: após a última, voltar para a primeira até eu desligar"
-                          IsChecked="True" />
+                          IsChecked="True" IsEnabled="{Binding IsChecked, ElementName=CenterRadio}" />
             </StackPanel>
         </ScrollViewer>
 
@@ -69,9 +84,11 @@
             <TextBlock x:Name="StatusText" Text="Pronto para configurar." TextWrapping="Wrap"
                        Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,6,0,12" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="StopButton" Content="Desligar carrossel nos selecionados"
+                <Button x:Name="CancelTransferButton" Content="Cancelar envio" Visibility="Collapsed"
+                        Click="CancelTransfer_Click" Margin="0,0,8,0" />
+                <Button x:Name="StopButton" Content="Parar carrossel nos selecionados"
                         Click="Stop_Click" Margin="0,0,8,0" />
-                <Button x:Name="StartButton" Content="Iniciar carrossel" Click="Start_Click" />
+                <Button x:Name="StartButton" Content="Aplicar / iniciar carrossel" Click="Start_Click" />
             </StackPanel>
         </StackPanel>
     </Grid>

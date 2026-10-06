@@ -43,6 +43,4 @@ Generated from project sources at 2026-10-03T13:25:56.127Z.
 
 ## Decisions
 
-- Operational dashboard hierarchy with a prominent section header and compact metric.
-- Stable device cards with a colored status edge and navigation labels that remain visible.
-- Inline download progress below the ping; native WPF implementation informed by 21st Card Status List (2514) and Insight Cards (29167).
+- None recorded

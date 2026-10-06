@@ -359,5 +359,20 @@
       "Os temas claro e escuro ganharam superfícies mais nítidas, e a entrada dos cartões deixa de piscar.",
       "As telas internas deixam de repetir o botão Voltar que já existe na janela principal."
     ]
+  },
+  {
+    "version": "2.5.33.0",
+    "summary": "Visual anterior restaurado, fundo de ondas interativas, calendário renovado e controle do carrossel e CMD remoto.",
+    "changes": [
+      "A navegação, os cartões de computadores e as cores voltaram à aparência da versão 2.5.31.",
+      "O progresso real da atualização continua visível abaixo do ping, seguido pelo aviso de download e contagem para reiniciar.",
+      "As telas internas continuam com apenas um botão Voltar.",
+      "O fundo Ondas interativas reage ao movimento do mouse e pode ser escolhido nas configurações.",
+      "A navegação mostra apenas o nome da aba ativa, sem caixa cinza ao passar o mouse; a área Adicionar manualmente saiu da lista.",
+      "O calendário de lembretes ganhou seleção visual de data, com navegação por mês e ano.",
+      "O CMD remoto mostra uma animação na cor do tema até receber a resposta e confirma a execução bem-sucedida.",
+      "O carrossel permite cancelar a transferência, parar a execução e aplicar novas imagens ou tempos sem interromper o anterior antes da conclusão.",
+      "O receptor 2.5.18 adiciona rastro de miniaturas ao movimento do mouse, com duração total e tempo por imagem configuráveis."
+    ]
   }
 ]

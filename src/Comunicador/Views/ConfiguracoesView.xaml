@@ -279,6 +279,10 @@
                                     <Grid Background="{DynamicResource BackgroundBrush}"><TextBlock Text="Sem fundo" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" /></Grid>
                                 </Button>
                                 <Button Height="94" Style="{StaticResource ChoiceCardButton}" Command="{Binding SelecionarFundoCommand}"
+                                        CommandParameter="Ondas interativas" Tag="{Binding FundoPainel, ConverterParameter=Ondas interativas, Converter={StaticResource SecaoAtivaConverter}}">
+                                    <Grid Background="{DynamicResource BackgroundBrush}"><controls:AnimatedBackground Mode="Ondas interativas" Intensity="100" PauseAnimation="True" /><Border Background="#66000000" VerticalAlignment="Bottom" Height="28" /><TextBlock Text="Ondas interativas" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,6" /></Grid>
+                                </Button>
+                                <Button Height="94" Style="{StaticResource ChoiceCardButton}" Command="{Binding SelecionarFundoCommand}"
                                         CommandParameter="Topográfico" Tag="{Binding FundoPainel, ConverterParameter=Topográfico, Converter={StaticResource SecaoAtivaConverter}}">
                                     <Grid Background="{DynamicResource BackgroundBrush}"><controls:AnimatedBackground Mode="Topográfico" Intensity="100" PauseAnimation="True" /><Border Background="#66000000" VerticalAlignment="Bottom" Height="28" /><TextBlock Text="Topográfico" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,6" /></Grid>
                                 </Button>

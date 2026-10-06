@@ -27,6 +27,16 @@ public sealed class AnimatedBackground : FrameworkElement
     private Color _topographicPenColor;
     private double _topographicPenOpacity = -1;
     private bool _renderingSubscribed;
+    private WavePoint[] _wavePoints = [];
+    private int _waveColumns;
+    private int _waveRows;
+    private int _waveWidth;
+    private int _waveHeight;
+    private Point _pointerTarget;
+    private Point _pointerSmoothed;
+    private Point _pointerAtLastFrame;
+    private bool _pointerActive;
+    private double _lastWaveFrame = -1;
 
     public static readonly DependencyProperty ModeProperty = DependencyProperty.Register(
         nameof(Mode), typeof(string), typeof(AnimatedBackground),
@@ -50,6 +60,17 @@ public sealed class AnimatedBackground : FrameworkElement
     public bool PauseAnimation { get => (bool)GetValue(PauseAnimationProperty); set => SetValue(PauseAnimationProperty, value); }
     public double Speed { get => (double)GetValue(SpeedProperty); set => SetValue(SpeedProperty, value); }
     internal bool IsRenderingSubscribed => _renderingSubscribed;
+
+    public void SetPointer(Point position)
+    {
+        if (Mode != "Ondas interativas" || ReduceMotion) return;
+        if (!_pointerActive)
+            _pointerSmoothed = _pointerAtLastFrame = position;
+        _pointerTarget = position;
+        _pointerActive = true;
+    }
+
+    public void ClearPointer() => _pointerActive = false;
 
     public AnimatedBackground()
     {
@@ -140,7 +161,104 @@ public sealed class AnimatedBackground : FrameworkElement
             case "Grade fluida": DrawFluidGrid(dc, time, opacity); break;
             case "Partículas fluidas": DrawFluidParticles(dc, time, opacity); break;
             case "Onda de partículas": DrawParticleWave(dc, time); break;
+            case "Ondas interativas": DrawInteractiveWaves(dc, time, opacity); break;
         }
+    }
+
+    private void DrawInteractiveWaves(DrawingContext dc, double time, double opacity)
+    {
+        const int xGap = 12;
+        const int yGap = 12;
+        var width = (int)Math.Ceiling(ActualWidth);
+        var height = (int)Math.Ceiling(ActualHeight);
+        if (width != _waveWidth || height != _waveHeight)
+        {
+            _waveWidth = width;
+            _waveHeight = height;
+            _waveColumns = (int)Math.Ceiling((width + 120d) / xGap) + 1;
+            _waveRows = (int)Math.Ceiling((height + 36d) / yGap) + 1;
+            _wavePoints = new WavePoint[_waveColumns * _waveRows];
+            for (var column = 0; column < _waveColumns; column++)
+                for (var row = 0; row < _waveRows; row++)
+                    _wavePoints[column * _waveRows + row] = new WavePoint();
+            _lastWaveFrame = -1;
+        }
+
+        // O movimento do mouse chega pela janela, inclusive quando está sobre um botão.
+        // O fundo continua fora dos testes de clique.
+        var frameScale = _lastWaveFrame < 0 || PauseAnimation ? 0
+            : Math.Clamp((time - _lastWaveFrame) * 30, .25, 2);
+        _lastWaveFrame = time;
+        var damping = Math.Pow(.95, frameScale);
+        var mouseDx = 0d;
+        var mouseDy = 0d;
+        if (_pointerActive && !ReduceMotion && frameScale > 0)
+        {
+            _pointerSmoothed.X += (_pointerTarget.X - _pointerSmoothed.X) * .18;
+            _pointerSmoothed.Y += (_pointerTarget.Y - _pointerSmoothed.Y) * .18;
+            mouseDx = _pointerSmoothed.X - _pointerAtLastFrame.X;
+            mouseDy = _pointerSmoothed.Y - _pointerAtLastFrame.Y;
+            _pointerAtLastFrame = _pointerSmoothed;
+        }
+
+        var startX = (width - (_waveColumns - 1) * xGap) / 2d;
+        var startY = (height - (_waveRows - 1) * yGap) / 2d;
+        var color = ThemeColor("TextPrimaryBrush", Colors.White);
+        var pen = new Pen(new SolidColorBrush(color)
+            { Opacity = (IsDarkTheme() ? .19 : .13) + opacity * .13 }, .75);
+        pen.Freeze();
+
+        for (var column = 0; column < _waveColumns; column++)
+        {
+            var x = startX + column * xGap;
+            var geometry = new StreamGeometry();
+            using (var context = geometry.Open())
+            {
+                for (var row = 0; row < _waveRows; row++)
+                {
+                    var y = startY + row * yGap;
+                    var point = _wavePoints[column * _waveRows + row];
+                    var noise = PerlinNoise((x + time * 8) * .003,
+                        (y + time * 3) * .002, .31) * 8;
+
+                    if (frameScale > 0)
+                    {
+                        if (_pointerActive && !ReduceMotion)
+                        {
+                            var distanceX = x - _pointerSmoothed.X;
+                            var distanceY = y - _pointerSmoothed.Y;
+                            var distanceSquared = distanceX * distanceX + distanceY * distanceY;
+                            if (distanceSquared < 175 * 175)
+                            {
+                                var influence = 1 - Math.Sqrt(distanceSquared) / 175;
+                                point.VelocityX += mouseDx * influence * .11;
+                                point.VelocityY += mouseDy * influence * .11;
+                            }
+                        }
+
+                        point.VelocityX = (point.VelocityX - point.OffsetX * .01 * frameScale) * damping;
+                        point.VelocityY = (point.VelocityY - point.OffsetY * .01 * frameScale) * damping;
+                        point.OffsetX = Math.Clamp(point.OffsetX + point.VelocityX * frameScale, -50, 50);
+                        point.OffsetY = Math.Clamp(point.OffsetY + point.VelocityY * frameScale, -50, 50);
+                    }
+
+                    var moved = new Point(x + Math.Cos(noise) * 12 + point.OffsetX,
+                        y + Math.Sin(noise) * 6 + point.OffsetY);
+                    if (row == 0) context.BeginFigure(moved, false, false);
+                    else context.LineTo(moved, true, false);
+                }
+            }
+            geometry.Freeze();
+            dc.DrawGeometry(null, pen, geometry);
+        }
+    }
+
+    private sealed class WavePoint
+    {
+        public double OffsetX;
+        public double OffsetY;
+        public double VelocityX;
+        public double VelocityY;
     }
 
     /// <summary>

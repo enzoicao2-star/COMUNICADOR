@@ -85,6 +85,20 @@ def test_carousel_stage_validation(action):
             protocolo.validate(msg)
 
 
+def test_mouse_trail_requires_valid_duration():
+    import uuid
+    msg = make_valid_notification()
+    msg.update(display_mode=protocolo.DISPLAY_MODE_CAROUSEL, title="", message="",
+               allow_reply=False, carousel={"action": "begin", "session_id": str(uuid.uuid4()),
+               "target": "mouse_trail", "count": 2, "min_minutes": 1, "max_minutes": 1,
+               "repeat": True, "duration_seconds": 15,
+               "trail_minutes": 5, "trail_image_seconds": 1.5})
+    protocolo.validate(msg)
+    msg["carousel"]["trail_image_seconds"] = .2
+    with pytest.raises(ProtocolError):
+        protocolo.validate(msg)
+
+
 @pytest.mark.parametrize("modo", [protocolo.DISPLAY_MODE_WALLPAPER,
                                  protocolo.DISPLAY_MODE_LOCK_SCREEN])
 def test_system_image_needs_png_or_jpeg_without_text(modo):

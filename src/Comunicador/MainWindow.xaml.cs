@@ -4,6 +4,7 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
@@ -17,6 +18,12 @@ namespace Comunicador;
 
 public partial class MainWindow : Window
 {
+    private void OnBackgroundMouseMove(object sender, MouseEventArgs e)
+        => AnimatedBackdrop.SetPointer(e.GetPosition(AnimatedBackdrop));
+
+    private void OnBackgroundMouseLeave(object sender, MouseEventArgs e)
+        => AnimatedBackdrop.ClearPointer();
+
     private sealed record NavigationFrame(object? Content, Action? OnExit, bool Locked, bool BackAllowed);
     internal bool TelaAninhadaAtiva => _navigationStack.Count > 0;
 

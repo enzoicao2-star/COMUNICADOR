@@ -70,7 +70,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     public IReadOnlyList<string> EstilosBadge { get; } = ["Holográfica", "Metal", "Pílula", "Contorno", "Selo"];
     public IReadOnlyList<string> IconesBadge { get; } = ["Coroa", "Estrela", "Escudo", "Raio", "Diamante", "Fogo", "Coração", "Usuário", "Código", "Música", "Jogo", "Casa", "Medalha", "Chave", "Globo"];
     public IReadOnlyList<string> Fundos { get; } =
-        ["Sem fundo", "Topográfico", "Caminhos flutuantes", "Vórtice", "Ondas luminosas", "Constelação", "Grade fluida", "Partículas fluidas", "Onda de partículas"];
+        ["Sem fundo", "Ondas interativas", "Topográfico", "Caminhos flutuantes", "Vórtice", "Ondas luminosas", "Constelação", "Grade fluida", "Partículas fluidas", "Onda de partículas"];
 
     public string NomeNovaPaleta
     {

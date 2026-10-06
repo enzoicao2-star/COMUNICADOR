@@ -32,4 +32,10 @@ public sealed class CarouselCommand
 
     [JsonPropertyName("duration_seconds")]
     public int? DurationSeconds { get; set; }
+
+    [JsonPropertyName("trail_minutes")]
+    public int? TrailMinutes { get; set; }
+
+    [JsonPropertyName("trail_image_seconds")]
+    public double? TrailImageSeconds { get; set; }
 }

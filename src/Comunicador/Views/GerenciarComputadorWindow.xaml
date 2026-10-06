@@ -177,6 +177,9 @@
                                 HorizontalAlignment="Left" Margin="0,0,0,10"
                                 Visibility="{Binding ComandoRemotoEmAndamento, Converter={StaticResource BooleanToVisibilityConverter}}"
                                 Command="{Binding CancelarCmdRemotoCommand}" />
+                        <controls:TerminalLoader Margin="0,0,0,9" HorizontalAlignment="Left"
+                            Visibility="{Binding ComandoRemotoEmAndamento, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            AutomationProperties.Name="Aguardando resposta do comando remoto" />
                         <TextBox Text="{Binding ResultadoComandoRemoto, Mode=OneWay}" IsReadOnly="True"
                                  TextWrapping="Wrap" AcceptsReturn="True" MinHeight="95" MaxHeight="230"
                                  VerticalScrollBarVisibility="Auto" FontFamily="Consolas" />

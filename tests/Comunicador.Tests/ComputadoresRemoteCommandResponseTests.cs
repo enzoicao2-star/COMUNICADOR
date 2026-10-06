@@ -24,7 +24,7 @@ public sealed class ComputadoresRemoteCommandResponseTests
 
         var result = Format(response, "ABCDEF12", "pedido-1");
 
-        Assert.Equal("> hostname\nCódigo de saída: 0\nPC-JOAO", result);
+        Assert.Equal("> hostname\nComando concluído com sucesso.\nCódigo de saída: 0\nPC-JOAO", result);
     }
 
     [Theory]

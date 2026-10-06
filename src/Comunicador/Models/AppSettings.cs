@@ -28,7 +28,7 @@ public sealed class AppSettings
     public string Tema { get; set; } = "Escuro";
     public string Paleta { get; set; } = "Azul";
     public List<PaletaPersonalizada> PaletasPersonalizadas { get; set; } = new();
-    public string FundoPainel { get; set; } = "Topográfico";
+    public string FundoPainel { get; set; } = "Ondas interativas";
     public int IntensidadeFundo { get; set; } = 100;
     public bool ReduzirMovimento { get; set; }
     public int TransparenciaCards { get; set; } = 70;

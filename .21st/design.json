@@ -58,14 +58,7 @@
       "Do not animate status text continuously or hide device actions behind hover only."
     ]
   },
-  "decisions": [
-    "Use an operational dashboard hierarchy: a clear section header, one compact metric, stable device cards, and status shown by a narrow colored edge.",
-    "Keep the six navigation labels visible and place download progress beside the ping instead of replacing the current page.",
-    "Use native WPF controls while adapting 21st catalog patterns; preserve the selected accent palette and reduced-motion setting."
-  ],
-  "evidence": [
-    "21st Card Status List (2514): compact state indicators and explicit completed/syncing states.",
-    "21st Insight Cards (29167): restrained metric typography and compact surface hierarchy."
-  ],
+  "decisions": [],
+  "evidence": [],
   "generatedAt": "2026-10-03T13:25:56.127Z"
 }

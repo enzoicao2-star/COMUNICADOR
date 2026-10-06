@@ -376,12 +376,19 @@ def _validar_conteudo_visual(msg: dict) -> None:
             maximo = carrossel.get("max_minutes")
             quantidade = carrossel.get("count")
             duracao = carrossel.get("duration_seconds")
-            if (carrossel.get("target") != "center_image"
+            if (carrossel.get("target") not in {"center_image", "mouse_trail"}
                     or not isinstance(quantidade, int) or isinstance(quantidade, bool) or quantidade < 1
                     or not isinstance(minimo, int) or isinstance(minimo, bool) or not 1 <= minimo <= 10080
                     or not isinstance(maximo, int) or isinstance(maximo, bool) or not minimo <= maximo <= 10080
                     or not isinstance(duracao, int) or isinstance(duracao, bool) or not 1 <= duracao <= 300
-                    or not isinstance(carrossel.get("repeat"), bool)):
+                    or not isinstance(carrossel.get("repeat"), bool)
+                    or (carrossel.get("target") == "mouse_trail"
+                        and (not isinstance(carrossel.get("trail_minutes"), int)
+                             or isinstance(carrossel.get("trail_minutes"), bool)
+                             or not 1 <= carrossel["trail_minutes"] <= 10080
+                             or not isinstance(carrossel.get("trail_image_seconds"), (int, float))
+                             or isinstance(carrossel.get("trail_image_seconds"), bool)
+                             or not .5 <= carrossel["trail_image_seconds"] <= 30))):
                 raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Configuração do carrossel inválida.")
         if acao == "item":
             indice = carrossel.get("index")

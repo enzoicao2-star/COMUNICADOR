@@ -493,13 +493,15 @@ public static class MessageValidator
 
         if (command.Action == "begin")
         {
-            if (command.Target != "center_image"
+            if (command.Target is not ("center_image" or "mouse_trail")
                 || command.Count is not > 0
                 || command.MinMinutes is not >= 1 or > 10080
                 || command.MaxMinutes is not >= 1 or > 10080
                 || command.MaxMinutes < command.MinMinutes
                 || command.DurationSeconds is not >= 1 or > 300
-                || !command.Repeat.HasValue)
+                || !command.Repeat.HasValue
+                || (command.Target == "mouse_trail" && (command.TrailMinutes is not (>= 1 and <= 10080)
+                    || command.TrailImageSeconds is not (>= .5 and <= 30))))
                 return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Configuração do carrossel inválida.");
         }
         if (command.Action == "item")

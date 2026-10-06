@@ -18,6 +18,7 @@ public partial class CarrosselWindow : UserControl
     private readonly ObservableCollection<string> _images = [];
     private readonly IReadOnlyList<ComputadorSelecionavel> _recipients;
     private readonly CancellationTokenSource _closing = new();
+    private CancellationTokenSource? _transfer;
     private bool _busy;
 
     public CarrosselWindow(EnviadorNotificacoes enviador, IEnumerable<ComputadorSelecionavel> recipients,
@@ -113,8 +114,28 @@ public partial class CarrosselWindow : UserControl
             StatusText.Text = "Informe o tempo na tela em segundos, de 1 a 300.";
             return;
         }
+        var mouseTrail = MouseTrailRadio.IsChecked == true;
+        var trailMinutes = 0;
+        var trailImageSeconds = 1.5d;
+        if (mouseTrail && (!int.TryParse(TrailMinutes.Text, NumberStyles.None,
+                CultureInfo.InvariantCulture, out trailMinutes) || trailMinutes is < 1 or > 10080))
+        {
+            StatusText.Text = "Informe a duração total do rastro, de 1 a 10080 minutos.";
+            return;
+        }
+        if (mouseTrail && !(double.TryParse(TrailImageSeconds.Text, NumberStyles.Float,
+                CultureInfo.GetCultureInfo("pt-BR"), out trailImageSeconds)
+            || double.TryParse(TrailImageSeconds.Text, NumberStyles.Float,
+                CultureInfo.InvariantCulture, out trailImageSeconds))
+            || mouseTrail && (!double.IsFinite(trailImageSeconds) || trailImageSeconds is < .5 or > 30))
+        {
+            StatusText.Text = "Informe o tempo de cada miniatura, de 0,5 a 30 segundos.";
+            return;
+        }
         var paths = _images.ToArray();
         var errors = new List<string>();
+        _transfer = CancellationTokenSource.CreateLinkedTokenSource(_closing.Token);
+        var transferToken = _transfer.Token;
         SetBusy(true);
         TransferProgress.Maximum = targets.Count * (paths.Length + 2);
         TransferProgress.Value = 0;
@@ -122,27 +143,19 @@ public partial class CarrosselWindow : UserControl
         {
             foreach (var computer in targets)
             {
-                // Desliga inclusive o worker antigo de papel de parede antes de
-                // transferir a nova sequência de imagens para a tela normal.
-                var stopped = await SendAsync(computer, new CarouselCommand
-                {
-                    Action = "stop", SessionId = Guid.NewGuid().ToString(),
-                }, null);
-                if (!stopped.Delivered)
-                {
-                    errors.Add($"{computer.NomeExibicao}: {stopped.ErrorMessage}");
-                    TransferProgress.Value += paths.Length + 2;
-                    continue;
-                }
+                transferToken.ThrowIfCancellationRequested();
                 var session = Guid.NewGuid().ToString();
                 var begin = new CarouselCommand
                 {
-                    Action = "begin", SessionId = session, Target = "center_image",
+                    Action = "begin", SessionId = session,
+                    Target = mouseTrail ? "mouse_trail" : "center_image",
                     Count = paths.Length, MinMinutes = min, MaxMinutes = max,
-                    Repeat = RepeatCheck.IsChecked == true, DurationSeconds = duration,
+                    Repeat = mouseTrail || RepeatCheck.IsChecked == true, DurationSeconds = duration,
+                    TrailMinutes = mouseTrail ? trailMinutes : null,
+                    TrailImageSeconds = mouseTrail ? trailImageSeconds : null,
                 };
                 StatusText.Text = $"{computer.NomeExibicao}: preparando carrossel…";
-                var result = await SendAsync(computer, begin, null);
+                var result = await SendAsync(computer, begin, null, transferToken);
                 if (!result.Delivered)
                 {
                     errors.Add($"{computer.NomeExibicao}: {result.ErrorMessage}");
@@ -154,8 +167,8 @@ public partial class CarrosselWindow : UserControl
                 var completed = true;
                 for (var index = 0; index < paths.Length; index++)
                 {
-                    _closing.Token.ThrowIfCancellationRequested();
-                    var bytes = await File.ReadAllBytesAsync(paths[index], _closing.Token);
+                    transferToken.ThrowIfCancellationRequested();
+                    var bytes = await File.ReadAllBytesAsync(paths[index], transferToken);
                     if (bytes.Length > ProtocolConstants.MaxImageBytes)
                         throw new InvalidDataException($"{Path.GetFileName(paths[index])} excede 4 MB.");
                     var mime = Path.GetExtension(paths[index]).Equals(".png", StringComparison.OrdinalIgnoreCase)
@@ -169,7 +182,7 @@ public partial class CarrosselWindow : UserControl
                     result = await SendAsync(computer, new CarouselCommand
                     {
                         Action = "item", SessionId = session, Index = index,
-                    }, image);
+                    }, image, transferToken);
                     TransferProgress.Value++;
                     if (result.Delivered) continue;
                     errors.Add($"{computer.NomeExibicao}, imagem {index + 1}: {result.ErrorMessage}");
@@ -182,20 +195,36 @@ public partial class CarrosselWindow : UserControl
                 result = await SendAsync(computer, new CarouselCommand
                 {
                     Action = "commit", SessionId = session,
-                }, null);
+                }, null, transferToken);
                 TransferProgress.Value++;
                 if (!result.Delivered) errors.Add($"{computer.NomeExibicao}: {result.ErrorMessage}");
             }
             StatusText.Text = errors.Count == 0
-                ? $"Carrossel ativado em {targets.Count} computador(es)."
+                ? $"Carrossel aplicado em {targets.Count} computador(es). Imagens e tempos atualizados."
                 : $"Concluído com {errors.Count} falha(s): {string.Join("; ", errors)}";
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+            if (IsLoaded)
+                StatusText.Text = "Envio cancelado. Computadores já concluídos mantêm a alteração; os demais continuam como estavam.";
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             StatusText.Text = $"Falha ao carregar imagem: {ex.Message}";
         }
-        finally { if (IsLoaded) SetBusy(false); }
+        finally
+        {
+            _transfer?.Dispose();
+            _transfer = null;
+            if (IsLoaded) SetBusy(false);
+        }
+    }
+
+    private void CancelTransfer_Click(object sender, RoutedEventArgs e)
+    {
+        _transfer?.Cancel();
+        CancelTransferButton.IsEnabled = false;
+        StatusText.Text = "Cancelando a transferência…";
     }
 
     private async void Stop_Click(object sender, RoutedEventArgs e)
@@ -233,14 +262,16 @@ public partial class CarrosselWindow : UserControl
     }
 
     private Task<NotificationResult> SendAsync(Models.Computador computer, CarouselCommand carousel,
-        ConteudoImagem? image) => _enviador.EnviarAsync(computer, "", "", false,
+        ConteudoImagem? image, CancellationToken ct = default) => _enviador.EnviarAsync(computer, "", "", false,
             modoExibicao: ProtocolConstants.DisplayMode.Carousel, imagem: image,
-            ct: _closing.Token, carousel: carousel);
+            ct: ct == default ? _closing.Token : ct, carousel: carousel);
 
     private void SetBusy(bool busy)
     {
         _busy = busy;
         StartButton.IsEnabled = !busy;
         StopButton.IsEnabled = !busy;
+        CancelTransferButton.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+        CancelTransferButton.IsEnabled = busy;
     }
 }
