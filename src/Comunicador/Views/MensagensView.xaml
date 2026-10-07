@@ -84,8 +84,109 @@
 
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                       HorizontalContentAlignment="Stretch">
-            <controls:ResponsiveColumnsPanel MinColumnWidth="340" MaxColumns="2"
+            <controls:ResponsiveColumnsPanel x:Name="PainelCardsMensagem" MinColumnWidth="340" MaxColumns="2"
                                              ColumnGap="10" RowGap="10" Margin="0,0,8,8">
+                <Border x:Name="ResumoComposicao" Padding="14">
+                    <Border.Style>
+                        <Style TargetType="Border" BasedOn="{StaticResource CardBorder}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ExibirImagemCentral}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                <DataTrigger Binding="{Binding AlterarImagemSistema}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Grid>
+                            <StackPanel>
+                                <TextBlock Text="Conteúdo" Style="{StaticResource TituloCard}" />
+                                <TextBlock Text="Título e mensagem deste envio" Style="{StaticResource Subtitulo}" />
+                            </StackPanel>
+                            <Button Content="Alterar configurações" Style="{StaticResource BotaoSecundario}"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center" Tag="composicao"
+                                    Click="AbrirEditorMensagem_Click" />
+                        </Grid>
+                        <StackPanel Grid.Row="1" Margin="0,10,0,0">
+                            <TextBlock Text="{Binding Titulo, TargetNullValue=Sem título}" FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Mensagem, TargetNullValue=Sem mensagem}" Style="{StaticResource Subtitulo}"
+                                       TextWrapping="Wrap" MaxHeight="38" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Border x:Name="ResumoFormato" Style="{StaticResource CardBorder}" Padding="14">
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Grid>
+                            <StackPanel>
+                                <TextBlock Text="Formato do aviso" Style="{StaticResource TituloCard}" />
+                                <TextBlock Text="Opções de exibição atuais" Style="{StaticResource Subtitulo}" />
+                            </StackPanel>
+                            <Button Content="Alterar configurações" Style="{StaticResource BotaoSecundario}"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center" Tag="formato"
+                                    Click="AbrirEditorMensagem_Click" />
+                        </Grid>
+                        <TextBlock Grid.Row="1" Text="{Binding DescricaoFormato}" Style="{StaticResource Subtitulo}"
+                                   TextWrapping="Wrap" Margin="0,10,0,0" />
+                    </Grid>
+                </Border>
+                <Border x:Name="ResumoMidia" Padding="14">
+                    <Border.Style>
+                        <Style TargetType="Border" BasedOn="{StaticResource CardBorder}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ExibirImagemCentral}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                <DataTrigger Binding="{Binding AlterarImagemSistema}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Grid>
+                            <StackPanel>
+                                <TextBlock Text="Imagem, vídeo ou áudio" Style="{StaticResource TituloCard}" />
+                                <TextBlock Text="Mídia e tempo configurados" Style="{StaticResource Subtitulo}" />
+                            </StackPanel>
+                            <Button Content="Alterar configurações" Style="{StaticResource BotaoSecundario}"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center" Tag="midia"
+                                    Click="AbrirEditorMensagem_Click" />
+                        </Grid>
+                        <StackPanel Grid.Row="1" Margin="0,10,0,0">
+                            <TextBlock Text="{Binding NomeMidia, TargetNullValue=Nenhuma mídia selecionada}"
+                                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,3,0,0">
+                                <Run Text="{Binding TipoMidiaTexto}" /><Run Text=" · Envio após " />
+                                <Run Text="{Binding AtrasoEnvioImagemSegundos}" /><Run Text=" s · Tempo na tela " />
+                                <Run Text="{Binding TempoImagemSegundos}" /><Run Text=" s" />
+                            </TextBlock>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Border x:Name="ResumoInteracao" Padding="14">
+                    <Border.Style>
+                        <Style TargetType="Border" BasedOn="{StaticResource CardBorder}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ExibirImagemCentral}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                <DataTrigger Binding="{Binding AlterarImagemSistema}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Grid>
+                            <StackPanel>
+                                <TextBlock Text="Interação" Style="{StaticResource TituloCard}" />
+                                <TextBlock Text="Respostas e botões do aviso" Style="{StaticResource Subtitulo}" />
+                            </StackPanel>
+                            <Button Content="Alterar configurações" Style="{StaticResource BotaoSecundario}"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center" Tag="interacao"
+                                    Click="AbrirEditorMensagem_Click" />
+                        </Grid>
+                        <TextBlock Grid.Row="1" Style="{StaticResource Subtitulo}" Margin="0,10,0,0">
+                            <Run Text="{Binding Botoes.Count}" /><Run Text=" botões configurados" />
+                        </TextBlock>
+                    </Grid>
+                </Border>
                 <Border x:Name="CardComposicao" Padding="14">
                     <Border.Style>
                         <Style TargetType="Border" BasedOn="{StaticResource CardBorder}">
@@ -215,40 +316,26 @@
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <StackPanel>
-                        <TextBlock Text="Aparência e som" Style="{StaticResource TituloCard}" />
-                        <TextBlock Text="Personalize somente este envio." Style="{StaticResource Subtitulo}" Margin="0,2,0,12" />
-                        <Grid Margin="0,0,0,5">
-                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="11" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid>
                             <StackPanel>
-                                <TextBlock Text="Cor de destaque" Style="{StaticResource RotuloCampo}" />
-                                <controls:ColorPickerPopover Width="160"
-                                    SelectedColor="{Binding CorDestaque, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Text="Aparência e som" Style="{StaticResource TituloCard}" />
+                                <TextBlock Text="Configurações deste envio" Style="{StaticResource Subtitulo}" Margin="0,2,0,0" />
                             </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Posição do aviso" Style="{StaticResource RotuloCampo}" />
-                                <ComboBox SelectedValue="{Binding PosicaoAviso}" SelectedValuePath="Tag">
-                                    <ComboBoxItem Content="Inferior direito" Tag="bottom_right" />
-                                    <ComboBoxItem Content="Superior direito" Tag="top_right" />
-                                </ComboBox>
-                            </StackPanel>
+                            <Button Content="Alterar configurações" Style="{StaticResource BotaoSecundario}"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center"
+                                    Click="AbrirAparencia_Click" />
                         </Grid>
-                        <TextBlock Text="Tamanho do texto" Style="{StaticResource RotuloCampo}" Margin="0,3,0,0" />
-                        <Slider Minimum="80" Maximum="160" TickFrequency="5" IsSnapToTickEnabled="True"
-                                Value="{Binding EscalaTexto}" Tag="%" />
-                        <TextBlock Text="Tempo do aviso comum" Style="{StaticResource RotuloCampo}" Margin="0,3,0,0" />
-                        <Slider Minimum="5" Maximum="300" TickFrequency="5" IsSnapToTickEnabled="True"
-                                Value="{Binding TempoAvisoSegundos}" Tag=" s" />
-                        <Grid Margin="0,4,0,0">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="11" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                            <CheckBox IsChecked="{Binding TocarSom}" Content="Tocar som" VerticalAlignment="Center" Margin="0" />
-                            <ComboBox Grid.Column="2" SelectedValue="{Binding TipoSom}" SelectedValuePath="Tag" IsEnabled="{Binding TocarSom}">
-                                <ComboBoxItem Content="Informação" Tag="information" />
-                                <ComboBoxItem Content="Aviso" Tag="warning" />
-                                <ComboBoxItem Content="Erro" Tag="error" />
-                            </ComboBox>
-                        </Grid>
-                    </StackPanel>
+                        <Border Grid.Row="1" Margin="0,11,0,0" Padding="10,8" CornerRadius="8"
+                                Background="{DynamicResource SurfaceAltBrush}">
+                            <TextBlock Text="{Binding ResumoAparencia}" Style="{StaticResource Subtitulo}"
+                                       TextWrapping="Wrap" FontSize="12" />
+                        </Border>
+                    </Grid>
                 </Border>
 
                 <Border x:Name="CardImagem" Style="{StaticResource PainelImagemRevelado}" Padding="14"
@@ -630,9 +717,10 @@
     </DockPanel>
 
     <Grid x:Name="DestinatariosOverlay" Panel.ZIndex="20" Visibility="Collapsed"
-          Background="#99070B12" MouseDown="FecharOverlayAoClicarFora">
+          Background="Transparent" MouseDown="FecharOverlayAoClicarFora">
         <Border Width="660" MinHeight="380" MaxHeight="690" Margin="20" Padding="15" HorizontalAlignment="Center"
-                VerticalAlignment="Center" Style="{StaticResource CardBorder}">
+                VerticalAlignment="Center" Background="{DynamicResource SurfaceBrush}"
+                Style="{StaticResource CardBorder}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -647,7 +735,7 @@
                                    Style="{StaticResource Subtitulo}" />
                     </StackPanel>
                     <Button HorizontalAlignment="Right" VerticalAlignment="Top" Width="34" Height="32" Padding="0"
-                            Content="&#xE8BB;" FontFamily="Segoe MDL2 Assets" Style="{StaticResource BotaoSecundario}"
+                            Content="×" FontFamily="Segoe UI" Style="{StaticResource BotaoSecundario}"
                             ToolTip="Fechar" Click="FecharDestinatarios_Click" />
                 </Grid>
                 <TextBox x:Name="FiltroDestinatarios" Grid.Row="1" Margin="0,12,0,9"
@@ -698,9 +786,10 @@
     </Grid>
 
     <Grid x:Name="ModelosOverlay" Panel.ZIndex="21" Visibility="Collapsed"
-          Background="#99070B12" MouseDown="FecharOverlayAoClicarFora">
+          Background="Transparent" MouseDown="FecharOverlayAoClicarFora">
         <Border Width="570" MinHeight="340" MaxHeight="660" Margin="20" Padding="15" HorizontalAlignment="Center"
-                VerticalAlignment="Center" Style="{StaticResource CardBorder}">
+                VerticalAlignment="Center" Background="{DynamicResource SurfaceBrush}"
+                Style="{StaticResource CardBorder}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -715,7 +804,7 @@
                                    Style="{StaticResource Subtitulo}" TextWrapping="Wrap" />
                     </StackPanel>
                     <Button HorizontalAlignment="Right" VerticalAlignment="Top" Width="34" Height="32" Padding="0"
-                            Content="&#xE8BB;" FontFamily="Segoe MDL2 Assets" Style="{StaticResource BotaoSecundario}"
+                            Content="×" FontFamily="Segoe UI" Style="{StaticResource BotaoSecundario}"
                             ToolTip="Fechar" Click="FecharModelos_Click" />
                 </Grid>
                 <Border Grid.Row="1" x:Name="CadastroModeloPainel" Margin="0,12,0,9" Padding="10"
@@ -785,9 +874,10 @@
     </Grid>
 
     <Grid x:Name="GruposOverlay" Panel.ZIndex="22" Visibility="Collapsed"
-          Background="#99070B12" MouseDown="FecharOverlayAoClicarFora">
+          Background="Transparent" MouseDown="FecharOverlayAoClicarFora">
         <Border Width="570" MinHeight="340" MaxHeight="660" Margin="20" Padding="15" HorizontalAlignment="Center"
-                VerticalAlignment="Center" Style="{StaticResource CardBorder}">
+                VerticalAlignment="Center" Background="{DynamicResource SurfaceBrush}"
+                Style="{StaticResource CardBorder}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -802,7 +892,7 @@
                                    Style="{StaticResource Subtitulo}" TextWrapping="Wrap" />
                     </StackPanel>
                     <Button HorizontalAlignment="Right" VerticalAlignment="Top" Width="34" Height="32" Padding="0"
-                            Content="&#xE8BB;" FontFamily="Segoe MDL2 Assets" Style="{StaticResource BotaoSecundario}"
+                            Content="×" FontFamily="Segoe UI" Style="{StaticResource BotaoSecundario}"
                             ToolTip="Fechar" Click="FecharGrupos_Click" />
                 </Grid>
                 <Border Grid.Row="1" x:Name="CadastroGrupoPainel" Margin="0,12,0,9" Padding="10"
@@ -869,6 +959,91 @@
                                 Command="{Binding AplicarGrupoCommand}" Click="AplicarGrupo_Click" />
                     </StackPanel>
                 </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+
+    <Grid x:Name="AparenciaOverlay" Panel.ZIndex="23" Visibility="Collapsed"
+          Background="Transparent" MouseDown="FecharOverlayAoClicarFora">
+        <Border Width="520" MaxHeight="690" Margin="20" Padding="16" HorizontalAlignment="Center"
+                VerticalAlignment="Center" Background="{DynamicResource SurfaceBrush}"
+                Style="{StaticResource CardBorder}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid>
+                    <StackPanel>
+                        <TextBlock Text="Aparência e som" Style="{StaticResource TituloCard}" FontSize="19" />
+                        <TextBlock Text="Personalize somente este envio." Style="{StaticResource Subtitulo}" />
+                    </StackPanel>
+                    <Button HorizontalAlignment="Right" VerticalAlignment="Top" Width="34" Height="32" Padding="0"
+                            Content="×" FontFamily="Segoe UI" Style="{StaticResource BotaoSecundario}"
+                            ToolTip="Fechar" Click="FecharAparencia_Click" />
+                </Grid>
+                <Grid Grid.Row="1" Margin="0,16,0,6">
+                    <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="12" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Cor de destaque" Style="{StaticResource RotuloCampo}" />
+                        <controls:ColorPickerPopover Width="160"
+                            SelectedColor="{Binding CorDestaque, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Posição do aviso" Style="{StaticResource RotuloCampo}" />
+                        <ComboBox SelectedValue="{Binding PosicaoAviso}" SelectedValuePath="Tag">
+                            <ComboBoxItem Content="Inferior direito" Tag="bottom_right" />
+                            <ComboBoxItem Content="Superior direito" Tag="top_right" />
+                        </ComboBox>
+                    </StackPanel>
+                </Grid>
+                <StackPanel Grid.Row="2" Margin="0,7,0,0">
+                    <TextBlock Text="Tamanho do texto" Style="{StaticResource RotuloCampo}" />
+                    <Slider Minimum="80" Maximum="160" TickFrequency="5" IsSnapToTickEnabled="True"
+                            Value="{Binding EscalaTexto}" Tag="%" />
+                </StackPanel>
+                <StackPanel Grid.Row="3" Margin="0,7,0,0">
+                    <TextBlock Text="Tempo do aviso comum" Style="{StaticResource RotuloCampo}" />
+                    <Slider Minimum="5" Maximum="300" TickFrequency="5" IsSnapToTickEnabled="True"
+                            Value="{Binding TempoAvisoSegundos}" Tag=" s" />
+                </StackPanel>
+                <Grid Grid.Row="4" Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="12" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                    <CheckBox IsChecked="{Binding TocarSom}" Content="Tocar som" VerticalAlignment="Center" Margin="0" />
+                    <ComboBox Grid.Column="2" SelectedValue="{Binding TipoSom}" SelectedValuePath="Tag"
+                              IsEnabled="{Binding TocarSom}">
+                        <ComboBoxItem Content="Informação" Tag="information" />
+                        <ComboBoxItem Content="Aviso" Tag="warning" />
+                        <ComboBoxItem Content="Erro" Tag="error" />
+                    </ComboBox>
+                </Grid>
+                <Button Grid.Row="5" Content="Concluído" Style="{StaticResource BotaoPrimario}"
+                        HorizontalAlignment="Right" Margin="0,16,0,0" Click="FecharAparencia_Click" />
+            </Grid>
+        </Border>
+    </Grid>
+    <Grid x:Name="EditorMensagemOverlay" Panel.ZIndex="19" Visibility="Collapsed"
+          Background="Transparent" MouseDown="FecharEditorMensagemAoClicarFora">
+        <Border MaxWidth="960" MaxHeight="800" Margin="24" Padding="16"
+                HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                Background="{DynamicResource SurfaceBrush}" Style="{StaticResource CardBorder}">
+            <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <Grid Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock x:Name="EditorMensagemTitulo" Style="{StaticResource TituloCard}" FontSize="19" />
+                        <TextBlock Text="As opções são aplicadas somente a este envio." Style="{StaticResource Subtitulo}" />
+                    </StackPanel>
+                    <Button Content="×" FontFamily="Segoe UI" Width="34" Height="32" Padding="0"
+                            HorizontalAlignment="Right" VerticalAlignment="Top"
+                            Style="{StaticResource BotaoSecundario}" ToolTip="Fechar"
+                            Click="FecharEditorMensagem_Click" />
+                </Grid>
+                <ContentControl x:Name="EditorMensagemConteudo" Grid.Row="1" />
             </Grid>
         </Border>
     </Grid>

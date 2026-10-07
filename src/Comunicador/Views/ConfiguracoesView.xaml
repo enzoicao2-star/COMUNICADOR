@@ -97,6 +97,7 @@
         </Style>
     </UserControl.Resources>
 
+    <Grid>
     <DockPanel LastChildFill="True">
         <Grid DockPanel.Dock="Top" Margin="0,0,0,14">
             <StackPanel>
@@ -127,7 +128,130 @@
             </StackPanel>
         </Border>
 
-        <Grid>
+        <Grid x:Name="ConfigPanelsGrid">
+            <Border x:Name="ResumoPersonalizacao" Padding="18"
+                    VerticalAlignment="Top">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource CardBorder}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers><DataTrigger Binding="{Binding SecaoConfiguracoes}" Value="personalizacao"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Personalização" Style="{StaticResource TituloCard}" />
+                        <TextBlock Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,5,18,0">
+                            <Run Text="{Binding Tema}" /><Run Text=" · " /><Run Text="{Binding Paleta}" />
+                            <Run Text=" · Fundo " /><Run Text="{Binding FundoPainel}" />
+                            <Run Text=" · Vidro " /><Run Text="{Binding TransparenciaCards}" /><Run Text="%" />
+                            <Run Text=" · Desfoque " /><Run Text="{Binding BlurCards}" /><Run Text=" px" />
+                        </TextBlock>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Alterar configurações" Style="{StaticResource BotaoPrimario}"
+                            VerticalAlignment="Center" Tag="personalizacao" Click="EditarConfiguracao_Click" />
+                </Grid>
+            </Border>
+            <Border x:Name="ResumoRecebimento" Padding="18"
+                    VerticalAlignment="Top">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource CardBorder}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers><DataTrigger Binding="{Binding SecaoConfiguracoes}" Value="recebimento"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Recebimento" Style="{StaticResource TituloCard}" />
+                        <WrapPanel Margin="0,5,18,0">
+                            <TextBlock Text="Mídias permitidas" Margin="0,0,12,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Subtitulo}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers><DataTrigger Binding="{Binding AceitarImagensDeOutrosPaineis}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="Mídias bloqueadas" Margin="0,0,12,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Subtitulo}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers><DataTrigger Binding="{Binding AceitarImagensDeOutrosPaineis}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="Links permitidos" Margin="0,0,12,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Subtitulo}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers><DataTrigger Binding="{Binding AceitarBotoesComLinks}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="Links bloqueados" Margin="0,0,12,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Subtitulo}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers><DataTrigger Binding="{Binding AceitarBotoesComLinks}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="{Binding PaineisPareados.Count, StringFormat={}{0} painéis autorizados}"
+                                       Style="{StaticResource Subtitulo}" />
+                        </WrapPanel>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Alterar configurações" Style="{StaticResource BotaoPrimario}"
+                            VerticalAlignment="Center" Tag="recebimento" Click="EditarConfiguracao_Click" />
+                </Grid>
+            </Border>
+            <Border x:Name="ResumoGeral" Padding="18"
+                    VerticalAlignment="Top">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource CardBorder}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers><DataTrigger Binding="{Binding SecaoConfiguracoes}" Value="geral"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Painel e rede" Style="{StaticResource TituloCard}" />
+                        <TextBlock Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,5,18,0">
+                            <Run Text="{Binding NomePainel}" /><Run Text=" · TCP " /><Run Text="{Binding PortaTcp}" />
+                            <Run Text=" · UDP " /><Run Text="{Binding PortaUdp}" />
+                            <Run Text=" · Descoberta " /><Run Text="{Binding IntervaloDescobertaSegundos}" /><Run Text=" s" />
+                            <Run Text=" · Ping " /><Run Text="{Binding IntervaloPingSegundos}" /><Run Text=" s" />
+                        </TextBlock>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Alterar configurações" Style="{StaticResource BotaoPrimario}"
+                            VerticalAlignment="Center" Tag="geral" Click="EditarConfiguracao_Click" />
+                </Grid>
+            </Border>
+            <Border x:Name="ResumoAdministrador" Padding="18"
+                    VerticalAlignment="Top">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource CardBorder}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers><DataTrigger Binding="{Binding SecaoConfiguracoes}" Value="administrador"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Administração global" Style="{StaticResource TituloCard}" />
+                        <TextBlock Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,5,18,0">
+                            <Run Text="{Binding GlobalTema}" /><Run Text=" · " /><Run Text="{Binding GlobalPaleta}" />
+                            <Run Text=" · Fundo " /><Run Text="{Binding GlobalFundo}" />
+                            <Run Text=" · Atualização do painel: " /><Run Text="{Binding GlobalPoliticaAtualizacaoPainel}" />
+                            <Run Text=" · Receptor: " /><Run Text="{Binding GlobalPoliticaAtualizacaoReceptor}" />
+                            <Run Text=" · Tags: " /><Run Text="{Binding ModelosBadgeGlobal.Count}" />
+                        </TextBlock>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Alterar configurações" Style="{StaticResource BotaoPrimario}"
+                            VerticalAlignment="Center" Tag="administrador" Click="EditarConfiguracao_Click" />
+                </Grid>
+            </Border>
             <!-- PERSONALIZAÇÃO -->
             <ScrollViewer x:Name="PersonalizacaoPanel" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                           HorizontalContentAlignment="Stretch" IsEnabled="{Binding PodeEditarPersonalizacaoLocal}">
@@ -481,7 +605,7 @@
             </ScrollViewer>
 
             <!-- ADMINISTRAÇÃO GLOBAL -->
-            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ScrollViewer x:Name="AdministradorPanel" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <ScrollViewer.Style>
                     <Style TargetType="ScrollViewer"><Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers><DataTrigger Binding="{Binding SecaoConfiguracoes}" Value="administrador"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
@@ -516,7 +640,6 @@
                                         <StackPanel Margin="0,0,12,0">
                                             <TextBlock Text="Painel" Style="{StaticResource RotuloCampo}" />
                                             <ComboBox SelectedValue="{Binding GlobalPoliticaAtualizacaoPainel}" SelectedValuePath="Tag">
-                                                <ComboBoxItem Content="Perguntar antes" Tag="ask" />
                                                 <ComboBoxItem Content="Ao abrir o painel" Tag="on_open" />
                                                 <ComboBoxItem Content="Assim que uma versão for publicada" Tag="available" />
                                             </ComboBox>
@@ -645,4 +768,27 @@
             </ScrollViewer>
         </Grid>
     </DockPanel>
+    <Grid x:Name="EditorOverlay" Panel.ZIndex="30" Visibility="Collapsed"
+          Background="Transparent" MouseDown="FecharEditorAoClicarFora">
+        <Border MaxWidth="1160" MaxHeight="820" Margin="24" Padding="16"
+                HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                Background="{DynamicResource SurfaceBrush}" Style="{StaticResource CardBorder}">
+            <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <Grid Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock x:Name="EditorTitulo" Style="{StaticResource TituloCard}" FontSize="19" />
+                        <TextBlock Text="As alterações são salvas automaticamente e sincronizadas conforme as permissões."
+                                   Style="{StaticResource Subtitulo}" />
+                    </StackPanel>
+                    <Button Content="×" FontFamily="Segoe UI" Width="34" Height="32" Padding="0"
+                            HorizontalAlignment="Right" VerticalAlignment="Top"
+                            Style="{StaticResource BotaoSecundario}" ToolTip="Fechar"
+                            Click="FecharEditor_Click" />
+                </Grid>
+                <ContentControl x:Name="EditorConteudo" Grid.Row="1" />
+            </Grid>
+        </Border>
+    </Grid>
+    </Grid>
 </UserControl>

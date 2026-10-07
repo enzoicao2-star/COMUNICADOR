@@ -3,6 +3,8 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Input;
 using Comunicador.Networking;
 using Comunicador.Protocol;
 using Comunicador.ViewModels;
@@ -16,7 +18,8 @@ public partial class CarrosselView : UserControl
     private readonly Func<bool> _canStart;
     private readonly Func<bool> _canStop;
     private readonly ObservableCollection<string> _images = [];
-    private readonly IReadOnlyList<ComputadorSelecionavel> _recipients;
+    private readonly List<ComputadorSelecionavel> _recipients;
+    private readonly ListCollectionView _filteredRecipients;
     private readonly CancellationTokenSource _closing = new();
     private CancellationTokenSource? _transfer;
     private bool _busy;
@@ -30,10 +33,106 @@ public partial class CarrosselView : UserControl
         _canStop = canStop;
         _recipients = recipients.ToList();
         ImagesList.ItemsSource = _images;
-        RecipientsList.ItemsSource = _recipients;
+        _filteredRecipients = new ListCollectionView(_recipients) { Filter = FiltrarDestinatario };
+        RecipientsList.ItemsSource = _filteredRecipients;
+        AtualizarResumos();
     }
 
     public void CancelarOperacoes() => _closing.Cancel();
+
+    private void OpenImages_Click(object sender, RoutedEventArgs e) => ImagesOverlay.Visibility = Visibility.Visible;
+
+    private void CloseImages_Click(object sender, RoutedEventArgs e)
+    {
+        ImagesOverlay.Visibility = Visibility.Collapsed;
+        AtualizarResumos();
+    }
+
+    private void OpenRecipients_Click(object sender, RoutedEventArgs e)
+    {
+        FilterRecipients.Clear();
+        AtualizarResumos();
+        RecipientsOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void FilterRecipients_TextChanged(object sender, TextChangedEventArgs e) =>
+        _filteredRecipients?.Refresh();
+
+    private bool FiltrarDestinatario(object item)
+    {
+        if (item is not ComputadorSelecionavel recipient) return false;
+        var filter = FilterRecipients?.Text.Trim() ?? string.Empty;
+        return filter.Length == 0
+            || recipient.Computador.NomeExibicao.Contains(filter, StringComparison.CurrentCultureIgnoreCase)
+            || recipient.Computador.Nome.Contains(filter, StringComparison.CurrentCultureIgnoreCase)
+            || recipient.Computador.EnderecoIpExibicao.Contains(filter, StringComparison.CurrentCultureIgnoreCase);
+    }
+
+    private void CloseRecipients_Click(object sender, RoutedEventArgs e)
+    {
+        RecipientsOverlay.Visibility = Visibility.Collapsed;
+        AtualizarResumos();
+    }
+
+    private void OpenSettings_Click(object sender, RoutedEventArgs e) => SettingsOverlay.Visibility = Visibility.Visible;
+
+    private void CloseSettings_Click(object sender, RoutedEventArgs e)
+    {
+        SettingsOverlay.Visibility = Visibility.Collapsed;
+        AtualizarResumos();
+    }
+
+    private void Overlay_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!ReferenceEquals(sender, e.OriginalSource) || sender is not Grid overlay) return;
+        overlay.Visibility = Visibility.Collapsed;
+        AtualizarResumos();
+    }
+
+    private void RecipientSelectionChanged(object sender, RoutedEventArgs e) => AtualizarResumos();
+
+    private void SelectAllRecipients_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var recipient in _recipients) recipient.Selecionado = true;
+        AtualizarResumos();
+    }
+
+    private void ClearRecipients_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var recipient in _recipients) recipient.Selecionado = false;
+        AtualizarResumos();
+    }
+
+    private void AtualizarResumos()
+    {
+        if (ImageSummary is null) return;
+
+        ImageSummary.Text = _images.Count == 0
+            ? "Nenhuma imagem adicionada."
+            : $"{_images.Count} imagem(ns)\n{string.Join("\n", _images.Take(3).Select(Path.GetFileName))}"
+                + (_images.Count > 3 ? $"\n+ {_images.Count - 3} imagem(ns)" : string.Empty);
+
+        var selectedNames = _recipients.Where(r => r.Selecionado)
+            .Select(r => r.Computador.NomeExibicao).ToList();
+        RecipientsSummary.Text = selectedNames.Count == 0
+            ? "Nenhum computador selecionado."
+            : $"{selectedNames.Count} computador(es) selecionado(s)\n"
+                + string.Join(", ", selectedNames.Take(3))
+                + (selectedNames.Count > 3 ? $" e mais {selectedNames.Count - 3}" : string.Empty);
+        RecipientsCount.Text = $"{selectedNames.Count} selecionado(s)";
+
+        if (MouseTrailRadio.IsChecked == true)
+        {
+            SettingsSummary.Text = $"Miniaturas seguindo o mouse\nTotal: {TrailMinutes.Text} min · cada imagem: {TrailImageSeconds.Text} s";
+            return;
+        }
+
+        var interval = RandomRadio.IsChecked == true
+            ? $"a cada {RandomMin.Text}–{RandomMax.Text} min, aleatório"
+            : $"a cada {FixedMinutes.Text} min";
+        SettingsSummary.Text = $"Imagem no centro · {DurationSeconds.Text} s\nIntervalo {interval}"
+            + (RepeatCheck.IsChecked == true ? " · repetição ligada" : " · uma vez");
+    }
 
     private void AddImages_Click(object sender, RoutedEventArgs e)
     {
@@ -63,12 +162,14 @@ public partial class CarrosselView : UserControl
         StatusText.Text = rejected == 0
             ? $"{_images.Count} imagem(ns) na sequência."
             : $"{_images.Count} imagem(ns) na sequência; {rejected} arquivo(s) acima de 4 MB ou inacessíveis.";
+        AtualizarResumos();
     }
 
     private void RemoveImages_Click(object sender, RoutedEventArgs e)
     {
         foreach (var path in ImagesList.SelectedItems.Cast<string>().ToList()) _images.Remove(path);
         StatusText.Text = $"{_images.Count} imagem(ns) na sequência.";
+        AtualizarResumos();
     }
 
     private void MoveUp_Click(object sender, RoutedEventArgs e) => MoveSelected(-1);
@@ -82,6 +183,7 @@ public partial class CarrosselView : UserControl
         if (next < 0 || next >= _images.Count) return;
         _images.Move(index, next);
         ImagesList.SelectedItem = selected;
+        AtualizarResumos();
     }
 
     private bool TryIntervals(out int min, out int max)

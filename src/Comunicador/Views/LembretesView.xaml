@@ -41,21 +41,70 @@
             <Setter Property="CalendarDayButtonStyle" Value="{StaticResource CalendarDayModern}" />
         </Style>
     </UserControl.Resources>
-    <DockPanel LastChildFill="True">
+    <Grid x:Name="Container">
+      <DockPanel LastChildFill="True">
 
         <StackPanel DockPanel.Dock="Top" Margin="0,0,0,20">
             <TextBlock Text="Lembretes" Style="{StaticResource TituloSecao}" />
             <TextBlock Text="Agende um aviso para ser enviado automaticamente na hora certa." Style="{StaticResource Subtitulo}" />
         </StackPanel>
 
-        <Grid>
+        <Grid x:Name="FormularioLayout">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="400" />
                 <ColumnDefinition Width="20" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+            <Border x:Name="ResumoNovoLembrete" Grid.Column="0" Style="{StaticResource CardBorder}"
+                    Padding="16" VerticalAlignment="Top">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock Text="Novo lembrete" Style="{StaticResource TituloCard}" />
+                            <TextBlock Text="Resumo do agendamento" Style="{StaticResource Subtitulo}" />
+                        </StackPanel>
+                        <Button Content="Alterar configurações" Style="{StaticResource BotaoPrimario}"
+                                HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Click="AbrirEditorLembrete_Click" />
+                    </Grid>
+                    <Border Grid.Row="1" Margin="0,12,0,0" Padding="11,9" CornerRadius="8"
+                            Background="{DynamicResource SurfaceAltBrush}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Titulo, TargetNullValue=Novo lembrete}"
+                                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Mensagem, TargetNullValue=Sem mensagem}"
+                                       Style="{StaticResource Subtitulo}" TextWrapping="Wrap" MaxHeight="42" Margin="0,3,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <StackPanel Grid.Row="2" Margin="0,11,0,0">
+                        <TextBlock Text="{Binding DataHora, StringFormat={}{0:dd/MM/yyyy 'às' HH:mm}, Mode=OneWay}"
+                                   Style="{StaticResource Subtitulo}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding TextoDestinatariosSelecionados}"
+                                   Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,5,0,0" />
+                        <TextBlock Text="A pessoa poderá responder" Margin="0,5,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource Subtitulo}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers><DataTrigger Binding="{Binding PermitirResposta}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text="Resposta desativada" Margin="0,5,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource Subtitulo}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers><DataTrigger Binding="{Binding PermitirResposta}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text="{Binding StatusOperacao}" Style="{StaticResource Subtitulo}"
+                                   TextWrapping="Wrap" Margin="0,7,0,0" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <ScrollViewer x:Name="FormularioLembrete" Grid.Column="0" VerticalScrollBarVisibility="Auto">
                 <Border Style="{StaticResource CardBorder}" Padding="20" VerticalAlignment="Top">
                     <StackPanel>
                         <TextBlock Text="Novo lembrete" Style="{StaticResource TituloCard}" Margin="0,0,0,14" />
@@ -102,14 +151,19 @@
                             </CheckBox>
                         </Border>
 
-                        <TextBlock Text="Enviar para" Style="{StaticResource RotuloCampo}" />
-                        <ItemsControl ItemsSource="{Binding Destinatarios}" Margin="0,0,0,18">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <CheckBox IsChecked="{Binding Selecionado}" Content="{Binding Computador.NomeExibicao}" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1" CornerRadius="9" Padding="11" Margin="0,0,0,18">
+                            <StackPanel>
+                                <TextBlock Text="Enviar para" Style="{StaticResource RotuloCampo}" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding TextoDestinatariosSelecionados}" Style="{StaticResource Subtitulo}"
+                                               TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <Button Grid.Column="1" Content="Selecionar computadores"
+                                            Style="{StaticResource BotaoSecundario}" Click="OpenRecipients_Click" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
 
                         <StackPanel Orientation="Horizontal">
                             <Button Style="{StaticResource BotaoPrimario}" Content="Criar lembrete" Command="{Binding CriarCommand}" />
@@ -188,5 +242,83 @@
                 </ScrollViewer>
             </DockPanel>
         </Grid>
-    </DockPanel>
+      </DockPanel>
+
+      <Grid x:Name="RecipientsOverlay" Panel.ZIndex="20" Visibility="Collapsed"
+            Background="Transparent" MouseDown="Overlay_MouseDown">
+        <Border Width="620" MinHeight="350" MaxHeight="640" Margin="20" Padding="16"
+                HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="{DynamicResource SurfaceBrush}" Style="{StaticResource CardBorder}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid>
+                    <StackPanel Margin="0,0,48,12">
+                        <TextBlock Text="Selecionar computadores" Style="{StaticResource TituloCard}" FontSize="19" />
+                        <TextBlock Text="Escolha um ou mais computadores para receber este lembrete."
+                                   Style="{StaticResource Subtitulo}" />
+                    </StackPanel>
+                    <Button HorizontalAlignment="Right" VerticalAlignment="Top" Width="34" Height="32"
+                            Padding="0" Content="×" FontFamily="Segoe UI" Style="{StaticResource BotaoSecundario}"
+                            ToolTip="Fechar" Click="CloseRecipients_Click" />
+                </Grid>
+                <TextBox x:Name="FiltroDestinatarios" Grid.Row="1" Margin="0,0,0,9"
+                         ToolTip="Filtrar por apelido, nome do computador ou endereço IP"
+                         TextChanged="FiltroDestinatarios_TextChanged" />
+                <ListBox x:Name="ListaDestinatarios" Grid.Row="2" MinHeight="160" MaxHeight="440"
+                         Background="{DynamicResource SurfaceAltBrush}" BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <CheckBox IsChecked="{Binding Selecionado, Mode=TwoWay}"
+                                      Content="{Binding Computador.NomeExibicao}" Margin="8,5" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <Grid Grid.Row="3" Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button Content="Selecionar todos" Style="{StaticResource BotaoSecundario}"
+                            Click="SelectAllRecipients_Click" Margin="0,0,8,0" />
+                    <Button Grid.Column="1" Content="Limpar seleção" Style="{StaticResource BotaoSecundario}"
+                            Click="ClearRecipients_Click" />
+                    <TextBlock Grid.Column="2" Text="{Binding TextoDestinatariosSelecionados}"
+                               Style="{StaticResource Subtitulo}" VerticalAlignment="Center" Margin="12,0" />
+                    <Button Grid.Column="3" Content="Concluído" Style="{StaticResource BotaoPrimario}"
+                            Click="CloseRecipients_Click" />
+                </Grid>
+            </Grid>
+        </Border>
+      </Grid>
+
+      <Grid x:Name="EditorLembreteOverlay" Panel.ZIndex="19" Visibility="Collapsed"
+            Background="Transparent" MouseDown="EditorLembreteOverlay_MouseDown">
+        <Border MaxWidth="760" MaxHeight="780" Margin="24" Padding="16"
+                HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                Background="{DynamicResource SurfaceBrush}" Style="{StaticResource CardBorder}">
+            <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <Grid Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="Configurar lembrete" Style="{StaticResource TituloCard}" FontSize="19" />
+                        <TextBlock Text="Escolha o conteúdo, horário, resposta e computadores de destino."
+                                   Style="{StaticResource Subtitulo}" />
+                    </StackPanel>
+                    <Button Content="×" FontFamily="Segoe UI" Width="34" Height="32" Padding="0"
+                            HorizontalAlignment="Right" VerticalAlignment="Top"
+                            Style="{StaticResource BotaoSecundario}" ToolTip="Fechar"
+                            Click="FecharEditorLembrete_Click" />
+                </Grid>
+                <ContentControl x:Name="EditorLembreteConteudo" Grid.Row="1" />
+            </Grid>
+        </Border>
+      </Grid>
+    </Grid>
 </UserControl>

@@ -41,14 +41,10 @@ public partial class MainWindow : Window
     private int _warmupGeneration;
     private int _navigationPauseGeneration;
     private bool _navigationTransitionActive;
-    private bool _janelaFoiReativada;
-    private bool _verificandoAtualizacao;
-    private bool _dialogoAtualizacaoAberto;
     private bool _atualizacaoEmAndamento;
     private bool _lendoProgressoAtualizacao;
     private bool _spinnerAtualizacaoVisivel;
     private readonly DispatcherTimer _temporizadorAtualizacao = new() { Interval = TimeSpan.FromMilliseconds(300) };
-    private string? _versaoRecusada;
     private readonly Forms.NotifyIcon _trayIcon;
     private bool _allowExit;
     private bool _iniciadoEmSegundoPlano;
@@ -68,8 +64,6 @@ public partial class MainWindow : Window
         ContentRendered += OnContentRendered;
         Closing += OnWindowClosing;
         IsVisibleChanged += OnWindowVisibilityChanged;
-        Deactivated += (_, _) => _janelaFoiReativada = true;
-        Activated += OnMainWindowActivated;
         Closed += (_, _) =>
         {
             _trayIcon.Dispose();
@@ -93,13 +87,7 @@ public partial class MainWindow : Window
         if (_viewModel is null) return;
         _ = Services.PanelUpdateService.ReportHealthyStartupAsync();
         if (_iniciadoEmSegundoPlano) return;
-        if (string.IsNullOrWhiteSpace(App.BenchmarkFile))
-        {
-            // Aguarda o ícone inicial sair antes de abrir qualquer diálogo.
-            await Task.Delay(300);
-            await VerificarAtualizacaoAoIniciarAsync(_viewModel);
-            return;
-        }
+        if (string.IsNullOrWhiteSpace(App.BenchmarkFile)) return;
 
         await Task.Delay(900);
         var readyMs = App.StartupWatch.Elapsed.TotalMilliseconds;
@@ -165,66 +153,6 @@ public partial class MainWindow : Window
             JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
         _allowExit = true;
         Application.Current.Shutdown();
-    }
-
-    private async Task VerificarAtualizacaoAoIniciarAsync(MainViewModel viewModel)
-    {
-        if (_verificandoAtualizacao || _dialogoAtualizacaoAberto || _atualizacaoEmAndamento
-            || SectionContent.Content is AtualizacaoDisponivelWindow) return;
-        _verificandoAtualizacao = true;
-        try
-        {
-            var info = await viewModel.Configuracoes.VerificarAtualizacaoPainelAsync();
-            if (info is { IsAvailable: true }) await PerguntarAtualizacaoAsync(viewModel, info);
-        }
-        finally { _verificandoAtualizacao = false; }
-    }
-
-    private async void OnMainWindowActivated(object? sender, EventArgs e)
-    {
-        if (!_janelaFoiReativada || _verificandoAtualizacao || _dialogoAtualizacaoAberto || _atualizacaoEmAndamento
-            || _viewModel is null || SectionContent.Content is AtualizacaoDisponivelWindow)
-            return;
-
-        _janelaFoiReativada = false;
-        _verificandoAtualizacao = true;
-        try
-        {
-            var info = await _viewModel.Configuracoes.VerificarAtualizacaoPainelAsync();
-            if (info is { IsAvailable: true } && _versaoRecusada != info.LatestVersion.ToString())
-                await PerguntarAtualizacaoAsync(_viewModel, info);
-        }
-        finally { _verificandoAtualizacao = false; }
-    }
-
-    private Task PerguntarAtualizacaoAsync(MainViewModel viewModel, Services.PanelUpdateInfo info)
-    {
-        if (_dialogoAtualizacaoAberto) return Task.CompletedTask;
-        _dialogoAtualizacaoAberto = true;
-        try
-        {
-            var tela = new AtualizacaoDisponivelWindow(info);
-            tela.AdiarSolicitado += (_, _) =>
-            {
-                _versaoRecusada = info.LatestVersion.ToString();
-                tela.MostrarAdiada();
-            };
-            tela.AtualizarSolicitado += async (_, _) =>
-            {
-                tela.IsEnabled = false;
-                if (!await viewModel.Configuracoes.AtualizarPainelAsync())
-                {
-                    tela.IsEnabled = true;
-                    tela.MostrarErro("Não foi possível iniciar a atualização. Confira a conexão e tente novamente em Configurações.");
-                    return;
-                }
-
-                NavegarVoltar();
-            };
-            NavegarPara(tela);
-        }
-        finally { _dialogoAtualizacaoAberto = false; }
-        return Task.CompletedTask;
     }
 
     private void OnAtualizacaoPainelIniciada(object? sender, EventArgs e)
@@ -654,7 +582,6 @@ public partial class MainWindow : Window
         if (iniciouOculto)
         {
             _iniciadoEmSegundoPlano = false;
-            _janelaFoiReativada = false;
             ShowInTaskbar = true;
             ShowActivated = true;
             Opacity = 1;
@@ -666,7 +593,6 @@ public partial class MainWindow : Window
         {
             var resumo = _viewModel.ConsumeUpdateSummary();
             if (!string.IsNullOrWhiteSpace(resumo)) MostrarResumoAtualizacao(resumo);
-            _ = VerificarAtualizacaoAoIniciarAsync(_viewModel);
         }
     }
 

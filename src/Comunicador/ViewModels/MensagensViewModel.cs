@@ -388,28 +388,82 @@ public sealed class MensagensViewModel : ViewModelBase
         set => SetField(ref _permitirFecharImagem, value);
     }
 
-    public bool TocarSom { get => _tocarSom; set => SetField(ref _tocarSom, value); }
-    public string TipoSom { get => _tipoSom; set => SetField(ref _tipoSom, value); }
-    public string PosicaoAviso { get => _posicaoAviso; set => SetField(ref _posicaoAviso, value); }
+    public bool TocarSom
+    {
+        get => _tocarSom;
+        set
+        {
+            if (SetField(ref _tocarSom, value)) OnPropertyChanged(nameof(ResumoAparencia));
+        }
+    }
+
+    public string TipoSom
+    {
+        get => _tipoSom;
+        set
+        {
+            if (SetField(ref _tipoSom, value)) OnPropertyChanged(nameof(ResumoAparencia));
+        }
+    }
+
+    public string PosicaoAviso
+    {
+        get => _posicaoAviso;
+        set
+        {
+            if (SetField(ref _posicaoAviso, value)) OnPropertyChanged(nameof(ResumoAparencia));
+        }
+    }
+
+    public string ResumoAparencia
+    {
+        get
+        {
+            var posicao = PosicaoAviso switch
+            {
+                "top_right" => "Superior direito",
+                _ => "Inferior direito",
+            };
+            var som = TipoSom switch
+            {
+                "warning" => "Aviso",
+                "error" => "Erro",
+                _ => "Informação",
+            };
+            return $"{CorDestaque} · {posicao} · Texto {EscalaTexto:0}% · {TempoAvisoSegundos:0}s · " +
+                (TocarSom ? $"Som {som}" : "Som desligado");
+        }
+    }
 
     public string CorDestaque
     {
         get => _corDestaque;
-        set => SetField(ref _corDestaque, value);
+        set
+        {
+            if (SetField(ref _corDestaque, value)) OnPropertyChanged(nameof(ResumoAparencia));
+        }
     }
 
     public double EscalaTexto
     {
         get => _escalaTexto;
-        set => SetField(ref _escalaTexto, Math.Round(Math.Clamp(
-            value, ProtocolConstants.MinFontScalePercent, ProtocolConstants.MaxFontScalePercent)));
+        set
+        {
+            if (SetField(ref _escalaTexto, Math.Round(Math.Clamp(
+                value, ProtocolConstants.MinFontScalePercent, ProtocolConstants.MaxFontScalePercent))))
+                OnPropertyChanged(nameof(ResumoAparencia));
+        }
     }
 
     public double TempoAvisoSegundos
     {
         get => _tempoAvisoSegundos;
-        set => SetField(ref _tempoAvisoSegundos, Math.Round(Math.Clamp(
-            value, ProtocolConstants.MinToastDurationSeconds, ProtocolConstants.MaxToastDurationSeconds)));
+        set
+        {
+            if (SetField(ref _tempoAvisoSegundos, Math.Round(Math.Clamp(
+                value, ProtocolConstants.MinToastDurationSeconds, ProtocolConstants.MaxToastDurationSeconds))))
+                OnPropertyChanged(nameof(ResumoAparencia));
+        }
     }
 
     public string? StatusOperacao

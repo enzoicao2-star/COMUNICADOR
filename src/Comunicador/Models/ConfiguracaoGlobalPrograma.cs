@@ -15,7 +15,7 @@ public sealed class ConfiguracaoGlobalPrograma
     public bool PermitirLinks { get; set; } = true;
     public bool PermitirPapelParedeRemoto { get; set; } = true;
     public string PoliticaInicializacaoWindows { get; set; } = "local";
-    public string PoliticaAtualizacaoPainel { get; set; } = "ask";
+    public string PoliticaAtualizacaoPainel { get; set; } = "available";
     public string PoliticaAtualizacaoReceptor { get; set; } = "ask";
     public List<ModeloBadgeGlobal> ModelosBadge { get; set; } = [];
     public List<GrupoComputadoresGlobal> GruposComputadores { get; set; } = [];

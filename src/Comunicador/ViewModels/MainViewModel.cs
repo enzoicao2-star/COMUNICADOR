@@ -500,7 +500,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         {
             try
             {
-                var politica = _cloudSync.GlobalConfig?.PoliticaAtualizacaoPainel ?? "ask";
+                var politicaConfigurada = _cloudSync.GlobalConfig?.PoliticaAtualizacaoPainel;
+                var politica = politicaConfigurada is "on_open" or "available"
+                    ? politicaConfigurada : "available";
                 if (politica != politicaAnterior)
                 {
                     politicaAnterior = politica;
@@ -520,8 +522,10 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
                         ? agora.AddMinutes(2)
                         : DateTimeOffset.MaxValue;
 
-                    if (info.IsAvailable
-                        && _cloudSync.GlobalConfig?.PoliticaAtualizacaoPainel == politica)
+                    var politicaAtual = _cloudSync.GlobalConfig?.PoliticaAtualizacaoPainel;
+                    politicaAtual = politicaAtual is "on_open" or "available"
+                        ? politicaAtual : "available";
+                    if (info.IsAvailable && politicaAtual == politica)
                     {
                         Logger.Info($"Nova versão do painel ({info.LatestVersion}) detectada pela política automática '{politica}'.");
                         await _panelUpdate.StartUpdateAsync(info, ct).ConfigureAwait(false);

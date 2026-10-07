@@ -83,6 +83,22 @@ public sealed class LembretesViewModel : ViewModelBase
         set => SetField(ref _statusOperacao, value);
     }
 
+    public string TextoDestinatariosSelecionados
+    {
+        get
+        {
+            var names = Destinatarios.Where(d => d.Selecionado)
+                .Select(d => d.Computador.NomeExibicao).ToList();
+            return names.Count switch
+            {
+                0 => "Nenhum computador selecionado",
+                1 => names[0],
+                _ => $"{names.Count} computadores: {string.Join(", ", names.Take(2))}"
+                     + (names.Count > 2 ? $" e mais {names.Count - 2}" : string.Empty),
+            };
+        }
+    }
+
     public ICommand CriarCommand { get; }
     public ICommand RemoverCommand { get; }
     public ICommand AtualizarDestinatariosCommand { get; }
@@ -169,8 +185,18 @@ public sealed class LembretesViewModel : ViewModelBase
         Destinatarios.Clear();
         foreach (var computador in _computadores.Computadores.Where(c => c.Pareado || c.RegistradoNaNuvem))
         {
-            Destinatarios.Add(new ComputadorSelecionavel(computador) { Selecionado = idsSelecionados.Contains(computador.Id) });
+            var destinatario = new ComputadorSelecionavel(computador)
+            {
+                Selecionado = idsSelecionados.Contains(computador.Id),
+            };
+            destinatario.PropertyChanged += (_, _) =>
+            {
+                OnPropertyChanged(nameof(TextoDestinatariosSelecionados));
+                CommandManager.InvalidateRequerySuggested();
+            };
+            Destinatarios.Add(destinatario);
         }
+        OnPropertyChanged(nameof(TextoDestinatariosSelecionados));
     }
 
     private bool PodeCriar() =>

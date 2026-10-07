@@ -55,7 +55,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     private bool _globalPermitirLinks = true;
     private bool _globalPermitirPapelParede = true;
     private string _globalPoliticaInicializacaoWindows = "local";
-    private string _globalPoliticaAtualizacaoPainel = "ask";
+    private string _globalPoliticaAtualizacaoPainel = "available";
     private string _globalPoliticaAtualizacaoReceptor = "ask";
     private string? _statusGlobal;
     private string _statusAuditoria = "Abra a administração para carregar as ações recentes.";
@@ -552,8 +552,8 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         _globalPermitirLinks = config.PermitirLinks;
         _globalPermitirPapelParede = config.PermitirPapelParedeRemoto;
         _globalPoliticaInicializacaoWindows = config.PoliticaInicializacaoWindows;
-        _globalPoliticaAtualizacaoPainel = NormalizarPoliticaAtualizacao(config.PoliticaAtualizacaoPainel);
-        _globalPoliticaAtualizacaoReceptor = NormalizarPoliticaAtualizacao(config.PoliticaAtualizacaoReceptor);
+        _globalPoliticaAtualizacaoPainel = NormalizarPoliticaAtualizacaoPainel(config.PoliticaAtualizacaoPainel);
+        _globalPoliticaAtualizacaoReceptor = NormalizarPoliticaAtualizacaoReceptor(config.PoliticaAtualizacaoReceptor);
         ModelosBadgeGlobal.Clear();
         foreach (var model in config.ModelosBadge) ModelosBadgeGlobal.Add(model);
         OnPropertyChanged(nameof(GlobalTema)); OnPropertyChanged(nameof(GlobalPaleta));
@@ -662,7 +662,10 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         }
     }
 
-    private static string NormalizarPoliticaAtualizacao(string? policy) =>
+    private static string NormalizarPoliticaAtualizacaoPainel(string? policy) =>
+        policy is "on_open" or "available" ? policy : "available";
+
+    private static string NormalizarPoliticaAtualizacaoReceptor(string? policy) =>
         policy is "on_open" or "available" ? policy : "ask";
 
     private void AgendarSalvamento()
