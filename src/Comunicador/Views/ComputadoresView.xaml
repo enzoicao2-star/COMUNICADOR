@@ -51,7 +51,7 @@
     <Grid>
       <DockPanel x:Name="ListaComputadores" LastChildFill="True">
 
-        <Grid DockPanel.Dock="Top" Margin="0,0,0,20">
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,14">
             <StackPanel>
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="Computadores" Style="{StaticResource TituloSecao}" />
@@ -123,13 +123,13 @@
         </StackPanel>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <ItemsControl ItemsSource="{Binding Computadores}">
+            <ItemsControl x:Name="ListaCardsComputador" ItemsSource="{Binding Computadores}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <controls:SpotlightCard Width="282" MinHeight="172" Padding="14"
+                        <controls:SpotlightCard Width="282" MinHeight="154" Padding="14"
                                                 Margin="0,0,12,12" ReducedMotion="{Binding ReduzirMovimento}"
                                                 MouseDoubleClick="AbrirGerenciamentoComputador_DoubleClick">
                             <controls:SpotlightCard.Style>
@@ -255,5 +255,11 @@
             </ItemsControl>
         </ScrollViewer>
       </DockPanel>
+      <Canvas x:Name="CardDragPreviewLayer" Panel.ZIndex="30" HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch" IsHitTestVisible="False" ClipToBounds="False">
+          <Border x:Name="CardDragPreview" Width="282" Height="154" Visibility="Collapsed"
+                  BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2" CornerRadius="16"
+                  Effect="{DynamicResource GlassCardShadow}" Opacity="0.92" />
+      </Canvas>
     </Grid>
 </UserControl>

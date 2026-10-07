@@ -396,5 +396,16 @@
       "A tela aberta ao dar dois cliques em um computador foi reorganizada em cartões de ação e mostra nome, estado e tipo da instalação.",
       "Atualizações automáticas iniciadas em segundo plano também reiniciam o painel oculto."
     ]
+  },
+  {
+    "version": "2.5.36.0",
+    "summary": "Seleção compacta de computadores, modelos e grupos, com cards reordenáveis por painel.",
+    "changes": [
+      "A tela de mensagens ficou mais compacta: computadores, modelos e grupos agora são escolhidos em painéis internos, sem listas longas ocupando a página.",
+      "Modelos e grupos sem itens só aparecem para o OWNER, que pode cadastrar o primeiro dentro do seletor.",
+      "Os cards de computador podem ser reorganizados segurando por 500 ms e arrastando; a ordem fica salva separadamente em cada painel.",
+      "Um clique simples anima o card como um botão; o duplo clique continua abrindo as ações do computador.",
+      "Os cards de ações do computador ganharam um cabeçalho mais compacto, alinhado aos cards da lista."
+    ]
   }
 ]

@@ -34,4 +34,5 @@ public sealed class AppSettings
     public int TransparenciaCards { get; set; } = 70;
     public int BlurCards { get; set; } = 18;
     public int VelocidadeFundo { get; set; } = 100;
+    public Dictionary<string, List<string>> OrdemComputadoresPorPainel { get; set; } = new();
 }

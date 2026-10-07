@@ -68,6 +68,17 @@ public sealed class MensagensViewModel : ViewModelBase
     public ObservableCollection<GrupoComputadoresGlobal> GruposComputadores { get; } = new();
     public ObservableCollection<ModeloMensagemGlobal> ModelosMensagem { get; } = new();
 
+    public bool PodeAbrirBiblioteca => _cloud.IsAdmin;
+    public bool PodeSelecionarGrupo => PodeAbrirBiblioteca || GruposComputadores.Count > 0;
+    public bool PodeSelecionarModelo => PodeAbrirBiblioteca || ModelosMensagem.Count > 0;
+    public int QuantidadeDestinatariosSelecionados => Destinatarios.Count(d => d.Selecionado);
+    public string TextoDestinatariosSelecionados => QuantidadeDestinatariosSelecionados switch
+    {
+        0 => "Nenhum computador selecionado",
+        1 => "1 computador selecionado",
+        var quantidade => $"{quantidade} computadores selecionados",
+    };
+
     public GrupoComputadoresGlobal? GrupoSelecionado
     {
         get => _grupoSelecionado;
@@ -443,6 +454,7 @@ public sealed class MensagensViewModel : ViewModelBase
             OnPropertyChanged(nameof(PodeAlterarPapelParede));
             OnPropertyChanged(nameof(PodeGerenciarCarrossel));
             OnPropertyChanged(nameof(PodeGerenciarBiblioteca));
+            OnPropertyChanged(nameof(PodeAbrirBiblioteca));
             CommandManager.InvalidateRequerySuggested();
         });
         _cloud.GlobalConfigReceived += config => UiDispatcher.Invoke(() =>
@@ -452,6 +464,8 @@ public sealed class MensagensViewModel : ViewModelBase
             OnPropertyChanged(nameof(PodeAlterarPapelParede));
             AtualizarBiblioteca(config);
             OnPropertyChanged(nameof(PodeGerenciarBiblioteca));
+            OnPropertyChanged(nameof(PodeSelecionarGrupo));
+            OnPropertyChanged(nameof(PodeSelecionarModelo));
             CommandManager.InvalidateRequerySuggested();
         });
 
@@ -540,6 +554,8 @@ public sealed class MensagensViewModel : ViewModelBase
         foreach (var modelo in config.ModelosMensagem.OrderBy(m => m.Nome)) ModelosMensagem.Add(modelo);
         GrupoSelecionado = GruposComputadores.FirstOrDefault(g => g.Id == grupoId);
         ModeloSelecionado = ModelosMensagem.FirstOrDefault(m => m.Id == modeloId);
+        OnPropertyChanged(nameof(PodeSelecionarGrupo));
+        OnPropertyChanged(nameof(PodeSelecionarModelo));
         CommandManager.InvalidateRequerySuggested();
     }
 
@@ -715,6 +731,8 @@ public sealed class MensagensViewModel : ViewModelBase
         }
 
         AtualizarMonitoresDestino();
+        OnPropertyChanged(nameof(QuantidadeDestinatariosSelecionados));
+        OnPropertyChanged(nameof(TextoDestinatariosSelecionados));
     }
 
     private void OnDestinatarioPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -725,6 +743,8 @@ public sealed class MensagensViewModel : ViewModelBase
         }
 
         AtualizarMonitoresDestino();
+        OnPropertyChanged(nameof(QuantidadeDestinatariosSelecionados));
+        OnPropertyChanged(nameof(TextoDestinatariosSelecionados));
         CommandManager.InvalidateRequerySuggested();
     }
 

@@ -160,7 +160,14 @@ public sealed class ComputadoresViewModel : ViewModelBase
         _cloud.ResponseReceived += OnRemoteCommandResponse;
         _cloud.DevicesReceived += OnCloudDevicesReceived;
 
-        foreach (var computador in _store.Load())
+        _settings.OrdemComputadoresPorPainel ??= new Dictionary<string, List<string>>();
+        var ordemSalva = _settings.OrdemComputadoresPorPainel.TryGetValue(_settings.PainelId, out var idsOrdenados)
+            ? idsOrdenados.Select((id, index) => (id, index))
+                .ToDictionary(item => item.id, item => item.index, StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var computador in _store.Load()
+                     .OrderBy(computador => ordemSalva.TryGetValue(computador.Id, out var indice)
+                         ? indice : int.MaxValue))
         {
             if (computador.Monitores.Count == 0)
             {
@@ -940,6 +947,24 @@ public sealed class ComputadoresViewModel : ViewModelBase
     }
 
     public IReadOnlyList<Computador> Snapshot() => Computadores.ToList();
+
+    public bool MoverComputadorDuranteArraste(Computador computador, int novoIndice)
+    {
+        var indiceAtual = Computadores.IndexOf(computador);
+        if (indiceAtual < 0 || Computadores.Count < 2) return false;
+        novoIndice = Math.Clamp(novoIndice, 0, Computadores.Count - 1);
+        if (indiceAtual == novoIndice) return false;
+        Computadores.Move(indiceAtual, novoIndice);
+        return true;
+    }
+
+    public void SalvarOrdemComputadores()
+    {
+        _settings.OrdemComputadoresPorPainel ??= new Dictionary<string, List<string>>();
+        _settings.OrdemComputadoresPorPainel[_settings.PainelId] =
+            Computadores.Select(computador => computador.Id).ToList();
+        SettingsStore.Save(_settings);
+    }
 
     /// <summary>Um receptor abriu conexao para este painel e se registrou. Ele ja chega
     /// pareado e online, sem precisar de descoberta nem de porta aberta no lado dele.</summary>
