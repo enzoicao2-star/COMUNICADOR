@@ -13,46 +13,112 @@
 
             <StackPanel Margin="0,0,0,16">
                 <TextBlock Text="Carrossel de imagens" Style="{StaticResource TituloSecao}" />
-                <TextBlock Text="Veja as escolhas atuais e altere cada parte quando precisar."
+                <TextBlock Text="Organize as imagens, escolha os computadores e ajuste a exibição."
                            Style="{StaticResource Subtitulo}" />
             </StackPanel>
 
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="1.1*" />
                     <ColumnDefinition Width="12" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="12" />
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="1*" />
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Style="{StaticResource CardBorder}" Padding="16" VerticalAlignment="Top">
-                    <StackPanel>
-                        <TextBlock Text="Sequência de imagens" Style="{StaticResource TituloCard}" />
-                        <TextBlock x:Name="ImageSummary" Style="{StaticResource Subtitulo}"
-                                   TextWrapping="Wrap" Margin="0,10,0,16" />
-                        <Button Content="Alterar imagens" Style="{StaticResource BotaoPrimario}"
-                                Click="OpenImages_Click" HorizontalAlignment="Left" />
-                    </StackPanel>
+                <Border Grid.Column="0" Style="{StaticResource CardBorder}" Padding="14">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid>
+                            <TextBlock Text="Sequência de imagens" Style="{StaticResource TituloCard}" />
+                            <TextBlock x:Name="ImageCount" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       Style="{StaticResource Subtitulo}" />
+                        </Grid>
+                        <Grid Grid.Row="1" Margin="0,8,0,8">
+                            <ListBox x:Name="ImagesList" MinHeight="100" SelectionMode="Extended"
+                                     Background="{DynamicResource SurfaceAltBrush}" BorderThickness="0"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding}" VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock x:Name="ImageEmptyHint" Text="Adicione imagens PNG ou JPEG para montar a sequência."
+                                       Style="{StaticResource Subtitulo}" TextAlignment="Center"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Margin="16" IsHitTestVisible="False" TextWrapping="Wrap" />
+                        </Grid>
+                        <WrapPanel Grid.Row="2" HorizontalAlignment="Left">
+                            <Button Content="Adicionar imagens" Style="{StaticResource BotaoPrimario}"
+                                    Click="AddImages_Click" Margin="0,0,7,0" />
+                            <Button Content="Remover seleção" Style="{StaticResource BotaoSecundario}"
+                                    Click="RemoveImages_Click" Margin="0,0,7,0" />
+                            <Button Content="Subir" Style="{StaticResource BotaoSecundario}"
+                                    Click="MoveUp_Click" Margin="0,0,7,0" />
+                            <Button Content="Descer" Style="{StaticResource BotaoSecundario}"
+                                    Click="MoveDown_Click" />
+                        </WrapPanel>
+                    </Grid>
                 </Border>
 
-                <Border Grid.Column="2" Style="{StaticResource CardBorder}" Padding="16" VerticalAlignment="Top">
+                <Border Grid.Column="2" Style="{StaticResource CardBorder}" Padding="14">
                     <StackPanel>
-                        <TextBlock Text="Computadores de destino" Style="{StaticResource TituloCard}" />
-                        <TextBlock x:Name="RecipientsSummary" Style="{StaticResource Subtitulo}"
-                                   TextWrapping="Wrap" Margin="0,10,0,16" />
-                        <Button Content="Selecionar computadores" Style="{StaticResource BotaoPrimario}"
-                                Click="OpenRecipients_Click" HorizontalAlignment="Left" />
-                    </StackPanel>
-                </Border>
+                        <TextBlock Text="Destino e exibição" Style="{StaticResource TituloCard}" />
+                        <Grid Margin="0,8,0,6">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Button Content="Selecionar computadores" Style="{StaticResource BotaoSecundario}"
+                                    Click="OpenRecipients_Click" />
+                            <TextBlock x:Name="SelectedRecipientsCount" Grid.Column="1" VerticalAlignment="Center"
+                                       HorizontalAlignment="Right" Margin="8,0,0,0"
+                                       Style="{StaticResource Subtitulo}" />
+                        </Grid>
 
-                <Border Grid.Column="4" Style="{StaticResource CardBorder}" Padding="16" VerticalAlignment="Top">
-                    <StackPanel>
-                        <TextBlock Text="Aparência e tempo" Style="{StaticResource TituloCard}" />
-                        <TextBlock x:Name="SettingsSummary" Style="{StaticResource Subtitulo}"
-                                   TextWrapping="Wrap" Margin="0,10,0,16" />
-                        <Button Content="Alterar configurações" Style="{StaticResource BotaoPrimario}"
-                                Click="OpenSettings_Click" HorizontalAlignment="Left" />
+                        <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,3,0,8" />
+                        <TextBlock Text="Como as imagens aparecem" Style="{StaticResource RotuloCampo}" />
+                        <RadioButton x:Name="CenterRadio" GroupName="DisplayMode" Content="Imagem no centro da tela"
+                                     IsChecked="True" Margin="0,0,0,3" />
+                        <RadioButton x:Name="MouseTrailRadio" GroupName="DisplayMode"
+                                     Content="Miniaturas acompanham o movimento do mouse" Margin="0,0,0,7" />
+
+                        <Grid Margin="0,0,0,6" IsEnabled="{Binding IsChecked, ElementName=MouseTrailRadio}">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="88" /></Grid.ColumnDefinitions>
+                            <TextBlock Text="Tempo total do rastro, minutos" VerticalAlignment="Center" />
+                            <TextBox x:Name="TrailMinutes" Grid.Column="1" Text="5" />
+                        </Grid>
+                        <Grid Margin="0,0,0,8" IsEnabled="{Binding IsChecked, ElementName=MouseTrailRadio}">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="88" /></Grid.ColumnDefinitions>
+                            <TextBlock Text="Duração de cada miniatura, segundos" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <TextBox x:Name="TrailImageSeconds" Grid.Column="1" Text="1,5" />
+                        </Grid>
+
+                        <Grid Margin="0,0,0,8" IsEnabled="{Binding IsChecked, ElementName=CenterRadio}">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="88" /></Grid.ColumnDefinitions>
+                            <TextBlock Text="Tempo por imagem, segundos" VerticalAlignment="Center" />
+                            <TextBox x:Name="DurationSeconds" Grid.Column="1" Text="15" />
+                        </Grid>
+                        <TextBlock Text="Intervalo entre imagens, minutos" Style="{StaticResource RotuloCampo}" />
+                        <StackPanel IsEnabled="{Binding IsChecked, ElementName=CenterRadio}">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <RadioButton x:Name="FixedRadio" GroupName="Interval" Content="Fixo"
+                                             IsChecked="True" VerticalAlignment="Center" />
+                                <TextBox x:Name="FixedMinutes" Text="5" Width="70" Margin="8,0,0,0" />
+                            </StackPanel>
+                            <WrapPanel Margin="0,0,0,3">
+                                <RadioButton x:Name="RandomRadio" GroupName="Interval" Content="Aleatório de"
+                                             VerticalAlignment="Center" />
+                                <TextBox x:Name="RandomMin" Text="5" Width="62" Margin="8,0,5,5"
+                                         IsEnabled="{Binding IsChecked, ElementName=RandomRadio}" />
+                                <TextBlock Text="até" VerticalAlignment="Center" Margin="0,0,5,5" />
+                                <TextBox x:Name="RandomMax" Text="15" Width="62" Margin="0,0,5,5"
+                                         IsEnabled="{Binding IsChecked, ElementName=RandomRadio}" />
+                                <TextBlock Text="min" VerticalAlignment="Center" Margin="0,0,0,5" />
+                            </WrapPanel>
+                            <CheckBox x:Name="RepeatCheck" Content="Repetir até eu desligar" IsChecked="True" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
             </Grid>
@@ -78,51 +144,6 @@
                                 Click="Stop_Click" Margin="0,0,8,0" />
                         <Button x:Name="StartButton" Content="Aplicar carrossel"
                                 Style="{StaticResource BotaoPrimario}" Click="Start_Click" />
-                    </WrapPanel>
-                </Grid>
-            </Border>
-        </Grid>
-
-        <Grid x:Name="ImagesOverlay" Panel.ZIndex="20" Visibility="Collapsed"
-              Background="Transparent" MouseDown="Overlay_MouseDown">
-            <Border Width="650" MinHeight="380" MaxHeight="650" Margin="20" Padding="16"
-                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{DynamicResource SurfaceBrush}" Style="{StaticResource CardBorder}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <Grid>
-                        <StackPanel Margin="0,0,48,12">
-                            <TextBlock Text="Sequência de imagens" Style="{StaticResource TituloCard}" FontSize="19" />
-                            <TextBlock Text="Adicione PNG ou JPEG e ajuste a ordem de exibição."
-                                       Style="{StaticResource Subtitulo}" />
-                        </StackPanel>
-                        <Button HorizontalAlignment="Right" VerticalAlignment="Top" Width="34" Height="32"
-                                Padding="0" Content="×" FontFamily="Segoe UI"
-                                Style="{StaticResource BotaoSecundario}" ToolTip="Fechar"
-                                Click="CloseImages_Click" />
-                    </Grid>
-                    <ListBox x:Name="ImagesList" Grid.Row="1" MinHeight="180" MaxHeight="430"
-                             SelectionMode="Extended" Background="{DynamicResource SurfaceAltBrush}" BorderThickness="0">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis"
-                                           ToolTip="{Binding}" VerticalAlignment="Center" />
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                    <WrapPanel Grid.Row="2" Margin="0,12,0,0" HorizontalAlignment="Right">
-                        <Button Content="Adicionar imagens" Style="{StaticResource BotaoPrimario}"
-                                Click="AddImages_Click" Margin="0,0,7,0" />
-                        <Button Content="Remover seleção" Style="{StaticResource BotaoSecundario}"
-                                Click="RemoveImages_Click" Margin="0,0,7,0" />
-                        <Button Content="Subir" Style="{StaticResource BotaoSecundario}"
-                                Click="MoveUp_Click" Margin="0,0,7,0" />
-                        <Button Content="Descer" Style="{StaticResource BotaoSecundario}"
-                                Click="MoveDown_Click" />
                     </WrapPanel>
                 </Grid>
             </Border>
@@ -184,87 +205,5 @@
             </Border>
         </Grid>
 
-        <Grid x:Name="SettingsOverlay" Panel.ZIndex="22" Visibility="Collapsed"
-              Background="Transparent" MouseDown="Overlay_MouseDown">
-            <Border Width="650" MinHeight="380" MaxHeight="700" Margin="20" Padding="16"
-                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{DynamicResource SurfaceBrush}" Style="{StaticResource CardBorder}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <Grid>
-                        <StackPanel Margin="0,0,48,12">
-                            <TextBlock Text="Aparência e tempo" Style="{StaticResource TituloCard}" FontSize="19" />
-                            <TextBlock Text="Configure como e por quanto tempo as imagens aparecem."
-                                       Style="{StaticResource Subtitulo}" />
-                        </StackPanel>
-                        <Button HorizontalAlignment="Right" VerticalAlignment="Top" Width="34" Height="32"
-                                Padding="0" Content="×" FontFamily="Segoe UI"
-                                Style="{StaticResource BotaoSecundario}" ToolTip="Fechar"
-                                Click="CloseSettings_Click" />
-                    </Grid>
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
-                            <RadioButton x:Name="CenterRadio" GroupName="DisplayMode" Content="Imagem no centro da tela"
-                                         IsChecked="True" Margin="0,0,0,7" />
-                            <TextBlock Text="Mostra uma imagem por vez, sem alterar o papel de parede."
-                                       Style="{StaticResource Subtitulo}" Margin="26,0,0,12" />
-                            <RadioButton x:Name="MouseTrailRadio" GroupName="DisplayMode"
-                                         Content="Imagens pequenas seguindo o movimento do mouse" Margin="0,0,0,7" />
-                            <TextBlock Text="Só surgem miniaturas enquanto o mouse se move; cada uma some após o tempo escolhido."
-                                       Style="{StaticResource Subtitulo}" Margin="26,0,0,12" />
-
-                            <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}"
-                                    BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,0,12"
-                                    IsEnabled="{Binding IsChecked, ElementName=MouseTrailRadio}">
-                                <StackPanel>
-                                    <TextBlock Text="Configuração do rastro" Style="{StaticResource RotuloCampo}" />
-                                    <Grid Margin="0,3,0,0">
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="86" /></Grid.ColumnDefinitions>
-                                        <TextBlock Text="Tempo total, em minutos" VerticalAlignment="Center" />
-                                        <TextBox x:Name="TrailMinutes" Grid.Column="1" Text="5" />
-                                    </Grid>
-                                    <Grid Margin="0,9,0,0">
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="86" /></Grid.ColumnDefinitions>
-                                        <TextBlock Text="Duração de cada miniatura, em segundos" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                        <TextBox x:Name="TrailImageSeconds" Grid.Column="1" Text="1,5" />
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
-
-                            <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,0,0,12" />
-                            <TextBlock Text="Imagem no centro" Style="{StaticResource RotuloCampo}" />
-                            <Grid IsEnabled="{Binding IsChecked, ElementName=CenterRadio}">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="86" /></Grid.ColumnDefinitions>
-                                <TextBlock Text="Tempo que cada imagem fica na tela, em segundos" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                <TextBox x:Name="DurationSeconds" Grid.Column="1" Text="15" />
-                            </Grid>
-                            <TextBlock Text="Intervalo entre imagens, em minutos" Style="{StaticResource RotuloCampo}" Margin="0,14,0,6" />
-                            <StackPanel IsEnabled="{Binding IsChecked, ElementName=CenterRadio}">
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,7">
-                                    <RadioButton x:Name="FixedRadio" GroupName="Interval" Content="Fixo" IsChecked="True" VerticalAlignment="Center" />
-                                    <TextBox x:Name="FixedMinutes" Text="5" Width="72" Margin="12,0,0,0" />
-                                </StackPanel>
-                                <WrapPanel Margin="0,0,0,5">
-                                    <RadioButton x:Name="RandomRadio" GroupName="Interval" Content="Aleatório de" VerticalAlignment="Center" />
-                                    <TextBox x:Name="RandomMin" Text="5" Width="72" Margin="10,0,6,6"
-                                             IsEnabled="{Binding IsChecked, ElementName=RandomRadio}" />
-                                    <TextBlock Text="até" VerticalAlignment="Center" Margin="0,0,6,6" />
-                                    <TextBox x:Name="RandomMax" Text="15" Width="72" Margin="0,0,6,6"
-                                             IsEnabled="{Binding IsChecked, ElementName=RandomRadio}" />
-                                    <TextBlock Text="minutos" VerticalAlignment="Center" Margin="0,0,0,6" />
-                                </WrapPanel>
-                                <CheckBox x:Name="RepeatCheck" Content="Repetir desde o início até eu desligar" IsChecked="True" />
-                            </StackPanel>
-                        </StackPanel>
-                    </ScrollViewer>
-                    <Button Grid.Row="2" Content="Concluído" Style="{StaticResource BotaoPrimario}"
-                            HorizontalAlignment="Right" Margin="0,12,0,0" Click="CloseSettings_Click" />
-                </Grid>
-            </Border>
-        </Grid>
     </Grid>
 </UserControl>

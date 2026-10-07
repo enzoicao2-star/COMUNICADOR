@@ -11,8 +11,12 @@ $testBranch = 'codex/test-download-' + $Version.Replace('.', '-')
 New-Item -ItemType Directory -Force -Path $receiverRoot | Out-Null
 
 $receiver = [IO.File]::ReadAllText((Join-Path $root 'receiver\receptor.py'), [Text.Encoding]::UTF8)
-$receiver = $receiver.Replace('RECEIVER_VERSION = "2.5.15"', "RECEIVER_VERSION = `"$ReceiverVersion`"")
-if (-not $receiver.Contains("RECEIVER_VERSION = `"$ReceiverVersion`"")) { throw 'Nao foi possivel preparar a versao de teste do receptor.' }
+$receiverVersionPattern = 'RECEIVER_VERSION = "[^"]+"'
+if ($receiver -notmatch $receiverVersionPattern) { throw 'Nao foi possivel localizar a versao do receptor para preparar a versao de teste.' }
+$receiver = [regex]::Replace($receiver, $receiverVersionPattern, "RECEIVER_VERSION = `"$ReceiverVersion`"", 1)
+if ($receiver -notmatch ('RECEIVER_VERSION = "' + [regex]::Escape($ReceiverVersion) + '"')) {
+    throw 'Nao foi possivel preparar a versao de teste do receptor.'
+}
 $receiver = $receiver.Replace('return Path(base) / "Comunicador" / "Receptor"',
     'return Path(base) / "Comunicador-Teste" / "Receptor"')
 [IO.File]::WriteAllText((Join-Path $receiverRoot 'receptor.py'), $receiver, [Text.UTF8Encoding]::new($false))

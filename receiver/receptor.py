@@ -43,7 +43,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.19"
+RECEIVER_VERSION = "2.5.20"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -845,6 +845,20 @@ class Config:
             logging.exception("Falha ao confirmar OWNER; mantendo bloqueio de mídia.")
             return False
 
+    def sender_can_change_wallpaper(self, msg: dict) -> bool:
+        panel_id = msg.get("panel_id")
+        token = msg.get("token")
+        if not panel_id or not token or self.cloud_worker is None:
+            return False
+        paired = self.paired_panels.get(panel_id)
+        if not paired or paired.get("token") != token:
+            return False
+        try:
+            return self.cloud_worker.can_change_wallpaper(panel_id)
+        except (OSError, urllib.error.URLError, ValueError, KeyError, TypeError):
+            logging.exception("Falha ao validar permissão para alterar o papel de parede.")
+            return False
+
     def pair(self, panel_id: str, panel_name: str) -> str:
         token = uuid.uuid4().hex + uuid.uuid4().hex
         with self._lock:
@@ -976,6 +990,55 @@ class CloudDeliveryWorker(threading.Thread):
         state = self._autorizado("/rest/v1/rpc/get_admin_state", "POST", {}) or []
         return any(str(item.get("admin_device_id", "")).lower() == panel_id.lower()
                    for item in state)
+
+    def can_change_wallpaper(self, panel_id: str) -> bool:
+        if not isinstance(panel_id, str) or not panel_id.strip():
+            return False
+
+        state = self._autorizado("/rest/v1/rpc/get_global_config", "POST", {}) or []
+        config = state[0].get("config", {}) if state and isinstance(state[0], dict) else {}
+        if not isinstance(config, dict):
+            return False
+        if config.get("permitir_papel_parede_remoto",
+                      config.get("PermitirPapelParedeRemoto", True)) is False:
+            return False
+        if self.is_current_owner(panel_id):
+            return True
+
+        query_id = urllib.parse.quote(panel_id, safe="")
+        profiles = self._autorizado(
+            f"/rest/v1/panel_profiles?device_id=eq.{query_id}&select=badges") or []
+        profile = next((item for item in profiles
+                        if isinstance(item, dict)
+                        and str(item.get("device_id", "")).lower() == panel_id.lower()), None)
+        if profile is None:
+            return False
+
+        badges = profile.get("badges")
+        if not isinstance(badges, list):
+            return False
+        role_ids = set()
+        for badge in badges:
+            if not isinstance(badge, dict):
+                continue
+            if badge.get("id") == "__individual_permissions":
+                permissions = badge.get("permissoes_individuais") or []
+                if isinstance(permissions, list) and "change_wallpaper" in permissions:
+                    return True
+            role_id = badge.get("role_id")
+            if isinstance(role_id, str) and role_id:
+                role_ids.add(role_id)
+
+        roles = config.get("modelos_badge", config.get("ModelosBadge", []))
+        if not isinstance(roles, list):
+            return False
+        return any(
+            isinstance(role, dict)
+            and str(role.get("id", "")) in role_ids
+            and isinstance(role.get("permissoes"), list)
+            and "change_wallpaper" in role["permissoes"]
+            for role in roles
+        )
 
     def _atualizar_entrega(self, delivery_id, resposta):
         status = "responded" if resposta else "delivered"
@@ -1121,18 +1184,36 @@ class CloudDeliveryWorker(threading.Thread):
             mode = payload.get("display_mode", "toast")
             has_media = bool(image or screen_images or video or screen_videos or audio)
             sender_id = delivery.get("sender_device_id", "")
+            sender_can_change_wallpaper = False
             sender_is_owner = False
-            if mode in (protocolo.DISPLAY_MODE_WALLPAPER, protocolo.DISPLAY_MODE_LOCK_SCREEN) \
-                    or has_media and self.config.media_blocked:
+            wallpaper_modes = (
+                protocolo.DISPLAY_MODE_WALLPAPER,
+                protocolo.DISPLAY_MODE_LOCK_SCREEN,
+                protocolo.DISPLAY_MODE_RESTORE_WALLPAPER,
+            )
+            if mode in wallpaper_modes:
+                try:
+                    sender_can_change_wallpaper = self.can_change_wallpaper(sender_id)
+                except (OSError, urllib.error.URLError, ValueError, IndexError, KeyError) as exc:
+                    logging.warning("Não foi possível validar a permissão de papel de parede: %s", exc)
+            elif has_media and self.config.media_blocked:
                 try:
                     sender_is_owner = self.is_current_owner(sender_id)
                 except (OSError, urllib.error.URLError, ValueError, IndexError, KeyError) as exc:
                     logging.warning("Não foi possível validar o OWNER da entrega cloud: %s", exc)
 
-            if mode in (protocolo.DISPLAY_MODE_WALLPAPER, protocolo.DISPLAY_MODE_LOCK_SCREEN):
-                if not sender_is_owner:
+            if mode in wallpaper_modes:
+                if not sender_can_change_wallpaper:
                     self._atualizar_entrega(
-                        delivery_id, "Ação recusada: somente o OWNER pode alterar o papel de parede ou a tela de bloqueio.")
+                        delivery_id, "Ação recusada: este painel não tem permissão para alterar o papel de parede ou a tela de bloqueio.")
+                    return
+                if mode == protocolo.DISPLAY_MODE_RESTORE_WALLPAPER:
+                    try:
+                        restaurar_papel_parede(self.config)
+                        result = "Papel de parede restaurado."
+                    except (OSError, ValueError, KeyError, TypeError) as exc:
+                        result = f"Não foi possível restaurar o papel de parede: {exc}"
+                    self._atualizar_entrega(delivery_id, result)
                     return
                 if not image:
                     self._atualizar_entrega(delivery_id, "Ação recusada: a imagem não foi recebida.")
@@ -2003,7 +2084,17 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         token = msg["token"]
         if not server.config.token_is_valid(token):
             raise ProtocolError(ErrorCode.UNAUTHORIZED, "Token inválido ou painel não pareado.")
-        if server.config.media_blocked and mensagem_tem_midia(msg) and not server.config.sender_is_owner(msg):
+        wallpaper_modes = (
+            protocolo.DISPLAY_MODE_WALLPAPER,
+            protocolo.DISPLAY_MODE_LOCK_SCREEN,
+            protocolo.DISPLAY_MODE_RESTORE_WALLPAPER,
+        )
+        wallpaper_action = msg.get("display_mode") in wallpaper_modes
+        if wallpaper_action and not server.config.sender_can_change_wallpaper(msg):
+            raise ProtocolError(ErrorCode.CONTENT_BLOCKED,
+                                "Este painel não tem permissão para alterar o papel de parede.")
+        if server.config.media_blocked and mensagem_tem_midia(msg) \
+                and not server.config.sender_is_owner(msg) and not wallpaper_action:
             raise ProtocolError(ErrorCode.CONTENT_BLOCKED,
                                 "Este computador bloqueou imagens, vídeos e áudios.")
         if msg.get("display_mode") == protocolo.DISPLAY_MODE_CAROUSEL:
@@ -2325,7 +2416,19 @@ class ReverseConnection(threading.Thread):
                                               "Não foi possível aplicar a operação.", msg.get("id")))
 
     def _tratar_notificacao(self, msg: dict) -> None:
-        if self.config.media_blocked and mensagem_tem_midia(msg) and not self.config.sender_is_owner(msg):
+        wallpaper_modes = (
+            protocolo.DISPLAY_MODE_WALLPAPER,
+            protocolo.DISPLAY_MODE_LOCK_SCREEN,
+            protocolo.DISPLAY_MODE_RESTORE_WALLPAPER,
+        )
+        wallpaper_action = msg.get("display_mode") in wallpaper_modes
+        if wallpaper_action and not self.config.sender_can_change_wallpaper(msg):
+            self._enviar(protocolo.make_error(
+                ErrorCode.CONTENT_BLOCKED,
+                "Este painel não tem permissão para alterar o papel de parede.", msg["id"]))
+            return
+        if self.config.media_blocked and mensagem_tem_midia(msg) \
+                and not self.config.sender_is_owner(msg) and not wallpaper_action:
             self._enviar(protocolo.make_error(
                 ErrorCode.CONTENT_BLOCKED,
                 "Este computador bloqueou imagens, vídeos e áudios.", msg["id"]))

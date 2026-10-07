@@ -9,19 +9,12 @@ namespace Comunicador.Views;
 
 public partial class MensagensView : UserControl
 {
-    private readonly Dictionary<string, Border> _editoresMensagem = new(StringComparer.Ordinal);
     private ListCollectionView? _destinatariosFiltrados;
     private bool _reabrirGruposDepoisDosDestinatarios;
 
     public MensagensView()
     {
         InitializeComponent();
-        _editoresMensagem.Add("composicao", CardComposicao);
-        _editoresMensagem.Add("formato", CardFormato);
-        _editoresMensagem.Add("midia", CardImagem);
-        _editoresMensagem.Add("interacao", CardInteracao);
-        foreach (var editor in _editoresMensagem.Values)
-            PainelCardsMensagem.Children.Remove(editor);
         IsVisibleChanged += OnIsVisibleChanged;
         Loaded += (_, _) => AtualizarPulsacao();
         Unloaded += (_, _) => PararPulsacao();
@@ -171,53 +164,12 @@ public partial class MensagensView : UserControl
     private void FecharGrupos_Click(object sender, RoutedEventArgs e) =>
         GruposOverlay.Visibility = Visibility.Collapsed;
 
-    private void AbrirAparencia_Click(object sender, RoutedEventArgs e)
-    {
-        FecharTodosOverlays();
-        FecharEditorMensagem();
-        AparenciaOverlay.Visibility = Visibility.Visible;
-    }
-
-    private void FecharAparencia_Click(object sender, RoutedEventArgs e) =>
-        AparenciaOverlay.Visibility = Visibility.Collapsed;
-
-    private void AbrirEditorMensagem_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { Tag: string secao } ||
-            !_editoresMensagem.TryGetValue(secao, out var editor)) return;
-
-        EditorMensagemTitulo.Text = secao switch
-        {
-            "composicao" => "Conteúdo do aviso",
-            "formato" => "Formato do aviso",
-            "midia" => "Imagem, vídeo ou áudio",
-            "interacao" => "Interação e respostas",
-            _ => "Configurações do envio",
-        };
-        EditorMensagemConteudo.Content = editor;
-        EditorMensagemOverlay.Visibility = Visibility.Visible;
-    }
-
-    private void FecharEditorMensagem_Click(object sender, RoutedEventArgs e) => FecharEditorMensagem();
-
-    private void FecharEditorMensagemAoClicarFora(object sender, MouseButtonEventArgs e)
-    {
-        if (ReferenceEquals(e.OriginalSource, sender)) FecharEditorMensagem();
-    }
-
-    private void FecharEditorMensagem()
-    {
-        EditorMensagemConteudo.Content = null;
-        EditorMensagemOverlay.Visibility = Visibility.Collapsed;
-    }
-
     private void FecharOverlayAoClicarFora(object sender, MouseButtonEventArgs e)
     {
         if (!ReferenceEquals(e.OriginalSource, sender)) return;
         if (ReferenceEquals(sender, DestinatariosOverlay)) FecharDestinatarios_Click(sender, new RoutedEventArgs());
         else if (ReferenceEquals(sender, ModelosOverlay)) ModelosOverlay.Visibility = Visibility.Collapsed;
         else if (ReferenceEquals(sender, GruposOverlay)) GruposOverlay.Visibility = Visibility.Collapsed;
-        else if (ReferenceEquals(sender, AparenciaOverlay)) AparenciaOverlay.Visibility = Visibility.Collapsed;
     }
 
     private void FecharTodosOverlays()
@@ -225,6 +177,5 @@ public partial class MensagensView : UserControl
         DestinatariosOverlay.Visibility = Visibility.Collapsed;
         ModelosOverlay.Visibility = Visibility.Collapsed;
         GruposOverlay.Visibility = Visibility.Collapsed;
-        AparenciaOverlay.Visibility = Visibility.Collapsed;
     }
 }

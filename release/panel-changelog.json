@@ -417,5 +417,15 @@
       "Os seletores de computadores mantêm busca e seleção múltipla; os painéis internos não escurecem o restante da tela.",
       "O painel verifica e instala atualizações automaticamente sem pedir confirmação; após instalar, permanece em segundo plano sem abrir a janela."
     ]
+  },
+  {
+    "version": "2.5.38.0",
+    "summary": "Telas organizadas sem cartões-resumo e permissão individual para papel de parede.",
+    "changes": [
+      "Mensagens, Lembretes e Configurações voltam a mostrar os controles diretamente, com espaçamento compacto e menos informação repetida.",
+      "O Carrossel reúne a lista de imagens e os ajustes na mesma tela; a seleção de computadores continua em um painel interno.",
+      "Receptores aceitam permissões individuais ou por função para alterar, restaurar e definir papel de parede, respeitando a opção global.",
+      "Ajustes nos bindings evitam erros de inicialização e no fluxo de envio de imagens."
+    ]
   }
 ]

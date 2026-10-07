@@ -62,9 +62,9 @@
                                 <StackPanel Grid.Column="1">
                                     <TextBlock Text="{Binding Mensagem}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
                                     <TextBlock Style="{StaticResource Subtitulo}" Margin="0,3,0,0">
-                                        <Run Text="{Binding OrigemNome}" FontWeight="SemiBold" />
+                                        <Run Text="{Binding OrigemNome, Mode=OneWay}" FontWeight="SemiBold" />
                                         <Run Text="  ·  " />
-                                        <Run Text="{Binding Categoria}" />
+                                        <Run Text="{Binding Categoria, Mode=OneWay}" />
                                     </TextBlock>
                                     <TextBlock Text="{Binding Detalhes}" FontFamily="Consolas" FontSize="11" Margin="0,7,0,0"
                                                TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"

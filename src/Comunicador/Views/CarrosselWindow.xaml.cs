@@ -35,23 +35,15 @@ public partial class CarrosselView : UserControl
         ImagesList.ItemsSource = _images;
         _filteredRecipients = new ListCollectionView(_recipients) { Filter = FiltrarDestinatario };
         RecipientsList.ItemsSource = _filteredRecipients;
-        AtualizarResumos();
+        AtualizarContadores();
     }
 
     public void CancelarOperacoes() => _closing.Cancel();
 
-    private void OpenImages_Click(object sender, RoutedEventArgs e) => ImagesOverlay.Visibility = Visibility.Visible;
-
-    private void CloseImages_Click(object sender, RoutedEventArgs e)
-    {
-        ImagesOverlay.Visibility = Visibility.Collapsed;
-        AtualizarResumos();
-    }
-
     private void OpenRecipients_Click(object sender, RoutedEventArgs e)
     {
         FilterRecipients.Clear();
-        AtualizarResumos();
+        AtualizarContadores();
         RecipientsOverlay.Visibility = Visibility.Visible;
     }
 
@@ -71,67 +63,38 @@ public partial class CarrosselView : UserControl
     private void CloseRecipients_Click(object sender, RoutedEventArgs e)
     {
         RecipientsOverlay.Visibility = Visibility.Collapsed;
-        AtualizarResumos();
-    }
-
-    private void OpenSettings_Click(object sender, RoutedEventArgs e) => SettingsOverlay.Visibility = Visibility.Visible;
-
-    private void CloseSettings_Click(object sender, RoutedEventArgs e)
-    {
-        SettingsOverlay.Visibility = Visibility.Collapsed;
-        AtualizarResumos();
+        AtualizarContadores();
     }
 
     private void Overlay_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (!ReferenceEquals(sender, e.OriginalSource) || sender is not Grid overlay) return;
         overlay.Visibility = Visibility.Collapsed;
-        AtualizarResumos();
     }
 
-    private void RecipientSelectionChanged(object sender, RoutedEventArgs e) => AtualizarResumos();
+    private void RecipientSelectionChanged(object sender, RoutedEventArgs e) => AtualizarContadores();
 
     private void SelectAllRecipients_Click(object sender, RoutedEventArgs e)
     {
         foreach (var recipient in _recipients) recipient.Selecionado = true;
-        AtualizarResumos();
+        AtualizarContadores();
     }
 
     private void ClearRecipients_Click(object sender, RoutedEventArgs e)
     {
         foreach (var recipient in _recipients) recipient.Selecionado = false;
-        AtualizarResumos();
+        AtualizarContadores();
     }
 
-    private void AtualizarResumos()
+    private void AtualizarContadores()
     {
-        if (ImageSummary is null) return;
-
-        ImageSummary.Text = _images.Count == 0
-            ? "Nenhuma imagem adicionada."
-            : $"{_images.Count} imagem(ns)\n{string.Join("\n", _images.Take(3).Select(Path.GetFileName))}"
-                + (_images.Count > 3 ? $"\n+ {_images.Count - 3} imagem(ns)" : string.Empty);
-
-        var selectedNames = _recipients.Where(r => r.Selecionado)
-            .Select(r => r.Computador.NomeExibicao).ToList();
-        RecipientsSummary.Text = selectedNames.Count == 0
-            ? "Nenhum computador selecionado."
-            : $"{selectedNames.Count} computador(es) selecionado(s)\n"
-                + string.Join(", ", selectedNames.Take(3))
-                + (selectedNames.Count > 3 ? $" e mais {selectedNames.Count - 3}" : string.Empty);
-        RecipientsCount.Text = $"{selectedNames.Count} selecionado(s)";
-
-        if (MouseTrailRadio.IsChecked == true)
-        {
-            SettingsSummary.Text = $"Miniaturas seguindo o mouse\nTotal: {TrailMinutes.Text} min · cada imagem: {TrailImageSeconds.Text} s";
-            return;
-        }
-
-        var interval = RandomRadio.IsChecked == true
-            ? $"a cada {RandomMin.Text}–{RandomMax.Text} min, aleatório"
-            : $"a cada {FixedMinutes.Text} min";
-        SettingsSummary.Text = $"Imagem no centro · {DurationSeconds.Text} s\nIntervalo {interval}"
-            + (RepeatCheck.IsChecked == true ? " · repetição ligada" : " · uma vez");
+        if (ImageCount is null) return;
+        ImageCount.Text = $"{_images.Count} imagem(ns)";
+        ImageEmptyHint.Visibility = _images.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        var selectedCount = _recipients.Count(r => r.Selecionado);
+        var selectionText = $"{selectedCount} selecionado(s)";
+        SelectedRecipientsCount.Text = selectionText;
+        RecipientsCount.Text = selectionText;
     }
 
     private void AddImages_Click(object sender, RoutedEventArgs e)
@@ -162,14 +125,14 @@ public partial class CarrosselView : UserControl
         StatusText.Text = rejected == 0
             ? $"{_images.Count} imagem(ns) na sequência."
             : $"{_images.Count} imagem(ns) na sequência; {rejected} arquivo(s) acima de 4 MB ou inacessíveis.";
-        AtualizarResumos();
+        AtualizarContadores();
     }
 
     private void RemoveImages_Click(object sender, RoutedEventArgs e)
     {
         foreach (var path in ImagesList.SelectedItems.Cast<string>().ToList()) _images.Remove(path);
         StatusText.Text = $"{_images.Count} imagem(ns) na sequência.";
-        AtualizarResumos();
+        AtualizarContadores();
     }
 
     private void MoveUp_Click(object sender, RoutedEventArgs e) => MoveSelected(-1);
@@ -183,7 +146,7 @@ public partial class CarrosselView : UserControl
         if (next < 0 || next >= _images.Count) return;
         _images.Move(index, next);
         ImagesList.SelectedItem = selected;
-        AtualizarResumos();
+        AtualizarContadores();
     }
 
     private bool TryIntervals(out int min, out int max)

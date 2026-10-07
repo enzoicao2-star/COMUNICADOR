@@ -420,10 +420,33 @@ public sealed class EmbeddedReceptorServer : IDisposable
             return;
         }
 
+        var wallpaperAction = msg.DisplayMode is ProtocolConstants.DisplayMode.Wallpaper
+            or ProtocolConstants.DisplayMode.LockScreen
+            or ProtocolConstants.DisplayMode.RestoreWallpaper;
+        var senderCanChangeWallpaper = wallpaperAction
+            && !string.IsNullOrWhiteSpace(msg.PanelId)
+            && _cloud.HasPermissionForDevice(msg.PanelId, "change_wallpaper");
+        if (wallpaperAction && !senderCanChangeWallpaper)
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.ContentBlocked,
+                "Este painel não tem permissão para alterar o papel de parede.", msg.Id), ct).ConfigureAwait(false);
+            return;
+        }
+        if (wallpaperAction && (!_settings.PapelParedeRemotoPermitidoGlobalmente
+                || _cloud.GlobalConfig?.PermitirPapelParedeRemoto == false))
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.ContentBlocked,
+                "O admin desativou a alteração remota das imagens do sistema.", msg.Id), ct).ConfigureAwait(false);
+            return;
+        }
+
         if ((msg.Image is not null || msg.ScreenImages is { Count: > 0 }
                 || msg.Video is not null || msg.ScreenVideos is { Count: > 0 }
                 || msg.Audio is not null)
             && (!_settings.AceitarImagensDeOutrosPaineis || !_settings.MidiasPermitidasGlobalmente)
+            && !senderCanChangeWallpaper
             && !await SenderIsOwnerAsync(msg, ct).ConfigureAwait(false))
         {
             await EnviarAsync(stream, ComunicadorMessage.Error(
@@ -500,15 +523,6 @@ public sealed class EmbeddedReceptorServer : IDisposable
 
         if (systemImage && msg.Image is not null)
         {
-            if (!_settings.PapelParedeRemotoPermitidoGlobalmente)
-            {
-                _historico.AtualizarExistente(entry.Id, item => item.Status = StatusEnvio.Erro);
-                await EnviarAsync(stream, ComunicadorMessage.Error(
-                    ProtocolConstants.ErrorCode.ContentBlocked,
-                    "O admin desativou a alteração remota das imagens do sistema.", msg.Id), ct).ConfigureAwait(false);
-                return;
-            }
-
             var ackImage = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ack);
             ackImage.InReplyTo = msg.Id;
             try

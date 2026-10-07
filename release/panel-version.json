@@ -1,12 +1,12 @@
 {
-  "version": "2.5.37.0",
+  "version": "2.5.38.0",
   "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-  "sha256": "1525F149035DDBA3BF5244B15161ECC02EE8D38DB3C3C0136B394C159D1DCBA9",
-  "summary": "Telas mais compactas com configurações em painéis internos e atualização automática silenciosa.",
+  "sha256": "A98D69E2075787DFCDD95B81C04429372AC1C39D867BD76F9882A6E9A65F4124",
+  "summary": "Telas organizadas sem cartões-resumo e permissão individual para papel de parede.",
   "changes": [
-    "Mensagens, Lembretes e Carrossel mostram cartões-resumo dos valores atuais e abrem os editores dentro da mesma janela.",
-    "As quatro áreas de Configurações mostram resumos atuais e abrem seus controles em painéis internos opacos.",
-    "Os seletores de computadores mantêm busca e seleção múltipla; os painéis internos não escurecem o restante da tela.",
-    "O painel verifica e instala atualizações automaticamente sem pedir confirmação; após instalar, permanece em segundo plano sem abrir a janela."
+    "Mensagens, Lembretes e Configurações voltam a mostrar os controles diretamente, com espaçamento compacto e menos informação repetida.",
+    "O Carrossel reúne a lista de imagens e os ajustes na mesma tela; a seleção de computadores continua em um painel interno.",
+    "Receptores aceitam permissões individuais ou por função para alterar, restaurar e definir papel de parede, respeitando a opção global.",
+    "Ajustes nos bindings evitam erros de inicialização e no fluxo de envio de imagens."
   ]
 }

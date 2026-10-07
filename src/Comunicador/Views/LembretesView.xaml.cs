@@ -14,7 +14,6 @@ public partial class LembretesView : UserControl
     public LembretesView()
     {
         InitializeComponent();
-        FormularioLayout.Children.Remove(FormularioLembrete);
         DataContextChanged += (_, _) => PrepararListaDestinatarios();
         Loaded += (_, _) => PrepararListaDestinatarios();
     }
@@ -50,26 +49,6 @@ public partial class LembretesView : UserControl
 
     private void CloseRecipients_Click(object sender, RoutedEventArgs e) =>
         RecipientsOverlay.Visibility = Visibility.Collapsed;
-
-    private void AbrirEditorLembrete_Click(object sender, RoutedEventArgs e)
-    {
-        EditorLembreteConteudo.Content = FormularioLembrete;
-        EditorLembreteOverlay.Visibility = Visibility.Visible;
-    }
-
-    private void FecharEditorLembrete_Click(object sender, RoutedEventArgs e) => FecharEditorLembrete();
-
-    private void EditorLembreteOverlay_MouseDown(object sender, MouseButtonEventArgs e)
-    {
-        if (ReferenceEquals(sender, e.OriginalSource)) FecharEditorLembrete();
-    }
-
-    private void FecharEditorLembrete()
-    {
-        DatePopup.IsOpen = false;
-        EditorLembreteConteudo.Content = null;
-        EditorLembreteOverlay.Visibility = Visibility.Collapsed;
-    }
 
     private void Overlay_MouseDown(object sender, MouseButtonEventArgs e)
     {

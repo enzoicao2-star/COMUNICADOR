@@ -12,7 +12,6 @@ namespace Comunicador.Views;
 
 public partial class ConfiguracoesView : UserControl
 {
-    private readonly Dictionary<string, ScrollViewer> _paineisConfiguracao = new(StringComparer.Ordinal);
     private ConfiguracoesViewModel? _viewModel;
     private long _ultimoApostrofo;
     private long _ultimoEventoApostrofo;
@@ -21,12 +20,6 @@ public partial class ConfiguracoesView : UserControl
     public ConfiguracoesView()
     {
         InitializeComponent();
-        _paineisConfiguracao.Add("personalizacao", PersonalizacaoPanel);
-        _paineisConfiguracao.Add("recebimento", RecebimentoPanel);
-        _paineisConfiguracao.Add("geral", GeralPanel);
-        _paineisConfiguracao.Add("administrador", AdministradorPanel);
-        foreach (var painel in _paineisConfiguracao.Values)
-            ConfigPanelsGrid.Children.Remove(painel);
         DataContextChanged += OnDataContextChanged;
         AddHandler(Keyboard.PreviewKeyDownEvent, new KeyEventHandler(OnPreviewKeyDown), true);
         AddHandler(TextCompositionManager.PreviewTextInputEvent,
@@ -99,48 +92,12 @@ public partial class ConfiguracoesView : UserControl
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (EditorOverlay.Visibility == Visibility.Visible && e.Key == Key.Escape)
-        {
-            FecharEditor();
-            e.Handled = true;
-            return;
-        }
         if (_viewModel?.SecaoConfiguracoes != "geral") return;
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         var virtualKey = KeyInterop.VirtualKeyFromKey(key);
         if (key is not (Key.OemQuotes or Key.DeadCharProcessed) && virtualKey != 0xDE) return;
         e.Handled = true;
         RegistrarApostrofo();
-    }
-
-    private void EditarConfiguracao_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { Tag: string secao } ||
-            !_paineisConfiguracao.TryGetValue(secao, out var painel)) return;
-
-        EditorTitulo.Text = secao switch
-        {
-            "personalizacao" => "Personalização",
-            "recebimento" => "Recebimento",
-            "geral" => "Painel e rede",
-            "administrador" => "Administração global",
-            _ => "Configurações",
-        };
-        EditorConteudo.Content = painel;
-        EditorOverlay.Visibility = Visibility.Visible;
-    }
-
-    private void FecharEditor_Click(object sender, RoutedEventArgs e) => FecharEditor();
-
-    private void FecharEditorAoClicarFora(object sender, MouseButtonEventArgs e)
-    {
-        if (ReferenceEquals(e.OriginalSource, sender)) FecharEditor();
-    }
-
-    private void FecharEditor()
-    {
-        EditorConteudo.Content = null;
-        EditorOverlay.Visibility = Visibility.Collapsed;
     }
 
     private void OnPreviewTextInput(object sender, TextCompositionEventArgs e)
@@ -169,7 +126,8 @@ public partial class ConfiguracoesView : UserControl
 
     private Task AbrirLoginAdministradorAsync()
     {
-        if (_viewModel is null || _abrindoLoginAdmin) return Task.CompletedTask;
+        var viewModel = _viewModel;
+        if (viewModel is null || _abrindoLoginAdmin) return Task.CompletedTask;
         _abrindoLoginAdmin = true;
         if (Window.GetWindow(this) is not MainWindow main)
         {
@@ -177,14 +135,14 @@ public partial class ConfiguracoesView : UserControl
             return Task.CompletedTask;
         }
         AdminOperationStatus.Visibility = Visibility.Collapsed;
-        var dialogo = new AdminLoginWindow(_viewModel.EstePainelEhOwner);
+        var dialogo = new AdminLoginWindow(viewModel.EstePainelEhOwner);
         dialogo.VoltarSolicitado += (_, _) => main.NavegarVoltar();
         dialogo.ContinuarSolicitado += async (_, _) =>
         {
             dialogo.IsEnabled = false;
             try
             {
-                var resultado = await _viewModel!.AlternarAdministradorAsync(dialogo.Senha).ConfigureAwait(true);
+                var resultado = await viewModel.AlternarAdministradorAsync(dialogo.Senha).ConfigureAwait(true);
                 var sucesso = resultado is "created" or "transferred" or "disabled";
                 var texto = resultado switch
                 {
