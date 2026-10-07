@@ -629,6 +629,34 @@ public sealed class ComputadoresViewModel : ViewModelBase
             _settings.PainelId, adminOverride: true);
     }
 
+    private void MigrarOrdemComputadores(IEnumerable<string> idsAntigos, string novoId)
+    {
+        var ordens = _settings.OrdemComputadoresPorPainel;
+        if (ordens is null || ordens.Count == 0) return;
+        var antigos = idsAntigos.Where(id => !string.IsNullOrWhiteSpace(id)
+                && !string.Equals(id, novoId, StringComparison.OrdinalIgnoreCase))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (antigos.Count == 0) return;
+
+        var alterou = false;
+        foreach (var ordem in ordens.Values)
+        {
+            var indices = ordem.Select((id, index) => (id, index))
+                .Where(item => antigos.Contains(item.id)
+                    || string.Equals(item.id, novoId, StringComparison.OrdinalIgnoreCase))
+                .Select(item => item.index)
+                .ToArray();
+            if (!ordem.Any(antigos.Contains)) continue;
+
+            var primeiroIndice = indices.Length > 0 ? indices.Min() : ordem.Count;
+            ordem.RemoveAll(id => antigos.Contains(id)
+                || string.Equals(id, novoId, StringComparison.OrdinalIgnoreCase));
+            ordem.Insert(Math.Clamp(primeiroIndice, 0, ordem.Count), novoId);
+            alterou = true;
+        }
+        if (alterou) SettingsStore.Save(_settings);
+    }
+
     private bool PodeEnviarComandoAdmin(object? param, string command) =>
         param is Computador computador
         && !string.Equals(computador.Id, _settings.PainelId, StringComparison.OrdinalIgnoreCase)
@@ -789,6 +817,12 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private void OnCloudDevicesReceived(IReadOnlyList<CloudDevice> devices) => UiDispatcher.Invoke(() =>
     {
         var changed = false;
+        var uniqueMachineNames = devices
+            .Where(d => !string.IsNullOrWhiteSpace(d.MachineName))
+            .GroupBy(d => d.MachineName.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() == 1)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var aliasesByPanelId = FindMigratedReceiverAliases(devices);
         var aliasIds = aliasesByPanelId.Values.SelectMany(ids => ids)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -843,6 +877,36 @@ public sealed class ComputadoresViewModel : ViewModelBase
                     Computadores.Remove(duplicate);
                     migratedIdentity = true;
                     changed = true;
+                }
+            }
+            if (!string.IsNullOrWhiteSpace(device.MachineName)
+                && uniqueMachineNames.Contains(device.MachineName.Trim()))
+            {
+                var staleDuplicates = Computadores.Where(candidate =>
+                    !ReferenceEquals(candidate, computador)
+                    && !candidate.RegistradoNaNuvem
+                    && string.Equals(candidate.Nome?.Trim(), device.MachineName.Trim(),
+                        StringComparison.OrdinalIgnoreCase)).ToArray();
+                var staleIdsToMigrate = new List<string>();
+                var firstStaleIndex = int.MaxValue;
+                foreach (var duplicate in staleDuplicates)
+                {
+                    var staleIds = duplicate.LegacyDeviceIds.Append(duplicate.Id).ToArray();
+                    staleIdsToMigrate.AddRange(staleIds);
+                    firstStaleIndex = Math.Min(firstStaleIndex, Computadores.IndexOf(duplicate));
+                    MergeComputerDetails(computador, duplicate);
+                    foreach (var badge in computador.Badges) badge.ComputerId = device.DeviceId;
+                    Computadores.Remove(duplicate);
+                    migratedIdentity = true;
+                    changed = true;
+                }
+                if (staleIdsToMigrate.Count > 0)
+                {
+                    MigrarApelidoDeIdentidadeAntiga(device.DeviceId, staleIdsToMigrate);
+                    MigrarOrdemComputadores(staleIdsToMigrate, device.DeviceId);
+                    var currentIndex = Computadores.IndexOf(computador);
+                    if (firstStaleIndex >= 0 && firstStaleIndex < currentIndex)
+                        Computadores.Move(currentIndex, firstStaleIndex);
                 }
             }
             if (!computador.Pareado)
@@ -1221,7 +1285,11 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 StatusMensagem = $"{computador.NomeExibicao}: {progress.Stage} ({progress.Percent}%).";
             });
 
-            var resultado = await _atualizador.AtualizarAsync(computador, Report).ConfigureAwait(true);
+            var resultado = computador.Status == StatusComputador.Offline
+                ? new ReceiverUpdateResult(false, "direct_unavailable",
+                    computador.VersaoReceptor ?? string.Empty,
+                    "O computador está offline; a solicitação será enviada pela fila da nuvem.")
+                : await _atualizador.AtualizarAsync(computador, Report).ConfigureAwait(true);
             if (!resultado.Success && resultado.Status != "not_applicable"
                 && _cloud.HasPermission("remote_receiver"))
             {
@@ -1232,9 +1300,12 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
             if (resultado.Status == "update_pending")
             {
-                StatusMensagem = $"Pedido de atualização enviado para {computador.NomeExibicao}. "
-                    + "O receptor ainda não confirmou; a solicitação continua na nuvem e o status "
-                    + "será atualizado quando ele concluir.";
+                StatusMensagem = computador.Status == StatusComputador.Offline
+                    ? $"O computador {computador.NomeExibicao} está offline. A atualização ficou na fila "
+                        + "e será instalada quando ele voltar a ficar online."
+                    : $"Pedido de atualização enviado para {computador.NomeExibicao}. "
+                        + "O receptor ainda não confirmou; a solicitação continua na nuvem e o status "
+                        + "será atualizado quando ele concluir.";
                 Logger.Warning(StatusMensagem, "atualizacao");
                 return;
             }
@@ -1277,16 +1348,22 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private async Task<ReceiverUpdateResult> AtualizarReceptorPelaNuvemAsync(
         Computador computador, Action<ReceiverUpdateProgress> report)
     {
+        var targetDeviceId = await _cloud.ResolveRegisteredDeviceIdAsync(computador.Id, computador.Nome)
+            .ConfigureAwait(true);
         var confirmation = new ReceiverCloudUpdateConfirmation(
-            computador.Id, ProtocolConstants.CurrentReceiverVersion, DateTimeOffset.UtcNow.AddSeconds(-2));
-        if (!_cloudReceiverUpdates.TryAdd(computador.Id, confirmation))
+            targetDeviceId, ProtocolConstants.CurrentReceiverVersion, DateTimeOffset.UtcNow.AddSeconds(-2));
+        if (!_cloudReceiverUpdates.TryAdd(targetDeviceId, confirmation))
             return new(false, "update_in_progress", computador.VersaoReceptor ?? string.Empty,
                 "Já existe uma atualização pela nuvem aguardando este receptor.");
 
         try
         {
-            await _cloud.QueueAdminCommandAsync(computador.Id, "reinstall_receiver").ConfigureAwait(true);
+            await _cloud.QueueAdminCommandAsync(targetDeviceId, "reinstall_receiver").ConfigureAwait(true);
             report(new(18, "Solicitação enviada pela nuvem; aguardando o receptor instalar e reconectar"));
+
+            if (computador.Status == StatusComputador.Offline)
+                return new(false, "update_pending", computador.VersaoReceptor ?? string.Empty,
+                    "O pedido foi guardado na fila e será entregue quando o receptor voltar a ficar online.");
 
             using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
             try
@@ -1307,7 +1384,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         }
         finally
         {
-            _cloudReceiverUpdates.TryRemove(computador.Id, out _);
+            _cloudReceiverUpdates.TryRemove(targetDeviceId, out _);
         }
     }
 

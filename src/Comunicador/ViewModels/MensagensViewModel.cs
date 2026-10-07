@@ -82,8 +82,22 @@ public sealed class MensagensViewModel : ViewModelBase
     public GrupoComputadoresGlobal? GrupoSelecionado
     {
         get => _grupoSelecionado;
-        set => SetField(ref _grupoSelecionado, value);
+        set
+        {
+            if (SetField(ref _grupoSelecionado, value))
+                OnPropertyChanged(nameof(ComputadoresDoGrupoSelecionado));
+        }
     }
+    public IReadOnlyList<string> ComputadoresDoGrupoSelecionado => GrupoSelecionado is null
+        ? []
+        : GrupoSelecionado.ComputadorIds.Select(id =>
+        {
+            var computador = _computadores.Computadores.FirstOrDefault(c =>
+                string.Equals(c.Id, id, StringComparison.OrdinalIgnoreCase)
+                || c.LegacyDeviceIds.Contains(id, StringComparer.OrdinalIgnoreCase));
+            return computador?.NomeExibicao
+                ?? $"Computador indisponível ({id[..Math.Min(id.Length, 8)]})";
+        }).ToArray();
     public ModeloMensagemGlobal? ModeloSelecionado
     {
         get => _modeloSelecionado;
@@ -617,7 +631,9 @@ public sealed class MensagensViewModel : ViewModelBase
     {
         if (GrupoSelecionado is null) return;
         var ids = GrupoSelecionado.ComputadorIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var destino in Destinatarios) destino.Selecionado = ids.Contains(destino.Computador.Id);
+        foreach (var destino in Destinatarios)
+            destino.Selecionado = ids.Contains(destino.Computador.Id)
+                || destino.Computador.LegacyDeviceIds.Any(ids.Contains);
         var selecionados = Destinatarios.Count(d => d.Selecionado);
         StatusOperacao = $"Grupo '{GrupoSelecionado.Nome}': {selecionados} computador(es) disponível(is) selecionado(s).";
     }
@@ -787,6 +803,7 @@ public sealed class MensagensViewModel : ViewModelBase
         AtualizarMonitoresDestino();
         OnPropertyChanged(nameof(QuantidadeDestinatariosSelecionados));
         OnPropertyChanged(nameof(TextoDestinatariosSelecionados));
+        OnPropertyChanged(nameof(ComputadoresDoGrupoSelecionado));
     }
 
     private void OnDestinatarioPropertyChanged(object? sender, PropertyChangedEventArgs e)

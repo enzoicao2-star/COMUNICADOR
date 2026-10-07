@@ -50,6 +50,29 @@ public sealed class CloudSyncService : IDisposable
         return _client.GetAdminAuditAsync(ct);
     }
 
+    public async Task<string> ResolveRegisteredDeviceIdAsync(
+        string deviceId, string machineName, CancellationToken ct = default)
+    {
+        var devices = await _client.GetDevicesAsync(ct).ConfigureAwait(false);
+        var exact = devices.FirstOrDefault(device =>
+            string.Equals(device.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null) return exact.DeviceId;
+
+        var matches = devices.Where(device =>
+                string.Equals(device.MachineName?.Trim(), machineName?.Trim(),
+                    StringComparison.OrdinalIgnoreCase))
+            .Take(2)
+            .ToArray();
+        return matches.Length switch
+        {
+            1 => matches[0].DeviceId,
+            0 => throw new InvalidOperationException(
+                "Este computador ainda não está registrado na nuvem. Quando o receptor voltar a ficar online, ele poderá se registrar e receber novas solicitações."),
+            _ => throw new InvalidOperationException(
+                "Há mais de um computador com esse nome na nuvem; não foi possível identificar o destino com segurança."),
+        };
+    }
+
     public Task<string> ChangeAdminPasswordAsync(string currentPassword, string newPassword,
         CancellationToken ct = default)
     {
