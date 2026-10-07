@@ -22,10 +22,10 @@ public sealed class AtualizadorReceptor
         CancellationToken ct = default)
     {
         report?.Invoke(new(3, "Verificando o receptor"));
-        if (computador.TemPainel)
+        if (!computador.TemReceptor)
         {
             return new(false, "not_applicable", computador.VersaoReceptor ?? string.Empty,
-                "Computadores com o painel usam o receptor incorporado ao Comunicador.exe.");
+                "Este computador ainda não informou uma instalação do receptor.");
         }
 
         if (!ProtocolConstants.SupportsRemoteManagement(computador.VersaoReceptor))

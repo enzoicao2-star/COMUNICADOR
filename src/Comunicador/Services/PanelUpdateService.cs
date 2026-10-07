@@ -45,7 +45,9 @@ public sealed class PanelUpdateService
         var executable = Environment.ProcessPath
             ?? throw new InvalidOperationException("Não foi possível localizar o executável atual.");
         var updater = FindUpdater(executable);
-        if (updater is null || !SupportsStagedRestart(updater))
+        var backgroundRestartRequired = App.StartedInBackground;
+        if (updater is null || !SupportsStagedRestart(updater)
+            || backgroundRestartRequired && !SupportsBackgroundRestart(updater))
         {
             try
             {
@@ -58,7 +60,8 @@ public sealed class PanelUpdateService
                 && ex is HttpRequestException or IOException or UnauthorizedAccessException) { }
         }
         if (updater is null) throw new InvalidOperationException("Não foi possível localizar o atualizador do Comunicador.");
-        if (!SupportsStagedRestart(updater))
+        if (!SupportsStagedRestart(updater)
+            || backgroundRestartRequired && !SupportsBackgroundRestart(updater))
             throw new InvalidOperationException("Não foi possível obter o atualizador com reinício programado.");
         var suportaProgresso = SupportsProgress(updater);
 
@@ -91,6 +94,7 @@ public sealed class PanelUpdateService
             process.ArgumentList.Add(root);
         }
         process.ArgumentList.Add("-RestartAfterUpdate");
+        if (backgroundRestartRequired) process.ArgumentList.Add("-RestartInBackground");
         if (forceReinstall) process.ArgumentList.Add("-ForceReinstall");
         using var started = Process.Start(process);
         if (started is null) throw new InvalidOperationException("O atualizador não pôde ser iniciado.");
@@ -199,6 +203,12 @@ public sealed class PanelUpdateService
     private static bool SupportsStagedRestart(string path)
     {
         try { return File.ReadAllText(path).Contains("'download_complete'", StringComparison.Ordinal); }
+        catch { return false; }
+    }
+
+    private static bool SupportsBackgroundRestart(string path)
+    {
+        try { return File.ReadAllText(path).Contains("$RestartInBackground", StringComparison.Ordinal); }
         catch { return false; }
     }
 

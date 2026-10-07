@@ -385,5 +385,16 @@
       "Cada miniatura permanece pelo tempo definido e as já exibidas somem naturalmente quando o carrossel termina.",
       "O receptor 2.5.19 inclui as miniaturas quadradas do rastro do mouse."
     ]
+  },
+  {
+    "version": "2.5.35.0",
+    "summary": "Inicialização silenciosa com o Windows e ações mais claras para cada computador.",
+    "changes": [
+      "O Comunicador agora inicia junto com o Windows em segundo plano, sem abrir janela, splash ou aviso na tela.",
+      "As instalações existentes foram migradas para iniciar com o Windows; a janela pode ser aberta pelo ícone do Comunicador na bandeja.",
+      "O OWNER pode atualizar ou reinstalar o receptor também nos computadores que têm painel, mantendo a permissão administrativa.",
+      "A tela aberta ao dar dois cliques em um computador foi reorganizada em cartões de ação e mostra nome, estado e tipo da instalação.",
+      "Atualizações automáticas iniciadas em segundo plano também reiniciam o painel oculto."
+    ]
   }
 ]

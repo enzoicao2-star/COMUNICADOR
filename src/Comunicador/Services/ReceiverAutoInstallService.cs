@@ -17,6 +17,7 @@ namespace Comunicador.Services;
 public static class ReceiverAutoInstallService
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(5) };
+    private static readonly SemaphoreSlim InstallGate = new(1, 1);
     private static int _started;
 
 #if TEST_BUILD
@@ -38,6 +39,8 @@ public static class ReceiverAutoInstallService
         if (Interlocked.Exchange(ref _started, 1) != 0) return;
         _ = Task.Run(EnsureInstalledAsync);
     }
+
+    public static Task UpdateNowAsync() => InstallLatestAsync();
 
     private static async Task EnsureInstalledAsync()
     {
@@ -72,6 +75,7 @@ public static class ReceiverAutoInstallService
 
     private static async Task InstallLatestAsync()
     {
+        await InstallGate.WaitAsync().ConfigureAwait(false);
         var installerPath = Path.Combine(Path.GetTempPath(), $"Comunicador-Receptor-{Guid.NewGuid():N}.bat");
         try
         {
@@ -114,6 +118,7 @@ public static class ReceiverAutoInstallService
             try { File.Delete(installerPath); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
+            InstallGate.Release();
         }
     }
 

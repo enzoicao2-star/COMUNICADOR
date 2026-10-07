@@ -1,13 +1,13 @@
 {
-    "version":  "2.5.34.0",
+    "version":  "2.5.35.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "C3358BB21BA66ABCBA0A4D9BDC7CDE76B1D5EDA9F8CE60BA240B66364EE4679F",
-    "summary":  "Botão Voltar corrigido e configuração do carrossel integrada ao visual do painel.",
+    "sha256":  "483D57869AB4D5A0EF71F7101F13A997453B49587935FD951CCA67C8844B0DC0",
+    "summary":  "Inicialização silenciosa com o Windows e ações mais claras para cada computador.",
     "changes":  [
-                    "O botão Voltar responde ao clique mesmo na barra superior personalizada do Comunicador.",
-                    "A configuração do carrossel aparece como tela interna do Comunicador, com cartões, cores e controles no estilo do painel.",
-                    "As miniaturas do rastro têm cantos retos e novas imagens só surgem enquanto o mouse do destinatário se move.",
-                    "Cada miniatura permanece pelo tempo definido e as já exibidas somem naturalmente quando o carrossel termina.",
-                    "O receptor 2.5.19 inclui as miniaturas quadradas do rastro do mouse."
+                    "O Comunicador agora inicia junto com o Windows em segundo plano, sem abrir janela, splash ou aviso na tela.",
+                    "As instalações existentes foram migradas para iniciar com o Windows; a janela pode ser aberta pelo ícone do Comunicador na bandeja.",
+                    "O OWNER pode atualizar ou reinstalar o receptor também nos computadores que têm painel, mantendo a permissão administrativa.",
+                    "A tela aberta ao dar dois cliques em um computador foi reorganizada em cartões de ação e mostra nome, estado e tipo da instalação.",
+                    "Atualizações automáticas iniciadas em segundo plano também reiniciam o painel oculto."
                 ]
 }

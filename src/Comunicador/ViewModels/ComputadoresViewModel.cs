@@ -632,7 +632,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
             "reinstall_panel" => _cloud.HasPermission("remote_install") && computador.TemPainel,
             "disable_panel" or "enable_panel" => _cloud.HasPermission("remote_panel_access") && computador.TemPainel,
             "reinstall_receiver" => _cloud.HasPermission("remote_receiver")
-                && !computador.TemPainel && (computador.Pareado || computador.RegistradoNaNuvem),
+                && computador.TemReceptor && (computador.Pareado || computador.RegistradoNaNuvem),
             _ => false,
         };
 

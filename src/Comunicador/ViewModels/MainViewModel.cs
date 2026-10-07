@@ -87,9 +87,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     public ICommand NavegarCommand { get; }
 
-    public MainViewModel()
+    public MainViewModel(AppSettings? settings = null)
     {
-        Settings = SettingsStore.Load();
+        Settings = settings ?? SettingsStore.Load();
         ThemeService.Apply(Settings, animate: false);
 
         var computadoresStore = new JsonStore<Computador>(AppPaths.ComputadoresFile);
@@ -431,6 +431,18 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
                     {
                         Logger.Error("Não foi possível reinstalar o painel remotamente.", "atualizacao", ex.Message);
                         result = $"Não foi possível iniciar a reinstalação do painel: {ex.Message}";
+                    }
+                    break;
+                case "reinstall_receiver":
+                    try
+                    {
+                        await ReceiverAutoInstallService.UpdateNowAsync().ConfigureAwait(true);
+                        result = "Atualização do receptor concluída; ele continuará ativo em segundo plano.";
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error("Não foi possível atualizar o receptor remotamente.", "atualizacao", ex.Message);
+                        result = $"Não foi possível atualizar o receptor: {ex.Message}";
                     }
                     break;
                 default:

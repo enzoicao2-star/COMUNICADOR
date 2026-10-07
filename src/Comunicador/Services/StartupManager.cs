@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.IO;
+using System.Security;
 using Microsoft.Win32;
 
 namespace Comunicador.Services;
@@ -7,27 +10,32 @@ namespace Comunicador.Services;
 public static class StartupManager
 {
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+#if TEST_BUILD
+    private const string ValueName = "Comunicador Teste";
+#else
     private const string ValueName = "Comunicador";
+#endif
 
     public static void Aplicar(bool habilitar)
     {
-        using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
-        if (key is null)
+        try
         {
-            return;
-        }
-
-        if (habilitar)
-        {
-            var exePath = Environment.ProcessPath;
-            if (!string.IsNullOrEmpty(exePath))
+            if (habilitar)
             {
-                key.SetValue(ValueName, $"\"{exePath}\"");
+                var exePath = Environment.ProcessPath;
+                if (string.IsNullOrWhiteSpace(exePath)) return;
+                using var key = Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true);
+                key?.SetValue(ValueName, $"\"{exePath}\" --background");
+            }
+            else
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
+                key?.DeleteValue(ValueName, throwOnMissingValue: false);
             }
         }
-        else
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SecurityException)
         {
-            key.DeleteValue(ValueName, throwOnMissingValue: false);
+            Trace.TraceWarning($"Não foi possível atualizar a inicialização do Comunicador: {ex.Message}");
         }
     }
 

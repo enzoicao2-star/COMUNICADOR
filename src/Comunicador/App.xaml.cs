@@ -4,6 +4,7 @@ using System.Security.Principal;
 using System.Windows;
 using System.Windows.Threading;
 using Comunicador.Services;
+using Comunicador.Storage;
 using Comunicador.ViewModels;
 using Comunicador.Views;
 
@@ -13,6 +14,7 @@ public partial class App : Application
 {
     internal static readonly Stopwatch StartupWatch = Stopwatch.StartNew();
     internal static string? BenchmarkFile { get; private set; }
+    internal static bool StartedInBackground { get; private set; }
     private MainViewModel? _mainViewModel;
     private Mutex? _instanceMutex;
     private EventWaitHandle? _activationEvent;
@@ -112,6 +114,9 @@ public partial class App : Application
             return;
         }
 
+        StartedInBackground = e.Args.Any(arg =>
+            arg.Equals("--background", StringComparison.OrdinalIgnoreCase));
+
         if (!ClaimSingleInstance())
         {
             Shutdown();
@@ -128,9 +133,12 @@ public partial class App : Application
 
         try
         {
-            _mainViewModel = new MainViewModel();
+            var settings = SettingsStore.Load();
+            StartupManager.Aplicar(settings.IniciarComWindows);
+            _mainViewModel = new MainViewModel(settings);
 
             var window = new MainWindow { DataContext = _mainViewModel };
+            if (StartedInBackground) window.PrepareForBackgroundStartup();
 #if TEST_BUILD
             window.Title = "Comunicador — Teste";
 #endif
@@ -150,8 +158,11 @@ public partial class App : Application
             // Deixa o WPF desenhar a primeira tela antes de iniciar descoberta,
             // sincronização na nuvem e monitoramento em segundo plano.
             Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(_mainViewModel.Start));
-            var resumo = _mainViewModel.ConsumeUpdateSummary();
-            if (!string.IsNullOrWhiteSpace(resumo)) window.MostrarResumoAtualizacao(resumo);
+            if (!StartedInBackground)
+            {
+                var resumo = _mainViewModel.ConsumeUpdateSummary();
+                if (!string.IsNullOrWhiteSpace(resumo)) window.MostrarResumoAtualizacao(resumo);
+            }
         }
         catch (Exception ex)
         {

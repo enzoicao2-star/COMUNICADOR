@@ -9,6 +9,7 @@ param(
     [int]$PanelProcessId = 0,
     [switch]$SkipShortcuts,
     [switch]$RestartAfterUpdate,
+    [switch]$RestartInBackground,
     [switch]$ForceReinstall
 )
 
@@ -565,7 +566,12 @@ try {
         if ($PanelProcessId -gt 0) {
             try { Wait-Process -Id $PanelProcessId -Timeout 20 -ErrorAction SilentlyContinue } catch { }
         }
-        $startedPanel = Start-Process -FilePath $target -WorkingDirectory $targetDirectory -PassThru
+        if ($RestartInBackground) {
+            $startedPanel = Start-Process -FilePath $target -ArgumentList '--background' `
+                -WorkingDirectory $targetDirectory -PassThru
+        } else {
+            $startedPanel = Start-Process -FilePath $target -WorkingDirectory $targetDirectory -PassThru
+        }
         $healthy = $false
         for ($attempt = 0; $attempt -lt 90; $attempt++) {
             $health = Read-JsonOrNull $healthPath
@@ -583,7 +589,11 @@ try {
             Restore-PreviousPanel $target $backupPath $pendingPath $healthPath $failurePath $pending | Out-Null
             Remove-Item -LiteralPath (Join-Path $env:APPDATA 'Comunicador\ultima-atualizacao.json') -Force -ErrorAction SilentlyContinue
             if ([string]::IsNullOrWhiteSpace($LauncherPath) -and (Test-Path -LiteralPath $target)) {
-                Start-Process -FilePath $target -WorkingDirectory $targetDirectory | Out-Null
+                if ($RestartInBackground) {
+                    Start-Process -FilePath $target -ArgumentList '--background' -WorkingDirectory $targetDirectory | Out-Null
+                } else {
+                    Start-Process -FilePath $target -WorkingDirectory $targetDirectory | Out-Null
+                }
             }
             throw 'A nova versao nao confirmou a inicializacao em 45 segundos.'
         }

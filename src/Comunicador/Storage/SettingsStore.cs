@@ -41,6 +41,13 @@ public static class SettingsStore
                 settings.IntensidadeFundo = 100;
                 Save(settings);
             }
+            if (settings.VersaoConfiguracao < 3)
+            {
+                settings.VersaoConfiguracao = 3;
+                settings.IniciarComWindows = true;
+                settings.PreferenciaInicializacaoComWindows = true;
+                Save(settings);
+            }
             return settings;
         }
         catch (JsonException)

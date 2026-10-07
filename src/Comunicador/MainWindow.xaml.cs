@@ -51,10 +51,12 @@ public partial class MainWindow : Window
     private string? _versaoRecusada;
     private readonly Forms.NotifyIcon _trayIcon;
     private bool _allowExit;
+    private bool _iniciadoEmSegundoPlano;
 
     public MainWindow()
     {
         InitializeComponent();
+        _iniciadoEmSegundoPlano = App.StartedInBackground;
         _temporizadorAtualizacao.Tick += AtualizarProgressoPainel;
         _trayIcon = new Forms.NotifyIcon
         {
@@ -90,6 +92,7 @@ public partial class MainWindow : Window
         ContentRendered -= OnContentRendered;
         if (_viewModel is null) return;
         _ = Services.PanelUpdateService.ReportHealthyStartupAsync();
+        if (_iniciadoEmSegundoPlano) return;
         if (string.IsNullOrWhiteSpace(App.BenchmarkFile))
         {
             // Aguarda o ícone inicial sair antes de abrir qualquer diálogo.
@@ -317,6 +320,13 @@ public partial class MainWindow : Window
 
     private void OnWindowLoaded(object sender, RoutedEventArgs e)
     {
+        if (_iniciadoEmSegundoPlano)
+        {
+            StartupOverlay.Visibility = Visibility.Collapsed;
+            Hide();
+            return;
+        }
+
         AnimarEntrada(TopNavigation, -12, 30);
         MostrarSecaoAtual();
         AnimarSecao();
@@ -619,6 +629,15 @@ public partial class MainWindow : Window
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 
+    internal void PrepareForBackgroundStartup()
+    {
+        _iniciadoEmSegundoPlano = true;
+        ShowInTaskbar = false;
+        ShowActivated = false;
+        WindowState = WindowState.Minimized;
+        Opacity = 0;
+    }
+
     private void OnWindowClosing(object? sender, CancelEventArgs e)
     {
         if (_allowExit || !string.IsNullOrWhiteSpace(App.BenchmarkFile)) return;
@@ -631,9 +650,24 @@ public partial class MainWindow : Window
 
     internal void RestaurarDaBandeja()
     {
+        var iniciouOculto = _iniciadoEmSegundoPlano;
+        if (iniciouOculto)
+        {
+            _iniciadoEmSegundoPlano = false;
+            _janelaFoiReativada = false;
+            ShowInTaskbar = true;
+            ShowActivated = true;
+            Opacity = 1;
+        }
         Show();
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
         Activate();
+        if (iniciouOculto && _viewModel is not null)
+        {
+            var resumo = _viewModel.ConsumeUpdateSummary();
+            if (!string.IsNullOrWhiteSpace(resumo)) MostrarResumoAtualizacao(resumo);
+            _ = VerificarAtualizacaoAoIniciarAsync(_viewModel);
+        }
     }
 
     private void OnWindowStateChanged(object? sender, EventArgs e)

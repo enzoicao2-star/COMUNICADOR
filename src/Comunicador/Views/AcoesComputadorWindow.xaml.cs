@@ -22,7 +22,7 @@ public partial class AcoesComputadorWindow : UserControl
         _mensagens = mensagens;
         DataContext = computadores;
         if (!computadores.PodeEnviarMidias)
-            StatusAcoes.Text = "Este painel não tem permissão para enviar mídias.";
+            StatusAcoes.Text = "Envio de imagens e mensagens requer a permissão de envio de mídias.";
     }
 
     private void EnviarImagem_Click(object sender, RoutedEventArgs e) => AbrirCompositor(imagem: true);
@@ -40,6 +40,8 @@ public partial class AcoesComputadorWindow : UserControl
     }
 
     private void MostrarCmd_Click(object sender, RoutedEventArgs e) => CmdPanel.Visibility = Visibility.Visible;
+
+    private void OcultarCmd_Click(object sender, RoutedEventArgs e) => CmdPanel.Visibility = Visibility.Collapsed;
 
     private void Configurar_Click(object sender, RoutedEventArgs e)
     {

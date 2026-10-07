@@ -4,7 +4,7 @@ namespace Comunicador.Models;
 
 public sealed class AppSettings
 {
-    public int VersaoConfiguracao { get; set; } = 2;
+    public int VersaoConfiguracao { get; set; } = 3;
     public string PainelId { get; set; } = Guid.NewGuid().ToString();
     public int PortaTcp { get; set; } = ProtocolConstants.TcpPort;
     public int PortaDescobertaUdp { get; set; } = ProtocolConstants.UdpDiscoveryPort;
@@ -12,8 +12,8 @@ public sealed class AppSettings
     public int IntervaloPingSegundos { get; set; } = 5;
     public string NomePainel { get; set; } = Environment.MachineName;
     public bool EstePainelEhOwner { get; set; }
-    public bool IniciarComWindows { get; set; }
-    public bool? PreferenciaInicializacaoComWindows { get; set; }
+    public bool IniciarComWindows { get; set; } = true;
+    public bool? PreferenciaInicializacaoComWindows { get; set; } = true;
     public bool EntradaPainelHabilitada { get; set; } = true;
 
     /// <summary>Compatibilidade com configurações antigas. Mensagens e lembretes são

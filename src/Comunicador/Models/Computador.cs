@@ -375,7 +375,7 @@ public sealed class Computador : ObservableModel
             : $"Receptor {VersaoReceptor} — atualização necessária";
 
     [JsonIgnore]
-    public bool PodeAtualizarReceptor => !TemPainel && !AtualizandoReceptor && (Pareado || RegistradoNaNuvem);
+    public bool PodeAtualizarReceptor => TemReceptor && !AtualizandoReceptor && (Pareado || RegistradoNaNuvem);
 
     public string EnderecoIp
     {
