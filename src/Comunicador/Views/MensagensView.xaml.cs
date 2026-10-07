@@ -1,7 +1,9 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Comunicador.ViewModels;
 
@@ -86,6 +88,98 @@ public partial class MensagensView : UserControl
     {
         if (DataContext is not MensagensViewModel viewModel) return;
         foreach (var destinatario in viewModel.Destinatarios) destinatario.Selecionado = false;
+    }
+
+    private void CardImagem_DragOver(object sender, DragEventArgs e)
+    {
+        var arquivos = ObterArquivosArrastados(e);
+        e.Effects = arquivos.Length == 1 && EhMidiaGeral(arquivos[0])
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void CardImagem_DragEnter(object sender, DragEventArgs e)
+    {
+        var arquivos = ObterArquivosArrastados(e);
+        DestacarAreaDeSoltar(sender, arquivos.Length == 1 && EhMidiaGeral(arquivos[0]), "BorderStrongBrush");
+    }
+
+    private void CardImagem_DragLeave(object sender, DragEventArgs e) =>
+        DestacarAreaDeSoltar(sender, false, "BorderStrongBrush");
+
+    private void CardImagem_Drop(object sender, DragEventArgs e)
+    {
+        DestacarAreaDeSoltar(sender, false, "BorderStrongBrush");
+        var arquivos = ObterArquivosArrastados(e);
+        if (arquivos.Length == 1 && DataContext is MensagensViewModel viewModel)
+        {
+            viewModel.CarregarMidiaArrastada(arquivos[0]);
+        }
+        e.Handled = true;
+    }
+
+    private void MonitorCard_DragOver(object sender, DragEventArgs e)
+    {
+        var arquivos = ObterArquivosArrastados(e);
+        var somenteImagens = arquivos.Length > 0 && arquivos.All(EhImagem);
+        var umVideo = arquivos.Length == 1 && EhVideo(arquivos[0]);
+        e.Effects = somenteImagens || umVideo ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void MonitorCard_DragEnter(object sender, DragEventArgs e)
+    {
+        var arquivos = ObterArquivosArrastados(e);
+        var somenteImagens = arquivos.Length > 0 && arquivos.All(EhImagem);
+        var umVideo = arquivos.Length == 1 && EhVideo(arquivos[0]);
+        DestacarAreaDeSoltar(sender, somenteImagens || umVideo, "CardGlassBorderBrush");
+    }
+
+    private void MonitorCard_DragLeave(object sender, DragEventArgs e) =>
+        DestacarAreaDeSoltar(sender, false, "CardGlassBorderBrush");
+
+    private void MonitorCard_Drop(object sender, DragEventArgs e)
+    {
+        DestacarAreaDeSoltar(sender, false, "CardGlassBorderBrush");
+        if (sender is Border { DataContext: DestinoMonitor destino }
+            && DataContext is MensagensViewModel viewModel)
+        {
+            foreach (var caminho in ObterArquivosArrastados(e))
+            {
+                viewModel.CarregarArquivoNoMonitor(destino, caminho);
+            }
+        }
+        e.Handled = true;
+    }
+
+    private static string[] ObterArquivosArrastados(DragEventArgs e) =>
+        e.Data.GetDataPresent(DataFormats.FileDrop)
+            ? e.Data.GetData(DataFormats.FileDrop) as string[] ?? Array.Empty<string>()
+            : Array.Empty<string>();
+
+    private static bool EhImagem(string caminho) =>
+        Path.GetExtension(caminho).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp";
+
+    private static bool EhVideo(string caminho) =>
+        Path.GetExtension(caminho).ToLowerInvariant() is ".mp4" or ".wmv";
+
+    private static bool EhMidiaGeral(string caminho) => EhImagem(caminho) || EhVideo(caminho)
+        || Path.GetExtension(caminho).ToLowerInvariant() is ".mp3" or ".wav";
+
+    private void DestacarAreaDeSoltar(object sender, bool ativo, string recursoBorda)
+    {
+        if (sender is not Border borda) return;
+        if (ativo)
+        {
+            if (TryFindResource("AccentBrush") is Brush destaque)
+                borda.BorderBrush = destaque;
+            borda.BorderThickness = new Thickness(2);
+            return;
+        }
+
+        borda.SetResourceReference(Border.BorderBrushProperty, recursoBorda);
+        borda.BorderThickness = new Thickness(1);
     }
 
     private void FecharDestinatarios_Click(object sender, RoutedEventArgs e)

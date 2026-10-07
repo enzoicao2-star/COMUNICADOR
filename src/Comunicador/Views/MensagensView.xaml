@@ -264,10 +264,13 @@
                     </StackPanel>
                 </Border>
                 <Border x:Name="CardImagem" Style="{StaticResource PainelImagemRevelado}" Padding="14"
+                        AllowDrop="True" PreviewDragOver="CardImagem_DragOver"
+                        PreviewDragEnter="CardImagem_DragEnter" PreviewDragLeave="CardImagem_DragLeave"
+                        Drop="CardImagem_Drop"
                         controls:ResponsiveColumnsPanel.ColumnSpan="99">
                     <StackPanel>
                         <TextBlock Text="Imagem, vídeo ou áudio" Style="{StaticResource TituloCard}" />
-                        <TextBlock Text="Carregue uma vez e reutilize nos monitores escolhidos. Áudios tocam em segundo plano."
+                        <TextBlock Text="Arraste uma imagem, GIF, vídeo ou áudio para esta área. Também é possível usar os botões abaixo."
                                    Style="{StaticResource Subtitulo}" Margin="0,2,0,13" />
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="215" /><ColumnDefinition Width="15" /><ColumnDefinition /></Grid.ColumnDefinitions>
@@ -477,46 +480,70 @@
                             </TextBlock>
                             <ItemsControl ItemsSource="{Binding MonitoresDestino}">
                             <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                <ItemsPanelTemplate>
+                                    <controls:ResponsiveColumnsPanel MinColumnWidth="300" MaxColumns="4"
+                                                                     ColumnGap="10" RowGap="10" />
+                                </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Width="335" Background="{DynamicResource CardSurfaceBrush}"
+                                    <Border Background="{DynamicResource CardSurfaceBrush}"
                                             BorderBrush="{DynamicResource CardGlassBorderBrush}" BorderThickness="1"
-                                            CornerRadius="9" Padding="11" Margin="0,0,9,9">
+                                            CornerRadius="9" Padding="11"
+                                            AllowDrop="True" PreviewDragOver="MonitorCard_DragOver"
+                                            PreviewDragEnter="MonitorCard_DragEnter" PreviewDragLeave="MonitorCard_DragLeave"
+                                            Drop="MonitorCard_Drop">
                                         <StackPanel>
-                                            <Grid Margin="0,0,0,7">
-                                                <TextBlock Text="{Binding Titulo}" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="SemiBold" />
-                                                <TextBlock Text="{Binding Resolucao}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11"
-                                                           HorizontalAlignment="Right" />
-                                            </Grid>
+                                            <StackPanel Margin="0,0,0,8">
+                                                <TextBlock Text="{Binding Titulo}" Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           FontWeight="SemiBold" TextWrapping="Wrap" MaxHeight="38"
+                                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding Titulo}" />
+                                                <TextBlock Text="{Binding Resolucao}" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                           FontSize="10" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
                                             <Border Height="{Binding AlturaPreview}" MinHeight="80" MaxHeight="155"
                                                     Background="#080B11" BorderBrush="#52637C" BorderThickness="1"
                                                     CornerRadius="5" Padding="5">
-                                                <ItemsControl ItemsSource="{Binding Midias}">
-                                                    <ItemsControl.ItemsPanel>
-                                                        <ItemsPanelTemplate>
-                                                            <WrapPanel HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                        </ItemsPanelTemplate>
-                                                    </ItemsControl.ItemsPanel>
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <Grid Width="{Binding PreviewWidth}" MaxHeight="130" Margin="3">
-                                                                <Image Source="{Binding ImagemPreview}" MaxHeight="130" Stretch="Uniform" />
-                                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                                    <StackPanel.Style>
-                                                                        <Style TargetType="StackPanel">
-                                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                                            <Style.Triggers><DataTrigger Binding="{Binding EhVideo}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
-                                                                        </Style>
-                                                                    </StackPanel.Style>
-                                                                    <TextBlock Text="&#xE714;" FontFamily="Segoe MDL2 Assets" FontSize="28" Foreground="White" HorizontalAlignment="Center" />
-                                                                    <TextBlock Text="Vídeo" Foreground="White" FontSize="11" HorizontalAlignment="Center" />
-                                                                </StackPanel>
-                                                            </Grid>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
+                                                <Grid>
+                                                    <ItemsControl ItemsSource="{Binding Midias}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <WrapPanel HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Grid Width="{Binding PreviewWidth}" MaxHeight="130" Margin="3">
+                                                                    <Image Source="{Binding ImagemPreview}" MaxHeight="130" Stretch="Uniform" />
+                                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                        <StackPanel.Style>
+                                                                            <Style TargetType="StackPanel">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                                <Style.Triggers><DataTrigger Binding="{Binding EhVideo}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                                                                            </Style>
+                                                                        </StackPanel.Style>
+                                                                        <TextBlock Text="&#xE714;" FontFamily="Segoe MDL2 Assets" FontSize="28" Foreground="White" HorizontalAlignment="Center" />
+                                                                        <TextBlock Text="Vídeo" Foreground="White" FontSize="11" HorizontalAlignment="Center" />
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <TextBlock Text="Solte imagem, GIF ou vídeo aqui" Foreground="#AAB6C8"
+                                                               FontSize="11" TextAlignment="Center" HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center" IsHitTestVisible="False">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Midias.Count}" Value="0">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Grid>
                                             </Border>
                                             <ItemsControl ItemsSource="{Binding Midias}" Margin="0,8,0,0">
                                                 <ItemsControl.ItemTemplate>

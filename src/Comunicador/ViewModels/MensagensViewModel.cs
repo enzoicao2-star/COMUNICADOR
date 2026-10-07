@@ -934,46 +934,72 @@ public sealed class MensagensViewModel : ViewModelBase
 
         foreach (var caminho in dialog.FileNames)
         {
-            try
-            {
-                var arquivo = new FileInfo(caminho);
-                var mime = MimeImagemPelaExtensao(caminho);
-                var limiteBytes = ProtocolConstants.MaxImageBytesForMime(mime);
-                if (arquivo.Length <= 0 || arquivo.Length > limiteBytes)
-                {
-                    StatusOperacao = $"{arquivo.Name}: o limite é {limiteBytes / 1024 / 1024} MB para este formato.";
-                    continue;
-                }
-
-                var dados = File.ReadAllBytes(caminho);
-                if (!ConteudoImagem.MimePermitido(mime) || !ConteudoImagem.AssinaturaCorresponde(mime, dados))
-                {
-                    StatusOperacao = $"{arquivo.Name}: formato inválido.";
-                    continue;
-                }
-
-                if (!PodeAdicionarMidia(destino, TipoMidiaMonitor.Imagem, dados.Length))
-                {
-                    break;
-                }
-
-                AdicionarMidia(destino, new MidiaMonitorEditavel
-                {
-                    Caminho = caminho,
-                    Nome = arquivo.Name,
-                    MimeType = mime,
-                    Dados = dados,
-                    Tipo = TipoMidiaMonitor.Imagem,
-                });
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                StatusOperacao = $"Não foi possível abrir a imagem: {ex.Message}";
-            }
+            if (!AdicionarImagemAoMonitor(destino, caminho)) break;
         }
 
         ExibirImagemCentral = true;
         CommandManager.InvalidateRequerySuggested();
+    }
+
+    public void CarregarArquivoNoMonitor(DestinoMonitor destino, string caminho)
+    {
+        var extensao = Path.GetExtension(caminho).ToLowerInvariant();
+        if (MimeImagemPelaExtensao(caminho).Length > 0)
+        {
+            AdicionarImagemAoMonitor(destino, caminho);
+            ExibirImagemCentral = true;
+            CommandManager.InvalidateRequerySuggested();
+            return;
+        }
+
+        if (MimeVideoPelaExtensao(caminho).Length > 0)
+        {
+            AdicionarVideoAoMonitor(destino, caminho);
+            return;
+        }
+
+        StatusOperacao = extensao is ".mp3" or ".wav"
+            ? "Áudio toca em segundo plano. Arraste-o para a área ‘Imagem, vídeo ou áudio’ para carregá-lo."
+            : "Este arquivo não é compatível com a prévia do monitor. Use imagem, GIF ou vídeo MP4/WMV.";
+    }
+
+    private bool AdicionarImagemAoMonitor(DestinoMonitor destino, string caminho)
+    {
+        try
+        {
+            var arquivo = new FileInfo(caminho);
+            var mime = MimeImagemPelaExtensao(caminho);
+            var limiteBytes = ProtocolConstants.MaxImageBytesForMime(mime);
+            if (arquivo.Length <= 0 || arquivo.Length > limiteBytes)
+            {
+                StatusOperacao = $"{arquivo.Name}: o limite é {limiteBytes / 1024 / 1024} MB para este formato.";
+                return true;
+            }
+
+            var dados = File.ReadAllBytes(caminho);
+            if (!ConteudoImagem.MimePermitido(mime) || !ConteudoImagem.AssinaturaCorresponde(mime, dados))
+            {
+                StatusOperacao = $"{arquivo.Name}: formato inválido.";
+                return true;
+            }
+
+            if (!PodeAdicionarMidia(destino, TipoMidiaMonitor.Imagem, dados.Length)) return false;
+
+            AdicionarMidia(destino, new MidiaMonitorEditavel
+            {
+                Caminho = caminho,
+                Nome = arquivo.Name,
+                MimeType = mime,
+                Dados = dados,
+                Tipo = TipoMidiaMonitor.Imagem,
+            });
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            StatusOperacao = $"Não foi possível abrir a imagem: {ex.Message}";
+            return true;
+        }
     }
 
     private void UsarMidiaCarregadaNoMonitor(DestinoMonitor destino)
@@ -1104,25 +1130,26 @@ public sealed class MensagensViewModel : ViewModelBase
         .SelectMany(m => m.Midias.Where(i => i.EhVideo).Select(i => i.ParaVideoProtocolo(m.Monitor.Index)))
         .ToList();
 
-    private void SelecionarImagem()
+    private void SelecionarImagem(string? caminhoSelecionado = null)
     {
-        var dialog = new OpenFileDialog
+        var caminho = caminhoSelecionado;
+        if (caminho is null)
         {
-            Title = "Escolher imagem para o aviso",
-            Filter = "Imagens permitidas|*.png;*.jpg;*.jpeg;*.gif;*.bmp|PNG|*.png|JPEG|*.jpg;*.jpeg|GIF|*.gif|Bitmap|*.bmp",
-            CheckFileExists = true,
-            Multiselect = false,
-        };
-
-        if (dialog.ShowDialog() != true)
-        {
-            return;
+            var dialog = new OpenFileDialog
+            {
+                Title = "Escolher imagem para o aviso",
+                Filter = "Imagens permitidas|*.png;*.jpg;*.jpeg;*.gif;*.bmp|PNG|*.png|JPEG|*.jpg;*.jpeg|GIF|*.gif|Bitmap|*.bmp",
+                CheckFileExists = true,
+                Multiselect = false,
+            };
+            if (dialog.ShowDialog() != true) return;
+            caminho = dialog.FileName;
         }
 
         try
         {
-            var arquivo = new FileInfo(dialog.FileName);
-            var mime = MimeImagemPelaExtensao(dialog.FileName);
+            var arquivo = new FileInfo(caminho);
+            var mime = MimeImagemPelaExtensao(caminho);
             var limiteBytes = ProtocolConstants.MaxImageBytesForMime(mime);
             if (arquivo.Length <= 0 || arquivo.Length > limiteBytes)
             {
@@ -1130,7 +1157,7 @@ public sealed class MensagensViewModel : ViewModelBase
                 return;
             }
 
-            var dados = File.ReadAllBytes(dialog.FileName);
+            var dados = File.ReadAllBytes(caminho);
             if (!ConteudoImagem.MimePermitido(mime) || !ConteudoImagem.AssinaturaCorresponde(mime, dados))
             {
                 StatusOperacao = "Arquivo inválido. Escolha uma imagem PNG, JPEG, GIF ou BMP.";
@@ -1140,7 +1167,7 @@ public sealed class MensagensViewModel : ViewModelBase
             LimparMidiaGeral();
             _dadosImagem = dados;
             _mimeImagem = mime;
-            _caminhoImagem = dialog.FileName;
+            _caminhoImagem = caminho;
             _nomeImagem = arquivo.Name;
             if (!ImagemCompativelPapelParede)
             {
@@ -1159,30 +1186,32 @@ public sealed class MensagensViewModel : ViewModelBase
         }
     }
 
-    private void SelecionarVideo()
+    private void SelecionarVideo(string? caminhoSelecionado = null)
     {
-        var dialog = new OpenFileDialog
+        var caminho = caminhoSelecionado;
+        if (caminho is null)
         {
-            Title = "Escolher vídeo para reproduzir no centro da tela",
-            Filter = "Vídeos permitidos|*.mp4;*.wmv|MP4|*.mp4|Windows Media Video|*.wmv",
-            CheckFileExists = true,
-            Multiselect = false,
-        };
-        if (dialog.ShowDialog() != true)
-        {
-            return;
+            var dialog = new OpenFileDialog
+            {
+                Title = "Escolher vídeo para reproduzir no centro da tela",
+                Filter = "Vídeos permitidos|*.mp4;*.wmv|MP4|*.mp4|Windows Media Video|*.wmv",
+                CheckFileExists = true,
+                Multiselect = false,
+            };
+            if (dialog.ShowDialog() != true) return;
+            caminho = dialog.FileName;
         }
 
         try
         {
-            var arquivo = new FileInfo(dialog.FileName);
+            var arquivo = new FileInfo(caminho);
             if (arquivo.Length <= 0 || arquivo.Length > ProtocolConstants.MaxVideoBytes)
             {
                 StatusOperacao = "O vídeo precisa ter no máximo 24 MB.";
                 return;
             }
-            var mime = MimeVideoPelaExtensao(dialog.FileName);
-            var dados = File.ReadAllBytes(dialog.FileName);
+            var mime = MimeVideoPelaExtensao(caminho);
+            var dados = File.ReadAllBytes(caminho);
             if (!ConteudoVideo.MimePermitido(mime) || !ConteudoVideo.AssinaturaCorresponde(mime, dados))
             {
                 StatusOperacao = "Arquivo inválido. Escolha um vídeo MP4 ou WMV.";
@@ -1192,7 +1221,7 @@ public sealed class MensagensViewModel : ViewModelBase
             LimparMidiaGeral();
             _dadosVideo = dados;
             _mimeVideo = mime;
-            _caminhoVideo = dialog.FileName;
+            _caminhoVideo = caminho;
             _nomeVideo = arquivo.Name;
             ExibirImagemCentral = true;
             StatusOperacao = $"Vídeo selecionado: {arquivo.Name} ({arquivo.Length / 1024d / 1024d:0.#} MB).";
@@ -1204,30 +1233,32 @@ public sealed class MensagensViewModel : ViewModelBase
         }
     }
 
-    private void SelecionarAudio()
+    private void SelecionarAudio(string? caminhoSelecionado = null)
     {
-        var dialog = new OpenFileDialog
+        var caminho = caminhoSelecionado;
+        if (caminho is null)
         {
-            Title = "Escolher áudio para tocar em segundo plano",
-            Filter = "Áudios permitidos|*.mp3;*.wav|MP3|*.mp3|WAV|*.wav",
-            CheckFileExists = true,
-            Multiselect = false,
-        };
-        if (dialog.ShowDialog() != true)
-        {
-            return;
+            var dialog = new OpenFileDialog
+            {
+                Title = "Escolher áudio para tocar em segundo plano",
+                Filter = "Áudios permitidos|*.mp3;*.wav|MP3|*.mp3|WAV|*.wav",
+                CheckFileExists = true,
+                Multiselect = false,
+            };
+            if (dialog.ShowDialog() != true) return;
+            caminho = dialog.FileName;
         }
 
         try
         {
-            var arquivo = new FileInfo(dialog.FileName);
+            var arquivo = new FileInfo(caminho);
             if (arquivo.Length <= 0 || arquivo.Length > ProtocolConstants.MaxAudioBytes)
             {
                 StatusOperacao = "O áudio precisa ter no máximo 12 MB.";
                 return;
             }
-            var mime = MimeAudioPelaExtensao(dialog.FileName);
-            var dados = File.ReadAllBytes(dialog.FileName);
+            var mime = MimeAudioPelaExtensao(caminho);
+            var dados = File.ReadAllBytes(caminho);
             if (!ConteudoAudio.MimePermitido(mime) || !ConteudoAudio.AssinaturaCorresponde(mime, dados))
             {
                 StatusOperacao = "Arquivo inválido. Escolha um áudio MP3 ou WAV.";
@@ -1237,7 +1268,7 @@ public sealed class MensagensViewModel : ViewModelBase
             LimparMidiaGeral();
             _dadosAudio = dados;
             _mimeAudio = mime;
-            _caminhoAudio = dialog.FileName;
+            _caminhoAudio = caminho;
             _nomeAudio = arquivo.Name;
             ExibirImagemCentral = true;
             StatusOperacao = $"Áudio selecionado: {arquivo.Name} ({arquivo.Length / 1024d / 1024d:0.#} MB).";
@@ -1249,6 +1280,14 @@ public sealed class MensagensViewModel : ViewModelBase
         }
     }
 
+    public void CarregarMidiaArrastada(string caminho)
+    {
+        if (MimeImagemPelaExtensao(caminho).Length > 0) SelecionarImagem(caminho);
+        else if (MimeVideoPelaExtensao(caminho).Length > 0) SelecionarVideo(caminho);
+        else if (MimeAudioPelaExtensao(caminho).Length > 0) SelecionarAudio(caminho);
+        else StatusOperacao = "Formato não compatível. Use imagem, GIF, vídeo MP4/WMV ou áudio MP3/WAV.";
+    }
+
     private void AdicionarVideoAoMonitor(DestinoMonitor destino)
     {
         var dialog = new OpenFileDialog
@@ -1258,21 +1297,24 @@ public sealed class MensagensViewModel : ViewModelBase
             CheckFileExists = true,
             Multiselect = false,
         };
-        if (dialog.ShowDialog() != true)
-        {
-            return;
-        }
+        if (dialog.ShowDialog() != true) return;
+
+        AdicionarVideoAoMonitor(destino, dialog.FileName);
+    }
+
+    private void AdicionarVideoAoMonitor(DestinoMonitor destino, string caminho)
+    {
 
         try
         {
-            var arquivo = new FileInfo(dialog.FileName);
+            var arquivo = new FileInfo(caminho);
             if (arquivo.Length <= 0 || arquivo.Length > ProtocolConstants.MaxVideoBytes)
             {
                 StatusOperacao = "O vídeo precisa ter no máximo 24 MB.";
                 return;
             }
-            var mime = MimeVideoPelaExtensao(dialog.FileName);
-            var dados = File.ReadAllBytes(dialog.FileName);
+            var mime = MimeVideoPelaExtensao(caminho);
+            var dados = File.ReadAllBytes(caminho);
             if (!ConteudoVideo.MimePermitido(mime) || !ConteudoVideo.AssinaturaCorresponde(mime, dados))
             {
                 StatusOperacao = "Arquivo inválido. Escolha um vídeo MP4 ou WMV.";
@@ -1284,7 +1326,7 @@ public sealed class MensagensViewModel : ViewModelBase
             }
             AdicionarMidia(destino, new MidiaMonitorEditavel
             {
-                Caminho = dialog.FileName,
+                Caminho = caminho,
                 Nome = arquivo.Name,
                 MimeType = mime,
                 Dados = dados,
