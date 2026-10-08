@@ -251,6 +251,10 @@ schtasks /create /tn "%TASK_NAME%" /sc onlogon /rl limited ^
     /tr "\"!PYTHONW_EXE!\" \"%INSTALL_DIR%\receptor.py\"" /f >nul 2>nul
 if not errorlevel 1 (
     set "AUTOSTART_OK=tarefa"
+    rem Remove o atalho deixado por instalacoes antigas para nao iniciar duas copias no login.
+    powershell -NoProfile -WindowStyle Hidden -Command ^
+        "$atalho=Join-Path ([Environment]::GetFolderPath('Startup')) 'Comunicador Receptor.lnk';" ^
+        "Remove-Item -LiteralPath $atalho -Force -ErrorAction SilentlyContinue"
     echo       Tarefa "%TASK_NAME%" criada — visivel no Agendador de Tarefas do
     echo       Windows, inicia no login, sem janela de console.
 ) else (

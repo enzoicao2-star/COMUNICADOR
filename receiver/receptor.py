@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import ctypes
 import io
 import json
 import logging
@@ -2672,10 +2673,52 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
+_receiver_instance_mutex = None
+
+
+def claim_single_instance(port: int) -> bool:
+    """Prevent duplicate Windows logon and panel-recovery launches."""
+    global _receiver_instance_mutex
+    if os.name != "nt":
+        return True
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.argtypes = (ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p)
+    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+    kernel32.CloseHandle.restype = ctypes.c_int
+    ctypes.set_last_error(0)
+    mutex_name = f"Local\\Comunicador.Receptor.{port}"
+    handle = kernel32.CreateMutexW(None, 1, mutex_name)
+    if not handle:
+        raise ctypes.WinError(ctypes.get_last_error())
+    if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+        kernel32.CloseHandle(handle)
+        return False
+
+    kernel32.ReleaseMutex.argtypes = (ctypes.c_void_p,)
+    kernel32.ReleaseMutex.restype = ctypes.c_int
+    _receiver_instance_mutex = (kernel32, handle)
+    return True
+
+
+def release_single_instance() -> None:
+    global _receiver_instance_mutex
+    if _receiver_instance_mutex is None:
+        return
+    kernel32, handle = _receiver_instance_mutex
+    _receiver_instance_mutex = None
+    kernel32.ReleaseMutex(handle)
+    kernel32.CloseHandle(handle)
+
+
 def main(argv=None) -> int:
     args = parse_args(argv)
     config_dir = Path(args.config_dir) if args.config_dir else default_config_dir()
     setup_logging(config_dir, args.test_mode)
+    if not args.test_mode and not claim_single_instance(args.port):
+        logging.info("Já existe um Receptor ativo na porta %s; esta inicialização duplicada será encerrada.", args.port)
+        return 0
 
     config = Config(config_dir)
     if not args.test_mode:
@@ -2793,6 +2836,7 @@ def main(argv=None) -> int:
         shutdown()
         if tray_icon is not None:
             tray_icon.stop()
+        release_single_instance()
 
     return 0
 

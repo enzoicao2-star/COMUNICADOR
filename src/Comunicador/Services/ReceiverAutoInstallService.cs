@@ -54,7 +54,7 @@ public static class ReceiverAutoInstallService
                 // The Windows logon task normally starts the receiver first.
                 // Give it a moment before attempting recovery to avoid a second
                 // process during simultaneous logon and panel startup.
-                if (await WaitForReceiverAsync(TimeSpan.FromSeconds(4)).ConfigureAwait(false)) return;
+                if (await WaitForReceiverAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false)) return;
 
                 if (TryStartInstalledReceiver()
                     && await WaitForReceiverAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false))
