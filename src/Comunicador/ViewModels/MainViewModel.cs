@@ -528,7 +528,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
                     if (info.IsAvailable && politicaAtual == politica)
                     {
                         Logger.Info($"Nova versão do painel ({info.LatestVersion}) detectada pela política automática '{politica}'.");
-                        await _panelUpdate.StartUpdateAsync(info, ct).ConfigureAwait(false);
+                        await _panelUpdate.StartUpdateAsync(info, ct, automaticPanelUpdate: true).ConfigureAwait(false);
                         return;
                     }
                 }

@@ -80,6 +80,8 @@ public sealed class ModeloBadgeGlobal : ObservableModel
     public List<string> Permissoes { get => _permissoes; set { if (SetField(ref _permissoes, value ?? [])) NotificarPermissoes(); } }
     public bool GerenciarPerfis { get => Permissoes.Contains("manage_profiles"); set => SetPermissao("manage_profiles", value); }
     public bool GerenciarBadges { get => Permissoes.Contains("manage_badges"); set => SetPermissao("manage_badges", value); }
+    public bool GerenciarBiblioteca { get => Permissoes.Contains("manage_shared_content"); set => SetPermissao("manage_shared_content", value); }
+    public bool PersonalizarPainel { get => Permissoes.Contains("customize_panel"); set => SetPermissao("customize_panel", value); }
     public bool EnviarMidias { get => Permissoes.Contains("send_media"); set => SetPermissao("send_media", value); }
     public bool AlterarPapelDeParede { get => Permissoes.Contains("change_wallpaper"); set => SetPermissao("change_wallpaper", value); }
     public bool InstalarPainel { get => Permissoes.Contains("remote_install"); set => SetPermissao("remote_install", value); }

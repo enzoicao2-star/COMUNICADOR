@@ -492,16 +492,16 @@
                     <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,0,0,14">
                         <StackPanel>
                             <TextBlock Text="Configurações para todos os painéis" Style="{StaticResource TituloCard}" />
-                            <TextBlock Text="As opções publicadas pelo OWNER são sincronizadas pelo Supabase e aplicadas nos outros computadores." Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,4,0,14" />
+                            <TextBlock Text="A aparência é sincronizada com todos os painéis. ADMs autorizados podem alterá-la; políticas e permissões continuam sob controle do OWNER." Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,4,0,14" />
                             <UniformGrid Columns="2">
-                                <StackPanel Margin="0,0,12,8"><TextBlock Text="Tema" Style="{StaticResource RotuloCampo}" /><ComboBox ItemsSource="{Binding Temas}" SelectedItem="{Binding GlobalTema}" /></StackPanel>
-                                <StackPanel Margin="0,0,0,8"><TextBlock Text="Paleta" Style="{StaticResource RotuloCampo}" /><ComboBox ItemsSource="{Binding Paletas}" SelectedItem="{Binding GlobalPaleta}" /></StackPanel>
-                                <StackPanel Margin="0,0,12,8"><TextBlock Text="Plano de fundo" Style="{StaticResource RotuloCampo}" /><ComboBox ItemsSource="{Binding Fundos}" SelectedItem="{Binding GlobalFundo}" /></StackPanel>
-                                <StackPanel Margin="0,0,0,8"><TextBlock Text="Transparência dos cards" Style="{StaticResource RotuloCampo}" /><Slider Minimum="0" Maximum="90" Value="{Binding GlobalTransparencia}" Tag="%" /></StackPanel>
-                                <StackPanel Margin="0,0,12,8"><TextBlock Text="Desfoque dos cards" Style="{StaticResource RotuloCampo}" /><Slider Minimum="0" Maximum="40" Value="{Binding GlobalBlur}" Tag=" px" /></StackPanel>
-                                <StackPanel Margin="0,0,0,8"><TextBlock Text="Velocidade das animações" Style="{StaticResource RotuloCampo}" /><Slider Minimum="5" Maximum="100" Value="{Binding GlobalVelocidade}" Tag="%" /></StackPanel>
+                                <StackPanel Margin="0,0,12,8"><TextBlock Text="Tema" Style="{StaticResource RotuloCampo}" /><ComboBox ItemsSource="{Binding Temas}" SelectedItem="{Binding GlobalTema}" IsEnabled="{Binding PodeEditarConfiguracaoGlobal}" /></StackPanel>
+                                <StackPanel Margin="0,0,0,8"><TextBlock Text="Paleta" Style="{StaticResource RotuloCampo}" /><ComboBox ItemsSource="{Binding Paletas}" SelectedItem="{Binding GlobalPaleta}" IsEnabled="{Binding PodeEditarConfiguracaoGlobal}" /></StackPanel>
+                                <StackPanel Margin="0,0,12,8"><TextBlock Text="Plano de fundo" Style="{StaticResource RotuloCampo}" /><ComboBox ItemsSource="{Binding Fundos}" SelectedItem="{Binding GlobalFundo}" IsEnabled="{Binding PodeEditarConfiguracaoGlobal}" /></StackPanel>
+                                <StackPanel Margin="0,0,0,8"><TextBlock Text="Transparência dos cards" Style="{StaticResource RotuloCampo}" /><Slider Minimum="0" Maximum="90" Value="{Binding GlobalTransparencia}" Tag="%" IsEnabled="{Binding PodeEditarConfiguracaoGlobal}" /></StackPanel>
+                                <StackPanel Margin="0,0,12,8"><TextBlock Text="Desfoque dos cards" Style="{StaticResource RotuloCampo}" /><Slider Minimum="0" Maximum="40" Value="{Binding GlobalBlur}" Tag=" px" IsEnabled="{Binding PodeEditarConfiguracaoGlobal}" /></StackPanel>
+                                <StackPanel Margin="0,0,0,8"><TextBlock Text="Velocidade das animações" Style="{StaticResource RotuloCampo}" /><Slider Minimum="5" Maximum="100" Value="{Binding GlobalVelocidade}" Tag="%" IsEnabled="{Binding PodeEditarConfiguracaoGlobal}" /></StackPanel>
                                 <StackPanel Margin="0,0,12,8"><TextBlock Text="Inicialização do Windows" Style="{StaticResource RotuloCampo}" />
-                                    <ComboBox SelectedValue="{Binding GlobalPoliticaInicializacaoWindows}" SelectedValuePath="Tag">
+                                    <ComboBox SelectedValue="{Binding GlobalPoliticaInicializacaoWindows}" SelectedValuePath="Tag" IsEnabled="{Binding PodeEditarPoliticasGlobais}">
                                         <ComboBoxItem Content="Cada computador escolhe" Tag="local" />
                                         <ComboBoxItem Content="Obrigar a iniciar com o Windows" Tag="always" />
                                         <ComboBoxItem Content="Impedir iniciar com o Windows" Tag="never" />
@@ -516,14 +516,14 @@
                                     <UniformGrid Columns="2">
                                         <StackPanel Margin="0,0,12,0">
                                             <TextBlock Text="Painel" Style="{StaticResource RotuloCampo}" />
-                                            <ComboBox SelectedValue="{Binding GlobalPoliticaAtualizacaoPainel}" SelectedValuePath="Tag">
+                                            <ComboBox SelectedValue="{Binding GlobalPoliticaAtualizacaoPainel}" SelectedValuePath="Tag" IsEnabled="{Binding PodeEditarPoliticasGlobais}">
                                                 <ComboBoxItem Content="Ao abrir o painel" Tag="on_open" />
                                                 <ComboBoxItem Content="Assim que uma versão for publicada" Tag="available" />
                                             </ComboBox>
                                         </StackPanel>
                                         <StackPanel>
                                             <TextBlock Text="Receptor" Style="{StaticResource RotuloCampo}" />
-                                            <ComboBox SelectedValue="{Binding GlobalPoliticaAtualizacaoReceptor}" SelectedValuePath="Tag">
+                                            <ComboBox SelectedValue="{Binding GlobalPoliticaAtualizacaoReceptor}" SelectedValuePath="Tag" IsEnabled="{Binding PodeEditarPoliticasGlobais}">
                                                 <ComboBoxItem Content="Perguntar antes" Tag="ask" />
                                                 <ComboBoxItem Content="Ao iniciar com o Windows" Tag="on_open" />
                                                 <ComboBoxItem Content="Assim que uma versão for publicada" Tag="available" />
@@ -534,9 +534,9 @@
                             </Border>
                             <WrapPanel Margin="0,6,0,0">
                                 <CheckBox Content="Reduzir movimento em todos os painéis" IsChecked="{Binding GlobalReduzirMovimento}" Margin="0,0,18,8" />
-                                <CheckBox Content="Permitir recebimento de mídias" IsChecked="{Binding GlobalPermitirMidias}" Margin="0,0,18,8" />
-                                <CheckBox Content="Permitir botões com links" IsChecked="{Binding GlobalPermitirLinks}" Margin="0,0,18,8" />
-                                <CheckBox Content="Permitir alterar papel de parede e tela de bloqueio remotamente" IsChecked="{Binding GlobalPermitirPapelParede}" Margin="0,0,18,8" />
+                                <CheckBox Content="Permitir recebimento de mídias" IsChecked="{Binding GlobalPermitirMidias}" IsEnabled="{Binding PodeEditarPoliticasGlobais}" Margin="0,0,18,8" />
+                                <CheckBox Content="Permitir botões com links" IsChecked="{Binding GlobalPermitirLinks}" IsEnabled="{Binding PodeEditarPoliticasGlobais}" Margin="0,0,18,8" />
+                                <CheckBox Content="Permitir alterar papel de parede e tela de bloqueio remotamente" IsChecked="{Binding GlobalPermitirPapelParede}" IsEnabled="{Binding PodeEditarPoliticasGlobais}" Margin="0,0,18,8" />
                             </WrapPanel>
                             <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="7" Padding="10,8" Margin="0,3,0,0">
                                 <TextBlock Text="Mensagens e lembretes continuam obrigatórios em todos os painéis. Esta política não pode ser desativada."
@@ -544,7 +544,8 @@
                             </Border>
                         </StackPanel>
                     </Border>
-                    <Border Style="{StaticResource CardBorder}" Padding="20">
+                    <Border Style="{StaticResource CardBorder}" Padding="20"
+                            Visibility="{Binding EstePainelEhOwner, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel>
                             <Grid Margin="0,0,0,10">
                                 <StackPanel><TextBlock Text="Tags padrão e permissões" Style="{StaticResource TituloCard}" /><TextBlock Text="Crie modelos de badge e selecione o que cada tag pode fazer." Style="{StaticResource Subtitulo}" Margin="0,3,0,0" /></StackPanel>
@@ -582,6 +583,8 @@
                                             <WrapPanel>
                                                 <CheckBox Content="Gerenciar perfis" IsChecked="{Binding GerenciarPerfis}" Margin="0,0,12,5" />
                                                 <CheckBox Content="Gerenciar badges" IsChecked="{Binding GerenciarBadges}" Margin="0,0,12,5" />
+                                                <CheckBox Content="Gerenciar grupos e modelos" IsChecked="{Binding GerenciarBiblioteca}" Margin="0,0,12,5" />
+                                                <CheckBox Content="Personalizar painel" IsChecked="{Binding PersonalizarPainel}" Margin="0,0,12,5" />
                                                 <CheckBox Content="Enviar mídias" IsChecked="{Binding EnviarMidias}" Margin="0,0,12,5" />
                                                 <CheckBox Content="Alterar papel de parede e tela de bloqueio" IsChecked="{Binding AlterarPapelDeParede}" Margin="0,0,12,5" />
                                                 <CheckBox Content="Instalar painel" IsChecked="{Binding InstalarPainel}" Margin="0,0,12,5" />
@@ -600,7 +603,8 @@
                             </DockPanel>
                         </StackPanel>
                     </Border>
-                    <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,0,0,14">
+                    <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,0,0,14"
+                            Visibility="{Binding EstePainelEhOwner, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel>
                             <TextBlock Text="Segurança do OWNER" Style="{StaticResource TituloCard}" />
                             <TextBlock Text="Altere a senha usada para transferir ou recuperar o administrador."
@@ -611,7 +615,8 @@
                                        Foreground="{DynamicResource AccentBrush}" Visibility="Collapsed" />
                         </StackPanel>
                     </Border>
-                    <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,14,0,0">
+                    <Border Style="{StaticResource CardBorder}" Padding="20" Margin="0,14,0,0"
+                            Visibility="{Binding EstePainelEhOwner, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel>
                             <DockPanel Margin="0,0,0,10">
                                 <StackPanel>

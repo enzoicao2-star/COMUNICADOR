@@ -102,7 +102,7 @@ public sealed class SupabaseClient
     public async Task<IReadOnlyList<CloudDevice>> GetDevicesAsync(CancellationToken ct = default)
     {
         using var request = await CreateRequestAsync(HttpMethod.Get,
-            "/rest/v1/devices?select=device_id,machine_name,panel_version,receiver_version,has_panel,media_blocked,last_seen_at",
+            "/rest/v1/devices?select=device_id,machine_name,panel_version,receiver_version,has_panel,panel_uninstalled_at,media_blocked,last_seen_at",
             null, ct).ConfigureAwait(false);
         using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
         await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
@@ -327,6 +327,7 @@ public sealed class CloudDevice
     public string? PanelVersion { get; set; }
     public string? ReceiverVersion { get; set; }
     public bool HasPanel { get; set; }
+    public DateTimeOffset? PanelUninstalledAt { get; set; }
     public bool MediaBlocked { get; set; }
     public DateTimeOffset LastSeenAt { get; set; }
 }

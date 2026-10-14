@@ -427,5 +427,29 @@
       "Receptores aceitam permissões individuais ou por função para alterar, restaurar e definir papel de parede, respeitando a opção global.",
       "Ajustes nos bindings evitam erros de inicialização e no fluxo de envio de imagens."
     ]
+  },
+  {
+    "version": "2.5.39.0",
+    "summary": "A desinstalação é sincronizada e instalações antigas deixam de aparecer online por engano.",
+    "changes": [
+      "O painel registra a desinstalação na nuvem e exibe o cartão como PAINEL DESINSTALADO.",
+      "O receptor repete a sinalização quando a desinstalação ocorreu sem conexão.",
+      "O desinstalador preserva a identidade da máquina para que uma reinstalação reutilize o mesmo cartão.",
+      "O ping verifica o ID do receptor e não marca como online um cartão antigo respondido por outra instalação."
+    ]
+  },
+  {
+    "version": "2.5.40.0",
+    "summary": "Atualização automática do painel com aviso de progresso e permissões administrativas corrigidas.",
+    "changes": [
+      "O painel registra a desinstalação na nuvem e exibe o cartão como PAINEL DESINSTALADO.",
+      "O receptor repete a sinalização quando a desinstalação ocorreu sem conexão.",
+      "O desinstalador preserva a identidade da máquina para que uma reinstalação reutilize o mesmo cartão.",
+      "O ping verifica o ID do receptor e não marca como online um cartão antigo respondido por outra instalação.",
+      "O painel mostra abaixo do ping que está baixando automaticamente a nova versão do Comunicador, com o progresso do download.",
+      "A mensagem de atualização automática é somente do painel; não anuncia atualização do receptor.",
+      "Usuários ADM e permissões delegadas podem personalizar a aparência do painel e administrar grupos e modelos compartilhados.",
+      "Alterar papel de parede não exige a permissão geral de envio de mídias."
+    ]
   }
 ]

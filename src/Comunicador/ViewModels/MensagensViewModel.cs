@@ -105,8 +105,9 @@ public sealed class MensagensViewModel : ViewModelBase
     }
     public string NovoGrupoNome { get => _novoGrupoNome; set => SetField(ref _novoGrupoNome, value); }
     public string NovoModeloNome { get => _novoModeloNome; set => SetField(ref _novoModeloNome, value); }
-    public bool PodeGerenciarBiblioteca => _cloud.IsAdmin && _cloud.GlobalConfig is not null;
-    public bool PodeGerenciarCarrossel => _cloud.IsAdmin;
+    public bool PodeGerenciarBiblioteca => (_cloud.IsAdmin || _cloud.HasPermission("manage_shared_content"))
+        && _cloud.GlobalConfig is not null;
+    public bool PodeGerenciarCarrossel => _cloud.IsAdmin || _cloud.HasPermission("send_media");
     public bool ModoEnvioIndividual
     {
         get => _modoEnvioIndividual;
@@ -213,7 +214,7 @@ public sealed class MensagensViewModel : ViewModelBase
 
     public void IniciarEnvioIndividual(Computador computador, bool imagem)
     {
-        if (!_cloud.HasPermission("send_media")) return;
+        if (!_cloud.HasPermission("send_media") && !(imagem && PodeAlterarPapelParede)) return;
         _selecaoAnterior = Destinatarios.ToDictionary(d => d.Computador.Id, d => d.Selecionado,
             StringComparer.OrdinalIgnoreCase);
         _idDestinatarioIndividual = computador.Id;
@@ -890,7 +891,9 @@ public sealed class MensagensViewModel : ViewModelBase
 
     private bool PodeEnviar()
     {
-        if (!_cloud.HasPermission("send_media")) return false;
+        if (AlterarImagemSistema
+            ? !PodeAlterarPapelParede
+            : !_cloud.HasPermission("send_media")) return false;
         var selecionados = Destinatarios.Where(d => d.Selecionado).ToList();
         if (ModoEnvioIndividual)
         {

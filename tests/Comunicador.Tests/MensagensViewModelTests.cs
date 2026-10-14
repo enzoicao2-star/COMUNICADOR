@@ -97,6 +97,30 @@ public sealed class MensagensViewModelTests
         Assert.True(contexto.Mensagens.Destinatarios.Single().Selecionado);
     }
 
+    [Fact]
+    public void Permissao_de_papel_de_parede_nao_exige_permissao_geral_de_midia()
+    {
+        var pasta = Path.Combine(Path.GetTempPath(), $"comunicador-wallpaper-permission-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(pasta);
+        using var contexto = CriarContexto(pasta);
+        DefinirEstadoAdmin(contexto.Cloud, isAdmin: false, adminDeviceId: "owner-remoto");
+        contexto.Perfis.Salvar("painel-teste", "Painel teste", false,
+            [new BadgeUsuario
+            {
+                Id = "__individual_permissions",
+                PermissoesIndividuais = ["change_wallpaper"],
+            }], "painel-teste");
+
+        var computador = ComputadorPareado("remoto", "PC remoto", 1);
+        contexto.Computadores.Computadores.Add(computador);
+        contexto.Mensagens.IniciarEnvioIndividual(computador, imagem: true);
+        DefinirImagemCarregada(contexto.Mensagens);
+        contexto.Mensagens.DefinirComoPapelDeParede = true;
+
+        Assert.True(contexto.Mensagens.PodeAlterarPapelParede);
+        Assert.True(contexto.Mensagens.EnviarCommand.CanExecute(null));
+    }
+
     private static Contexto CriarContexto(string pasta)
     {
         var settings = new AppSettings { PainelId = "painel-teste", NomePainel = "Painel teste" };
@@ -122,7 +146,7 @@ public sealed class MensagensViewModelTests
             new HistoricoRepository(new JsonStore<HistoricoEntry>(Path.Combine(pasta, "historico.json"))),
             cloud,
             new ReenvioRepository(Path.Combine(pasta, "reenvios")));
-        return new Contexto(pasta, discovery, computadores, mensagens, cloud);
+        return new Contexto(pasta, discovery, computadores, mensagens, cloud, perfis);
     }
 
     private static Computador ComputadorPareado(string id, string nome, int monitores) => new()
@@ -159,12 +183,21 @@ public sealed class MensagensViewModelTests
             .GetField(nome, BindingFlags.Instance | BindingFlags.NonPublic)!
             .SetValue(mensagens, valor);
 
+    private static void DefinirEstadoAdmin(CloudSyncService cloud, bool isAdmin, string? adminDeviceId)
+    {
+        typeof(CloudSyncService).GetProperty(nameof(CloudSyncService.IsAdmin))!
+            .GetSetMethod(nonPublic: true)!.Invoke(cloud, [isAdmin]);
+        typeof(CloudSyncService).GetProperty(nameof(CloudSyncService.AdminDeviceId))!
+            .GetSetMethod(nonPublic: true)!.Invoke(cloud, [adminDeviceId]);
+    }
+
     private sealed record Contexto(
         string Pasta,
         DiscoveryService Discovery,
         ComputadoresViewModel Computadores,
         MensagensViewModel Mensagens,
-        CloudSyncService Cloud) : IDisposable
+        CloudSyncService Cloud,
+        PerfilComputadorRepository Perfis) : IDisposable
     {
         public void Dispose()
         {

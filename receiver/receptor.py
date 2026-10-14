@@ -44,7 +44,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.20"
+RECEIVER_VERSION = "2.5.21"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -746,6 +746,7 @@ class Config:
                 changed = True
             self.data["has_panel"] = bool(identity.get("has_panel", False))
             self.data["panel_version"] = identity.get("panel_version")
+            self.data["panel_uninstalled"] = bool(identity.get("panel_uninstalled", False))
             self.data["media_blocked"] = bool(identity.get("media_blocked", self.data.get("media_blocked", False)))
         elif "computer_id" not in self.data:
             self.data["computer_id"] = str(uuid.uuid4())
@@ -785,6 +786,10 @@ class Config:
         return value if isinstance(value, str) and value else None
 
     @property
+    def panel_uninstalled(self) -> bool:
+        return bool(self.data.get("panel_uninstalled", False))
+
+    @property
     def media_blocked(self) -> bool:
         self.refresh_shared_preferences()
         return bool(self.data.get("media_blocked", False))
@@ -809,6 +814,7 @@ class Config:
             changed = True
         has_panel = bool(identity.get("has_panel", self.data.get("has_panel", False)))
         panel_version = identity.get("panel_version", self.data.get("panel_version"))
+        panel_uninstalled = bool(identity.get("panel_uninstalled", self.data.get("panel_uninstalled", False)))
         media_blocked = bool(identity.get("media_blocked", self.data.get("media_blocked", False)))
         if self.data.get("has_panel") != has_panel:
             self.data["has_panel"] = has_panel
@@ -816,11 +822,31 @@ class Config:
         if self.data.get("panel_version") != panel_version:
             self.data["panel_version"] = panel_version
             changed = True
+        if self.data.get("panel_uninstalled", False) != panel_uninstalled:
+            self.data["panel_uninstalled"] = panel_uninstalled
+            changed = True
         if self.data.get("media_blocked") != media_blocked:
             self.data["media_blocked"] = media_blocked
             changed = True
         if changed:
             self.save()
+
+    def clear_panel_uninstalled_marker(self) -> None:
+        """Remove the retry marker only after the cloud confirms the uninstall."""
+        self.data["panel_uninstalled"] = False
+        shared_path = self.directory.parent / "device.json"
+        try:
+            identity = json.loads(shared_path.read_text(encoding="utf-8"))
+            if identity.get("device_id") != self.computer_id:
+                self.save()
+                return
+            identity["panel_uninstalled"] = False
+            temporary = shared_path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(identity, indent=2, ensure_ascii=False), encoding="utf-8")
+            temporary.replace(shared_path)
+        except (OSError, json.JSONDecodeError):
+            logging.exception("Não foi possível limpar o marcador local de desinstalação do painel.")
+        self.save()
 
     @property
     def paired_panels(self) -> dict:
@@ -986,6 +1012,11 @@ class CloudDeliveryWorker(threading.Thread):
             "p_has_panel": self.config.has_panel,
             "p_media_blocked": self.config.media_blocked,
         })
+        if self.config.panel_uninstalled:
+            self._autorizado("/rest/v1/rpc/unregister_panel", "POST", {
+                "p_device_id": self.config.computer_id,
+            })
+            self.config.clear_panel_uninstalled_marker()
 
     def is_current_owner(self, panel_id: str) -> bool:
         state = self._autorizado("/rest/v1/rpc/get_admin_state", "POST", {}) or []

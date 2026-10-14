@@ -40,12 +40,14 @@ public sealed class PanelUpdateService
     }
 
     public async Task StartUpdateAsync(
-        PanelUpdateInfo info, CancellationToken cancellationToken = default, bool forceReinstall = false)
+        PanelUpdateInfo info, CancellationToken cancellationToken = default, bool forceReinstall = false,
+        bool automaticPanelUpdate = false)
     {
         var executable = Environment.ProcessPath
             ?? throw new InvalidOperationException("Não foi possível localizar o executável atual.");
         var updater = FindUpdater(executable);
-        if (updater is null || !SupportsStagedRestart(updater) || !SupportsBackgroundRestart(updater))
+        if (updater is null || !SupportsStagedRestart(updater) || !SupportsBackgroundRestart(updater)
+            || automaticPanelUpdate && !SupportsAutomaticPanelUpdate(updater))
         {
             try
             {
@@ -58,7 +60,8 @@ public sealed class PanelUpdateService
                 && ex is HttpRequestException or IOException or UnauthorizedAccessException) { }
         }
         if (updater is null) throw new InvalidOperationException("Não foi possível localizar o atualizador do Comunicador.");
-        if (!SupportsStagedRestart(updater) || !SupportsBackgroundRestart(updater))
+        if (!SupportsStagedRestart(updater) || !SupportsBackgroundRestart(updater)
+            || automaticPanelUpdate && !SupportsAutomaticPanelUpdate(updater))
             throw new InvalidOperationException("Não foi possível obter o atualizador com reinício programado.");
         var suportaProgresso = SupportsProgress(updater);
 
@@ -93,6 +96,7 @@ public sealed class PanelUpdateService
         process.ArgumentList.Add("-RestartAfterUpdate");
         process.ArgumentList.Add("-RestartInBackground");
         if (forceReinstall) process.ArgumentList.Add("-ForceReinstall");
+        if (automaticPanelUpdate) process.ArgumentList.Add("-AutomaticPanelUpdate");
         using var started = Process.Start(process);
         if (started is null) throw new InvalidOperationException("O atualizador não pôde ser iniciado.");
     }
@@ -206,6 +210,12 @@ public sealed class PanelUpdateService
     private static bool SupportsBackgroundRestart(string path)
     {
         try { return File.ReadAllText(path).Contains("$RestartInBackground", StringComparison.Ordinal); }
+        catch { return false; }
+    }
+
+    private static bool SupportsAutomaticPanelUpdate(string path)
+    {
+        try { return File.ReadAllText(path).Contains("[switch]$AutomaticPanelUpdate", StringComparison.Ordinal); }
         catch { return false; }
     }
 

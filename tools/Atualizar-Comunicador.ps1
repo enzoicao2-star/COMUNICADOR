@@ -10,7 +10,8 @@ param(
     [switch]$SkipShortcuts,
     [switch]$RestartAfterUpdate,
     [switch]$RestartInBackground,
-    [switch]$ForceReinstall
+    [switch]$ForceReinstall,
+    [switch]$AutomaticPanelUpdate
 )
 
 $ErrorActionPreference = 'Stop'
@@ -156,6 +157,7 @@ function Test-CompleteInstall([string]$Root, [object]$Metadata) {
     $required = @(
         'ABRIR_COMUNICADOR.bat',
         'DESINSTALAR_COMUNICADOR.bat',
+        'MARCAR_PAINEL_DESINSTALADO.ps1',
         'LIBERAR_FIREWALL.bat',
         'REVERTER_CONFIGURACOES.bat',
         'README.md',
@@ -198,9 +200,9 @@ function Install-RepositorySnapshot(
     try {
         New-Item -ItemType Directory -Force -Path $extractPath | Out-Null
         Write-Host 'Baixando todos os arquivos do Comunicador publicados no GitHub...'
-        Write-UpdateProgress 'running' 7 'Baixando os arquivos auxiliares...'
+        Write-UpdateProgress 'running' 7 $downloadMessage
         $archiveRequest = Add-CacheBuster $ArchiveUrl 't' ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString())
-        Download-FileWithProgress $archiveRequest $archivePath 'Baixando os arquivos do programa...' 8 42
+        Download-FileWithProgress $archiveRequest $archivePath $downloadMessage 8 42
         Expand-Archive -LiteralPath $archivePath -DestinationPath $extractPath -Force
 
         $topLevelDirectories = @(Get-ChildItem -LiteralPath $extractPath -Directory -Force)
@@ -215,6 +217,7 @@ function Install-RepositorySnapshot(
         $requiredSnapshotFiles = @(
             'ABRIR_COMUNICADOR.bat',
             'DESINSTALAR_COMUNICADOR.bat',
+            'MARCAR_PAINEL_DESINSTALADO.ps1',
             'LIBERAR_FIREWALL.bat',
             'REVERTER_CONFIGURACOES.bat',
             'release\Comunicador.exe',
@@ -414,7 +417,12 @@ try {
         -or $expectedHash -notmatch '^[A-F0-9]{64}$') {
         throw 'O manifesto publicado esta incompleto.'
     }
-    Write-UpdateProgress 'running' 5 ('Preparando a versão ' + $latestVersion + '...')
+    $downloadMessage = if ($AutomaticPanelUpdate) {
+        'Baixando automaticamente a nova versão do Comunicador ' + $latestVersion + '...'
+    } else {
+        'Baixando a nova versão do Comunicador ' + $latestVersion + '...'
+    }
+    Write-UpdateProgress 'running' 5 $downloadMessage
 }
 catch {
     if (Test-Path -LiteralPath $target) {
@@ -495,7 +503,7 @@ $downloadPath = Join-Path $targetDirectory 'Comunicador.download.exe'
 try {
     Remove-Item -LiteralPath $downloadPath -Force -ErrorAction SilentlyContinue
     $downloadRequest = Add-CacheBuster $downloadUrl 'v' $latestVersion.ToString()
-    Download-FileWithProgress $downloadRequest $downloadPath 'Baixando a nova versão do Comunicador...' 70 92
+    Download-FileWithProgress $downloadRequest $downloadPath $downloadMessage 70 92
 
     Write-UpdateProgress 'running' 94 'Validando a atualização...'
     $actualHash = (Get-Sha256 $downloadPath).ToUpperInvariant()

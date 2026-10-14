@@ -57,6 +57,8 @@
                                 <WrapPanel>
                                     <CheckBox Content="Gerenciar perfis" IsChecked="{Binding ComputadorGerenciado.PermissaoIndividualGerenciarPerfil}" Margin="0,0,14,7" />
                                     <CheckBox Content="Gerenciar badges" IsChecked="{Binding ComputadorGerenciado.PermissaoIndividualGerenciarBadges}" Margin="0,0,14,7" />
+                                    <CheckBox Content="Gerenciar grupos e modelos" IsChecked="{Binding ComputadorGerenciado.PermissaoIndividualGerenciarBiblioteca}" Margin="0,0,14,7" />
+                                    <CheckBox Content="Personalizar painel" IsChecked="{Binding ComputadorGerenciado.PermissaoIndividualPersonalizarPainel}" Margin="0,0,14,7" />
                                     <CheckBox Content="Enviar mídias" IsChecked="{Binding ComputadorGerenciado.PermissaoIndividualEnviarMidias}" Margin="0,0,14,7" />
                                     <CheckBox Content="Alterar papel de parede" IsChecked="{Binding ComputadorGerenciado.PermissaoIndividualAlterarPapelParede}" Margin="0,0,14,7" />
                                     <CheckBox Content="Instalar painel" IsChecked="{Binding ComputadorGerenciado.PermissaoIndividualInstalarPainel}" Margin="0,0,14,7" />

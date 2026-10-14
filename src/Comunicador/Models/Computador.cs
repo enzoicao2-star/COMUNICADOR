@@ -23,6 +23,7 @@ public sealed class Computador : ObservableModel
     private DateTime _ultimaVezVisto = DateTime.UtcNow;
     private bool _emEdicao;
     private bool _temPainel;
+    private bool _painelDesinstalado;
     private bool _registradoNaNuvem;
     private bool _midiasBloqueadas;
     private List<MonitorInfo> _monitores = new();
@@ -105,6 +106,20 @@ public sealed class Computador : ObservableModel
             if (SetField(ref _temPainel, value))
             {
                 OnPropertyChanged(nameof(PodeAtualizarReceptor));
+                OnPropertyChanged(nameof(StatusVersaoPainel));
+                OnPropertyChanged(nameof(StatusVersoes));
+                OnPropertyChanged(nameof(TodasVersoesAtualizadas));
+                OnPropertyChanged(nameof(TextoTipoInstalacao));
+            }
+        }
+    }
+    public bool PainelDesinstalado
+    {
+        get => _painelDesinstalado;
+        set
+        {
+            if (SetField(ref _painelDesinstalado, value))
+            {
                 OnPropertyChanged(nameof(StatusVersaoPainel));
                 OnPropertyChanged(nameof(StatusVersoes));
                 OnPropertyChanged(nameof(TodasVersoesAtualizadas));
@@ -222,6 +237,8 @@ public sealed class Computador : ObservableModel
                 OnPropertyChanged(nameof(PermissaoIndividualCmdRemoto));
                 OnPropertyChanged(nameof(PermissaoIndividualGerenciarPerfil));
                 OnPropertyChanged(nameof(PermissaoIndividualGerenciarBadges));
+                OnPropertyChanged(nameof(PermissaoIndividualGerenciarBiblioteca));
+                OnPropertyChanged(nameof(PermissaoIndividualPersonalizarPainel));
                 OnPropertyChanged(nameof(PermissaoIndividualInstalarPainel));
                 OnPropertyChanged(nameof(PermissaoIndividualControlarAcesso));
                 OnPropertyChanged(nameof(PermissaoIndividualAtualizarReceptor));
@@ -234,6 +251,8 @@ public sealed class Computador : ObservableModel
     [JsonIgnore] public bool PermissaoIndividualCmdRemoto { get => TemPermissao("remote_command"); set => DefinirPermissao("remote_command", value); }
     [JsonIgnore] public bool PermissaoIndividualGerenciarPerfil { get => TemPermissao("manage_profiles"); set => DefinirPermissao("manage_profiles", value); }
     [JsonIgnore] public bool PermissaoIndividualGerenciarBadges { get => TemPermissao("manage_badges"); set => DefinirPermissao("manage_badges", value); }
+    [JsonIgnore] public bool PermissaoIndividualGerenciarBiblioteca { get => TemPermissao("manage_shared_content"); set => DefinirPermissao("manage_shared_content", value); }
+    [JsonIgnore] public bool PermissaoIndividualPersonalizarPainel { get => TemPermissao("customize_panel"); set => DefinirPermissao("customize_panel", value); }
     [JsonIgnore] public bool PermissaoIndividualInstalarPainel { get => TemPermissao("remote_install"); set => DefinirPermissao("remote_install", value); }
     [JsonIgnore] public bool PermissaoIndividualControlarAcesso { get => TemPermissao("remote_panel_access"); set => DefinirPermissao("remote_panel_access", value); }
     [JsonIgnore] public bool PermissaoIndividualAtualizarReceptor { get => TemPermissao("remote_receiver"); set => DefinirPermissao("remote_receiver", value); }
@@ -284,7 +303,9 @@ public sealed class Computador : ObservableModel
     public bool PainelAtualizado => !TemPainel || VersaoPainel == ProtocolConstants.CurrentPanelVersion;
 
     [JsonIgnore]
-    public string StatusVersaoPainel => !TemPainel
+    public string StatusVersaoPainel => PainelDesinstalado
+        ? "Painel desinstalado"
+        : !TemPainel
         ? "Somente receptor — painel não instalado"
         : string.IsNullOrWhiteSpace(VersaoPainel)
             ? "Painel antigo — versão desconhecida"
@@ -293,15 +314,19 @@ public sealed class Computador : ObservableModel
                 : $"Painel {VersaoPainel} — atualização disponível";
 
     [JsonIgnore]
-    public string StatusVersoes => TemPainel
-        ? string.Join(" · ", new[] { StatusVersaoPainel, TemReceptor ? StatusVersaoReceptor : "Receptor não instalado" })
-        : StatusVersaoReceptor;
+    public string StatusVersoes => string.Join(" · ", new[]
+    {
+        TemPainel ? StatusVersaoPainel : PainelDesinstalado ? "Painel desinstalado" : null,
+        TemReceptor ? StatusVersaoReceptor : PainelDesinstalado ? "Receptor não instalado" : null,
+    }.Where(status => status is not null));
 
     [JsonIgnore]
     public bool TemReceptor => !string.IsNullOrWhiteSpace(VersaoReceptor);
 
     [JsonIgnore]
-    public string TextoTipoInstalacao => TemReceptor ? "PAINEL + RECEPTOR" : "PAINEL";
+    public string TextoTipoInstalacao => TemPainel
+        ? TemReceptor ? "PAINEL + RECEPTOR" : "PAINEL"
+        : PainelDesinstalado ? "PAINEL DESINSTALADO" : "SOMENTE RECEPTOR";
 
     [JsonIgnore]
     public bool TodasVersoesAtualizadas => PainelAtualizado && ReceptorAtualizado;

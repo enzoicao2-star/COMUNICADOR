@@ -39,7 +39,8 @@ public sealed class CloudSyncService : IDisposable
 
     public async Task SaveGlobalConfigAsync(ConfiguracaoGlobalPrograma config, CancellationToken ct = default)
     {
-        if (!IsAdmin) throw new UnauthorizedAccessException("Somente o OWNER pode alterar as configurações globais.");
+        if (!IsAdmin && !HasPermission("customize_panel") && !HasPermission("manage_shared_content"))
+            throw new UnauthorizedAccessException("Este painel não tem permissão para alterar as configurações compartilhadas.");
         await _client.SaveGlobalConfigAsync(config, ct).ConfigureAwait(false);
         ApplyGlobalConfig(config);
     }
@@ -216,6 +217,8 @@ public sealed class CloudSyncService : IDisposable
         var profile = _profiles.Obter(deviceId);
         if (profile?.Badges.FirstOrDefault(b => b.Id == "__individual_permissions")?
                 .PermissoesIndividuais.Contains(permission, StringComparer.Ordinal) == true) return true;
+        if (permission is "customize_panel" or "manage_shared_content"
+            && profile?.Badges.Any(b => b.Id == "admin") == true) return true;
         if (permission == "manage_profiles" && profile?.Badges.Any(b => b.Id == "admin") == true) return true;
         if (GlobalConfig?.ModelosBadge is not { } roles || profile is null) return false;
         return profile.Badges.Any(b => b.RoleId is not null

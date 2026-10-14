@@ -52,7 +52,9 @@ public sealed class ReceptorClient
             response.PanelVersion, response.IsOwner ?? false);
     }
 
-    public async Task<bool> PingAsync(string ipAddress, int tcpPort, string token, CancellationToken ct = default)
+    public async Task<bool> PingAsync(
+        string ipAddress, int tcpPort, string token, string expectedComputerId,
+        CancellationToken ct = default)
     {
         try
         {
@@ -67,7 +69,8 @@ public sealed class ReceptorClient
             await TcpFraming.WriteMessageAsync(stream, ping, cts.Token).ConfigureAwait(false);
 
             var response = await ReadValidatedAsync(stream, cts.Token).ConfigureAwait(false);
-            return response.Type == ProtocolConstants.MessageType.Pong;
+            if (response.Type != ProtocolConstants.MessageType.Pong) return false;
+            return string.Equals(response.ComputerId, expectedComputerId, StringComparison.OrdinalIgnoreCase);
         }
         catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException or ReceptorComunicacaoException)
         {

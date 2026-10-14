@@ -930,6 +930,12 @@ public sealed class ComputadoresViewModel : ViewModelBase
             }
             var hasPanel = device.HasPanel;
             if (computador.TemPainel != hasPanel) { computador.TemPainel = hasPanel; changed = true; }
+            var panelUninstalled = device.PanelUninstalledAt is not null;
+            if (computador.PainelDesinstalado != panelUninstalled)
+            {
+                computador.PainelDesinstalado = panelUninstalled;
+                changed = true;
+            }
             if (!computador.RegistradoNaNuvem)
             {
                 computador.RegistradoNaNuvem = true;
@@ -940,8 +946,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 computador.MidiasBloqueadas = device.MediaBlocked;
                 changed = true;
             }
-            if (!string.IsNullOrWhiteSpace(device.PanelVersion)
-                && computador.VersaoPainel != device.PanelVersion)
+            if (!string.Equals(computador.VersaoPainel, device.PanelVersion, StringComparison.Ordinal))
             {
                 computador.VersaoPainel = device.PanelVersion;
                 changed = true;

@@ -117,7 +117,8 @@ public sealed class EnviadorNotificacoes
         }
 
         return await _client
-            .PingAsync(computador.EnderecoIp, computador.PortaTcp, computador.Token ?? string.Empty, ct)
+            .PingAsync(computador.EnderecoIp, computador.PortaTcp, computador.Token ?? string.Empty,
+                computador.Id, ct)
             .ConfigureAwait(false);
     }
 
@@ -140,7 +141,7 @@ public sealed class EnviadorNotificacoes
                     try
                     {
                         if (await _client.PingAsync(computador.EnderecoIp, computador.PortaTcp,
-                                computador.Token ?? string.Empty, ct).ConfigureAwait(false))
+                                computador.Token ?? string.Empty, computador.Id, ct).ConfigureAwait(false))
                         {
                             relogioAntigo.Stop();
                             return (true, relogioAntigo.Elapsed.TotalMilliseconds);
@@ -186,7 +187,8 @@ public sealed class EnviadorNotificacoes
     {
         var cronometro = Stopwatch.StartNew();
         var online = await _client
-            .PingAsync(computador.EnderecoIp, computador.PortaTcp, computador.Token ?? string.Empty, ct)
+            .PingAsync(computador.EnderecoIp, computador.PortaTcp, computador.Token ?? string.Empty,
+                computador.Id, ct)
             .ConfigureAwait(false);
         cronometro.Stop();
         return online ? (true, cronometro.Elapsed.TotalMilliseconds) : (false, null);

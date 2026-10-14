@@ -221,7 +221,7 @@ public class PythonReceptorIntegrationTests : IClassFixture<PythonReceptorFixtur
     {
         var client = NovoCliente();
         var par = await client.PairAsync("127.0.0.1", _tcpPort);
-        var online = await client.PingAsync("127.0.0.1", _tcpPort, par.Token);
+        var online = await client.PingAsync("127.0.0.1", _tcpPort, par.Token, par.ComputerId);
         Assert.True(online);
     }
 
@@ -229,7 +229,7 @@ public class PythonReceptorIntegrationTests : IClassFixture<PythonReceptorFixtur
     public async Task PingSemParear_RetornaFalse()
     {
         var client = NovoCliente();
-        var online = await client.PingAsync("127.0.0.1", _tcpPort, "token-invalido-nao-pareado");
+        var online = await client.PingAsync("127.0.0.1", _tcpPort, "token-invalido-nao-pareado", "receptor-python");
         Assert.False(online);
     }
 
@@ -414,8 +414,8 @@ public class PythonReceptorIntegrationTests : IClassFixture<PythonReceptorFixtur
         var parB = await clientB.PairAsync("127.0.0.1", _tcpPort);
 
         Assert.NotEqual(parA.Token, parB.Token);
-        Assert.True(await clientA.PingAsync("127.0.0.1", _tcpPort, parA.Token));
-        Assert.True(await clientB.PingAsync("127.0.0.1", _tcpPort, parB.Token));
+        Assert.True(await clientA.PingAsync("127.0.0.1", _tcpPort, parA.Token, parA.ComputerId));
+        Assert.True(await clientB.PingAsync("127.0.0.1", _tcpPort, parB.Token, parB.ComputerId));
     }
 
     [Fact]
@@ -435,7 +435,7 @@ public class PythonReceptorIntegrationTests : IClassFixture<PythonReceptorFixtur
     public async Task ComputadorOffline_PingRetornaFalseSemLancarExcecao()
     {
         var client = NovoCliente();
-        var online = await client.PingAsync("127.0.0.1", 1, "qualquer-token");
+        var online = await client.PingAsync("127.0.0.1", 1, "qualquer-token", "receptor-inexistente");
         Assert.False(online);
     }
 }

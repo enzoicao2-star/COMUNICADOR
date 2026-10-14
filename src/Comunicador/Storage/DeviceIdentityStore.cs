@@ -57,7 +57,11 @@ public static class DeviceIdentityStore
         string deviceId, bool hasPanel = true, bool? mediaBlocked = null) =>
         Save(deviceId, hasPanel, mediaBlocked);
 
-    private static void Save(string deviceId, bool hasPanel, bool? mediaBlocked = null)
+    public static void MarkPanelUninstalled(string deviceId) =>
+        Save(deviceId, hasPanel: false, mediaBlocked: null, panelUninstalled: true);
+
+    private static void Save(
+        string deviceId, bool hasPanel, bool? mediaBlocked = null, bool panelUninstalled = false)
     {
         AppPaths.EnsureCreated();
         var createdAt = DateTime.UtcNow.ToString("o");
@@ -78,7 +82,8 @@ public static class DeviceIdentityStore
         {
             device_id = deviceId,
             has_panel = hasPanel,
-            panel_version = Protocol.ProtocolConstants.CurrentPanelVersion,
+            panel_version = hasPanel ? Protocol.ProtocolConstants.CurrentPanelVersion : null,
+            panel_uninstalled = panelUninstalled,
             media_blocked = blocked,
             created_at = createdAt,
         }, new JsonSerializerOptions { WriteIndented = true });

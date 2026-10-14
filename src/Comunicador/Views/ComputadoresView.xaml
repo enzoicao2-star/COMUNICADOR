@@ -203,6 +203,13 @@
                                             Visibility="{Binding TemPainel, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock Text="PAINEL" Foreground="White" FontSize="9" FontWeight="SemiBold" />
                                     </Border>
+                                    <Border Margin="7,0,0,0" Padding="5,1" CornerRadius="6"
+                                            Background="{DynamicResource SurfaceAltBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                            Visibility="{Binding PainelDesinstalado, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="PAINEL DESINSTALADO" Foreground="{DynamicResource TextSecondaryBrush}"
+                                                   FontSize="9" FontWeight="SemiBold" />
+                                    </Border>
                                 </StackPanel>
 
                                 <WrapPanel Grid.Row="2" Margin="0,6,0,4" VerticalAlignment="Top">

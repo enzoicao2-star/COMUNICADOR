@@ -107,7 +107,8 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
             ? "Nenhum administrador definido"
             : "Administrador definido em outro computador";
     public string StatusSincronizacao => _cloud.Status;
-    public bool PodeEditarConfiguracaoGlobal => _cloud.IsAdmin;
+    public bool PodeEditarConfiguracaoGlobal => _cloud.IsAdmin || _cloud.HasPermission("customize_panel");
+    public bool PodeEditarPoliticasGlobais => _cloud.IsAdmin;
     public bool PodeEditarPersonalizacaoLocal => _cloud.IsAdmin || _cloud.GlobalConfig is null;
     public bool PodeAlterarInicializacaoLocal => _cloud.GlobalConfig?.PoliticaInicializacaoWindows is null or "local";
     public bool ExibirPoliticaInicializacaoGlobal => !PodeAlterarInicializacaoLocal;
@@ -522,6 +523,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         OnPropertyChanged(nameof(StatusAdministrador));
         OnPropertyChanged(nameof(StatusSincronizacao));
         OnPropertyChanged(nameof(PodeEditarConfiguracaoGlobal));
+        OnPropertyChanged(nameof(PodeEditarPoliticasGlobais));
         OnPropertyChanged(nameof(PodeEditarPersonalizacaoLocal));
         CommandManager.InvalidateRequerySuggested();
         StatusOperacao = _cloud.Status;
@@ -613,7 +615,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
 
     private async Task SalvarConfiguracoesGlobaisAsync()
     {
-        if (!_cloud.IsAdmin) return;
+        if (!PodeEditarConfiguracaoGlobal) return;
         if (!Fundos.Contains(GlobalFundo) || GlobalTema is not ("Escuro" or "Claro")
             || GlobalPaleta is not ("Azul" or "Violeta" or "Verde" or "Coral")
             || !PoliticasInicializacaoWindows.Contains(GlobalPoliticaInicializacaoWindows)
