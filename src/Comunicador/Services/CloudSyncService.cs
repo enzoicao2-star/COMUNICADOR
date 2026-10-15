@@ -326,7 +326,8 @@ public sealed class CloudSyncService : IDisposable
     public async Task QueueRemoteCommandCancellationAsync(
         string targetDeviceId, string requestId, CancellationToken ct = default)
     {
-        if (!IsAdmin) throw new UnauthorizedAccessException("Somente o OWNER pode cancelar comandos remotos.");
+        if (!HasPermission("remote_command"))
+            throw new UnauthorizedAccessException("Este painel não tem permissão para cancelar comandos remotos.");
         if (!Guid.TryParse(requestId, out _))
             throw new ArgumentException("Identificador do comando inválido.", nameof(requestId));
         if (string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))

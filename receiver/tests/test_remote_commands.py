@@ -62,22 +62,39 @@ def test_remote_command_expiry():
     assert not receptor.remote_command_is_fresh(None)
 
 
-def test_non_owner_cannot_run_cmd(monkeypatch):
+def test_non_owner_without_remote_command_permission_is_rejected(monkeypatch):
     worker = object.__new__(receptor.CloudDeliveryWorker)
     responses = []
-    worker._autorizado = lambda *args: [{"admin_device_id": "the-owner"}]
+    worker.has_panel_permission = lambda _panel_id, permission: permission == "other-permission"
     worker._atualizar_entrega = lambda delivery_id, result: responses.append(result)
     monkeypatch.setattr(receptor, "executar_cmd_local", lambda command: pytest.fail("must not run"))
     worker._executar_comando_admin({"id": "delivery", "sender_device_id": "someone-else",
                                   "payload": {"command": "run_cmd", "line": "echo hello",
                                               "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()}})
-    assert responses == ["Comando recusado: o remetente não é o OWNER atual."]
+    assert responses == ["Comando recusado: o remetente não tem permissão para CMD remoto."]
+
+
+def test_delegated_remote_command_permission_allows_cmd(monkeypatch):
+    worker = object.__new__(receptor.CloudDeliveryWorker)
+    responses = []
+    worker.has_panel_permission = lambda panel_id, permission: (
+        panel_id == "delegated-panel" and permission == "remote_command")
+    worker._atualizar_entrega = lambda delivery_id, result: responses.append((delivery_id, result))
+    monkeypatch.setattr(receptor, "executar_cmd_local",
+                        lambda command, request_id=None: "Código de saída: 0\nok")
+
+    worker._executar_comando_admin({"id": "delegated-delivery", "sender_device_id": "delegated-panel",
+                                  "payload": {"command": "run_cmd", "line": "echo ok",
+                                              "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()}})
+
+    assert responses == [("delegated-delivery", "Código de saída: 0\nok")]
 
 
 def test_owner_command_runs_and_returns_response(monkeypatch):
     worker = object.__new__(receptor.CloudDeliveryWorker)
     responses = []
-    worker._autorizado = lambda *args: [{"admin_device_id": "the-owner"}]
+    worker.has_panel_permission = lambda panel_id, permission: (
+        panel_id == "the-owner" and permission == "remote_command")
     worker._atualizar_entrega = lambda delivery_id, result: responses.append((delivery_id, result))
     monkeypatch.setattr(receptor, "executar_cmd_local",
                         lambda command, request_id=None: "Código de saída: 0\nok")

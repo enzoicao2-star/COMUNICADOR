@@ -1165,6 +1165,14 @@ class CloudDeliveryWorker(threading.Thread):
         if self.is_current_owner(panel_id):
             return True
 
+        return self.has_panel_permission(panel_id, "change_wallpaper", config)
+
+    def has_panel_permission(self, panel_id: str, permission: str, global_config=None) -> bool:
+        if not isinstance(panel_id, str) or not panel_id.strip():
+            return False
+        if self.is_current_owner(panel_id):
+            return True
+
         query_id = urllib.parse.quote(panel_id, safe="")
         profiles = self._autorizado(
             f"/rest/v1/panel_profiles?device_id=eq.{query_id}&select=badges") or []
@@ -1183,20 +1191,27 @@ class CloudDeliveryWorker(threading.Thread):
                 continue
             if badge.get("id") == "__individual_permissions":
                 permissions = badge.get("permissoes_individuais") or []
-                if isinstance(permissions, list) and "change_wallpaper" in permissions:
+                if isinstance(permissions, list) and permission in permissions:
                     return True
             role_id = badge.get("role_id")
             if isinstance(role_id, str) and role_id:
                 role_ids.add(role_id)
 
-        roles = config.get("modelos_badge", config.get("ModelosBadge", []))
+        if not role_ids:
+            return False
+        if global_config is None:
+            state = self._autorizado("/rest/v1/rpc/get_global_config", "POST", {}) or []
+            global_config = state[0].get("config", {}) if state and isinstance(state[0], dict) else {}
+        if not isinstance(global_config, dict):
+            return False
+        roles = global_config.get("modelos_badge", global_config.get("ModelosBadge", []))
         if not isinstance(roles, list):
             return False
         return any(
             isinstance(role, dict)
             and str(role.get("id", "")) in role_ids
             and isinstance(role.get("permissoes"), list)
-            and "change_wallpaper" in role["permissoes"]
+            and permission in role["permissoes"]
             for role in roles
         )
 
@@ -1438,16 +1453,15 @@ class CloudDeliveryWorker(threading.Thread):
             confirmation_required=payload.get("confirmation_required", False))
 
     def _executar_comando_admin(self, delivery):
-        """Executa apenas os comandos remotos explicitamente liberados ao OWNER pelo RLS."""
+        """Executa CMD remoto somente para OWNER ou painel com permissão remota."""
         payload = delivery.get("payload") or {}
         command = payload.get("command")
         if command in {"run_cmd", "cancel_cmd"}:
             try:
-                state = self._autorizado("/rest/v1/rpc/get_admin_state", "POST", {}) or []
-                admin_id = state[0].get("admin_device_id") if state else None
+                sender_id = delivery.get("sender_device_id", "")
                 request_id = payload.get("request_id")
-                if not admin_id or str(admin_id).lower() != str(delivery.get("sender_device_id", "")).lower():
-                    result = "Comando recusado: o remetente não é o OWNER atual."
+                if not self.has_panel_permission(sender_id, "remote_command"):
+                    result = "Comando recusado: o remetente não tem permissão para CMD remoto."
                 elif not remote_command_is_fresh(payload.get("expires_at")):
                     result = "Pedido de cancelamento expirado." if command == "cancel_cmd" else "Comando expirado. Envie novamente."
                 elif command == "cancel_cmd":
@@ -1459,8 +1473,8 @@ class CloudDeliveryWorker(threading.Thread):
                              delivery.get("sender_device_id", "remetente"))
                 self._atualizar_entrega(delivery["id"], result)
             except (OSError, ValueError, urllib.error.URLError, IndexError, KeyError) as exc:
-                logging.warning("CMD remoto recusado: validação do OWNER indisponível: %s", exc)
-                self._atualizar_entrega(delivery["id"], "Comando recusado: não foi possível validar o OWNER.")
+                logging.warning("CMD remoto recusado: validação da permissão indisponível: %s", exc)
+                self._atualizar_entrega(delivery["id"], "Comando recusado: não foi possível validar a permissão.")
             return
         base = "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main"
         relative = {

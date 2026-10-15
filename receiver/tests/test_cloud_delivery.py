@@ -173,6 +173,24 @@ def test_wallpaper_permission_reads_individual_profile_permission():
     assert worker.can_change_wallpaper("panel-7") is True
 
 
+def test_remote_command_permission_reads_individual_profile_permission():
+    worker = _worker()
+    worker.__dict__.pop("can_change_wallpaper")
+    worker.is_current_owner = lambda _panel_id: False
+
+    def authorized(path, method="GET", body=None):
+        if path == "/rest/v1/panel_profiles?device_id=eq.panel-remote&select=badges":
+            return [{"device_id": "panel-remote", "badges": [
+                {"id": "__individual_permissions",
+                 "permissoes_individuais": ["remote_command"]},
+            ]}]
+        raise AssertionError(f"Caminho inesperado: {path}")
+
+    worker._autorizado = authorized
+
+    assert worker.has_panel_permission("panel-remote", "remote_command") is True
+
+
 def test_local_sender_wallpaper_permission_requires_paired_panel_token():
     config = object.__new__(receptor.Config)
     config.data = {"paired_panels": {"panel-9": {"token": "valid-token"}}}

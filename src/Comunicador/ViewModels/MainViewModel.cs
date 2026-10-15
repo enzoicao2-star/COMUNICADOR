@@ -386,16 +386,14 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var command = payload.TryGetProperty("command", out var commandNode) ? commandNode.GetString() : null;
         var requiredPermission = command switch
         {
-            "run_cmd" or "cancel_cmd" => "owner_only",
+            "run_cmd" or "cancel_cmd" => "remote_command",
             "install_panel" or "reinstall_panel" => "remote_install",
             "disable_panel" or "enable_panel" => "remote_panel_access",
             "reinstall_receiver" => "remote_receiver",
             _ => string.Empty,
         };
         var trustedSender = !string.IsNullOrWhiteSpace(requiredPermission)
-            && (command is "run_cmd" or "cancel_cmd"
-                ? await _cloudSync.IsCurrentAdminDeviceAsync(delivery.SenderDeviceId).ConfigureAwait(true)
-                : _cloudSync.HasPermissionForDevice(delivery.SenderDeviceId, requiredPermission));
+            && _cloudSync.HasPermissionForDevice(delivery.SenderDeviceId, requiredPermission);
         string result;
         if (!trustedSender)
         {
