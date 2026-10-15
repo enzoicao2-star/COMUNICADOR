@@ -43,8 +43,31 @@
         <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
             <StackPanel>
                 <TextBlock Text="Mensagens" Style="{StaticResource TituloSecao}" />
-                <TextBlock Text="Monte o aviso, escolha os computadores e envie pela rede local."
+                <TextBlock Text="Prepare o aviso para enviar pela rede local."
                            Style="{StaticResource Subtitulo}" />
+                <Border Margin="0,8,0,0" Padding="10,6" HorizontalAlignment="Left"
+                        Background="{DynamicResource SidebarSelectedBrush}"
+                        BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1" CornerRadius="10">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ModoEnvioIndividual}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="&#xE7F4;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                   Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <TextBlock Text="Enviar para" Style="{StaticResource Subtitulo}"
+                                   VerticalAlignment="Center" Margin="0,0,5,0" />
+                        <TextBlock Text="{Binding NomeDestinatarioIndividual}" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
             </StackPanel>
             <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" CornerRadius="12"
                     Padding="10,5" Background="{DynamicResource SurfaceBrush}"
