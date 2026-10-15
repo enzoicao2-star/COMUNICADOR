@@ -454,10 +454,11 @@
   },
   {
     "version": "2.5.41.0",
-    "summary": "Nebulosa interativa, transições suaves e telas mais compactas.",
+    "summary": "Nebulosa interativa, inicialização com progresso real e telas mais compactas.",
     "changes": [
       "O fundo Nebulosa halftone reage ao movimento e aos cliques do mouse, com partículas pontilhadas e movimento reduzido compatível com a acessibilidade.",
       "A troca entre abas e telas internas ganhou transições direcionais curtas, que acompanham a navegação e evitam saltos quando várias abas são acionadas rapidamente.",
+      "A animação de inicialização agora acompanha a leitura dos dados locais, o início dos serviços e a preparação das seis áreas do painel; só termina quando essas etapas forem concluídas.",
       "As telas de configurações, mensagens, lembretes, histórico e logs usam espaçamento mais compacto e removem animações simultâneas que podiam deixar a navegação pesada.",
       "Os cards dos computadores mantêm o visual e o conteúdo existentes."
     ]

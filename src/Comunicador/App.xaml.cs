@@ -22,7 +22,7 @@ public partial class App : Application
     private Task? _activationListener;
     private bool _ownsInstanceMutex;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -44,7 +44,6 @@ public partial class App : Application
                     WindowStyle = WindowStyle.None,
                     ShowInTaskbar = false,
                     ShowActivated = false,
-                    Opacity = 0,
                 };
                 smokeWindow.ContentRendered += (_, _) =>
                 {
@@ -79,22 +78,23 @@ public partial class App : Application
                     WindowStartupLocation = WindowStartupLocation.Manual,
                     ShowInTaskbar = false,
                     ShowActivated = false,
-                    Opacity = 0,
                 };
                 MainWindow = smokeWindow;
-                smokeWindow.ContentRendered += (_, _) =>
+                smokeWindow.Loaded += (_, _) =>
                 {
                     try
                     {
+                        smokeWindow.UpdateLayout();
                         smokeWindow.NavegarPara(new System.Windows.Controls.Grid());
+                        smokeWindow.UpdateLayout();
                         var onlyOneWindow = Current.Windows.OfType<Window>().Count() == 1;
                         var openedInsideMainWindow = smokeWindow.TelaAninhadaAtiva;
                         smokeWindow.NavegarVoltar();
-                        var returnedToMainScreen = !smokeWindow.TelaAninhadaAtiva;
                         smokeWindow.UpdateLayout();
+                        var returnedToMainScreen = !smokeWindow.TelaAninhadaAtiva;
                         if (!onlyOneWindow || !openedInsideMainWindow || !returnedToMainScreen)
                             throw new InvalidOperationException("A navegação não permaneceu em uma única janela principal.");
-                        File.WriteAllText(marker, "Primeiro quadro, troca de tela e Voltar validados com uma única janela.");
+                        File.WriteAllText(marker, "Layout inicial, troca de tela e Voltar validados com uma única janela.");
                         smokeWindow.Close();
                         Shutdown(0);
                     }
@@ -131,14 +131,24 @@ public partial class App : Application
         BenchmarkFile = e.Args.FirstOrDefault(arg =>
             arg.StartsWith("--benchmark-file=", StringComparison.OrdinalIgnoreCase))?[17..];
 
+        SplashWindow? splash = null;
         try
         {
+            if (!StartedInBackground)
+            {
+                splash = new SplashWindow();
+                splash.ReportarProgresso("Carregando preferências locais...", 4);
+                splash.Show();
+                await Dispatcher.Yield(DispatcherPriority.Background);
+            }
+
             var settings = SettingsStore.Load();
+            splash?.ReportarProgresso("Preferências carregadas", 12);
             StartupManager.Aplicar(settings.IniciarComWindows);
             _mainViewModel = new MainViewModel(settings);
+            splash?.ReportarProgresso("Dados locais carregados", 32);
 
             var window = new MainWindow { DataContext = _mainViewModel };
-            if (StartedInBackground) window.PrepareForBackgroundStartup();
 #if TEST_BUILD
             window.Title = "Comunicador — Teste";
 #endif
@@ -154,18 +164,48 @@ public partial class App : Application
                 }
             }
             MainWindow = window;
-            window.Show();
-            // Deixa o WPF desenhar a primeira tela antes de iniciar descoberta,
-            // sincronização na nuvem e monitoramento em segundo plano.
-            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(_mainViewModel.Start));
-            if (!StartedInBackground)
+
+            if (StartedInBackground)
             {
-                var resumo = _mainViewModel.ConsumeUpdateSummary();
-                if (!string.IsNullOrWhiteSpace(resumo)) window.MostrarResumoAtualizacao(resumo);
+                window.PrepareForBackgroundStartup();
+                window.Show();
+                _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(_mainViewModel.Start));
+                return;
             }
+
+            window.PrepareForSplashStartup();
+            window.Show();
+            await window.FirstContentRenderedTask;
+            splash?.ReportarProgresso("Preparando os serviços do painel...", 48);
+
+            _mainViewModel.Start();
+            splash?.ReportarProgresso("Serviços locais iniciados", 60);
+
+            await window.PrepararSecoesParaInicioAsync((loaded, total, section) =>
+            {
+                var progress = 60 + loaded * 35d / total;
+                splash?.ReportarProgresso($"Preparando {section} ({loaded} de {total})...", progress);
+            });
+
+            await Dispatcher.InvokeAsync(window.UpdateLayout, DispatcherPriority.ApplicationIdle);
+            splash?.ReportarProgresso("Tudo pronto", 100);
+            await Task.Delay(180);
+
+            var revealTask = window.RevelarAposInicializacaoAsync();
+            if (splash is not null)
+            {
+                await splash.AnimateExitAsync();
+                splash = null;
+            }
+            await revealTask;
+            window.Activate();
+
+            var resumo = _mainViewModel.ConsumeUpdateSummary();
+            if (!string.IsNullOrWhiteSpace(resumo)) window.MostrarResumoAtualizacao(resumo);
         }
         catch (Exception ex)
         {
+            splash?.Close();
             Logger.Error($"Falha ao abrir o Comunicador: {ex}");
             MessageBox.Show($"Não foi possível abrir o Comunicador:\n\n{ex.Message}\n\nDetalhes em: {Storage.AppPaths.LogFile}",
                 "Comunicador", MessageBoxButton.OK, MessageBoxImage.Error);

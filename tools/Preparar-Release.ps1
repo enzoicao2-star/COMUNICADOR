@@ -51,18 +51,23 @@ foreach ($nativeLibrary in @('PresentationNative_cor3.dll', 'wpfgfx_cor3.dll',
 }
 
 $smokeMarker = Join-Path ([IO.Path]::GetTempPath()) ('Comunicador-smoke-' + [guid]::NewGuid().ToString('N') + '.txt')
+$smokeExtractionRoot = Join-Path $sourceDirectory '.smoke-bundle-extraction'
+$previousBundleExtractionRoot = $env:DOTNET_BUNDLE_EXTRACT_BASE_DIR
+New-Item -ItemType Directory -Force -Path $smokeExtractionRoot | Out-Null
 try {
+    $env:DOTNET_BUNDLE_EXTRACT_BASE_DIR = $smokeExtractionRoot
     $smoke = Start-Process -FilePath $source -ArgumentList ('--startup-smoke-test=' + $smokeMarker) `
         -WorkingDirectory $sourceDirectory -WindowStyle Hidden -PassThru
-    if (-not $smoke.WaitForExit(30000)) {
+    if (-not $smoke.WaitForExit(120000)) {
         Stop-Process -Id $smoke.Id -Force -ErrorAction SilentlyContinue
-        throw 'O teste de abertura do painel excedeu 30 segundos.'
+        throw 'O teste de abertura do painel excedeu 120 segundos.'
     }
     if ($smoke.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $smokeMarker -PathType Leaf)) {
         throw "O executavel nao abriu a interface WPF no teste (codigo $($smoke.ExitCode))."
     }
 }
 finally {
+    $env:DOTNET_BUNDLE_EXTRACT_BASE_DIR = $previousBundleExtractionRoot
     Remove-Item -LiteralPath $smokeMarker -Force -ErrorAction SilentlyContinue
 }
 

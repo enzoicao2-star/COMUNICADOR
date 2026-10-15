@@ -35,6 +35,9 @@ public partial class MainWindow : Window
 
     private readonly Dictionary<object, FrameworkElement> _sectionViews =
         new(ReferenceEqualityComparer.Instance);
+    private readonly TaskCompletionSource<bool> _firstContentRendered =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private bool _functionalSplashActive;
     private readonly Grid _sectionHost = new();
     private readonly Stack<NavigationFrame> _navigationStack = new();
     private MainViewModel? _viewModel;
@@ -89,6 +92,7 @@ public partial class MainWindow : Window
     private async void OnContentRendered(object? sender, EventArgs e)
     {
         ContentRendered -= OnContentRendered;
+        _firstContentRendered.TrySetResult(true);
         if (_viewModel is null) return;
         _ = Services.PanelUpdateService.ReportHealthyStartupAsync();
         if (_iniciadoEmSegundoPlano) return;
@@ -264,8 +268,11 @@ public partial class MainWindow : Window
         MostrarSecaoAtual();
         AnimarSecao();
         AtualizarMoldura();
-        _ = AnimarAberturaAsync();
-        _ = PreaquecerSecoesAsync(++_warmupGeneration);
+        if (!_functionalSplashActive)
+        {
+            _ = AnimarAberturaAsync();
+            _ = PreaquecerSecoesAsync(++_warmupGeneration);
+        }
     }
 
     private async Task AnimarAberturaAsync()
@@ -481,23 +488,59 @@ public partial class MainWindow : Window
         return view;
     }
 
-    private async Task PreaquecerSecoesAsync(int generation)
+    internal Task FirstContentRenderedTask => _firstContentRendered.Task;
+
+    internal void PrepareForSplashStartup()
+    {
+        _functionalSplashActive = true;
+        StartupOverlay.Visibility = Visibility.Collapsed;
+        Opacity = 0;
+        IsEnabled = false;
+    }
+
+    internal async Task RevelarAposInicializacaoAsync()
+    {
+        IsEnabled = true;
+        BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.Stop,
+        }, HandoffBehavior.SnapshotAndReplace);
+        await Task.Delay(220);
+        BeginAnimation(OpacityProperty, null);
+        Opacity = 1;
+    }
+
+    internal Task PrepararSecoesParaInicioAsync(Action<int, int, string> progresso) =>
+        PreaquecerSecoesAsync(++_warmupGeneration, progresso);
+
+    private async Task PreaquecerSecoesAsync(
+        int generation, Action<int, int, string>? progresso = null)
     {
         await Task.Delay(180);
         if (_viewModel is null || generation != _warmupGeneration) return;
-        var sections = new object[] { _viewModel.Computadores, _viewModel.Mensagens, _viewModel.Lembretes,
-            _viewModel.Historico, _viewModel.Logs, _viewModel.Configuracoes };
-        foreach (var section in sections)
+        var sections = new (object ViewModel, string Name)[]
+        {
+            (_viewModel.Computadores, "Computadores"),
+            (_viewModel.Mensagens, "Mensagens"),
+            (_viewModel.Lembretes, "Lembretes"),
+            (_viewModel.Historico, "Histórico"),
+            (_viewModel.Logs, "Logs"),
+            (_viewModel.Configuracoes, "Configurações"),
+        };
+        for (var index = 0; index < sections.Length; index++)
         {
             if (generation != _warmupGeneration) return;
+            var section = sections[index];
             await Dispatcher.InvokeAsync(() =>
             {
-                if (_sectionViews.ContainsKey(section)) return;
-                var view = AdicionarSecao(section, Visibility.Hidden);
+                if (_sectionViews.ContainsKey(section.ViewModel)) return;
+                var view = AdicionarSecao(section.ViewModel, Visibility.Hidden);
                 view.UpdateLayout();
                 view.Visibility = Visibility.Collapsed;
             }, DispatcherPriority.Background);
-            await Task.Delay(35);
+            progresso?.Invoke(index + 1, sections.Length, section.Name);
+            await Task.Delay(25);
         }
     }
 

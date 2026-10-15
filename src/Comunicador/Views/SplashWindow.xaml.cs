@@ -34,6 +34,13 @@ public partial class SplashWindow : Window
         };
     }
 
+    public void ReportarProgresso(string status, double percentual)
+    {
+        StatusText.Text = status;
+        StartupProgress.Value = Math.Clamp(percentual, 0, 100);
+        PercentText.Text = $"{StartupProgress.Value:0}%";
+    }
+
     public async Task AnimateExitAsync()
     {
         var duration = TimeSpan.FromMilliseconds(240);
