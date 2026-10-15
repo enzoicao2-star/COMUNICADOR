@@ -57,9 +57,9 @@
             </Grid.ColumnDefinitions>
 
             <ScrollViewer x:Name="FormularioLembrete" Grid.Column="0" VerticalScrollBarVisibility="Auto">
-                <Border Style="{StaticResource CardBorder}" Padding="20" VerticalAlignment="Top">
+                <Border Style="{StaticResource CardBorder}" Padding="14" VerticalAlignment="Top">
                     <StackPanel>
-                        <TextBlock Text="Novo lembrete" Style="{StaticResource TituloCard}" Margin="0,0,0,14" />
+                        <TextBlock Text="Novo lembrete" Style="{StaticResource TituloCard}" Margin="0,0,0,10" />
 
                         <TextBlock Text="Título" Style="{StaticResource RotuloCampo}" />
                         <TextBox Text="{Binding Titulo, UpdateSourceTrigger=PropertyChanged}" MaxLength="200" Margin="0,0,0,16" />
@@ -150,7 +150,7 @@
                     <ItemsControl ItemsSource="{Binding Lembretes}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Style="{StaticResource CardListaBorder}" Margin="0,0,0,8" Padding="16,14">
+                                <Border Style="{StaticResource CardListaBorder}" Margin="0,0,0,6" Padding="12,10">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />

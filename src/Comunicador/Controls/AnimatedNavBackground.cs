@@ -26,7 +26,7 @@ public sealed class AnimatedNavBackground : FrameworkElement
 
     public static readonly DependencyProperty ReduceMotionProperty = DependencyProperty.Register(
         nameof(ReduceMotion), typeof(bool), typeof(AnimatedNavBackground),
-        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnReduceMotionChanged));
 
     public int ActiveIndex { get => (int)GetValue(ActiveIndexProperty); set => SetValue(ActiveIndexProperty, value); }
     public int ItemCount { get => (int)GetValue(ItemCountProperty); set => SetValue(ItemCountProperty, value); }
@@ -62,6 +62,14 @@ public sealed class AnimatedNavBackground : FrameworkElement
         control._startIndex = control._displayIndex;
         control._targetIndex = Math.Max(0, (int)e.NewValue);
         control._animationStarted = DateTime.UtcNow;
+        if (control.ReduceMotion)
+        {
+            control._displayIndex = control._targetIndex;
+            control.SetRenderingSubscribed(false);
+            control.InvalidateVisual();
+            return;
+        }
+
         if (!control.IsLoaded)
         {
             control._displayIndex = control._targetIndex;
@@ -71,6 +79,23 @@ public sealed class AnimatedNavBackground : FrameworkElement
             control.UpdateRenderingSubscription();
         }
         control.InvalidateVisual();
+    }
+
+    private static void OnReduceMotionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not AnimatedNavBackground control) return;
+        if (control.ReduceMotion)
+        {
+            control._displayIndex = control._targetIndex;
+            control.SetRenderingSubscribed(false);
+            control.InvalidateVisual();
+        }
+        else if (control.IsLoaded && Math.Abs(control._displayIndex - control._targetIndex) >= .001)
+        {
+            control._startIndex = control._displayIndex;
+            control._animationStarted = DateTime.UtcNow;
+            control.UpdateRenderingSubscription();
+        }
     }
 
     private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -103,7 +128,7 @@ public sealed class AnimatedNavBackground : FrameworkElement
         }
 
         var elapsed = (DateTime.UtcNow - _animationStarted).TotalMilliseconds;
-        var duration = ReduceMotion ? 620d : 340d;
+        var duration = 260d;
         if (elapsed >= duration || Math.Abs(_displayIndex - _targetIndex) < .001)
         {
             if (_displayIndex != _targetIndex)
@@ -116,7 +141,7 @@ public sealed class AnimatedNavBackground : FrameworkElement
         }
 
         var progress = Math.Clamp(elapsed / duration, 0, 1);
-        var eased = 1 - Math.Pow(1 - progress, 3);
+        var eased = progress * progress * (3 - 2 * progress);
         _displayIndex = _startIndex + (_targetIndex - _startIndex) * eased;
         InvalidateVisual();
     }

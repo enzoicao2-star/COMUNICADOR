@@ -6,7 +6,8 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Comunicador" Height="820" Width="1260" MinHeight="600" MinWidth="760"
         Loaded="OnWindowLoaded" StateChanged="OnWindowStateChanged" PreviewKeyDown="OnMainWindowPreviewKeyDown"
-        PreviewMouseMove="OnBackgroundMouseMove" MouseLeave="OnBackgroundMouseLeave"
+        PreviewMouseMove="OnBackgroundMouseMove" PreviewMouseLeftButtonDown="OnBackgroundMouseDown"
+        MouseLeave="OnBackgroundMouseLeave"
         WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResize"
         Background="{DynamicResource BackgroundBrush}" Icon="Assets/Comunicador.ico">
     <shell:WindowChrome.WindowChrome>
@@ -257,13 +258,10 @@
                         Style="{StaticResource BotaoSecundario}" Visibility="Collapsed" Panel.ZIndex="6"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True" />
 
-                <Border Grid.Row="1" Margin="28,10,28,24" Background="Transparent">
+                <Border Grid.Row="1" Margin="24,8,24,18" Background="Transparent">
                     <ContentControl x:Name="SectionContent">
                         <ContentControl.RenderTransform>
-                            <TransformGroup>
-                                <ScaleTransform x:Name="SectionScale" ScaleX="1" ScaleY="1" />
-                                <TranslateTransform x:Name="SectionTransform" />
-                            </TransformGroup>
+                            <TranslateTransform x:Name="SectionTransform" />
                         </ContentControl.RenderTransform>
                     </ContentControl>
                 </Border>

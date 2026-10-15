@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Diagnostics;
 using Comunicador.Services;
 
 namespace Comunicador.Controls;
@@ -9,7 +10,7 @@ namespace Comunicador.Controls;
 /// usam o relógio de renderização e acompanham o tamanho atual da janela.</summary>
 public sealed class AnimatedBackground : FrameworkElement
 {
-    private readonly DateTime _started = DateTime.UtcNow;
+    private readonly Stopwatch _animationClock = Stopwatch.StartNew();
     private readonly List<Particle> _particles = new();
     private readonly List<Star> _stars = new();
     private readonly List<FlowParticle> _fluidParticles = new();
@@ -37,6 +38,22 @@ public sealed class AnimatedBackground : FrameworkElement
     private Point _pointerAtLastFrame;
     private bool _pointerActive;
     private double _lastWaveFrame = -1;
+    private double _elapsedBeforePause;
+    private double _activeSegmentStartedAt;
+    private double? _nebulaClickTime;
+    private Point _nebulaClickPosition;
+    private readonly List<NebulaStar> _nebulaStars = new();
+    private WriteableBitmap? _nebulaBitmap;
+    private byte[]? _nebulaPixels;
+    private int _nebulaBitmapWidth;
+    private int _nebulaBitmapHeight;
+    private static readonly int[,] Bayer4 =
+    {
+        { 0, 8, 2, 10 },
+        { 12, 4, 14, 6 },
+        { 3, 11, 1, 9 },
+        { 15, 7, 13, 5 },
+    };
 
     public static readonly DependencyProperty ModeProperty = DependencyProperty.Register(
         nameof(Mode), typeof(string), typeof(AnimatedBackground),
@@ -63,7 +80,7 @@ public sealed class AnimatedBackground : FrameworkElement
 
     public void SetPointer(Point position)
     {
-        if (Mode != "Ondas interativas" || ReduceMotion) return;
+        if ((Mode != "Ondas interativas" && Mode != "Nebulosa halftone") || ReduceMotion) return;
         if (!_pointerActive)
             _pointerSmoothed = _pointerAtLastFrame = position;
         _pointerTarget = position;
@@ -71,6 +88,14 @@ public sealed class AnimatedBackground : FrameworkElement
     }
 
     public void ClearPointer() => _pointerActive = false;
+
+    public void DropNebulaSparkle(Point position)
+    {
+        if (Mode != "Nebulosa halftone" || ReduceMotion) return;
+        _nebulaClickPosition = position;
+        _nebulaClickTime = GetAnimationTime();
+        InvalidateVisual();
+    }
 
     public AnimatedBackground()
     {
@@ -98,7 +123,17 @@ public sealed class AnimatedBackground : FrameworkElement
 
     private static void OnPauseAnimationChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is AnimatedBackground background) background.UpdateRenderingSubscription();
+        if (d is not AnimatedBackground background) return;
+        var now = background._animationClock.Elapsed.TotalSeconds;
+        if ((bool)e.NewValue)
+        {
+            background._elapsedBeforePause += Math.Max(0, now - background._activeSegmentStartedAt);
+        }
+        else
+        {
+            background._activeSegmentStartedAt = now;
+        }
+        background.UpdateRenderingSubscription();
     }
 
     private void UpdateRenderingSubscription() =>
@@ -128,6 +163,7 @@ public sealed class AnimatedBackground : FrameworkElement
         if (mode == "Vórtice" && _particles.Count == 0) SeedVortex(2200, 3);
         else if (mode == "Constelação" && _stars.Count == 0) SeedStars(72);
         else if (mode == "Partículas fluidas" && _fluidParticles.Count == 0) SeedFluidParticles(1500);
+        else if (mode == "Nebulosa halftone" && _nebulaStars.Count == 0) SeedNebulaStars(148);
     }
 
     private void OnRendering(object? sender, EventArgs e)
@@ -146,9 +182,7 @@ public sealed class AnimatedBackground : FrameworkElement
     {
         base.OnRender(dc);
         if (ActualWidth <= 0 || ActualHeight <= 0 || Mode == "Sem fundo") return;
-        var elapsed = (DateTime.UtcNow - _started).TotalSeconds;
-        var speedFactor = Math.Clamp(Speed, 5, 100) / 100d;
-        var time = PauseAnimation ? 0d : elapsed * speedFactor * (ReduceMotion ? .22 : 1d);
+        var time = GetAnimationTime() * (ReduceMotion ? .22 : 1d);
         var opacity = .20 + Math.Clamp(Intensity / 100d, 0, 1) * .65;
 
         switch (Mode)
@@ -162,7 +196,210 @@ public sealed class AnimatedBackground : FrameworkElement
             case "Partículas fluidas": DrawFluidParticles(dc, time, opacity); break;
             case "Onda de partículas": DrawParticleWave(dc, time); break;
             case "Ondas interativas": DrawInteractiveWaves(dc, time, opacity); break;
+            case "Nebulosa halftone": DrawHalftoneNebula(dc, time, opacity); break;
         }
+    }
+
+    private double GetAnimationTime()
+    {
+        var elapsed = PauseAnimation
+            ? _elapsedBeforePause
+            : _elapsedBeforePause + Math.Max(0, _animationClock.Elapsed.TotalSeconds - _activeSegmentStartedAt);
+        return elapsed * Math.Clamp(Speed, 5, 100) / 100d;
+    }
+
+    /// <summary>
+    /// Interpretação nativa em WPF do Halftone Nebula do 21st.dev. O campo de gás
+    /// é calculado uma vez por célula de 6 px e enviado como bitmap reaproveitado;
+    /// isso mantém o aspecto pontilhado sem criar milhares de visuais por quadro.
+    /// </summary>
+    private void DrawHalftoneNebula(DrawingContext dc, double time, double opacity)
+    {
+        var width = Math.Max(1, (int)Math.Ceiling(ActualWidth));
+        var height = Math.Max(1, (int)Math.Ceiling(ActualHeight));
+        EnsureNebulaBitmap(width, height);
+        if (_nebulaBitmap is null || _nebulaPixels is null) return;
+
+        Array.Clear(_nebulaPixels);
+        const int cellSize = 6;
+        var columns = (width + cellSize - 1) / cellSize;
+        var rows = (height + cellSize - 1) / cellSize;
+        var dark = IsDarkTheme();
+        var background = ThemeColor("BackgroundBrush", Colors.Black);
+        var accent = ThemeColor("AccentBrush", Colors.CornflowerBlue);
+        var foreground = ThemeColor("TextPrimaryBrush", Colors.White);
+        var pointer = _pointerActive && !ReduceMotion;
+        if (pointer)
+        {
+            _pointerSmoothed.X += (_pointerTarget.X - _pointerSmoothed.X) * .14;
+            _pointerSmoothed.Y += (_pointerTarget.Y - _pointerSmoothed.Y) * .14;
+        }
+
+        var parallaxX = pointer ? (_pointerSmoothed.X / Math.Max(1, ActualWidth) - .5) * 18 : 0;
+        var parallaxY = pointer ? (_pointerSmoothed.Y / Math.Max(1, ActualHeight) - .5) * 12 : 0;
+        var planetRadius = Math.Min(108, Math.Min(width, height) * .12);
+        var planetCenterX = width * .74 + parallaxX * .35;
+        var planetCenterY = height * .23 + parallaxY * .35;
+        for (var row = 0; row < rows; row++)
+        {
+            var y0 = row * cellSize;
+            var cellHeight = Math.Min(cellSize, height - y0);
+            var pixelY = y0 + cellHeight * .5;
+            var ny = pixelY / height;
+            for (var column = 0; column < columns; column++)
+            {
+                var x0 = column * cellSize;
+                var cellWidth = Math.Min(cellSize, width - x0);
+                var pixelX = x0 + cellWidth * .5;
+                var nx = pixelX / width;
+
+                // Duas camadas de ruído, deformadas entre si, formam a faixa de gás.
+                var warpX = PerlinNoise(nx * 2.8 + 7, ny * 2.4, time * .025) * .12;
+                var warpY = PerlinNoise(nx * 2.5, ny * 2.8 + 19, time * .022) * .12;
+                var gas = .64 * Noise01((nx + warpX) * 3.4, (ny + warpY) * 2.8, time * .018)
+                    + .36 * Noise01((nx + warpX) * 6.3 + 5, (ny + warpY) * 5.1 - 3, time * .024);
+                var bandDistance = Math.Abs(ny - .50 - (nx - .5) * .32);
+                var band = 1 - SmoothStep(.035, .38, bandDistance);
+                var density = Math.Clamp((gas * .53 + band * .55 - .43) * 1.9, 0, 1);
+
+                if (pointer)
+                {
+                    var pointerDx = pixelX - _pointerSmoothed.X;
+                    var pointerDy = pixelY - _pointerSmoothed.Y;
+                    var lens = Math.Exp(-(pointerDx * pointerDx + pointerDy * pointerDy) / (2 * 158d * 158d));
+                    density = Math.Clamp(density + lens * .36, 0, 1);
+                }
+
+                var planetX = (pixelX - planetCenterX) / Math.Max(1, planetRadius);
+                var planetY = (pixelY - planetCenterY) / Math.Max(1, planetRadius);
+                var planetDistanceSquared = planetX * planetX + planetY * planetY;
+                var onPlanet = planetDistanceSquared < 1;
+                var planetLight = onPlanet
+                    ? Math.Clamp(.67 - planetX * .24 - planetY * .10, .18, 1)
+                    : 0;
+                if (onPlanet) density = Math.Max(density, .42 + planetLight * .48);
+
+                var dither = (Bayer4[row & 3, column & 3] - 7.5) / 16d * .13;
+                var level = (int)Math.Round(Math.Clamp(density + dither, 0, 1) * 6);
+                var quantizedDensity = level / 6d;
+                var dimColor = MixColor(background, accent, .24 + quantizedDensity * .43);
+                var dotColor = MixColor(accent, foreground, .16 + quantizedDensity * .58);
+                if (onPlanet)
+                {
+                    dimColor = MixColor(background, accent, .27 + planetLight * .38);
+                    dotColor = MixColor(accent, foreground, .20 + planetLight * .66);
+                }
+
+                var baseAlpha = level <= 1 && !onPlanet
+                    ? (byte)0
+                    : (byte)Math.Clamp(Math.Round((dark ? 7 + level * 2.6 : 4 + level * 1.7) * opacity), 0, 255);
+                var dotAlpha = (byte)Math.Clamp(Math.Round((dark ? 50 + level * 15 : 24 + level * 12) * opacity), 0, 255);
+                var radius = cellSize * (.12 + quantizedDensity * .42);
+                var radiusSquared = radius * radius;
+                var centerCellX = cellWidth * .5;
+                var centerCellY = cellHeight * .5;
+
+                for (var localY = 0; localY < cellHeight; localY++)
+                {
+                    var dy = localY + .5 - centerCellY;
+                    var rowOffset = ((y0 + localY) * width + x0) * 4;
+                    for (var localX = 0; localX < cellWidth; localX++)
+                    {
+                        var dx = localX + .5 - centerCellX;
+                        var isDot = dx * dx + dy * dy <= radiusSquared;
+                        var color = isDot ? dotColor : dimColor;
+                        var alpha = isDot ? dotAlpha : baseAlpha;
+                        var index = rowOffset + localX * 4;
+                        _nebulaPixels[index] = color.B;
+                        _nebulaPixels[index + 1] = color.G;
+                        _nebulaPixels[index + 2] = color.R;
+                        _nebulaPixels[index + 3] = alpha;
+                    }
+                }
+            }
+        }
+
+        _nebulaBitmap.WritePixels(new Int32Rect(0, 0, width, height), _nebulaPixels, width * 4, 0);
+        dc.DrawImage(_nebulaBitmap, new Rect(0, 0, ActualWidth, ActualHeight));
+        DrawNebulaStars(dc, time, opacity, parallaxX, parallaxY);
+    }
+
+    private void EnsureNebulaBitmap(int width, int height)
+    {
+        if (_nebulaBitmapWidth == width && _nebulaBitmapHeight == height
+            && _nebulaBitmap is not null && _nebulaPixels?.Length == width * height * 4)
+            return;
+
+        _nebulaBitmapWidth = width;
+        _nebulaBitmapHeight = height;
+        _nebulaBitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
+        _nebulaPixels = new byte[width * height * 4];
+    }
+
+    private void DrawNebulaStars(DrawingContext dc, double time, double opacity, double parallaxX, double parallaxY)
+    {
+        var starBrush = ThemeBrush("TextPrimaryBrush", 1);
+        var accentBrush = ThemeBrush("AccentBrush", 1);
+        var starPen = new Pen(ThemeBrush("TextPrimaryBrush", 1), .75);
+        starPen.Freeze();
+
+        foreach (var star in _nebulaStars)
+        {
+            var twinkle = .34 + .66 * (1 + Math.Sin(time * (1.2 + star.Depth) + star.Phase)) * .5;
+            var x = star.X * ActualWidth + parallaxX * star.Depth;
+            var y = star.Y * ActualHeight + parallaxY * star.Depth;
+            dc.PushOpacity(Math.Clamp(opacity * star.Depth * twinkle * .68, 0, 1));
+            dc.DrawRectangle(star.Depth > .72 ? starBrush : accentBrush, null,
+                new Rect(Math.Round(x), Math.Round(y), star.Size, star.Size));
+            if (star.Depth > .88 && star.Size > 2.1)
+            {
+                dc.DrawLine(starPen, new Point(x - 3.5, y + star.Size * .5), new Point(x + 4.5, y + star.Size * .5));
+                dc.DrawLine(starPen, new Point(x + star.Size * .5, y - 3.5), new Point(x + star.Size * .5, y + 4.5));
+            }
+            dc.Pop();
+        }
+
+        if (_nebulaClickTime is not double clickTime) return;
+        var age = time - clickTime;
+        if (age < 0 || age > 1.15)
+        {
+            if (age > 1.15) _nebulaClickTime = null;
+            return;
+        }
+
+        var progress = age / 1.15;
+        var ripplePen = new Pen(ThemeBrush("AccentBrush", (1 - progress) * opacity * .70), 1.25);
+        ripplePen.Freeze();
+        var rippleRadius = 7 + progress * 76;
+        dc.DrawEllipse(null, ripplePen, _nebulaClickPosition, rippleRadius, rippleRadius);
+        if (progress < .7)
+        {
+            var sparkleOpacity = (1 - progress / .7) * opacity;
+            var sparklePen = new Pen(ThemeBrush("TextPrimaryBrush", sparkleOpacity), 1.1);
+            sparklePen.Freeze();
+            var sparkleSize = 5 + Math.Sin(progress * Math.PI) * 6;
+            dc.DrawLine(sparklePen, new Point(_nebulaClickPosition.X - sparkleSize, _nebulaClickPosition.Y),
+                new Point(_nebulaClickPosition.X + sparkleSize, _nebulaClickPosition.Y));
+            dc.DrawLine(sparklePen, new Point(_nebulaClickPosition.X, _nebulaClickPosition.Y - sparkleSize),
+                new Point(_nebulaClickPosition.X, _nebulaClickPosition.Y + sparkleSize));
+        }
+    }
+
+    private static double Noise01(double x, double y, double z) => (PerlinNoise(x, y, z) + 1) * .5;
+
+    private static double SmoothStep(double edge0, double edge1, double value)
+    {
+        var t = Math.Clamp((value - edge0) / (edge1 - edge0), 0, 1);
+        return t * t * (3 - 2 * t);
+    }
+
+    private static Color MixColor(Color start, Color end, double amount)
+    {
+        amount = Math.Clamp(amount, 0, 1);
+        return Color.FromRgb(
+            (byte)Math.Round(start.R + (end.R - start.R) * amount),
+            (byte)Math.Round(start.G + (end.G - start.G) * amount),
+            (byte)Math.Round(start.B + (end.B - start.B) * amount));
     }
 
     private void DrawInteractiveWaves(DrawingContext dc, double time, double opacity)
@@ -692,6 +929,14 @@ public sealed class AnimatedBackground : FrameworkElement
             _stars.Add(new(random.NextDouble(), random.NextDouble(), random.NextDouble() * Math.PI * 2));
     }
 
+    private void SeedNebulaStars(int count)
+    {
+        var random = new Random(214067);
+        for (var i = 0; i < count; i++)
+            _nebulaStars.Add(new(random.NextDouble(), random.NextDouble(), .24 + random.NextDouble() * .76,
+                random.NextDouble() * Math.PI * 2, .8 + random.NextDouble() * 2.3));
+    }
+
     private void SeedFluidParticles(int count)
     {
         for (var i = 0; i < count; i++)
@@ -797,6 +1042,7 @@ public sealed class AnimatedBackground : FrameworkElement
 
     private readonly record struct Particle(double X, double Y, double Z, double Radius);
     private readonly record struct Star(double X, double Y, double Phase);
+    private readonly record struct NebulaStar(double X, double Y, double Depth, double Phase, double Size);
     private sealed class FlowParticle
     {
         public double X { get; set; }

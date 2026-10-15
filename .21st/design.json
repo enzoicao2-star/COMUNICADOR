@@ -58,7 +58,14 @@
       "Do not animate status text continuously or hide device actions behind hover only."
     ]
   },
-  "decisions": [],
-  "evidence": [],
+    "decisions": [
+      "Adapt Halftone Nebula as a native WPF bitmap and drawing effect; do not add a React runtime.",
+      "Use a short directional fade and slide for tab and nested-screen navigation; reduced motion skips the movement.",
+      "Keep the computer-card design intact while tightening shared spacing and list density across the other screens."
+    ],
+    "evidence": [
+      "21st.dev Halftone Nebula: https://preview.21st.dev/@kedhareswer/components/halftone-nebula",
+      "21st.dev Tabs with directional panel transitions: https://preview.21st.dev/@ddoemonn/components/tabs"
+    ],
   "generatedAt": "2026-10-03T13:25:56.127Z"
 }

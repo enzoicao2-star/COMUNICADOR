@@ -451,5 +451,15 @@
       "Usuários ADM e permissões delegadas podem personalizar a aparência do painel e administrar grupos e modelos compartilhados.",
       "Alterar papel de parede não exige a permissão geral de envio de mídias."
     ]
+  },
+  {
+    "version": "2.5.41.0",
+    "summary": "Nebulosa interativa, transições suaves e telas mais compactas.",
+    "changes": [
+      "O fundo Nebulosa halftone reage ao movimento e aos cliques do mouse, com partículas pontilhadas e movimento reduzido compatível com a acessibilidade.",
+      "A troca entre abas e telas internas ganhou transições direcionais curtas, que acompanham a navegação e evitam saltos quando várias abas são acionadas rapidamente.",
+      "As telas de configurações, mensagens, lembretes, histórico e logs usam espaçamento mais compacto e removem animações simultâneas que podiam deixar a navegação pesada.",
+      "Os cards dos computadores mantêm o visual e o conteúdo existentes."
+    ]
   }
 ]

@@ -51,7 +51,7 @@
     <Grid>
       <DockPanel x:Name="ListaComputadores" LastChildFill="True">
 
-        <Grid DockPanel.Dock="Top" Margin="0,0,0,14">
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
             <StackPanel>
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="Computadores" Style="{StaticResource TituloSecao}" />

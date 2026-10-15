@@ -24,6 +24,9 @@ public partial class MainWindow : Window
     private void OnBackgroundMouseLeave(object sender, MouseEventArgs e)
         => AnimatedBackdrop.ClearPointer();
 
+    private void OnBackgroundMouseDown(object sender, MouseButtonEventArgs e)
+        => AnimatedBackdrop.DropNebulaSparkle(e.GetPosition(AnimatedBackdrop));
+
     private sealed record NavigationFrame(object? Content, Action? OnExit, bool Locked, bool BackAllowed);
     internal bool TelaAninhadaAtiva => _navigationStack.Count > 0;
 
@@ -35,6 +38,8 @@ public partial class MainWindow : Window
     private readonly Grid _sectionHost = new();
     private readonly Stack<NavigationFrame> _navigationStack = new();
     private MainViewModel? _viewModel;
+    private int _displayedSectionIndex = -1;
+    private int _sectionChangeGeneration;
     private Action? _currentNavigationCleanup;
     private bool _navigationLocked;
     private bool _currentBackAllowed = true;
@@ -317,6 +322,7 @@ public partial class MainWindow : Window
         _viewModel = e.NewValue as MainViewModel;
         if (_viewModel is null) return;
 
+        _displayedSectionIndex = _viewModel.IndiceSecaoAtiva;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _viewModel.Configuracoes.AtualizacaoPainelIniciada += OnAtualizacaoPainelIniciada;
         _viewModel.Mensagens.AbrirCarrosselSolicitado += OnAbrirCarrosselSolicitado;
@@ -344,20 +350,27 @@ public partial class MainWindow : Window
         _sectionHost.Children.Clear();
         _sectionViews.Clear();
         _viewModel = null;
+        _displayedSectionIndex = -1;
+        _sectionChangeGeneration++;
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(MainViewModel.SecaoAtual)) return;
+        var nextSectionIndex = _viewModel?.IndiceSecaoAtiva ?? _displayedSectionIndex;
+        var generation = ++_sectionChangeGeneration;
         Dispatcher.BeginInvoke(() =>
         {
+            if (generation != _sectionChangeGeneration) return;
+            var direction = _displayedSectionIndex < 0
+                ? 1
+                : Math.Sign(nextSectionIndex - _displayedSectionIndex);
+            if (direction == 0) direction = 1;
+            _displayedSectionIndex = nextSectionIndex;
             LimparNavegacaoAninhada();
             SectionContent.Content = _sectionHost;
-            _navigationTransitionActive = true;
-            AtualizarAnimacaoFundo();
             MostrarSecaoAtual();
-            AnimarSecao();
-            _ = RetomarFundoAsync(++_navigationPauseGeneration);
+            IniciarTransicaoConteudo(direction);
         }, DispatcherPriority.Render);
     }
 
@@ -372,7 +385,7 @@ public partial class MainWindow : Window
         _navigationLocked = lockNavigation;
         SectionContent.Content = page;
         AtualizarNavegacaoAninhada();
-        AnimarSecao();
+        IniciarTransicaoConteudo(1);
     }
 
     public void NavegarVoltar()
@@ -386,7 +399,7 @@ public partial class MainWindow : Window
         _navigationLocked = previous.Locked;
         _currentBackAllowed = previous.BackAllowed;
         AtualizarNavegacaoAninhada();
-        AnimarSecao();
+        IniciarTransicaoConteudo(-1);
     }
 
     private void LimparNavegacaoAninhada()
@@ -490,40 +503,53 @@ public partial class MainWindow : Window
 
     private async Task RetomarFundoAsync(int generation)
     {
-        await Task.Delay(230);
+        await Task.Delay(245);
         if (generation != _navigationPauseGeneration) return;
         _navigationTransitionActive = false;
         AtualizarAnimacaoFundo();
     }
 
-    private void AnimarSecao()
+    private void IniciarTransicaoConteudo(int direction)
+    {
+        _navigationTransitionActive = true;
+        AtualizarAnimacaoFundo();
+        AnimarSecao(direction);
+        _ = RetomarFundoAsync(++_navigationPauseGeneration);
+    }
+
+    private void AnimarSecao(int direction = 1)
     {
         var reduzido = _viewModel?.Configuracoes.ReduzirMovimento == true;
+        if (reduzido)
+        {
+            SectionContent.BeginAnimation(OpacityProperty, null);
+            SectionTransform.BeginAnimation(TranslateTransform.XProperty, null);
+            SectionTransform.BeginAnimation(TranslateTransform.YProperty, null);
+            SectionContent.Opacity = 1;
+            SectionTransform.X = 0;
+            SectionTransform.Y = 0;
+            return;
+        }
+
+        var isInterrupted = SectionContent.Opacity < .995 || Math.Abs(SectionTransform.X) > .5;
+        var opacityFrom = isInterrupted ? SectionContent.Opacity : .9;
+        var xFrom = isInterrupted
+            ? SectionTransform.X
+            : Math.Sign(direction == 0 ? 1 : direction) * 12;
+        const double durationMs = 220;
         var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
-        SectionContent.BeginAnimation(OpacityProperty, new DoubleAnimation(reduzido ? .72 : .25, 1,
-            TimeSpan.FromMilliseconds(reduzido ? 260 : 175))
+        SectionContent.BeginAnimation(OpacityProperty, new DoubleAnimation(opacityFrom, 1,
+            TimeSpan.FromMilliseconds(durationMs))
         {
             EasingFunction = easing,
             FillBehavior = FillBehavior.Stop,
-        });
-        SectionTransform.BeginAnimation(TranslateTransform.YProperty,
-            new DoubleAnimation(reduzido ? 2 : 8, 0, TimeSpan.FromMilliseconds(reduzido ? 300 : 210))
+        }, HandoffBehavior.SnapshotAndReplace);
+        SectionTransform.BeginAnimation(TranslateTransform.XProperty,
+            new DoubleAnimation(xFrom, 0, TimeSpan.FromMilliseconds(durationMs))
             {
                 EasingFunction = easing,
                 FillBehavior = FillBehavior.Stop,
-            });
-        SectionScale.BeginAnimation(ScaleTransform.ScaleXProperty,
-            new DoubleAnimation(reduzido ? .998 : .992, 1, TimeSpan.FromMilliseconds(reduzido ? 280 : 195))
-            {
-                EasingFunction = easing,
-                FillBehavior = FillBehavior.Stop,
-            });
-        SectionScale.BeginAnimation(ScaleTransform.ScaleYProperty,
-            new DoubleAnimation(reduzido ? .998 : .992, 1, TimeSpan.FromMilliseconds(reduzido ? 280 : 195))
-            {
-                EasingFunction = easing,
-                FillBehavior = FillBehavior.Stop,
-            });
+            }, HandoffBehavior.SnapshotAndReplace);
     }
 
     private static void AnimarEntrada(FrameworkElement element, double fromY, int delayMs)
