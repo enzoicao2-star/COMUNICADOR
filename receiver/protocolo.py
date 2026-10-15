@@ -92,6 +92,7 @@ class MessageType:
     PING = "ping"
     PONG = "pong"
     NOTIFICATION = "notification"
+    REMOTE_COMMAND = "remote_command"
     ACK = "ack"
     REPLY = "reply"
     ERROR = "error"
@@ -105,7 +106,8 @@ class MessageType:
 
 ALL_TYPES = {
     MessageType.DISCOVER, MessageType.ANNOUNCE, MessageType.PAIR_REQUEST, MessageType.PAIR_RESPONSE,
-    MessageType.PING, MessageType.PONG, MessageType.NOTIFICATION, MessageType.ACK, MessageType.REPLY,
+    MessageType.PING, MessageType.PONG, MessageType.NOTIFICATION, MessageType.REMOTE_COMMAND,
+    MessageType.ACK, MessageType.REPLY,
     MessageType.ERROR, MessageType.REGISTER, MessageType.REGISTER_ACK,
     MessageType.UPDATE_REQUEST, MessageType.UPDATE_STATUS,
     MessageType.SYNC_REQUEST, MessageType.SYNC_RESPONSE,
@@ -717,6 +719,17 @@ def validate(msg: dict) -> None:
         _validar_botoes(msg)
         _validar_conteudo_visual(msg)
         _validar_aparencia(msg)
+
+    elif msg_type == MessageType.REMOTE_COMMAND:
+        _require_str(msg, "token", MAX_NAME_LENGTH)
+        _require_uuid(msg, "panel_id")
+        _require_str(msg, "command_line", 500)
+        request_id = _require_str(msg, "request_id", 64)
+        try:
+            uuid.UUID(request_id)
+        except ValueError as exc:
+            raise ProtocolError(ErrorCode.INVALID_ID, "Campo 'request_id' não é um UUID válido.") from exc
+        _require_str(msg, "expires_at", 40)
 
     elif msg_type == MessageType.ACK:
         _require_uuid(msg, "in_reply_to")

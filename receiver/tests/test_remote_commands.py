@@ -62,6 +62,58 @@ def test_remote_command_expiry():
     assert not receptor.remote_command_is_fresh(None)
 
 
+def test_remote_command_protocol_requires_pairing_and_request_id():
+    message = receptor.protocolo.base_message(receptor.MessageType.REMOTE_COMMAND)
+    message.update({
+        "token": "paired-token",
+        "panel_id": "12345678-1234-5678-1234-567812345678",
+        "command_line": "echo ok",
+        "request_id": "12345678-1234-5678-1234-567812345678",
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+    })
+
+    assert receptor.protocolo.parse_and_validate(
+        receptor.protocolo.frame(message), is_udp=False) == message
+
+    invalid = dict(message, request_id="not-a-uuid")
+    with pytest.raises(receptor.ProtocolError):
+        receptor.protocolo.validate(invalid)
+
+
+def test_direct_remote_command_acknowledges_before_execution(monkeypatch):
+    from types import SimpleNamespace
+
+    events = []
+    handler = object.__new__(receptor.ReceptorTcpHandler)
+    handler._safe_send = lambda message: events.append(message["type"])
+    config = SimpleNamespace(
+        paired_panels={"12345678-1234-5678-1234-567812345678": {"token": "paired-token"}},
+        is_owner_device=lambda: False,
+        computer_id="87654321-4321-8765-4321-876543218765",
+        computer_name="Receiver",
+    )
+    worker = SimpleNamespace(has_panel_permission=lambda _panel_id, permission: permission == "remote_command")
+    server = SimpleNamespace(config=config, cloud_worker=worker)
+    message = {
+        "id": "12345678-1234-5678-1234-567812345678",
+        "panel_id": "12345678-1234-5678-1234-567812345678",
+        "token": "paired-token",
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+        "command_line": "echo ok",
+        "request_id": "12345678-1234-5678-1234-567812345678",
+    }
+
+    def execute(_command, _request_id):
+        assert events == [receptor.MessageType.ACK]
+        events.append("executed")
+        return "Código de saída: 0\nok"
+
+    monkeypatch.setattr(receptor, "executar_cmd_local", execute)
+    handler._handle_remote_command(message, server)
+
+    assert events == [receptor.MessageType.ACK, "executed", receptor.MessageType.REPLY]
+
+
 def test_non_owner_without_remote_command_permission_is_rejected(monkeypatch):
     worker = object.__new__(receptor.CloudDeliveryWorker)
     responses = []

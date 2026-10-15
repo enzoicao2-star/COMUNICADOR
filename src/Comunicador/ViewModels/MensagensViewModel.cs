@@ -28,12 +28,17 @@ public sealed class MensagensViewModel : ViewModelBase
     private bool _exibirAvisoObrigatorio;
     private bool _exibirMensagemCentral;
     private double _tempoImagemSegundos = 15;
-    private string _efeitoEntrada = "fade";
-    private string _efeitoSaida = "fade";
+    private string _efeitoEntrada = "fade_in";
+    private string _efeitoSaida = "fade_in";
     private int _velocidadeEntradaPercentual = 100;
     private int _velocidadeSaidaPercentual = 100;
+    private string _modoTempoEntrada = "speed";
+    private string _modoTempoSaida = "speed";
+    private int _duracaoEntradaMs = 600;
+    private int _duracaoSaidaMs = 600;
     private int _atrasoEnvioImagemSegundos;
     private bool _permitirFecharImagem = true;
+    private bool _bloquearFecharDuranteTransicao = true;
     private bool _tocarSom = true;
     private string _tipoSom = ProtocolConstants.SoundType.Information;
     private string _posicaoAviso = ProtocolConstants.ToastPosition.BottomRight;
@@ -215,7 +220,11 @@ public sealed class MensagensViewModel : ViewModelBase
         get => _efeitoEntrada;
         set
         {
-            if (SetField(ref _efeitoEntrada, value)) OnPropertyChanged(nameof(ResumoTransicoes));
+            if (SetField(ref _efeitoEntrada, value))
+            {
+                OnPropertyChanged(nameof(ResumoTransicoes));
+                OnPropertyChanged(nameof(NomeEfeitoEntrada));
+            }
         }
     }
     public string EfeitoSaida
@@ -223,7 +232,11 @@ public sealed class MensagensViewModel : ViewModelBase
         get => _efeitoSaida;
         set
         {
-            if (SetField(ref _efeitoSaida, value)) OnPropertyChanged(nameof(ResumoTransicoes));
+            if (SetField(ref _efeitoSaida, value))
+            {
+                OnPropertyChanged(nameof(ResumoTransicoes));
+                OnPropertyChanged(nameof(NomeEfeitoSaida));
+            }
         }
     }
     public int VelocidadeEntradaPercentual
@@ -244,26 +257,59 @@ public sealed class MensagensViewModel : ViewModelBase
                 OnPropertyChanged(nameof(ResumoTransicoes));
         }
     }
-    public string ResumoTransicoes => $"{NomeEfeito(EfeitoEntrada)} → {NomeEfeito(EfeitoSaida)} · {VelocidadeEntradaPercentual}% / {VelocidadeSaidaPercentual}%";
-
-    private static string NomeEfeito(string efeito) => efeito switch
+    public string ModoTempoEntrada
     {
-        "none" => "Sem efeito",
-        "fade" => "Fade",
-        "top" => "De cima",
-        "bottom" => "De baixo",
-        "left" => "Da esquerda",
-        "right" => "Da direita",
-        _ => "Fade",
-    };
+        get => _modoTempoEntrada;
+        set
+        {
+            if (value is not ("speed" or "duration")) return;
+            if (SetField(ref _modoTempoEntrada, value)) OnPropertyChanged(nameof(ResumoTransicoes));
+        }
+    }
+    public string ModoTempoSaida
+    {
+        get => _modoTempoSaida;
+        set
+        {
+            if (value is not ("speed" or "duration")) return;
+            if (SetField(ref _modoTempoSaida, value)) OnPropertyChanged(nameof(ResumoTransicoes));
+        }
+    }
+    public int DuracaoEntradaMs
+    {
+        get => _duracaoEntradaMs;
+        set
+        {
+            if (SetField(ref _duracaoEntradaMs, Math.Clamp(value, 50, 10000)))
+                OnPropertyChanged(nameof(ResumoTransicoes));
+        }
+    }
+    public int DuracaoSaidaMs
+    {
+        get => _duracaoSaidaMs;
+        set
+        {
+            if (SetField(ref _duracaoSaidaMs, Math.Clamp(value, 50, 10000)))
+                OnPropertyChanged(nameof(ResumoTransicoes));
+        }
+    }
+    public string NomeEfeitoEntrada => NomeEfeito(EfeitoEntrada);
+    public string NomeEfeitoSaida => NomeEfeito(EfeitoSaida);
+    public string ResumoTransicoes => $"{NomeEfeito(EfeitoEntrada)} → {NomeEfeito(EfeitoSaida)} · " +
+        $"{(ModoTempoEntrada == "speed" ? $"{VelocidadeEntradaPercentual}%" : $"{DuracaoEntradaMs} ms")} / " +
+        $"{(ModoTempoSaida == "speed" ? $"{VelocidadeSaidaPercentual}%" : $"{DuracaoSaidaMs} ms")}";
+
+    private static string NomeEfeito(string efeito) =>
+        Comunicador.Models.TransicaoCatalogo.Categorias.SelectMany(c => c.Opcoes)
+            .FirstOrDefault(o => o.Id == efeito)?.Nome ?? (efeito == "none" ? "Sem efeito" : efeito);
 
     private void AplicarPresetTransicao(object? parametro)
     {
         switch (parametro as string)
         {
             case "rapida":
-                EfeitoEntrada = "fade";
-                EfeitoSaida = "fade";
+                EfeitoEntrada = "fade_in";
+                EfeitoSaida = "fade_in";
                 VelocidadeEntradaPercentual = 175;
                 VelocidadeSaidaPercentual = 175;
                 break;
@@ -280,8 +326,8 @@ public sealed class MensagensViewModel : ViewModelBase
                 VelocidadeSaidaPercentual = 100;
                 break;
             default:
-                EfeitoEntrada = "fade";
-                EfeitoSaida = "fade";
+                EfeitoEntrada = "fade_in";
+                EfeitoSaida = "fade_in";
                 VelocidadeEntradaPercentual = 75;
                 VelocidadeSaidaPercentual = 75;
                 break;
@@ -294,6 +340,11 @@ public sealed class MensagensViewModel : ViewModelBase
         ExitEffect = EfeitoSaida,
         EntranceSpeedPercent = VelocidadeEntradaPercentual,
         ExitSpeedPercent = VelocidadeSaidaPercentual,
+        EntranceTimingMode = ModoTempoEntrada,
+        ExitTimingMode = ModoTempoSaida,
+        EntranceDurationMs = DuracaoEntradaMs,
+        ExitDurationMs = DuracaoSaidaMs,
+        BlockCloseDuringTransition = BloquearFecharDuranteTransicao,
     };
     public bool PodeConfigurarMonitores => !TemAudio;
     public string? CaminhoMidia => CaminhoImagem ?? _caminhoVideo ?? _caminhoAudio;
@@ -492,6 +543,12 @@ public sealed class MensagensViewModel : ViewModelBase
     {
         get => _permitirFecharImagem;
         set => SetField(ref _permitirFecharImagem, value);
+    }
+
+    public bool BloquearFecharDuranteTransicao
+    {
+        get => _bloquearFecharDuranteTransicao;
+        set => SetField(ref _bloquearFecharDuranteTransicao, value);
     }
 
     public bool TocarSom

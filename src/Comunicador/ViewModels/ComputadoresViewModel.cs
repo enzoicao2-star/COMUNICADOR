@@ -708,6 +708,11 @@ public sealed class ComputadoresViewModel : ViewModelBase
     {
         if (!_cloud.HasPermission("remote_command") || param is not Computador computador || !computador.PodeUsarCmdRemoto)
             return;
+        if (computador.EhOwner)
+        {
+            ResultadoComandoRemoto = "O OWNER está protegido e não recebe comandos.";
+            return;
+        }
         if (!RemoteCommandExecutor.IsValid(ComandoRemoto))
         {
             ResultadoComandoRemoto = "Digite um comando de até 500 caracteres.";
@@ -723,6 +728,32 @@ public sealed class ComputadoresViewModel : ViewModelBase
             ComandoRemotoEmAndamento = true;
             CommandManager.InvalidateRequerySuggested();
             ResultadoComandoRemoto = $"> {line}\nAguardando resposta de {computador.NomeExibicao}…";
+
+            var tentativaLocal = string.IsNullOrWhiteSpace(computador.EnderecoIp) || computador.PortaTcp <= 0
+                ? new RemoteCommandAttempt(false, true, null, null)
+                : await _client.SendRemoteCommandAsync(
+                    computador.EnderecoIp, computador.PortaTcp, computador.Token ?? string.Empty,
+                    line, requestId,
+                    () => UiDispatcher.Invoke(() =>
+                    {
+                        if (string.Equals(_comandoRemotoRequestId, requestId, StringComparison.Ordinal))
+                            ResultadoComandoRemoto = $"> {line}\nCMD recebido por {computador.NomeExibicao}; aguardando o resultado…";
+                    })).ConfigureAwait(true);
+
+            if (!tentativaLocal.CanFallbackToCloud)
+            {
+                ResultadoComandoRemoto = tentativaLocal.ReplyText is not null
+                    ? FormatRemoteCommandResult(line, tentativaLocal.ReplyText)
+                    : tentativaLocal.Error ?? "O computador recebeu o pedido, mas não enviou o resultado.";
+                _comandoRemotoRequestId = null;
+                _comandoRemotoTargetId = null;
+                ComandoRemotoEmAndamento = false;
+                _cancelamentoCmdSolicitado = false;
+                CommandManager.InvalidateRequerySuggested();
+                return;
+            }
+
+            ResultadoComandoRemoto = $"> {line}\nConexão local indisponível; enviando pela nuvem…";
             await _cloud.QueueRemoteCommandAsync(computador.Id, line, requestId).ConfigureAwait(true);
         }
         catch (Exception ex)
@@ -795,6 +826,11 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
         var line = payload.TryGetProperty("line", out var lineNode) ? lineNode.GetString() : null;
         var reply = response.ResponseText ?? "Sem resposta do computador.";
+        return FormatRemoteCommandResult(line, reply);
+    }
+
+    private static string FormatRemoteCommandResult(string? line, string reply)
+    {
         var success = reply.StartsWith("Código de saída: 0\n", StringComparison.Ordinal)
             || string.Equals(reply, "Código de saída: 0", StringComparison.Ordinal);
         return $"> {line}\n{(success ? "Comando concluído com sucesso.\n" : string.Empty)}{reply}";

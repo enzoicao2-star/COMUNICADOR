@@ -12,6 +12,8 @@ public sealed class ReceptorClient
     private static readonly TimeSpan PingTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan ReplyTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan AckTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan RemoteCommandConnectTimeout = TimeSpan.FromMilliseconds(800);
+    private static readonly TimeSpan RemoteCommandAckTimeout = TimeSpan.FromSeconds(3);
 
     private readonly string _panelId;
     private string _panelName;
@@ -98,7 +100,7 @@ public sealed class ReceptorClient
                 : null;
         }
         catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException
-            or ReceptorComunicacaoException or ObjectDisposedException)
+            or ReceptorComunicacaoException or ObjectDisposedException or ArgumentException)
         {
             return null;
         }
@@ -205,6 +207,72 @@ public sealed class ReceptorClient
             // falha de envio vira resultado, nunca excecao: senao sobe para o
             // dispatcher e o usuario leva uma caixa de erro no lugar do aviso.
             return new NotificationResult(false, false, false, null, ex.Message);
+        }
+    }
+
+    public async Task<RemoteCommandAttempt> SendRemoteCommandAsync(
+        string ipAddress, int tcpPort, string token, string command, string requestId,
+        Action? onAccepted = null, CancellationToken ct = default)
+    {
+        var request = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.RemoteCommand);
+        request.Token = token;
+        request.PanelId = _panelId;
+        request.CommandLine = command;
+        request.RequestId = requestId;
+        request.ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5).ToString("O");
+        var validation = MessageValidator.Validate(request);
+        if (!validation.IsValid)
+            return new(false, false, null, validation.Message);
+
+        var requestMayHaveBeenSent = false;
+        try
+        {
+            using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            connectCts.CancelAfter(RemoteCommandConnectTimeout);
+            using var client = await ConnectAsync(ipAddress, tcpPort, RemoteCommandConnectTimeout,
+                connectCts.Token).ConfigureAwait(false);
+            await using var stream = client.GetStream();
+
+            requestMayHaveBeenSent = true;
+            await TcpFraming.WriteFramedAsync(stream, MessageValidator.Frame(request), ct)
+                .ConfigureAwait(false);
+
+            using var ackCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            ackCts.CancelAfter(RemoteCommandAckTimeout);
+            var acknowledgement = await ReadValidatedAsync(stream, ackCts.Token).ConfigureAwait(false);
+            if (acknowledgement.Type == ProtocolConstants.MessageType.Error)
+            {
+                var canFallback = acknowledgement.Code == ProtocolConstants.ErrorCode.UnknownType;
+                return new(false, canFallback, null,
+                    acknowledgement.Message ?? "O computador recusou o comando remoto.");
+            }
+            if (acknowledgement.Type != ProtocolConstants.MessageType.Ack
+                || acknowledgement.Status != "accepted"
+                || !string.Equals(acknowledgement.InReplyTo, request.Id, StringComparison.OrdinalIgnoreCase))
+                return new(false, false, null, "O computador enviou uma confirmação inesperada.");
+
+            try { onAccepted?.Invoke(); }
+            catch { /* Uma falha de atualização visual não deve interromper a leitura da resposta. */ }
+
+            using var replyCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            replyCts.CancelAfter(ReplyTimeout + TimeSpan.FromSeconds(10));
+            var reply = await ReadValidatedAsync(stream, replyCts.Token).ConfigureAwait(false);
+            if (reply.Type == ProtocolConstants.MessageType.Error)
+                return new(true, false, null, reply.Message ?? "O computador não concluiu o comando.");
+            if (reply.Type != ProtocolConstants.MessageType.Reply
+                || !string.Equals(reply.InReplyTo, request.Id, StringComparison.OrdinalIgnoreCase))
+                return new(true, false, null, "O computador encerrou o CMD sem enviar o resultado esperado.");
+
+            return new(true, false, reply.ReplyText, null);
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException
+            or ReceptorComunicacaoException or ObjectDisposedException)
+        {
+            var canFallback = !requestMayHaveBeenSent && !ct.IsCancellationRequested;
+            var detail = requestMayHaveBeenSent
+                ? "O comando pode ter sido recebido, mas a conexão caiu antes da resposta. Confira o computador antes de reenviar."
+                : ex.Message;
+            return new(requestMayHaveBeenSent, canFallback, null, detail);
         }
     }
 
@@ -338,3 +406,9 @@ public sealed class ReceptorClient
         return msg;
     }
 }
+
+public sealed record RemoteCommandAttempt(
+    bool CommandMayHaveStarted,
+    bool CanFallbackToCloud,
+    string? ReplyText,
+    string? Error);

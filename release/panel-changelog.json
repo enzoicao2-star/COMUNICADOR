@@ -484,5 +484,16 @@
       "Um computador só aparece offline após um minuto inteiro sem sinal de vida, evitando alternância rápida entre online e offline.",
       "A versão do receptor é comparada numericamente, reconhecendo também instalações que já estão em uma versão posterior."
     ]
+  },
+  {
+    "version": "2.5.44.0",
+    "summary": "CMD remoto mais rápido na rede local, com confirmação imediata e alternativa pela nuvem.",
+    "changes": [
+      "Na mesma rede, o CMD remoto tenta usar a conexão direta do receptor em vez de esperar a entrega pela nuvem.",
+      "O painel confirma rapidamente quando o computador recebe o CMD; a saída completa aparece quando a execução termina.",
+      "Se a conexão local não estiver disponível, o painel envia o comando pela fila em nuvem como antes.",
+      "O caminho direto continua validando o pareamento, a permissão individual e a proteção do OWNER.",
+      "A velocidade das transições aceita ajuste percentual contínuo e tempo exato em milissegundos."
+    ]
   }
 ]

@@ -102,6 +102,12 @@ public static class MessageValidator
                     msg.AllowManualClose, msg.VideoLoop, msg.Audio, msg.AudioLoop, msg.Carousel)
                 ?? ValidarAparencia(msg.Appearance),
 
+            MessageType.RemoteCommand => RequireString(msg.Token, "token", MaxNameLength)
+                ?? RequireUuid(msg.PanelId, "panel_id")
+                ?? RequireString(msg.CommandLine, "command_line", 500)
+                ?? ValidarRequestIdRemoto(msg.RequestId)
+                ?? RequireString(msg.ExpiresAt, "expires_at", 40),
+
             MessageType.Ack => RequireUuid(msg.InReplyTo, "in_reply_to")
                 ?? RequireString(msg.Status, "status", MaxNameLength),
 
@@ -147,6 +153,15 @@ public static class MessageValidator
         };
 
         return fieldsCheck ?? ValidarMonitores(msg.Monitors) ?? ValidationResult.Ok();
+    }
+
+    private static ValidationResult? ValidarRequestIdRemoto(string? requestId)
+    {
+        var required = RequireString(requestId, "request_id", 64);
+        if (required is not null) return required;
+        return Guid.TryParse(requestId, out _)
+            ? null
+            : ValidationResult.Fail(ErrorCode.InvalidId, "Campo 'request_id' não é um UUID válido.");
     }
 
     /// <summary>Uma imagem central é conteúdo completo por si só, portanto título e
@@ -904,13 +919,19 @@ public static class MessageValidator
 
         if (aparencia.VisualTransition is { } transicao)
         {
-            const string efeitosPermitidos = "fade, none, top, bottom, left, right";
-            var efeitos = new HashSet<string>(["fade", "none", "top", "bottom", "left", "right"], StringComparer.Ordinal);
-            if (!efeitos.Contains(transicao.EntranceEffect) || !efeitos.Contains(transicao.ExitEffect))
-                return ValidationResult.Fail(ErrorCode.InvalidFieldType, $"Efeito de transição inválido. Opções: {efeitosPermitidos}.");
+            static bool IdValido(string? id) => !string.IsNullOrWhiteSpace(id)
+                && id.Length <= 80 && id.All(c => char.IsAsciiLetterOrDigit(c) || c == '_');
+            if (!IdValido(transicao.EntranceEffect) || !IdValido(transicao.ExitEffect))
+                return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Identificador de transição inválido.");
             if (transicao.EntranceSpeedPercent is < 25 or > 250
                 || transicao.ExitSpeedPercent is < 25 or > 250)
                 return ValidationResult.Fail(ErrorCode.InvalidFieldType, "A velocidade das transições precisa ficar entre 25% e 250%.");
+            if (transicao.EntranceTimingMode is not ("speed" or "duration")
+                || transicao.ExitTimingMode is not ("speed" or "duration"))
+                return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Modo de duração da transição inválido.");
+            if (transicao.EntranceDurationMs is < 50 or > 10000
+                || transicao.ExitDurationMs is < 50 or > 10000)
+                return ValidationResult.Fail(ErrorCode.InvalidFieldType, "A duração da transição precisa ficar entre 50 e 10000 ms.");
         }
 
         return null;

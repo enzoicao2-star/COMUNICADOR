@@ -47,7 +47,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.23"
+RECEIVER_VERSION = "2.5.24"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -327,8 +327,11 @@ MEDIA_PLAYER_SCRIPT = r'''param(
     [Parameter(Mandatory=$true)][string]$Kind,
     [int]$X = 0, [int]$Y = 0, [int]$MonitorWidth = 1280, [int]$MonitorHeight = 720,
       [int]$WidthPercent = 70, [switch]$Loop, [double]$DurationSeconds = 0,
-    [switch]$AllowClose, [string]$TransitionIn = 'none', [string]$TransitionOut = 'none',
-    [int]$InSpeedPercent = 100, [int]$OutSpeedPercent = 100
+    [switch]$AllowClose, [switch]$BlockCloseDuringTransition,
+    [string]$TransitionIn = 'none', [string]$TransitionOut = 'none',
+    [int]$InSpeedPercent = 100, [int]$OutSpeedPercent = 100,
+    [string]$InTimingMode = 'speed', [string]$OutTimingMode = 'speed',
+    [int]$InDurationMs = 600, [int]$OutDurationMs = 600
 )
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
@@ -346,7 +349,7 @@ $media.UnloadedBehavior = [System.Windows.Controls.MediaState]::Manual
 $media.Stretch = [System.Windows.Media.Stretch]::Uniform
 $media.Source = [Uri]::new($MediaPath)
 $window.Content = $media
-$transitionState = @{ Timer = $null; Closing = $false; Entered = $false }
+$transitionState = @{ Timer = $null; Closing = $false; Entered = $false; IsTransitioning = $false }
 $isAudio = $Kind -eq 'audio'
 if ($isAudio) {
     $window.Width = 1; $window.Height = 1; $window.Left = -32000; $window.Top = -32000
@@ -359,14 +362,17 @@ if ($isAudio) {
     $window.Opacity = 0
     if ($AllowClose) {
         $window.Cursor = [System.Windows.Input.Cursors]::Hand
-        $window.Add_MouseLeftButtonDown({ Finish-Media })
-        $window.Add_KeyDown({ param($sender, $eventArgs); if ($eventArgs.Key -eq [System.Windows.Input.Key]::Escape) { Finish-Media } })
+        $window.Add_MouseLeftButtonDown({ Finish-Media $true })
+        $window.Add_KeyDown({ param($sender, $eventArgs); if ($eventArgs.Key -eq [System.Windows.Input.Key]::Escape) { Finish-Media $true } })
     }
 }
 function Start-MediaTransition([bool]$Entering, [scriptblock]$OnFinished) {
     $effect = if ($Entering) { $TransitionIn } else { $TransitionOut }
     $speed = if ($Entering) { $InSpeedPercent } else { $OutSpeedPercent }
+    $timingMode = if ($Entering) { $InTimingMode } else { $OutTimingMode }
+    $durationValue = if ($Entering) { $InDurationMs } else { $OutDurationMs }
     if ($isAudio -or $effect -eq 'none') {
+        $transitionState.IsTransitioning = $false
         if (-not $isAudio) { $window.Opacity = 1 }
         if ($OnFinished) { & $OnFinished }
         return
@@ -393,7 +399,11 @@ function Start-MediaTransition([bool]$Entering, [scriptblock]$OnFinished) {
     if ($Entering) { $endX = [double]$window.Left; $endY = [double]$window.Top }
     $startOpacity = if ($Entering) { 0.0 } else { [double]$window.Opacity }
     $endOpacity = if ($Entering) { 1.0 } else { 0.0 }
-    $durationMs = [Math]::Max(180, [Math]::Min(2400, 60000 / [Math]::Max(25, [Math]::Min(250, $speed))))
+    $durationMs = if ($timingMode -eq 'duration') {
+        [Math]::Max(50, [Math]::Min(10000, $durationValue))
+    } else {
+        [Math]::Max(50, [Math]::Min(10000, 60000 / [Math]::Max(25, [Math]::Min(250, $speed))))
+    }
     $clock = [System.Diagnostics.Stopwatch]::StartNew()
     $timer = New-Object System.Windows.Threading.DispatcherTimer
     $timer.Interval = [TimeSpan]::FromMilliseconds(16)
@@ -409,16 +419,19 @@ function Start-MediaTransition([bool]$Entering, [scriptblock]$OnFinished) {
         if ($progress -ge 1) {
             $state.Timer.Stop()
             $transitionState.Timer = $null
+            $transitionState.IsTransitioning = $false
             if ($state.Callback) { & $state.Callback }
         }
     }.GetNewClosure()
     $timer.Add_Tick($tick)
     if ($transitionState.Timer) { $transitionState.Timer.Stop() }
     $transitionState.Timer = $timer
+    $transitionState.IsTransitioning = $true
     if ($Entering) { $window.Left = $startX; $window.Top = $startY }
     $timer.Start()
 }
-function Finish-Media {
+function Finish-Media([bool]$Manual = $false) {
+    if ($Manual -and $BlockCloseDuringTransition -and $transitionState.IsTransitioning) { return }
     if ($transitionState.Closing) { return }
     $transitionState.Closing = $true
     if ($isAudio) { $window.Close(); return }
@@ -1764,6 +1777,11 @@ class NotificationUi:
                 "exit_effect": transicao.get("exit_effect", "none"),
                 "entrance_speed_percent": transicao.get("entrance_speed_percent", 100),
                 "exit_speed_percent": transicao.get("exit_speed_percent", 100),
+                "entrance_timing_mode": transicao.get("entrance_timing_mode", "speed"),
+                "exit_timing_mode": transicao.get("exit_timing_mode", "speed"),
+                "entrance_duration_ms": transicao.get("entrance_duration_ms", 600),
+                "exit_duration_ms": transicao.get("exit_duration_ms", 600),
+                "block_close_during_transition": transicao.get("block_close_during_transition", True),
             },
         }
 
@@ -1927,7 +1945,13 @@ class NotificationUi:
                         "-TransitionOut", str(transicao.get("exit_effect", "none")),
                         "-InSpeedPercent", str(transicao.get("entrance_speed_percent", 100)),
                         "-OutSpeedPercent", str(transicao.get("exit_speed_percent", 100)),
+                        "-InTimingMode", str(transicao.get("entrance_timing_mode", "speed")),
+                        "-OutTimingMode", str(transicao.get("exit_timing_mode", "speed")),
+                        "-InDurationMs", str(transicao.get("entrance_duration_ms", 600)),
+                        "-OutDurationMs", str(transicao.get("exit_duration_ms", 600)),
                     ])
+                    if transicao.get("block_close_during_transition", True):
+                        comando.append("-BlockCloseDuringTransition")
                 if repetir:
                     comando.append("-Loop")
                 if permitir_fechar:
@@ -2091,8 +2115,12 @@ class NotificationUi:
 
         janelas = []
         finalizado = {"done": False, "closing": False}
+        bloquear_fechar_transicao = bool(transicao.get("block_close_during_transition", True))
 
-        def finish(value):
+        def finish(value, manual=False):
+            if manual and bloquear_fechar_transicao and any(
+                    getattr(janela, "_transition_active", False) for janela, *_ in janelas):
+                return
             if finalizado["done"] or finalizado["closing"]:
                 return
             finalizado["closing"] = True
@@ -2120,6 +2148,8 @@ class NotificationUi:
                     self._animar_janela_transicao(
                         janela, monitor, x, y, largura, altura,
                         transicao["exit_effect"], transicao["exit_speed_percent"],
+                        transicao.get("exit_timing_mode", "speed"),
+                        transicao.get("exit_duration_ms", 600),
                         entrada=False, ao_concluir=concluir_saida)
                 except tk.TclError:
                     concluir_saida()
@@ -2193,14 +2223,16 @@ class NotificationUi:
                 win.geometry(f"{largura}x{altura}{x:+d}{y:+d}")
                 if manual_close:
                     label.configure(cursor="hand2")
-                    label.bind("<Button-1>", lambda _e: finish(None))
-                    win.bind("<Escape>", lambda _e: finish(None))
-                win.protocol("WM_DELETE_WINDOW", lambda: finish(None) if manual_close else None)
+                    label.bind("<Button-1>", lambda _e: finish(None, manual=True))
+                    win.bind("<Escape>", lambda _e: finish(None, manual=True))
+                win.protocol("WM_DELETE_WINDOW", lambda: finish(None, manual=True) if manual_close else None)
                 win.lift()
                 janelas.append((win, monitor, x, y, largura, altura))
                 self._animar_janela_transicao(
                     win, monitor, x, y, largura, altura,
                     transicao["entrance_effect"], transicao["entrance_speed_percent"],
+                    transicao.get("entrance_timing_mode", "speed"),
+                    transicao.get("entrance_duration_ms", 600),
                     entrada=True, ao_concluir=lambda: None)
 
         if not janelas:
@@ -2212,8 +2244,9 @@ class NotificationUi:
 
     def _animar_janela_transicao(
             self, janela, monitor, x_destino, y_destino, largura, altura,
-            efeito, velocidade, entrada, ao_concluir):
+            efeito, velocidade, modo_tempo, duracao_ms, entrada, ao_concluir):
         if efeito == "none" or not janela.winfo_exists():
+            janela._transition_active = False
             ao_concluir()
             return
 
@@ -2239,14 +2272,18 @@ class NotificationUi:
             x_final, y_final = x_inicio + dx, y_inicio + dy
             alpha_final = 0.0
 
-        duracao = max(0.18, min(2.4, 0.6 * 100 / max(25, min(250, int(velocidade)))))
+        duracao = (max(0.05, min(10.0, int(duracao_ms) / 1000.0))
+                   if modo_tempo == "duration"
+                   else max(0.05, min(10.0, 0.6 * 100 / max(25, min(250, int(velocidade))))))
         iniciou = time.monotonic()
         estado = {"concluido": False}
+        janela._transition_active = True
 
         def concluir():
             if estado["concluido"]:
                 return
             estado["concluido"] = True
+            janela._transition_active = False
             ao_concluir()
 
         def quadro():
@@ -2375,6 +2412,8 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
                 self._handle_pair_request(msg, server)
             elif msg_type == MessageType.NOTIFICATION:
                 self._handle_notification(msg, server)
+            elif msg_type == MessageType.REMOTE_COMMAND:
+                self._handle_remote_command(msg, server)
             elif msg_type == MessageType.UPDATE_REQUEST:
                 self._handle_update_request(msg, server)
             elif msg_type == MessageType.SYNC_REQUEST:
@@ -2512,6 +2551,37 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         reply["computer_id"] = server.config.computer_id
         reply["computer_name"] = server.config.computer_name
         reply["reply_text"] = reply_text
+        self._safe_send(reply)
+
+    def _handle_remote_command(self, msg: dict, server: "ReceptorTcpServer") -> None:
+        panel_id = msg["panel_id"]
+        paired = server.config.paired_panels.get(panel_id)
+        if not paired or paired.get("token") != msg["token"]:
+            raise ProtocolError(ErrorCode.UNAUTHORIZED, "Token inválido ou painel não pareado.")
+        if not remote_command_is_fresh(msg.get("expires_at")):
+            raise ProtocolError(ErrorCode.CONTENT_BLOCKED, "Comando expirado. Envie novamente.")
+        acknowledgement = protocolo.base_message(MessageType.ACK)
+        acknowledgement["in_reply_to"] = msg["id"]
+        acknowledgement["status"] = "accepted"
+        self._safe_send(acknowledgement)
+
+        try:
+            if server.config.is_owner_device():
+                result = "Comando recusado: o OWNER está protegido e não recebe comandos."
+            elif server.cloud_worker is None or not server.cloud_worker.has_panel_permission(
+                    panel_id, "remote_command"):
+                result = "Comando recusado: o remetente não tem permissão para CMD remoto."
+            else:
+                result = executar_cmd_local(msg["command_line"], msg["request_id"])
+        except Exception:
+            logging.exception("Não foi possível validar ou executar CMD remoto de %s.", panel_id)
+            result = "Comando recusado: não foi possível validar a permissão ou executar o CMD."
+
+        reply = protocolo.base_message(MessageType.REPLY)
+        reply["in_reply_to"] = msg["id"]
+        reply["computer_id"] = server.config.computer_id
+        reply["computer_name"] = server.config.computer_name
+        reply["reply_text"] = str(result)[:950]
         self._safe_send(reply)
 
     def _handle_update_request(self, msg: dict, server: "ReceptorTcpServer") -> None:

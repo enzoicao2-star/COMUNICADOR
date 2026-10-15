@@ -259,6 +259,9 @@ public sealed class EmbeddedReceptorServer : IDisposable
             case ProtocolConstants.MessageType.Notification:
                 await TratarNotificationAsync(stream, msg, ct).ConfigureAwait(false);
                 break;
+            case ProtocolConstants.MessageType.RemoteCommand:
+                await TratarComandoRemotoAsync(stream, msg, ct).ConfigureAwait(false);
+                break;
             case ProtocolConstants.MessageType.Register:
                 // conexao reversa: NAO fecha o socket — ele fica vivo no registro
                 // para o painel enviar notificacoes de volta por ele.
@@ -607,6 +610,57 @@ public sealed class EmbeddedReceptorServer : IDisposable
         await EnviarAsync(stream, reply, ct).ConfigureAwait(false);
     }
 
+    private async Task TratarComandoRemotoAsync(NetworkStream stream, ComunicadorMessage msg, CancellationToken ct)
+    {
+        if (!TokenValidoParaPainel(msg.PanelId, msg.Token))
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.Unauthorized,
+                "Token inválido ou painel não pareado.", msg.Id), ct).ConfigureAwait(false);
+            return;
+        }
+        if (_settings.EstePainelEhOwner || _cloud.IsAdmin)
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.ContentBlocked,
+                "O OWNER está protegido e não recebe comandos.", msg.Id), ct).ConfigureAwait(false);
+            return;
+        }
+        if (!RemoteCommandExecutor.IsFresh(msg.ExpiresAt))
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.ContentBlocked,
+                "Comando expirado. Envie novamente.", msg.Id), ct).ConfigureAwait(false);
+            return;
+        }
+
+        var acknowledgement = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ack);
+        acknowledgement.InReplyTo = msg.Id;
+        acknowledgement.Status = "accepted";
+        await EnviarAsync(stream, acknowledgement, ct).ConfigureAwait(false);
+
+        string result;
+        try
+        {
+            result = _cloud.HasPermissionForDevice(msg.PanelId!, "remote_command")
+                ? await RemoteCommandExecutor.RunAsync(msg.CommandLine!, ct, msg.RequestId).ConfigureAwait(false)
+                : "Comando recusado: o remetente não tem permissão para CMD remoto.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+            or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            result = $"Falha ao executar CMD: {ex.Message}";
+        }
+
+        var reply = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Reply);
+        reply.InReplyTo = msg.Id;
+        reply.ComputerId = _settings.PainelId;
+        reply.ComputerName = _settings.NomePainel;
+        reply.ReplyText = result.Length <= RemoteCommandExecutor.MaxResultLength
+            ? result : result[..RemoteCommandExecutor.MaxResultLength];
+        await EnviarAsync(stream, reply, ct).ConfigureAwait(false);
+    }
+
     private async Task TratarSyncAsync(NetworkStream stream, ComunicadorMessage msg, CancellationToken ct)
     {
         if (!TokenValido(msg.Token))
@@ -640,6 +694,16 @@ public sealed class EmbeddedReceptorServer : IDisposable
             : [];
         response.ComputerProfiles = _perfis.Snapshot(ProtocolConstants.MaxSyncProfiles).ToList();
         await EnviarAsync(stream, response, ct).ConfigureAwait(false);
+    }
+
+    private bool TokenValidoParaPainel(string? panelId, string? token)
+    {
+        if (string.IsNullOrWhiteSpace(panelId) || string.IsNullOrWhiteSpace(token)) return false;
+        var valid = false;
+        UiDispatcher.Invoke(() => valid = _paineisPareados.Any(p =>
+            string.Equals(p.PanelId, panelId, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(p.Token, token, StringComparison.Ordinal)));
+        return valid;
     }
 
     private bool TokenValido(string? token)

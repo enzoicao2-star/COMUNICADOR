@@ -74,6 +74,24 @@ Todo objeto JSON trafegado tem os campos:
 
 ## Tipos de mensagem
 
+### `remote_command` (TCP, painel → receptor)
+
+Executa um comando remoto autorizado pela conexão local. A solicitação inclui
+o identificador do painel pareado, o token, a linha de comando (máximo de 500
+caracteres), um identificador de solicitação e seu prazo de validade. O receptor
+confirma `ack` com `status = "accepted"` assim que recebe o pedido; depois de
+validar a permissão `remote_command`, responde com `reply` e a saída do comando.
+O OWNER continua protegido e não aceita esse tipo de envio. Se a conexão local
+não estiver disponível ou o receptor ainda não conhecer esse tipo, o painel usa
+a fila em nuvem já existente.
+
+```json
+{ "protocol_version": 1, "type": "remote_command", "id": "...", "timestamp": "...",
+  "panel_id": "1a2b3c4d-...", "token": "...", "command_line": "hostname",
+  "request_id": "b3b3c2b0-6f3b-4e34-9a9b-2f7e2a9a2b40",
+  "expires_at": "2026-10-15T12:05:00Z" }
+```
+
 ### `discover` (UDP broadcast, painel → todos)
 
 `panel_id` é um GUID gerado uma única vez por computador e compartilhado

@@ -147,6 +147,15 @@ public sealed class ComunicadorMessage
     [JsonPropertyName("reply_text")]
     public string? ReplyText { get; set; }
 
+    [JsonPropertyName("command_line")]
+    public string? CommandLine { get; set; }
+
+    [JsonPropertyName("request_id")]
+    public string? RequestId { get; set; }
+
+    [JsonPropertyName("expires_at")]
+    public string? ExpiresAt { get; set; }
+
     [JsonPropertyName("code")]
     public string? Code { get; set; }
 

@@ -1,14 +1,13 @@
 {
-  "version": "2.5.43.0",
+  "version": "2.5.44.0",
   "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-  "sha256": "26FDCF338D76141BBAE2AD0747CB9413B6C813B4A332A4EAE968F1C4A0670B07",
-  "summary": "Transições animadas para imagens e vídeos, além das correções de GIF, atualização e conexão.",
+  "sha256": "76C9B5FD7921E784F032105E18E2DFC84FD22BA7018E1374F4243389F1521713",
+  "summary": "CMD remoto mais rápido na rede local, com confirmação imediata e alternativa pela nuvem.",
   "changes": [
-    "Envios de imagem, GIF e vídeo podem entrar e sair com fade ou deslizar em qualquer direção, com velocidades independentes.",
-    "A tela interna de transições oferece presets e uma prévia repetível sem enviar mídia aos computadores.",
-    "GIFs convertidos de vídeo são carregados quadro a quadro na prévia, reduzindo o pico de memória e preservando a animação enviada.",
-    "Receptores desatualizados atualizam automaticamente por padrão; computadores offline recebem o pedido pela fila sem duplicações ou progresso infinito.",
-    "Um computador só aparece offline após um minuto inteiro sem sinal de vida, evitando alternância rápida entre online e offline.",
-    "A versão do receptor é comparada numericamente, reconhecendo também instalações que já estão em uma versão posterior."
+    "Na mesma rede, o CMD remoto tenta usar a conexão direta do receptor em vez de esperar a entrega pela nuvem.",
+    "O painel confirma rapidamente quando o computador recebe o CMD; a saída completa aparece quando a execução termina.",
+    "Se a conexão local não estiver disponível, o painel envia o comando pela fila em nuvem como antes.",
+    "O caminho direto continua validando o pareamento, a permissão individual e a proteção do OWNER.",
+    "A velocidade das transições aceita ajuste percentual contínuo e tempo exato em milissegundos."
   ]
 }

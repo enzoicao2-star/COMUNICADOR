@@ -498,6 +498,19 @@
                                         </Style>
                                     </CheckBox.Style>
                                 </CheckBox>
+                                <CheckBox IsChecked="{Binding BloquearFecharDuranteTransicao}" Margin="22,4,0,0"
+                                          IsEnabled="{Binding PermitirFecharImagem}"
+                                          Content="Bloquear o fechamento enquanto a transição estiver em andamento">
+                                    <CheckBox.Style>
+                                        <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TemAudio}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                                <DataTrigger Binding="{Binding AlterarImagemSistema}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </CheckBox.Style>
+                                </CheckBox>
                             </StackPanel>
                         </Grid>
 

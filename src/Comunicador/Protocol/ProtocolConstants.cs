@@ -7,8 +7,8 @@ public static class ProtocolConstants
     public const string CurrentReceiverVersion = "2.5.16.3";
     public const string CurrentPanelVersion = "2.5.27.2";
 #else
-    public const string CurrentReceiverVersion = "2.5.23";
-    public const string CurrentPanelVersion = "2.5.43";
+    public const string CurrentReceiverVersion = "2.5.24";
+    public const string CurrentPanelVersion = "2.5.44";
 #endif
     public const string MinimumManagedReceiverVersion = "2.1.0";
 
@@ -129,6 +129,7 @@ public static class ProtocolConstants
         public const string Ping = "ping";
         public const string Pong = "pong";
         public const string Notification = "notification";
+        public const string RemoteCommand = "remote_command";
         public const string Ack = "ack";
         public const string Reply = "reply";
         public const string Error = "error";
@@ -142,7 +143,7 @@ public static class ProtocolConstants
         public static readonly IReadOnlySet<string> All = new HashSet<string>
         {
             Discover, Announce, PairRequest, PairResponse, Ping, Pong,
-            Notification, Ack, Reply, Error, Register, RegisterAck,
+            Notification, RemoteCommand, Ack, Reply, Error, Register, RegisterAck,
             UpdateRequest, UpdateStatus, SyncRequest, SyncResponse,
         };
     }
