@@ -30,6 +30,30 @@ def test_audio_command_parser(input_, action, value, error):
     assert receptor.parse_audio_command(input_) == (action, value, error)
 
 
+@pytest.mark.parametrize(("command", "browser", "url"), [
+    ('start "" msedge.exe --new-window "https://www.yout-ube.com/watch?v=abc&list=xyz&start_radio=1"',
+     "msedge.exe", "https://www.yout-ube.com/watch?v=abc&list=xyz&start_radio=1"),
+    ('start "" firefox.exe "https://example.com/path?q=one&next=two"',
+     "firefox.exe", "https://example.com/path?q=one&next=two"),
+    ('start "" "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" --new-window "https://example.com"',
+     "chrome.exe", "https://example.com"),
+])
+def test_browser_start_parser_preserves_quoted_url(command, browser, url):
+    request = receptor.parse_browser_start(command)
+    assert request is not None
+    assert request[0] == browser
+    assert request[3] == url
+
+
+@pytest.mark.parametrize("command", [
+    'start "" msedge.exe "file:///C:/private.txt"',
+    'start "" notepad.exe "https://example.com"',
+    'start "" firefox.exe --new-window https://example.com extra',
+])
+def test_browser_start_parser_ignores_non_http_or_unsupported_commands(command):
+    assert receptor.parse_browser_start(command) is None
+
+
 def test_remote_command_expiry():
     now = datetime.now(timezone.utc)
     assert receptor.remote_command_is_fresh((now + timedelta(minutes=5)).isoformat())

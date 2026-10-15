@@ -20,9 +20,12 @@ import ctypes
 import io
 import json
 import logging
+import ntpath
 import os
 import queue
 import re
+import shlex
+import shutil
 import socket
 import socketserver
 import subprocess
@@ -44,7 +47,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.21"
+RECEIVER_VERSION = "2.5.22"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -130,6 +133,111 @@ def parse_audio_command(command):
     return None, None, None
 
 
+def parse_browser_start(command: str):
+    """Recognize `start \"\" <browser> [--new-window] <http(s)-url>`."""
+    try:
+        parts = shlex.split(command, posix=False)
+    except ValueError:
+        return None
+    if len(parts) < 4 or parts[0].casefold() != "start" or parts[1].strip('"'):
+        return None
+
+    browser_path = parts[2].strip('"')
+    browser_id = ntpath.basename(browser_path).casefold()
+    browsers = {
+        "msedge": ("msedge.exe", "Microsoft Edge"),
+        "msedge.exe": ("msedge.exe", "Microsoft Edge"),
+        "chrome": ("chrome.exe", "Google Chrome"),
+        "chrome.exe": ("chrome.exe", "Google Chrome"),
+        "firefox": ("firefox.exe", "Mozilla Firefox"),
+        "firefox.exe": ("firefox.exe", "Mozilla Firefox"),
+    }
+    browser = browsers.get(browser_id)
+    if browser is None:
+        return None
+
+    arguments = [part.strip('"') for part in parts[3:]]
+    if len(arguments) == 2 and arguments[0].casefold() in {
+        "--new-window", "-new-window", "--new-tab", "-new-tab",
+    }:
+        arguments = arguments[1:]
+    if len(arguments) != 1:
+        return None
+
+    url = arguments[0]
+    parsed_url = urllib.parse.urlsplit(url)
+    if parsed_url.scheme.casefold() not in {"http", "https"} or not parsed_url.netloc:
+        return None
+    return browser[0], browser[1], browser_path, url
+
+
+def _find_browser_executable(executable_name: str, requested_path: str) -> Optional[str]:
+    if ntpath.dirname(requested_path):
+        return requested_path if os.path.isfile(requested_path) else None
+
+    found = shutil.which(executable_name)
+    if found:
+        return found
+
+    if os.name == "nt":
+        import winreg
+
+        registry_path = rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{executable_name}"
+        views = [0]
+        for view_name in ("KEY_WOW64_64KEY", "KEY_WOW64_32KEY"):
+            view = getattr(winreg, view_name, 0)
+            if view and view not in views:
+                views.append(view)
+        for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+            for view in views:
+                try:
+                    with winreg.OpenKey(hive, registry_path, 0, winreg.KEY_READ | view) as key:
+                        registered_path, _ = winreg.QueryValueEx(key, None)
+                    if os.path.isfile(registered_path):
+                        return registered_path
+                except OSError:
+                    continue
+
+    relative_paths = {
+        "msedge.exe": (r"Microsoft\Edge\Application\msedge.exe",),
+        "chrome.exe": (r"Google\Chrome\Application\chrome.exe",),
+        "firefox.exe": (r"Mozilla Firefox\firefox.exe", r"Programs\Mozilla Firefox\firefox.exe"),
+    }.get(executable_name, ())
+    roots = [os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)"),
+             os.environ.get("LOCALAPPDATA")]
+    for root in filter(None, roots):
+        for relative_path in relative_paths:
+            candidate = os.path.join(root, relative_path)
+            if os.path.isfile(candidate):
+                return candidate
+    return None
+
+
+def _open_browser_start(request) -> str:
+    executable_name, browser_name, requested_path, url = request
+    executable = _find_browser_executable(executable_name, requested_path)
+    if executable is None:
+        return f"Navegador não encontrado nesta sessão: {browser_name}."
+    if os.name != "nt":
+        return "A abertura remota de navegadores está disponível somente no Windows."
+
+    try:
+        shell32 = ctypes.WinDLL("shell32", use_last_error=True)
+        shell_execute = shell32.ShellExecuteW
+        shell_execute.argtypes = (ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_wchar_p,
+                                  ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_int)
+        shell_execute.restype = ctypes.c_void_p
+        result = shell_execute(None, "open", executable, subprocess.list2cmdline([url]), None, 1)
+        result_code = int(result or 0)
+        if result_code <= 32:
+            reason = {2: "arquivo não encontrado", 3: "pasta não encontrada",
+                      5: "acesso negado nesta sessão", 31: "não foi possível abrir o navegador"}
+            return f"Falha ao abrir {browser_name}: {reason.get(result_code, f'erro do Windows {result_code}')} (código {result_code})."
+        return f"Código de saída: 0\nURL aberta no {browser_name}."
+    except (OSError, AttributeError, TypeError, ValueError) as exc:
+        return f"Falha ao abrir {browser_name}: {exc}"
+
+
 def executar_cmd_local(command, request_id=None):
     """Roda CMD na sessão atual, sem pedir elevação e sem janela de console."""
     if not isinstance(command, str) or not command.strip() or len(command) > MAX_REMOTE_COMMAND_LENGTH or "\0" in command:
@@ -145,6 +253,9 @@ def executar_cmd_local(command, request_id=None):
     audio_action, audio_value, audio_error = parse_audio_command(command)
     if audio_error:
         return audio_error
+    browser_request = parse_browser_start(command)
+    if browser_request is not None:
+        return _open_browser_start(browser_request)
     env = None
     encoding = "oem"
     if audio_action:
