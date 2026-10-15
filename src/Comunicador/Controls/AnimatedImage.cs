@@ -11,6 +11,7 @@ public sealed class AnimatedImage : Image
 {
     private readonly DispatcherTimer _timer = new();
     private GifFrameCompositor? _gif;
+    private MemoryStream? _gifStream;
 
     public static readonly DependencyProperty DataBase64Property = DependencyProperty.Register(
         nameof(DataBase64), typeof(string), typeof(AnimatedImage),
@@ -67,22 +68,37 @@ public sealed class AnimatedImage : Image
     {
         _timer.Stop();
         _gif = null;
+        _gifStream?.Dispose();
+        _gifStream = null;
         Source = null;
         if (string.IsNullOrWhiteSpace(DataBase64)) return;
 
         try
         {
             var bytes = Convert.FromBase64String(DataBase64);
-            using var stream = new MemoryStream(bytes, writable: false);
             if (string.Equals(MimeType, "image/gif", StringComparison.OrdinalIgnoreCase))
             {
-                var decoder = new GifBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat,
-                    BitmapCacheOption.OnLoad);
-                _gif = new GifFrameCompositor(decoder);
+                // OnLoad eagerly expands every frame into memory. A short video
+                // converted to GIF can contain hundreds of frames, so keep the
+                // stream alive and decode frames on demand as playback advances.
+                var stream = new MemoryStream(bytes, writable: false);
+                try
+                {
+                    var decoder = new GifBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat,
+                        BitmapCacheOption.OnDemand);
+                    _gif = new GifFrameCompositor(decoder);
+                    _gifStream = stream;
+                }
+                catch
+                {
+                    stream.Dispose();
+                    throw;
+                }
                 Source = _gif.Bitmap;
             }
             else
             {
+                using var stream = new MemoryStream(bytes, writable: false);
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
@@ -93,8 +109,11 @@ public sealed class AnimatedImage : Image
             }
             StartIfAnimated();
         }
-        catch (Exception ex) when (ex is FormatException or NotSupportedException or IOException or OverflowException)
+        catch (Exception ex) when (ex is FormatException or NotSupportedException or IOException
+            or OverflowException or ArgumentException or InvalidOperationException)
         {
+            _gifStream?.Dispose();
+            _gifStream = null;
             Source = null;
             _gif = null;
         }

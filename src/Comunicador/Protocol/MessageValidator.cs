@@ -902,6 +902,17 @@ public static class MessageValidator
             return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Posição do aviso inválida.");
         }
 
+        if (aparencia.VisualTransition is { } transicao)
+        {
+            const string efeitosPermitidos = "fade, none, top, bottom, left, right";
+            var efeitos = new HashSet<string>(["fade", "none", "top", "bottom", "left", "right"], StringComparer.Ordinal);
+            if (!efeitos.Contains(transicao.EntranceEffect) || !efeitos.Contains(transicao.ExitEffect))
+                return ValidationResult.Fail(ErrorCode.InvalidFieldType, $"Efeito de transição inválido. Opções: {efeitosPermitidos}.");
+            if (transicao.EntranceSpeedPercent is < 25 or > 250
+                || transicao.ExitSpeedPercent is < 25 or > 250)
+                return ValidationResult.Fail(ErrorCode.InvalidFieldType, "A velocidade das transições precisa ficar entre 25% e 250%.");
+        }
+
         return null;
     }
 

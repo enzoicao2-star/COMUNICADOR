@@ -16,7 +16,7 @@ public sealed class ConfiguracaoGlobalPrograma
     public bool PermitirPapelParedeRemoto { get; set; } = true;
     public string PoliticaInicializacaoWindows { get; set; } = "local";
     public string PoliticaAtualizacaoPainel { get; set; } = "available";
-    public string PoliticaAtualizacaoReceptor { get; set; } = "ask";
+    public string PoliticaAtualizacaoReceptor { get; set; } = "available";
     public List<ModeloBadgeGlobal> ModelosBadge { get; set; } = [];
     public List<GrupoComputadoresGlobal> GruposComputadores { get; set; } = [];
     public List<ModeloMensagemGlobal> ModelosMensagem { get; set; } = [];

@@ -462,5 +462,27 @@
       "As telas de configurações, mensagens, lembretes, histórico e logs usam espaçamento mais compacto e removem animações simultâneas que podiam deixar a navegação pesada.",
       "Os cards dos computadores mantêm o visual e o conteúdo existentes."
     ]
+  },
+  {
+    "version": "2.5.42.0",
+    "summary": "GIFs de vídeo sem travar, atualizações automáticas dos receptores e status online estável.",
+    "changes": [
+      "GIFs convertidos de vídeo são carregados quadro a quadro na prévia, reduzindo o pico de memória e preservando a animação enviada.",
+      "Receptores desatualizados atualizam automaticamente por padrão; computadores offline recebem o pedido pela fila sem duplicações ou progresso infinito.",
+      "Um computador só aparece offline após um minuto inteiro sem sinal de vida, evitando alternância rápida entre online e offline.",
+      "A versão do receptor é comparada numericamente, reconhecendo também instalações que já estão em uma versão posterior."
+    ]
+  },
+  {
+    "version": "2.5.43.0",
+    "summary": "Transições animadas para imagens e vídeos, além das correções de GIF, atualização e conexão.",
+    "changes": [
+      "Envios de imagem, GIF e vídeo podem entrar e sair com fade ou deslizar em qualquer direção, com velocidades independentes.",
+      "A tela interna de transições oferece presets e uma prévia repetível sem enviar mídia aos computadores.",
+      "GIFs convertidos de vídeo são carregados quadro a quadro na prévia, reduzindo o pico de memória e preservando a animação enviada.",
+      "Receptores desatualizados atualizam automaticamente por padrão; computadores offline recebem o pedido pela fila sem duplicações ou progresso infinito.",
+      "Um computador só aparece offline após um minuto inteiro sem sinal de vida, evitando alternância rápida entre online e offline.",
+      "A versão do receptor é comparada numericamente, reconhecendo também instalações que já estão em uma versão posterior."
+    ]
   }
 ]

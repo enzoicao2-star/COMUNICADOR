@@ -1,6 +1,5 @@
 using Comunicador.Models;
 using Comunicador.Networking;
-using System.Collections.Concurrent;
 
 namespace Comunicador.Services;
 
@@ -12,8 +11,7 @@ public sealed class StatusMonitorService : IDisposable
     private readonly AppSettings _settings;
     private CancellationTokenSource? _cts;
     private Task? _loopTask;
-    private readonly ConcurrentDictionary<string, int> _falhasConsecutivas = new(StringComparer.OrdinalIgnoreCase);
-    private const int FalhasAntesDeOffline = 3;
+    private static readonly TimeSpan TempoSemSinalParaOffline = TimeSpan.FromMinutes(1);
     private const int MaxVerificacoesSimultaneas = 8;
 
     public event Action<string, StatusComputador, double?>? StatusAtualizado;
@@ -79,7 +77,6 @@ public sealed class StatusMonitorService : IDisposable
             var resultado = await _enviador.MedirStatusAsync(computador, ct).ConfigureAwait(false);
             if (resultado.Online)
             {
-                _falhasConsecutivas.TryRemove(computador.Id, out _);
                 StatusAtualizado?.Invoke(computador.Id, StatusComputador.Online, resultado.PingMs);
                 return;
             }
@@ -90,8 +87,12 @@ public sealed class StatusMonitorService : IDisposable
             Logger.Warning($"Falha ao verificar presença de {computador.NomeExibicao}: {ex.Message}");
         }
 
-        var falhas = _falhasConsecutivas.AddOrUpdate(computador.Id, 1, (_, atuais) => atuais + 1);
-        if (falhas >= FalhasAntesDeOffline)
+        // A brief packet loss must not make the card flicker offline. The
+        // computer remains online while any successful ping, cloud heartbeat,
+        // or reverse connection has been seen in the last minute.
+        var ultimoSinal = computador.UltimaVezVisto;
+        if (DateTime.UtcNow - ultimoSinal >= TempoSemSinalParaOffline
+            && computador.Status != StatusComputador.Offline)
             StatusAtualizado?.Invoke(computador.Id, StatusComputador.Offline, null);
     }
 
@@ -103,6 +104,5 @@ public sealed class StatusMonitorService : IDisposable
     {
         Stop();
         _cts?.Dispose();
-        _falhasConsecutivas.Clear();
     }
 }

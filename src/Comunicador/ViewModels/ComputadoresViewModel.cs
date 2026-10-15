@@ -24,7 +24,10 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private readonly AppSettings _settings;
     private readonly PerfilComputadorRepository _perfis;
     private readonly CloudSyncService _cloud;
-    private readonly ConcurrentDictionary<string, ReceiverCloudUpdateConfirmation> _cloudReceiverUpdates =
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _automaticReceiverUpdateRetryAfter =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _cloudReceiverUpdateSync = new();
+    private readonly Dictionary<string, DateTimeOffset> _cloudReceiverUpdatesPending =
         new(StringComparer.OrdinalIgnoreCase);
     private string? _statusMensagem;
     private string _testeComunicacaoStatus = "O teste envia apenas um ping, sem abrir conteúdo no outro computador.";
@@ -830,8 +833,13 @@ public sealed class ComputadoresViewModel : ViewModelBase
         {
             if (string.IsNullOrWhiteSpace(device.DeviceId)) continue;
             if (aliasIds.Contains(device.DeviceId)) continue;
-            if (_cloudReceiverUpdates.TryGetValue(device.DeviceId, out var updateConfirmation))
-                updateConfirmation.Observe(device);
+            if (Version.TryParse(device.ReceiverVersion, out var receivedVersion)
+                && Version.TryParse(ProtocolConstants.CurrentReceiverVersion, out var currentVersion)
+                && receivedVersion >= currentVersion)
+            {
+                _automaticReceiverUpdateRetryAfter.TryRemove(device.DeviceId, out _);
+                lock (_cloudReceiverUpdateSync) _cloudReceiverUpdatesPending.Remove(device.DeviceId);
+            }
             var computador = Computadores.FirstOrDefault(c =>
                 string.Equals(c.Id, device.DeviceId, StringComparison.OrdinalIgnoreCase));
             var created = computador is null;
@@ -1274,6 +1282,38 @@ public sealed class ComputadoresViewModel : ViewModelBase
         }
     }
 
+    public async Task AtualizarReceptoresDesatualizadosAutomaticamenteAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (!_cloud.HasPermission("remote_receiver")) return;
+        if (!Version.TryParse(ProtocolConstants.CurrentReceiverVersion, out var versaoAtual)) return;
+
+        var desatualizados = Computadores
+            .Where(computador => computador.Pareado && computador.TemReceptor
+                && Version.TryParse(computador.VersaoReceptor, out var instalada)
+                && instalada < versaoAtual)
+            .ToList();
+
+        foreach (var computador in desatualizados)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (computador.AtualizandoReceptor) continue;
+
+            var agora = DateTimeOffset.UtcNow;
+            if (_automaticReceiverUpdateRetryAfter.TryGetValue(computador.Id, out var proximaTentativa)
+                && proximaTentativa > agora)
+                continue;
+
+            // A cloud request can remain queued while the receiver is offline.
+            // Keep a long cooldown so each check does not enqueue another copy.
+            _automaticReceiverUpdateRetryAfter[computador.Id] = agora.AddMinutes(30);
+            await AtualizarReceptorAsync(computador).ConfigureAwait(true);
+
+            if (computador.ReceptorAtualizado)
+                _automaticReceiverUpdateRetryAfter.TryRemove(computador.Id, out _);
+        }
+    }
+
     private async Task AtualizarReceptorAsync(Computador computador)
     {
         computador.ProgressoAtualizacaoReceptor = 0;
@@ -1355,41 +1395,34 @@ public sealed class ComputadoresViewModel : ViewModelBase
     {
         var targetDeviceId = await _cloud.ResolveRegisteredDeviceIdAsync(computador.Id, computador.Nome)
             .ConfigureAwait(true);
-        var confirmation = new ReceiverCloudUpdateConfirmation(
-            targetDeviceId, ProtocolConstants.CurrentReceiverVersion, DateTimeOffset.UtcNow.AddSeconds(-2));
-        if (!_cloudReceiverUpdates.TryAdd(targetDeviceId, confirmation))
-            return new(false, "update_in_progress", computador.VersaoReceptor ?? string.Empty,
-                "Já existe uma atualização pela nuvem aguardando este receptor.");
+        var agora = DateTimeOffset.UtcNow;
+        lock (_cloudReceiverUpdateSync)
+        {
+            if (_cloudReceiverUpdatesPending.TryGetValue(targetDeviceId, out var expiraEm)
+                && expiraEm > agora)
+            {
+                report(new(100, "Já existe um pedido de atualização na fila para este receptor"));
+                return new(false, "update_pending", computador.VersaoReceptor ?? string.Empty,
+                    "A atualização deste receptor já está na fila e será confirmada quando ele reconectar.");
+            }
+
+            // Protect against repeated clicks and repeated background checks
+            // while the cloud command is waiting for the receiver to return.
+            _cloudReceiverUpdatesPending[targetDeviceId] = agora.AddHours(6);
+        }
 
         try
         {
             await _cloud.QueueAdminCommandAsync(targetDeviceId, "reinstall_receiver").ConfigureAwait(true);
-            report(new(18, "Solicitação enviada pela nuvem; aguardando o receptor instalar e reconectar"));
-
-            if (computador.Status == StatusComputador.Offline)
-                return new(false, "update_pending", computador.VersaoReceptor ?? string.Empty,
-                    "O pedido foi guardado na fila e será entregue quando o receptor voltar a ficar online.");
-
-            using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-            try
-            {
-                var version = await confirmation.WaitAsync(timeout.Token).ConfigureAwait(true);
-                return new(true, "updated", version, "Atualização confirmada pela versão registrada na nuvem.");
-            }
-            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
-            {
-                return new(false, "update_pending", computador.VersaoReceptor ?? string.Empty,
-                    "O pedido foi enfileirado, mas o receptor ainda não confirmou a nova versão.");
-            }
+            report(new(100, "Pedido entrou na fila; o painel atualizará a versão quando o receptor reconectar"));
+            return new(false, "update_pending", computador.VersaoReceptor ?? string.Empty,
+                "O pedido entrou na fila da nuvem e será instalado quando o receptor estiver disponível.");
         }
         catch (Exception ex)
         {
+            lock (_cloudReceiverUpdateSync) _cloudReceiverUpdatesPending.Remove(targetDeviceId);
             return new(false, "cloud_delivery_failed", computador.VersaoReceptor ?? string.Empty,
                 $"A atualização direta falhou e não foi possível solicitar pela nuvem: {ex.Message}");
-        }
-        finally
-        {
-            _cloudReceiverUpdates.TryRemove(targetDeviceId, out _);
         }
     }
 

@@ -523,6 +523,20 @@ def _validar_aparencia(msg: dict) -> None:
     if aparencia.get("toast_position") not in TOAST_POSITIONS:
         raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Posição do aviso inválida.")
 
+    transicao = aparencia.get("visual_transition")
+    if transicao is not None:
+        if not isinstance(transicao, dict):
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Campo 'appearance.visual_transition' precisa ser um objeto.")
+        efeitos_permitidos = {"fade", "none", "top", "bottom", "left", "right"}
+        entrada = _require_str(transicao, "entrance_effect", 16)
+        saida = _require_str(transicao, "exit_effect", 16)
+        if entrada not in efeitos_permitidos or saida not in efeitos_permitidos:
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Efeito de transição inválido.")
+        velocidade_entrada = _require_int(transicao, "entrance_speed_percent")
+        velocidade_saida = _require_int(transicao, "exit_speed_percent")
+        if not 25 <= velocidade_entrada <= 250 or not 25 <= velocidade_saida <= 250:
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "A velocidade das transições precisa ficar entre 25% e 250%.")
+
 
 def _validar_monitores(msg: dict) -> None:
     monitores = msg.get("monitors")

@@ -333,6 +333,7 @@ public partial class MainWindow : Window
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _viewModel.Configuracoes.AtualizacaoPainelIniciada += OnAtualizacaoPainelIniciada;
         _viewModel.Mensagens.AbrirCarrosselSolicitado += OnAbrirCarrosselSolicitado;
+        _viewModel.Mensagens.AbrirTransicoesSolicitado += OnAbrirTransicoesSolicitado;
         PrepararSecoes(_viewModel);
         MostrarSecaoAtual();
     }
@@ -352,6 +353,7 @@ public partial class MainWindow : Window
         if (_viewModel is not null) _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         if (_viewModel is not null) _viewModel.Configuracoes.AtualizacaoPainelIniciada -= OnAtualizacaoPainelIniciada;
         if (_viewModel is not null) _viewModel.Mensagens.AbrirCarrosselSolicitado -= OnAbrirCarrosselSolicitado;
+        if (_viewModel is not null) _viewModel.Mensagens.AbrirTransicoesSolicitado -= OnAbrirTransicoesSolicitado;
         LimparNavegacaoAninhada();
         _warmupGeneration++;
         _sectionHost.Children.Clear();
@@ -452,6 +454,12 @@ public partial class MainWindow : Window
         var carrossel = new CarrosselView(mensagens.Enviador, mensagens.Destinatarios,
             () => mensagens.PodeGerenciarCarrossel, () => mensagens.PodeGerenciarCarrossel);
         NavegarPara(carrossel, carrossel.CancelarOperacoes);
+    }
+
+    private void OnAbrirTransicoesSolicitado(object? sender, EventArgs e)
+    {
+        if (_viewModel is null || !_viewModel.Mensagens.PodePersonalizarTransicao) return;
+        NavegarPara(new TransicoesMidiaView(_viewModel.Mensagens));
     }
 
     public void MostrarResumoAtualizacao(string resumo) =>

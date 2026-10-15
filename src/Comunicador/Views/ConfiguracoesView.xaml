@@ -528,7 +528,6 @@
                                         <StackPanel>
                                             <TextBlock Text="Receptor" Style="{StaticResource RotuloCampo}" />
                                             <ComboBox SelectedValue="{Binding GlobalPoliticaAtualizacaoReceptor}" SelectedValuePath="Tag" IsEnabled="{Binding PodeEditarPoliticasGlobais}">
-                                                <ComboBoxItem Content="Perguntar antes" Tag="ask" />
                                                 <ComboBoxItem Content="Ao iniciar com o Windows" Tag="on_open" />
                                                 <ComboBoxItem Content="Assim que uma versão for publicada" Tag="available" />
                                             </ComboBox>

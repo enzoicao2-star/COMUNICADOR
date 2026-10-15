@@ -56,7 +56,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
     private bool _globalPermitirPapelParede = true;
     private string _globalPoliticaInicializacaoWindows = "local";
     private string _globalPoliticaAtualizacaoPainel = "available";
-    private string _globalPoliticaAtualizacaoReceptor = "ask";
+    private string _globalPoliticaAtualizacaoReceptor = "available";
     private string? _statusGlobal;
     private string _statusAuditoria = "Abra a administração para carregar as ações recentes.";
     private PanelUpdateInfo? _ultimaVerificacaoPainel;
@@ -668,7 +668,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         policy is "on_open" or "available" ? policy : "available";
 
     private static string NormalizarPoliticaAtualizacaoReceptor(string? policy) =>
-        policy is "on_open" or "available" ? policy : "ask";
+        policy is "on_open" or "available" ? policy : "available";
 
     private void AgendarSalvamento()
     {

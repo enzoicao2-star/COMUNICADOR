@@ -334,7 +334,32 @@
                                             Command="{Binding SelecionarAudioCommand}" Margin="0,0,7,6" />
                                     <Button Style="{StaticResource BotaoSecundario}" Content="Remover"
                                             Command="{Binding RemoverImagemCommand}" IsEnabled="{Binding TemMidia}" Margin="0,0,0,6" />
+                                    <Button Content="Personalizar transições"
+                                            Command="{Binding AbrirTransicoesCommand}" Margin="0,0,0,6">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource BotaoSecundario}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding PodePersonalizarTransicao}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
                                 </WrapPanel>
+                                <TextBlock Text="{Binding ResumoTransicoes}" Margin="0,0,0,7">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Subtitulo}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding PodePersonalizarTransicao}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <TextBlock Text="Imagem PNG/JPEG/BMP até 4 MB · GIF até 16 MB · vídeo MP4/WMV até 24 MB · áudio MP3/WAV até 12 MB"
                                            Style="{StaticResource Subtitulo}" FontSize="11" />
                                 <CheckBox IsChecked="{Binding DefinirComoPapelDeParede}"

@@ -388,7 +388,10 @@ public sealed class Computador : ObservableModel
     }
 
     [JsonIgnore]
-    public bool ReceptorAtualizado => VersaoReceptor == ProtocolConstants.CurrentReceiverVersion;
+    public bool ReceptorAtualizado =>
+        Version.TryParse(VersaoReceptor, out var instalada)
+        && Version.TryParse(ProtocolConstants.CurrentReceiverVersion, out var atual)
+        && instalada >= atual;
 
     [JsonIgnore]
     public string StatusVersaoReceptor => AtualizandoReceptor

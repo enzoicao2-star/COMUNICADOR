@@ -47,7 +47,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.22"
+RECEIVER_VERSION = "2.5.23"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -327,7 +327,8 @@ MEDIA_PLAYER_SCRIPT = r'''param(
     [Parameter(Mandatory=$true)][string]$Kind,
     [int]$X = 0, [int]$Y = 0, [int]$MonitorWidth = 1280, [int]$MonitorHeight = 720,
       [int]$WidthPercent = 70, [switch]$Loop, [double]$DurationSeconds = 0,
-    [switch]$AllowClose
+    [switch]$AllowClose, [string]$TransitionIn = 'none', [string]$TransitionOut = 'none',
+    [int]$InSpeedPercent = 100, [int]$OutSpeedPercent = 100
 )
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
@@ -345,6 +346,7 @@ $media.UnloadedBehavior = [System.Windows.Controls.MediaState]::Manual
 $media.Stretch = [System.Windows.Media.Stretch]::Uniform
 $media.Source = [Uri]::new($MediaPath)
 $window.Content = $media
+$transitionState = @{ Timer = $null; Closing = $false; Entered = $false }
 $isAudio = $Kind -eq 'audio'
 if ($isAudio) {
     $window.Width = 1; $window.Height = 1; $window.Left = -32000; $window.Top = -32000
@@ -357,9 +359,70 @@ if ($isAudio) {
     $window.Opacity = 0
     if ($AllowClose) {
         $window.Cursor = [System.Windows.Input.Cursors]::Hand
-        $window.Add_MouseLeftButtonDown({ $window.Close() })
-        $window.Add_KeyDown({ param($sender, $eventArgs); if ($eventArgs.Key -eq [System.Windows.Input.Key]::Escape) { $window.Close() } })
+        $window.Add_MouseLeftButtonDown({ Finish-Media })
+        $window.Add_KeyDown({ param($sender, $eventArgs); if ($eventArgs.Key -eq [System.Windows.Input.Key]::Escape) { Finish-Media } })
     }
+}
+function Start-MediaTransition([bool]$Entering, [scriptblock]$OnFinished) {
+    $effect = if ($Entering) { $TransitionIn } else { $TransitionOut }
+    $speed = if ($Entering) { $InSpeedPercent } else { $OutSpeedPercent }
+    if ($isAudio -or $effect -eq 'none') {
+        if (-not $isAudio) { $window.Opacity = 1 }
+        if ($OnFinished) { & $OnFinished }
+        return
+    }
+
+    $startX = [double]$window.Left; $startY = [double]$window.Top
+    $endX = $startX; $endY = $startY
+    $offsetX = [double]$MonitorWidth; $offsetY = [double]$MonitorHeight
+    if ($Entering) {
+        switch ($effect) {
+            'top' { $startY = $Y - $window.Height }
+            'bottom' { $startY = $Y + $MonitorHeight }
+            'left' { $startX = $X - $window.Width }
+            'right' { $startX = $X + $MonitorWidth }
+        }
+    } else {
+        switch ($effect) {
+            'top' { $endY = $startY - $offsetY }
+            'bottom' { $endY = $startY + $offsetY }
+            'left' { $endX = $startX - $offsetX }
+            'right' { $endX = $startX + $offsetX }
+        }
+    }
+    if ($Entering) { $endX = [double]$window.Left; $endY = [double]$window.Top }
+    $startOpacity = if ($Entering) { 0.0 } else { [double]$window.Opacity }
+    $endOpacity = if ($Entering) { 1.0 } else { 0.0 }
+    $durationMs = [Math]::Max(180, [Math]::Min(2400, 60000 / [Math]::Max(25, [Math]::Min(250, $speed))))
+    $clock = [System.Diagnostics.Stopwatch]::StartNew()
+    $timer = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [TimeSpan]::FromMilliseconds(16)
+    $state = @{ Clock=$clock; Timer=$timer; X0=$startX; Y0=$startY; X1=$endX; Y1=$endY;
+        Opacity0=$startOpacity; Opacity1=$endOpacity; Duration=$durationMs; Entering=$Entering; Callback=$OnFinished }
+    $tick = {
+        $progress = [Math]::Min(1.0, $state.Clock.Elapsed.TotalMilliseconds / $state.Duration)
+        if ($state.Entering) { $eased = 1 - [Math]::Pow(1 - $progress, 3) }
+        else { $eased = [Math]::Pow($progress, 2) }
+        $window.Left = $state.X0 + ($state.X1 - $state.X0) * $eased
+        $window.Top = $state.Y0 + ($state.Y1 - $state.Y0) * $eased
+        $window.Opacity = $state.Opacity0 + ($state.Opacity1 - $state.Opacity0) * $eased
+        if ($progress -ge 1) {
+            $state.Timer.Stop()
+            $transitionState.Timer = $null
+            if ($state.Callback) { & $state.Callback }
+        }
+    }.GetNewClosure()
+    $timer.Add_Tick($tick)
+    if ($transitionState.Timer) { $transitionState.Timer.Stop() }
+    $transitionState.Timer = $timer
+    if ($Entering) { $window.Left = $startX; $window.Top = $startY }
+    $timer.Start()
+}
+function Finish-Media {
+    if ($transitionState.Closing) { return }
+    $transitionState.Closing = $true
+    if ($isAudio) { $window.Close(); return }
+    Start-MediaTransition $false { $window.Close() }
 }
 $media.add_MediaOpened({
     if (-not $isAudio -and $media.NaturalVideoWidth -gt 0 -and $media.NaturalVideoHeight -gt 0) {
@@ -370,22 +433,25 @@ $media.add_MediaOpened({
         $window.Height = [Math]::Max(1, $media.NaturalVideoHeight * $scale)
         $window.Left = $X + ($MonitorWidth - $window.Width) / 2.0
         $window.Top = $Y + ($MonitorHeight - $window.Height) / 2.0
-        $window.Opacity = 1
+    }
+    if (-not $isAudio -and -not $transitionState.Entered) {
+        $transitionState.Entered = $true
+        Start-MediaTransition $true { }
     }
 })
 $media.add_MediaEnded({
     if ($Loop) { $media.Position = [TimeSpan]::Zero; $media.Play() }
-    else { $window.Close() }
+    else { Finish-Media }
 })
 $media.add_MediaFailed({ $window.Close() })
 $timer = $null
 if ($DurationSeconds -gt 0) {
     $timer = New-Object System.Windows.Threading.DispatcherTimer
     $timer.Interval = [TimeSpan]::FromSeconds($DurationSeconds)
-    $timer.Add_Tick({ $timer.Stop(); $window.Close() })
+    $timer.Add_Tick({ $timer.Stop(); Finish-Media })
 }
 $window.Add_Loaded({ if ($timer) { $timer.Start() }; $media.Play() })
-$window.Add_Closed({ if ($timer) { $timer.Stop() }; $media.Stop(); $media.Close() })
+$window.Add_Closed({ if ($timer) { $timer.Stop() }; if ($transitionState.Timer) { $transitionState.Timer.Stop() }; $media.Stop(); $media.Close() })
 $null = $window.ShowDialog()
 '''
 
@@ -1685,6 +1751,7 @@ class NotificationUi:
 
     @staticmethod
     def _aparencia(appearance):
+        transicao = appearance.get("visual_transition") or {}
         return {
             "accent_color": appearance.get("accent_color", "#0067C0"),
             "font_scale_percent": appearance.get("font_scale_percent", 100),
@@ -1692,6 +1759,12 @@ class NotificationUi:
             "sound_type": appearance.get("sound_type", "information"),
             "toast_duration_seconds": appearance.get("toast_duration_seconds", NO_REPLY_AUTO_CLOSE_SECONDS),
             "toast_position": appearance.get("toast_position", "bottom_right"),
+            "visual_transition": {
+                "entrance_effect": transicao.get("entrance_effect", "none"),
+                "exit_effect": transicao.get("exit_effect", "none"),
+                "entrance_speed_percent": transicao.get("entrance_speed_percent", 100),
+                "exit_speed_percent": transicao.get("exit_speed_percent", 100),
+            },
         }
 
     @staticmethod
@@ -1748,17 +1821,19 @@ class NotificationUi:
             # O tratamento de rede aplica a imagem do sistema antes de chegar aqui.
             on_result(None)
             return
+        visual = self._aparencia(appearance or {})
         if display_mode == protocolo.DISPLAY_MODE_CENTER_IMAGE:
             self._exibir_imagens_monitores(
                 sender, title, message, allow_reply, on_result, buttons or [], image,
                 screen_images or [], image_duration_seconds or 15,
-                allow_manual_close is not False, appearance or {})
+                allow_manual_close is not False, visual)
             return
         if display_mode == protocolo.DISPLAY_MODE_CENTER_VIDEO:
             self._reproduzir_midia_windows(
                 on_result, video=video, screen_videos=screen_videos or [],
                 repetir=bool(video_loop), duracao=image_duration_seconds,
-                permitir_fechar=allow_manual_close is not False)
+                permitir_fechar=allow_manual_close is not False,
+                transicao_visual=visual["visual_transition"])
             return
         if display_mode == protocolo.DISPLAY_MODE_AUDIO:
             self._reproduzir_midia_windows(
@@ -1769,7 +1844,6 @@ class NotificationUi:
             self._exibir_alerta_obrigatorio(sender, title, message, on_result, appearance or {})
             return
 
-        visual = self._aparencia(appearance or {})
         if (display_mode in {protocolo.DISPLAY_MODE_TOAST, protocolo.DISPLAY_MODE_CENTER_MESSAGE}
                 and not confirmation_required and not allow_reply and not buttons
                 and visual["sound_type"] in {"warning", "error"} and os.name == "nt"):
@@ -1808,7 +1882,7 @@ class NotificationUi:
 
     def _reproduzir_midia_windows(
             self, on_result, video=None, screen_videos=None, repetir=False,
-            duracao=None, permitir_fechar=True, audio=None):
+            duracao=None, permitir_fechar=True, audio=None, transicao_visual=None):
         if os.name != "nt":
             on_result(None)
             return
@@ -1846,6 +1920,14 @@ class NotificationUi:
                     "-WidthPercent", str(percentual),
                       "-DurationSeconds", str(float(duracao or 0)),
                 ]
+                if tipo == "video":
+                    transicao = transicao_visual or {}
+                    comando.extend([
+                        "-TransitionIn", str(transicao.get("entrance_effect", "none")),
+                        "-TransitionOut", str(transicao.get("exit_effect", "none")),
+                        "-InSpeedPercent", str(transicao.get("entrance_speed_percent", 100)),
+                        "-OutSpeedPercent", str(transicao.get("exit_speed_percent", 100)),
+                    ])
                 if repetir:
                     comando.append("-Loop")
                 if permitir_fechar:
@@ -1997,6 +2079,7 @@ class NotificationUi:
             screen_images, duration, manual_close, appearance):
         tk = self._tk
         visual = self._aparencia(appearance)
+        transicao = visual["visual_transition"]
         itens = list(screen_images)
         if not itens and image is not None:
             principal = self._monitor_por_indice(0)
@@ -2007,18 +2090,39 @@ class NotificationUi:
             grupos.setdefault(item.get("monitor_index", 0), []).append(item)
 
         janelas = []
-        finalizado = {"done": False}
+        finalizado = {"done": False, "closing": False}
 
         def finish(value):
-            if finalizado["done"]:
+            if finalizado["done"] or finalizado["closing"]:
                 return
-            finalizado["done"] = True
-            for janela in list(janelas):
+            finalizado["closing"] = True
+            finalizado["remaining"] = len(janelas)
+            finalizado["value"] = value
+
+            def concluir_saida():
+                finalizado["remaining"] -= 1
+                if finalizado["remaining"] > 0 or finalizado["done"]:
+                    return
+                finalizado["done"] = True
+                for janela, *_ in list(janelas):
+                    try:
+                        janela.destroy()
+                    except tk.TclError:
+                        pass
+                on_result(finalizado["value"])
+
+            if not janelas:
+                finalizado["done"] = True
+                on_result(value)
+                return
+            for janela, monitor, x, y, largura, altura in list(janelas):
                 try:
-                    janela.destroy()
+                    self._animar_janela_transicao(
+                        janela, monitor, x, y, largura, altura,
+                        transicao["exit_effect"], transicao["exit_speed_percent"],
+                        entrada=False, ao_concluir=concluir_saida)
                 except tk.TclError:
-                    pass
-            on_result(value)
+                    concluir_saida()
 
         # Cada arquivo recebe uma janela exatamente do tamanho da imagem. Assim
         # não existe painel, cabeçalho, botão, borda ou retângulo preto ao redor.
@@ -2061,6 +2165,7 @@ class NotificationUi:
                 win.overrideredirect(True)
                 chave_transparente = "#010203"
                 win.configure(bg=chave_transparente)
+                win.attributes("-alpha", 0 if transicao["entrance_effect"] != "none" else 1)
                 try:
                     win.wm_attributes("-transparentcolor", chave_transparente)
                 except tk.TclError:
@@ -2092,7 +2197,11 @@ class NotificationUi:
                     win.bind("<Escape>", lambda _e: finish(None))
                 win.protocol("WM_DELETE_WINDOW", lambda: finish(None) if manual_close else None)
                 win.lift()
-                janelas.append(win)
+                janelas.append((win, monitor, x, y, largura, altura))
+                self._animar_janela_transicao(
+                    win, monitor, x, y, largura, altura,
+                    transicao["entrance_effect"], transicao["entrance_speed_percent"],
+                    entrada=True, ao_concluir=lambda: None)
 
         if not janelas:
             on_result(None)
@@ -2100,6 +2209,66 @@ class NotificationUi:
         self._root.after(max(3, int(duration)) * 1000, lambda: finish(None))
         if visual["play_sound"]:
             self._tocar_som(visual["sound_type"])
+
+    def _animar_janela_transicao(
+            self, janela, monitor, x_destino, y_destino, largura, altura,
+            efeito, velocidade, entrada, ao_concluir):
+        if efeito == "none" or not janela.winfo_exists():
+            ao_concluir()
+            return
+
+        largura_monitor = max(720, int(monitor.get("width", 0)))
+        altura_monitor = max(480, int(monitor.get("height", 0)))
+        deslocamentos = {
+            "top": (0, -altura_monitor),
+            "bottom": (0, altura_monitor),
+            "left": (-largura_monitor, 0),
+            "right": (largura_monitor, 0),
+        }
+        dx, dy = deslocamentos.get(efeito, (0, 0))
+        if entrada:
+            x_inicio, y_inicio = x_destino + dx, y_destino + dy
+            x_final, y_final = x_destino, y_destino
+            alpha_inicio, alpha_final = 0.0, 1.0
+        else:
+            try:
+                x_inicio, y_inicio = janela.winfo_x(), janela.winfo_y()
+                alpha_inicio = float(janela.attributes("-alpha"))
+            except Exception:
+                x_inicio, y_inicio, alpha_inicio = x_destino, y_destino, 1.0
+            x_final, y_final = x_inicio + dx, y_inicio + dy
+            alpha_final = 0.0
+
+        duracao = max(0.18, min(2.4, 0.6 * 100 / max(25, min(250, int(velocidade)))))
+        iniciou = time.monotonic()
+        estado = {"concluido": False}
+
+        def concluir():
+            if estado["concluido"]:
+                return
+            estado["concluido"] = True
+            ao_concluir()
+
+        def quadro():
+            try:
+                if not janela.winfo_exists():
+                    concluir()
+                    return
+                progresso = min(1.0, (time.monotonic() - iniciou) / duracao)
+                suave = 1 - (1 - progresso) ** 3 if entrada else progresso ** 2
+                x = round(x_inicio + (x_final - x_inicio) * suave)
+                y = round(y_inicio + (y_final - y_inicio) * suave)
+                alpha = alpha_inicio + (alpha_final - alpha_inicio) * suave
+                janela.geometry(f"{largura}x{altura}{x:+d}{y:+d}")
+                janela.attributes("-alpha", max(0.0, min(1.0, alpha)))
+                if progresso >= 1.0:
+                    concluir()
+                else:
+                    janela.after(16, quadro)
+            except self._tk.TclError:
+                concluir()
+
+        quadro()
 
     def _exibir_alerta_obrigatorio(self, sender, title, message, on_result, appearance):
         tk = self._tk

@@ -28,6 +28,10 @@ public sealed class MensagensViewModel : ViewModelBase
     private bool _exibirAvisoObrigatorio;
     private bool _exibirMensagemCentral;
     private double _tempoImagemSegundos = 15;
+    private string _efeitoEntrada = "fade";
+    private string _efeitoSaida = "fade";
+    private int _velocidadeEntradaPercentual = 100;
+    private int _velocidadeSaidaPercentual = 100;
     private int _atrasoEnvioImagemSegundos;
     private bool _permitirFecharImagem = true;
     private bool _tocarSom = true;
@@ -173,6 +177,7 @@ public sealed class MensagensViewModel : ViewModelBase
                     OnPropertyChanged(nameof(ExibirMensagemCentral));
                 }
                 OnPropertyChanged(nameof(DescricaoFormato));
+                OnPropertyChanged(nameof(PodePersonalizarTransicao));
                 CommandManager.InvalidateRequerySuggested();
             }
         }
@@ -204,6 +209,92 @@ public sealed class MensagensViewModel : ViewModelBase
     public bool TemAudio => _dadosAudio is { Length: > 0 };
     public bool TemMidia => TemImagem || TemVideo || TemAudio;
     public bool TemVideoConfigurado => TemVideo || MonitoresDestino.Any(m => m.Midias.Any(i => i.EhVideo));
+    public bool PodePersonalizarTransicao => ExibirImagemCentral && (TemImagemConfigurada || TemVideoConfigurado);
+    public string EfeitoEntrada
+    {
+        get => _efeitoEntrada;
+        set
+        {
+            if (SetField(ref _efeitoEntrada, value)) OnPropertyChanged(nameof(ResumoTransicoes));
+        }
+    }
+    public string EfeitoSaida
+    {
+        get => _efeitoSaida;
+        set
+        {
+            if (SetField(ref _efeitoSaida, value)) OnPropertyChanged(nameof(ResumoTransicoes));
+        }
+    }
+    public int VelocidadeEntradaPercentual
+    {
+        get => _velocidadeEntradaPercentual;
+        set
+        {
+            if (SetField(ref _velocidadeEntradaPercentual, Math.Clamp(value, 25, 250)))
+                OnPropertyChanged(nameof(ResumoTransicoes));
+        }
+    }
+    public int VelocidadeSaidaPercentual
+    {
+        get => _velocidadeSaidaPercentual;
+        set
+        {
+            if (SetField(ref _velocidadeSaidaPercentual, Math.Clamp(value, 25, 250)))
+                OnPropertyChanged(nameof(ResumoTransicoes));
+        }
+    }
+    public string ResumoTransicoes => $"{NomeEfeito(EfeitoEntrada)} → {NomeEfeito(EfeitoSaida)} · {VelocidadeEntradaPercentual}% / {VelocidadeSaidaPercentual}%";
+
+    private static string NomeEfeito(string efeito) => efeito switch
+    {
+        "none" => "Sem efeito",
+        "fade" => "Fade",
+        "top" => "De cima",
+        "bottom" => "De baixo",
+        "left" => "Da esquerda",
+        "right" => "Da direita",
+        _ => "Fade",
+    };
+
+    private void AplicarPresetTransicao(object? parametro)
+    {
+        switch (parametro as string)
+        {
+            case "rapida":
+                EfeitoEntrada = "fade";
+                EfeitoSaida = "fade";
+                VelocidadeEntradaPercentual = 175;
+                VelocidadeSaidaPercentual = 175;
+                break;
+            case "destaque":
+                EfeitoEntrada = "top";
+                EfeitoSaida = "bottom";
+                VelocidadeEntradaPercentual = 110;
+                VelocidadeSaidaPercentual = 110;
+                break;
+            case "sem-efeito":
+                EfeitoEntrada = "none";
+                EfeitoSaida = "none";
+                VelocidadeEntradaPercentual = 100;
+                VelocidadeSaidaPercentual = 100;
+                break;
+            default:
+                EfeitoEntrada = "fade";
+                EfeitoSaida = "fade";
+                VelocidadeEntradaPercentual = 75;
+                VelocidadeSaidaPercentual = 75;
+                break;
+        }
+    }
+
+    private TransicaoVisualNotificacao CriarTransicaoVisual() => new()
+    {
+        EntranceEffect = EfeitoEntrada,
+        ExitEffect = EfeitoSaida,
+        EntranceSpeedPercent = VelocidadeEntradaPercentual,
+        ExitSpeedPercent = VelocidadeSaidaPercentual,
+    };
     public bool PodeConfigurarMonitores => !TemAudio;
     public string? CaminhoMidia => CaminhoImagem ?? _caminhoVideo ?? _caminhoAudio;
     public string? NomeMidia => NomeImagem ?? _nomeVideo ?? _nomeAudio;
@@ -499,6 +590,9 @@ public sealed class MensagensViewModel : ViewModelBase
     public ICommand SelecionarImagemCommand { get; }
     public ICommand AbrirCarrosselCommand { get; }
     public event EventHandler? AbrirCarrosselSolicitado;
+    public ICommand AbrirTransicoesCommand { get; }
+    public ICommand AplicarPresetTransicaoCommand { get; }
+    public event EventHandler? AbrirTransicoesSolicitado;
     internal EnviadorNotificacoes Enviador => _enviador;
     public ICommand SelecionarVideoCommand { get; }
     public ICommand SelecionarAudioCommand { get; }
@@ -557,6 +651,9 @@ public sealed class MensagensViewModel : ViewModelBase
         SelecionarImagemCommand = new RelayCommand(_ => SelecionarImagem());
         AbrirCarrosselCommand = new RelayCommand(_ => AbrirCarrosselSolicitado?.Invoke(this, EventArgs.Empty),
             _ => PodeGerenciarCarrossel);
+        AbrirTransicoesCommand = new RelayCommand(_ => AbrirTransicoesSolicitado?.Invoke(this, EventArgs.Empty),
+            _ => PodePersonalizarTransicao);
+        AplicarPresetTransicaoCommand = new RelayCommand(AplicarPresetTransicao);
         SelecionarVideoCommand = new RelayCommand(_ => SelecionarVideo());
         SelecionarAudioCommand = new RelayCommand(_ => SelecionarAudio());
         RemoverImagemCommand = new RelayCommand(_ => RemoverMidia(), _ => TemMidia);
@@ -595,6 +692,7 @@ public sealed class MensagensViewModel : ViewModelBase
                 }
                 OnPropertyChanged(nameof(TemVideoConfigurado));
                 OnPropertyChanged(nameof(TemImagemConfigurada));
+                OnPropertyChanged(nameof(PodePersonalizarTransicao));
                 CommandManager.InvalidateRequerySuggested();
             }
         });
@@ -1086,6 +1184,7 @@ public sealed class MensagensViewModel : ViewModelBase
         GuardarMidias(destino);
         OnPropertyChanged(nameof(TemVideoConfigurado));
         OnPropertyChanged(nameof(TemImagemConfigurada));
+        OnPropertyChanged(nameof(PodePersonalizarTransicao));
         StatusOperacao = $"{midia.Nome} adicionada ao {destino.Titulo}.";
     }
 
@@ -1387,6 +1486,7 @@ public sealed class MensagensViewModel : ViewModelBase
         OnPropertyChanged(nameof(TemMidia));
         OnPropertyChanged(nameof(TemVideoConfigurado));
         OnPropertyChanged(nameof(TemImagemConfigurada));
+        OnPropertyChanged(nameof(PodePersonalizarTransicao));
         OnPropertyChanged(nameof(PodeConfigurarMonitores));
         OnPropertyChanged(nameof(CaminhoMidia));
         OnPropertyChanged(nameof(NomeMidia));
@@ -1475,6 +1575,9 @@ public sealed class MensagensViewModel : ViewModelBase
             SoundType = TipoSom,
             ToastDurationSeconds = (int)TempoAvisoSegundos,
             ToastPosition = PosicaoAviso,
+            VisualTransition = modo is ProtocolConstants.DisplayMode.CenterImage or ProtocolConstants.DisplayMode.CenterVideo
+                ? CriarTransicaoVisual()
+                : null,
         };
         StatusOperacao = $"Mostrando prévia de {computador.NomeExibicao} neste computador…";
         await Views.NotificacaoRecebidaWindow.MostrarAsync(
@@ -1517,6 +1620,9 @@ public sealed class MensagensViewModel : ViewModelBase
             SoundType = TipoSom,
             ToastDurationSeconds = (int)TempoAvisoSegundos,
             ToastPosition = PosicaoAviso,
+            VisualTransition = ExibirImagemCentral && !AlterarImagemSistema && audio is null
+                ? CriarTransicaoVisual()
+                : null,
         };
         var haImagemParaEnviar = imagem is not null || selecionados.Any(destino =>
             CriarImagensPorMonitor(destino.Computador.Id).Count > 0);

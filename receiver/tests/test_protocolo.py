@@ -23,6 +23,48 @@ def test_valid_notification_passes():
     protocolo.validate(make_valid_notification())
 
 
+def test_visual_transition_accepts_independent_image_animation_settings():
+    msg = make_valid_notification()
+    msg["appearance"] = {
+        "accent_color": "#0067C0",
+        "font_scale_percent": 100,
+        "play_sound": True,
+        "sound_type": "information",
+        "toast_duration_seconds": 20,
+        "toast_position": "bottom_right",
+        "visual_transition": {
+            "entrance_effect": "top",
+            "exit_effect": "bottom",
+            "entrance_speed_percent": 75,
+            "exit_speed_percent": 160,
+        },
+    }
+    protocolo.validate(msg)
+
+
+@pytest.mark.parametrize("transition", [
+    {"entrance_effect": "spin", "exit_effect": "fade",
+     "entrance_speed_percent": 100, "exit_speed_percent": 100},
+    {"entrance_effect": "fade", "exit_effect": "fade",
+     "entrance_speed_percent": 24, "exit_speed_percent": 100},
+    {"entrance_effect": "fade", "exit_effect": "fade",
+     "entrance_speed_percent": 100, "exit_speed_percent": 251},
+])
+def test_visual_transition_rejects_unknown_effect_or_speed(transition):
+    msg = make_valid_notification()
+    msg["appearance"] = {
+        "accent_color": "#0067C0",
+        "font_scale_percent": 100,
+        "play_sound": True,
+        "sound_type": "information",
+        "toast_duration_seconds": 20,
+        "toast_position": "bottom_right",
+        "visual_transition": transition,
+    }
+    with pytest.raises(ProtocolError):
+        protocolo.validate(msg)
+
+
 @pytest.mark.parametrize("duration", [0.5, 0.6, 1.25, 3, 3600])
 def test_center_image_accepts_fractional_display_duration(duration):
     msg = make_valid_notification()

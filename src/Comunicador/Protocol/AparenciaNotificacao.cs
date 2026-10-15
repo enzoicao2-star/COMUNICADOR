@@ -22,4 +22,8 @@ public sealed class AparenciaNotificacao
 
     [JsonPropertyName("toast_position")]
     public string ToastPosition { get; set; } = ProtocolConstants.ToastPosition.BottomRight;
+
+    [JsonPropertyName("visual_transition")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TransicaoVisualNotificacao? VisualTransition { get; set; }
 }

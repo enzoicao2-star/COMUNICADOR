@@ -498,6 +498,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         _scheduler.Start();
         ReceiverAutoInstallService.EnsureInstalled();
         _ = Task.Run(() => MonitorarAtualizacaoAutomaticaPainelAsync(_backgroundUpdatesCts.Token));
+        _ = MonitorarAtualizacaoAutomaticaReceptoresAsync(_backgroundUpdatesCts.Token);
         if (Settings.EntradaPainelHabilitada) _embeddedReceptorServer.AtualizarDisponibilidade();
         _sync.Start();
         Configuracoes.AtualizarStatusReceptor();
@@ -562,6 +563,57 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
             try { await Task.Delay(TimeSpan.FromSeconds(15), ct).ConfigureAwait(false); }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+        }
+    }
+
+    private async Task MonitorarAtualizacaoAutomaticaReceptoresAsync(CancellationToken ct)
+    {
+        var politicaAnterior = string.Empty;
+        var verificacaoAoAbrirConcluida = false;
+        var proximaVerificacao = DateTimeOffset.MinValue;
+
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                // Older global settings defaulted to "ask". Treat that legacy
+                // value as automatic so existing panels migrate to the new
+                // default without waiting for an owner to reopen settings.
+                var politicaConfigurada = _cloudSync.GlobalConfig?.PoliticaAtualizacaoReceptor;
+                var politica = politicaConfigurada == "on_open" ? "on_open" : "available";
+                if (politica != politicaAnterior)
+                {
+                    politicaAnterior = politica;
+                    verificacaoAoAbrirConcluida = false;
+                    proximaVerificacao = DateTimeOffset.MinValue;
+                }
+
+                var agora = DateTimeOffset.UtcNow;
+                var deveVerificar = politica == "on_open"
+                    ? !verificacaoAoAbrirConcluida && agora >= proximaVerificacao
+                    : agora >= proximaVerificacao;
+                if (deveVerificar)
+                {
+                    await Computadores.AtualizarReceptoresDesatualizadosAutomaticamenteAsync(ct);
+                    if (politica == "on_open") verificacaoAoAbrirConcluida = true;
+                    proximaVerificacao = politica == "available"
+                        ? DateTimeOffset.UtcNow.AddMinutes(2)
+                        : DateTimeOffset.MaxValue;
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(15), ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                proximaVerificacao = DateTimeOffset.UtcNow.AddMinutes(2);
+                Logger.Warning($"A verificação automática dos receptores será repetida: {ex.Message}");
+                try { await Task.Delay(TimeSpan.FromSeconds(15), ct); }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+            }
         }
     }
 

@@ -1,12 +1,14 @@
 {
-    "version":  "2.5.41.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "674119BEB3F2F7A93F6413245BF82D88240C1F1E893A83D336067BD4B3EE3187",
-    "summary":  "Nebulosa interativa, transições suaves, inicialização com carregamento real e telas mais compactas.",
-    "changes":  [
-                    "O fundo Nebulosa halftone reage ao movimento e aos cliques do mouse, respeitando a opção de movimento reduzido.",
-                    "A troca entre abas e telas internas ganhou transições direcionais curtas e suaves.",
-                    "O splash agora mostra o progresso das tarefas reais de inicialização e só fecha depois de carregar os dados locais e preparar as seis áreas do painel.",
-                    "As telas usam espaçamento mais compacto; os cards dos computadores mantêm o visual e o conteúdo existentes."
-                ]
+  "version": "2.5.43.0",
+  "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
+  "sha256": "26FDCF338D76141BBAE2AD0747CB9413B6C813B4A332A4EAE968F1C4A0670B07",
+  "summary": "Transições animadas para imagens e vídeos, além das correções de GIF, atualização e conexão.",
+  "changes": [
+    "Envios de imagem, GIF e vídeo podem entrar e sair com fade ou deslizar em qualquer direção, com velocidades independentes.",
+    "A tela interna de transições oferece presets e uma prévia repetível sem enviar mídia aos computadores.",
+    "GIFs convertidos de vídeo são carregados quadro a quadro na prévia, reduzindo o pico de memória e preservando a animação enviada.",
+    "Receptores desatualizados atualizam automaticamente por padrão; computadores offline recebem o pedido pela fila sem duplicações ou progresso infinito.",
+    "Um computador só aparece offline após um minuto inteiro sem sinal de vida, evitando alternância rápida entre online e offline.",
+    "A versão do receptor é comparada numericamente, reconhecendo também instalações que já estão em uma versão posterior."
+  ]
 }
