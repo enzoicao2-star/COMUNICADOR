@@ -31,7 +31,7 @@ public partial class CarrosselView : UserControl
         _enviador = enviador;
         _canStart = canStart;
         _canStop = canStop;
-        _recipients = recipients.ToList();
+        _recipients = recipients.Where(recipient => !recipient.Computador.EhOwner).ToList();
         ImagesList.ItemsSource = _images;
         _filteredRecipients = new ListCollectionView(_recipients) { Filter = FiltrarDestinatario };
         RecipientsList.ItemsSource = _filteredRecipients;

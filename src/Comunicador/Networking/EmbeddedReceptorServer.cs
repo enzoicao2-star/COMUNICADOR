@@ -420,6 +420,14 @@ public sealed class EmbeddedReceptorServer : IDisposable
             return;
         }
 
+        if (_settings.EstePainelEhOwner || _cloud.IsAdmin)
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.ContentBlocked,
+                "O OWNER está protegido e não recebe envios.", msg.Id), ct).ConfigureAwait(false);
+            return;
+        }
+
         var wallpaperAction = msg.DisplayMode is ProtocolConstants.DisplayMode.Wallpaper
             or ProtocolConstants.DisplayMode.LockScreen
             or ProtocolConstants.DisplayMode.RestoreWallpaper;

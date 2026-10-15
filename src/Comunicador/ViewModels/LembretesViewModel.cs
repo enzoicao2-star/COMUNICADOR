@@ -183,7 +183,7 @@ public sealed class LembretesViewModel : ViewModelBase
     {
         var idsSelecionados = Destinatarios.Where(d => d.Selecionado).Select(d => d.Computador.Id).ToHashSet();
         Destinatarios.Clear();
-        foreach (var computador in _computadores.Computadores.Where(c => c.Pareado || c.RegistradoNaNuvem))
+        foreach (var computador in _computadores.Computadores.Where(c => !c.EhOwner && (c.Pareado || c.RegistradoNaNuvem)))
         {
             var destinatario = new ComputadorSelecionavel(computador)
             {
@@ -202,7 +202,7 @@ public sealed class LembretesViewModel : ViewModelBase
     private bool PodeCriar() =>
         !string.IsNullOrWhiteSpace(Titulo)
         && !string.IsNullOrWhiteSpace(Mensagem)
-        && Destinatarios.Any(d => d.Selecionado)
+        && Destinatarios.Any(d => d.Selecionado && !d.Computador.EhOwner)
         && TentarObterDataHora(out _);
 
     private async Task CriarAsync()
@@ -215,7 +215,8 @@ public sealed class LembretesViewModel : ViewModelBase
             Mensagem = Mensagem,
             DataHora = dataHora,
             PermitirResposta = PermitirResposta,
-            ComputadorIds = Destinatarios.Where(d => d.Selecionado).Select(d => d.Computador.Id).ToList(),
+            ComputadorIds = Destinatarios.Where(d => d.Selecionado && !d.Computador.EhOwner)
+                .Select(d => d.Computador.Id).ToList(),
         };
 
         Lembretes.Add(lembrete);

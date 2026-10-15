@@ -44,6 +44,12 @@ public sealed class EnviadorNotificacoes
         CarouselCommand? carousel = null,
         bool confirmationRequired = false)
     {
+        if (computador.EhOwner)
+        {
+            return new NotificationResult(
+                false, false, false, null, "O OWNER está protegido e não pode receber envios.");
+        }
+
         var listaBotoes = botoes is { Count: > 0 } ? botoes.ToList() : null;
 
         var conexao = _conexoesReversas.Obter(computador.Id);

@@ -196,6 +196,15 @@ public sealed class CloudSyncService : IDisposable
 
     public bool HasPermission(string permission) => IsAdmin || HasPermissionForDevice(_settings.PainelId, permission);
 
+    private void EnsureTargetIsNotOwner(string targetDeviceId)
+    {
+        if (!string.IsNullOrWhiteSpace(AdminDeviceId)
+            && string.Equals(targetDeviceId, AdminDeviceId, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new UnauthorizedAccessException("O OWNER está protegido e não pode receber envios.");
+        }
+    }
+
     public async Task<bool> IsCurrentAdminDeviceAsync(string senderDeviceId, CancellationToken ct = default)
     {
         try
@@ -235,6 +244,7 @@ public sealed class CloudSyncService : IDisposable
         bool allowReply, CancellationToken ct)
     {
         await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        EnsureTargetIsNotOwner(targetDeviceId);
         await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId,
             new DateTimeOffset(deliverAt.ToUniversalTime()), new
             {
@@ -251,6 +261,7 @@ public sealed class CloudSyncService : IDisposable
         string targetDeviceId, EnvioPendente notification, CancellationToken ct = default)
     {
         await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        EnsureTargetIsNotOwner(targetDeviceId);
         await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
             new
             {
@@ -288,6 +299,7 @@ public sealed class CloudSyncService : IDisposable
         if (string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Escolha outro computador para esta ação.");
         await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        EnsureTargetIsNotOwner(targetDeviceId);
         await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
             new { kind = "admin_command", command, sender = _settings.NomePainel }, ct).ConfigureAwait(false);
     }
@@ -304,6 +316,7 @@ public sealed class CloudSyncService : IDisposable
         if (string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Escolha outro computador para esta ação.");
         await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        EnsureTargetIsNotOwner(targetDeviceId);
         await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
             new { kind = "admin_command", command = "run_cmd", request_id = requestId, line = command.Trim(),
                 expires_at = DateTimeOffset.UtcNow.AddMinutes(5).ToString("O"), sender = _settings.NomePainel }, ct)
@@ -319,6 +332,7 @@ public sealed class CloudSyncService : IDisposable
         if (string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Escolha outro computador para esta ação.");
         await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        EnsureTargetIsNotOwner(targetDeviceId);
         await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
             new { kind = "admin_command", command = "cancel_cmd", request_id = requestId,
                 expires_at = DateTimeOffset.UtcNow.AddMinutes(5).ToString("O"), sender = _settings.NomePainel }, ct)

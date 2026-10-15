@@ -16,14 +16,39 @@ class RecordingUi:
 
 def _worker(media_blocked=False, is_owner=False):
     worker = object.__new__(receptor.CloudDeliveryWorker)
-    worker.config = SimpleNamespace(media_blocked=media_blocked)
+    worker.config = SimpleNamespace(media_blocked=media_blocked, computer_id="receiver-id")
     worker.ui = RecordingUi()
-    worker.is_current_owner = lambda _panel_id: is_owner
+    worker.is_current_owner = lambda panel_id: is_owner and panel_id != "receiver-id"
     worker.can_change_wallpaper = lambda _panel_id: is_owner
     worker.updated = []
     worker._atualizar_entrega = lambda delivery_id, response: worker.updated.append(
         (delivery_id, response))
     return worker
+
+
+def test_owner_target_rejects_cloud_delivery_without_showing_it():
+    worker = _worker()
+    worker.is_current_owner = lambda panel_id: panel_id == "receiver-id"
+    delivery = {
+        "id": "owner-target",
+        "sender_device_id": "panel-2",
+        "payload": {"kind": "notification", "title": "Aviso", "message": "Conteúdo"},
+    }
+
+    worker._mostrar_entrega(delivery)
+
+    assert not hasattr(worker.ui, "args")
+    assert worker.updated == [(
+        "owner-target", "Entrega recusada: o OWNER está protegido e não recebe envios.")]
+
+
+def test_receiver_detects_owner_target_for_local_delivery():
+    config = object.__new__(receptor.Config)
+    config.data = {"computer_id": "owner-id"}
+    config.cloud_worker = SimpleNamespace(
+        is_current_owner=lambda panel_id: panel_id == "owner-id")
+
+    assert config.is_owner_device() is True
 
 
 def test_cloud_notification_keeps_buttons_appearance_and_confirmation():

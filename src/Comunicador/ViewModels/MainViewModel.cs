@@ -230,6 +230,22 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     private async Task HandleCloudDeliveryAsync(CloudDelivery delivery)
     {
+        if (_cloudSync.IsAdmin || Settings.EstePainelEhOwner)
+        {
+            try
+            {
+                await _cloudSync.RespondToDeliveryAsync(
+                    delivery.Id, "Entrega recusada: o OWNER está protegido e não recebe envios.")
+                    .ConfigureAwait(true);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException
+                or UnauthorizedAccessException or JsonException)
+            {
+                Logger.Warning($"Não foi possível descartar a entrega destinada ao OWNER: {ex.Message}");
+            }
+            return;
+        }
+
         var payload = delivery.Payload;
         if (payload.ValueKind == JsonValueKind.Object
             && payload.TryGetProperty("kind", out var kindNode)

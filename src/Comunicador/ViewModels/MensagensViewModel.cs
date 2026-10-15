@@ -788,7 +788,7 @@ public sealed class MensagensViewModel : ViewModelBase
                 computador.PropertyChanged += OnComputadorPropertyChanged;
             }
 
-            if (!computador.Pareado && !computador.RegistradoNaNuvem)
+            if (computador.EhOwner || !computador.Pareado && !computador.RegistradoNaNuvem)
             {
                 continue;
             }
@@ -825,7 +825,8 @@ public sealed class MensagensViewModel : ViewModelBase
         if (e.PropertyName is nameof(Computador.Pareado)
             or nameof(Computador.Monitores)
             or nameof(Computador.Nome)
-            or nameof(Computador.Apelido))
+            or nameof(Computador.Apelido)
+            or nameof(Computador.EhOwner))
         {
             AtualizarDestinatarios();
         }

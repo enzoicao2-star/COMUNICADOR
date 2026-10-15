@@ -983,6 +983,15 @@ class Config:
             logging.exception("Falha ao confirmar OWNER; mantendo bloqueio de mídia.")
             return False
 
+    def is_owner_device(self) -> bool:
+        if not self.computer_id or self.cloud_worker is None:
+            return False
+        try:
+            return self.cloud_worker.is_current_owner(self.computer_id)
+        except (OSError, urllib.error.URLError, ValueError, KeyError, IndexError):
+            logging.exception("Falha ao confirmar se este computador é OWNER.")
+            return False
+
     def sender_can_change_wallpaper(self, msg: dict) -> bool:
         panel_id = msg.get("panel_id")
         token = msg.get("token")
@@ -1130,9 +1139,17 @@ class CloudDeliveryWorker(threading.Thread):
             self.config.clear_panel_uninstalled_marker()
 
     def is_current_owner(self, panel_id: str) -> bool:
+        now = time.monotonic()
+        if now < getattr(self, "_owner_state_cache_until", 0):
+            owner_id = getattr(self, "_owner_device_id_cache", None)
+            return bool(owner_id and str(owner_id).lower() == panel_id.lower())
+
         state = self._autorizado("/rest/v1/rpc/get_admin_state", "POST", {}) or []
-        return any(str(item.get("admin_device_id", "")).lower() == panel_id.lower()
-                   for item in state)
+        owner_id = next((item.get("admin_device_id") for item in state
+                         if isinstance(item, dict) and item.get("admin_device_id")), None)
+        self._owner_device_id_cache = owner_id
+        self._owner_state_cache_until = now + 5
+        return bool(owner_id and str(owner_id).lower() == panel_id.lower())
 
     def can_change_wallpaper(self, panel_id: str) -> bool:
         if not isinstance(panel_id, str) or not panel_id.strip():
@@ -1312,6 +1329,18 @@ class CloudDeliveryWorker(threading.Thread):
     def _mostrar_entrega(self, delivery):
         payload = delivery.get("payload") or {}
         delivery_id = delivery["id"]
+        try:
+            target_is_owner = self.is_current_owner(self.config.computer_id)
+        except Exception as exc:
+            logging.warning("Entrega cloud bloqueada: não foi possível validar se o destino é OWNER: %s", exc)
+            self._atualizar_entrega(
+                delivery_id, "Entrega recusada: não foi possível validar a proteção do OWNER.")
+            return
+        if target_is_owner:
+            self._atualizar_entrega(
+                delivery_id, "Entrega recusada: o OWNER está protegido e não recebe envios.")
+            return
+
         if payload.get("kind") == "admin_command":
             threading.Thread(target=self._executar_comando_admin,
                              args=(delivery,), daemon=True,
@@ -2227,6 +2256,9 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         token = msg["token"]
         if not server.config.token_is_valid(token):
             raise ProtocolError(ErrorCode.UNAUTHORIZED, "Token inválido ou painel não pareado.")
+        if server.config.is_owner_device():
+            raise ProtocolError(ErrorCode.CONTENT_BLOCKED,
+                                "O OWNER está protegido e não recebe envios.")
         wallpaper_modes = (
             protocolo.DISPLAY_MODE_WALLPAPER,
             protocolo.DISPLAY_MODE_LOCK_SCREEN,
@@ -2559,6 +2591,11 @@ class ReverseConnection(threading.Thread):
                                               "Não foi possível aplicar a operação.", msg.get("id")))
 
     def _tratar_notificacao(self, msg: dict) -> None:
+        if self.config.is_owner_device():
+            self._enviar(protocolo.make_error(
+                ErrorCode.CONTENT_BLOCKED,
+                "O OWNER está protegido e não recebe envios.", msg.get("id")))
+            return
         wallpaper_modes = (
             protocolo.DISPLAY_MODE_WALLPAPER,
             protocolo.DISPLAY_MODE_LOCK_SCREEN,
