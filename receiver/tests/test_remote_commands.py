@@ -104,6 +104,19 @@ def test_owner_command_runs_and_returns_response(monkeypatch):
     assert responses == [("delivery", "Código de saída: 0\nok")]
 
 
+def test_test_receiver_bundle_uses_delegated_cmd_permission():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    receiver_source = (root / "release" / "teste" / "receiver" / "receptor.py").read_text(encoding="utf-8")
+    manifest = (root / "release" / "teste" / "receiver" / "version.json").read_text(encoding="utf-8")
+
+    assert 'RECEIVER_VERSION = "2.5.16.4"' in receiver_source
+    assert 'self.has_panel_permission(sender_id, "remote_command")' in receiver_source
+    assert "o remetente não é o OWNER atual" not in receiver_source
+    assert '"version": "2.5.16.4"' in manifest
+
+
 @pytest.mark.skipif(os.name != "nt", reason="Windows CMD")
 def test_runs_harmless_cmd_without_elevation():
     if ctypes.windll.shell32.IsUserAnAdmin():
