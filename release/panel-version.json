@@ -1,11 +1,9 @@
 {
-  "version": "2.5.45.0",
+  "version": "2.5.46.0",
   "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-  "sha256": "AAD021D8E335BF2E257C9995E1FF4CB26801543A4F372F698563CC1CA2B6ECE1",
-  "summary": "Prévia animada de cada transição diretamente nas opções da galeria.",
+  "sha256": "99CD5517848CDF9D5E04AC243C7B6A4CDAE135AD3CB9E383391E09E4A8AC5F87",
+  "summary": "Corrige a abertura da tela de transições da mídia.",
   "changes": [
-    "Cada opção da galeria reproduz sua transição continuamente em uma miniatura, sem depender da prévia separada abaixo.",
-    "As miniaturas acompanham a mídia selecionada e alternam entre o sentido de entrada e o de saída.",
-    "A prévia usa a velocidade ou a duração exata configurada para o sentido selecionado."
+    "Impede que o seletor de entrada ou saída acesse a galeria antes de ela estar pronta durante a abertura da tela."
   ]
 }

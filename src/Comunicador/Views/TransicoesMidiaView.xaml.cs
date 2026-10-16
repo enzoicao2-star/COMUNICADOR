@@ -33,7 +33,12 @@ public partial class TransicoesMidiaView : UserControl
 
     private void LadoTransicao_Checked(object sender, RoutedEventArgs e)
     {
-        _entradaSelecionada = ReferenceEquals(sender, LadoEntradaRadio);
+        // O Checked do RadioButton pode disparar durante o carregamento do XAML,
+        // antes de a galeria ter sido criada. Nesse momento, mantenha a seleção
+        // padrão (entrada) e deixe o construtor inicializar o estado da tela.
+        if (GaleriaEfeitos is null || sender is not RadioButton radio) return;
+
+        _entradaSelecionada = ReferenceEquals(radio, LadoEntradaRadio);
         GaleriaEfeitos.Tag = !_entradaSelecionada;
         if (DataContext is MensagensViewModel vm)
             vm.PreviewEfeitoSaida = !_entradaSelecionada;

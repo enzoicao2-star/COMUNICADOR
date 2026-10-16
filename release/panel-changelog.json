@@ -1,5 +1,12 @@
 [
   {
+    "version": "2.5.46.0",
+    "summary": "Corrige a abertura da tela de transições da mídia.",
+    "changes": [
+      "Impede que o seletor de entrada ou saída acesse a galeria antes de ela estar pronta durante a abertura da tela."
+    ]
+  },
+  {
     "version": "2.5.45.0",
     "summary": "Prévia animada de cada transição diretamente nas opções da galeria.",
     "changes": [
