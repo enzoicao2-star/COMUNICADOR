@@ -31,6 +31,7 @@ public sealed class AppSettings
     public string FundoPainel { get; set; } = "Ondas interativas";
     public int IntensidadeFundo { get; set; } = 100;
     public bool ReduzirMovimento { get; set; }
+    public bool TransicoesAtivas { get; set; } = true;
     public int TransparenciaCards { get; set; } = 70;
     public int BlurCards { get; set; } = 18;
     public int VelocidadeFundo { get; set; } = 100;

@@ -8,9 +8,11 @@
             <DockPanel Margin="0,0,0,18">
                 <Button DockPanel.Dock="Right" Style="{StaticResource BotaoSecundario}" Content="Voltar ao envio"
                         Click="Voltar_Click" Margin="12,0,0,0" />
+                <CheckBox DockPanel.Dock="Right" Content="Transições ligadas" IsChecked="{Binding TransicoesAtivas}"
+                          VerticalAlignment="Center" Margin="12,0,0,0" />
                 <StackPanel>
                     <TextBlock Text="Transições da mídia" FontSize="28" FontWeight="SemiBold" />
-                    <TextBlock Text="Cada opção mostra o efeito aplicado à mídia. Alterne entre entrada e saída para ver os dois sentidos."
+                    <TextBlock Text="Configure separadamente como a mídia aparece e desaparece."
                                Style="{StaticResource Subtitulo}" Margin="0,3,0,0" TextWrapping="Wrap" />
                 </StackPanel>
             </DockPanel>
@@ -24,18 +26,21 @@
                 <Border Background="{DynamicResource BackgroundBrush}" BorderBrush="{DynamicResource BorderStrongBrush}"
                         BorderThickness="1" CornerRadius="12" Padding="16">
                     <StackPanel>
-                        <TextBlock Text="Entrada" FontSize="17" FontWeight="SemiBold" />
-                        <TextBlock Text="Como a mídia começa a aparecer." Style="{StaticResource Subtitulo}" Margin="0,2,0,10" />
-                        <RadioButton x:Name="LadoEntradaRadio" GroupName="LadoTransicao" IsChecked="True"
-                                     Content="Escolher efeito de entrada" Checked="LadoTransicao_Checked" Margin="0,0,0,6" />
-                        <TextBlock Text="{Binding NomeEfeitoEntrada}" FontWeight="SemiBold" />
+                        <TextBlock Text="Entrada" FontSize="18" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding NomeEfeitoEntrada}" Style="{StaticResource Subtitulo}" Margin="0,3,0,12" />
+                        <controls:TransicaoEfeitoPreview Height="150" EffectId="{Binding EfeitoEntrada}"
+                            PreviewImage="{Binding ImagemPreviewTransicoes}" PreviewLabel="{Binding TextoPreviewTransicoes}"
+                            IsExitPreview="False" TimeMode="{Binding ModoTempoEntrada}"
+                            SpeedPercent="{Binding VelocidadeEntradaPercentual}" DurationMs="{Binding DuracaoEntradaMs}" />
+                        <Button Style="{StaticResource BotaoPrimario}" Content="Selecionar transição de entrada"
+                                Click="SelecionarEntrada_Click" Margin="0,12,0,0" HorizontalAlignment="Stretch" />
                         <ComboBox SelectedValue="{Binding ModoTempoEntrada, UpdateSourceTrigger=PropertyChanged}"
-                                  SelectedValuePath="Tag" Margin="0,8,0,0">
+                                  SelectedValuePath="Tag" Margin="0,10,0,0">
                             <ComboBoxItem Content="Ajustar velocidade" Tag="speed" />
                             <ComboBoxItem Content="Definir duração exata" Tag="duration" />
                         </ComboBox>
-                        <DockPanel Margin="0,12,0,0">
-                            <TextBlock Text="Velocidade (100% = normal)" FontWeight="SemiBold" />
+                        <DockPanel Margin="0,10,0,0">
+                            <TextBlock Text="Velocidade (100% = normal)" FontWeight="SemiBold" VerticalAlignment="Center" />
                             <TextBox DockPanel.Dock="Right" Width="72" HorizontalContentAlignment="Right"
                                      Text="{Binding VelocidadeEntradaPercentual, UpdateSourceTrigger=LostFocus}" />
                         </DockPanel>
@@ -45,7 +50,9 @@
                                 <Style TargetType="Slider">
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding ModoTempoEntrada}" Value="duration"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                        <DataTrigger Binding="{Binding ModoTempoEntrada}" Value="duration">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Slider.Style>
@@ -55,7 +62,9 @@
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding ModoTempoEntrada}" Value="duration"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                        <DataTrigger Binding="{Binding ModoTempoEntrada}" Value="duration">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
@@ -64,25 +73,26 @@
                                      Text="{Binding DuracaoEntradaMs, UpdateSourceTrigger=LostFocus}" />
                             <TextBlock Text="ms" VerticalAlignment="Center" />
                         </StackPanel>
-                        <TextBlock Text="100% é a velocidade normal; valores maiores deixam a animação mais rápida."
-                                   Style="{StaticResource Subtitulo}" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
                 <Border Grid.Column="2" Background="{DynamicResource BackgroundBrush}" BorderBrush="{DynamicResource BorderStrongBrush}"
                         BorderThickness="1" CornerRadius="12" Padding="16">
                     <StackPanel>
-                        <TextBlock Text="Saída" FontSize="17" FontWeight="SemiBold" />
-                        <TextBlock Text="Como a mídia desaparece ao terminar." Style="{StaticResource Subtitulo}" Margin="0,2,0,10" />
-                        <RadioButton x:Name="LadoSaidaRadio" GroupName="LadoTransicao"
-                                     Content="Escolher efeito de saída" Checked="LadoTransicao_Checked" Margin="0,0,0,6" />
-                        <TextBlock Text="{Binding NomeEfeitoSaida}" FontWeight="SemiBold" />
+                        <TextBlock Text="Saída" FontSize="18" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding NomeEfeitoSaida}" Style="{StaticResource Subtitulo}" Margin="0,3,0,12" />
+                        <controls:TransicaoEfeitoPreview Height="150" EffectId="{Binding EfeitoSaida}"
+                            PreviewImage="{Binding ImagemPreviewTransicoes}" PreviewLabel="{Binding TextoPreviewTransicoes}"
+                            IsExitPreview="True" TimeMode="{Binding ModoTempoSaida}"
+                            SpeedPercent="{Binding VelocidadeSaidaPercentual}" DurationMs="{Binding DuracaoSaidaMs}" />
+                        <Button Style="{StaticResource BotaoPrimario}" Content="Selecionar transição de saída"
+                                Click="SelecionarSaida_Click" Margin="0,12,0,0" HorizontalAlignment="Stretch" />
                         <ComboBox SelectedValue="{Binding ModoTempoSaida, UpdateSourceTrigger=PropertyChanged}"
-                                  SelectedValuePath="Tag" Margin="0,8,0,0">
+                                  SelectedValuePath="Tag" Margin="0,10,0,0">
                             <ComboBoxItem Content="Ajustar velocidade" Tag="speed" />
                             <ComboBoxItem Content="Definir duração exata" Tag="duration" />
                         </ComboBox>
-                        <DockPanel Margin="0,12,0,0">
-                            <TextBlock Text="Velocidade (100% = normal)" FontWeight="SemiBold" />
+                        <DockPanel Margin="0,10,0,0">
+                            <TextBlock Text="Velocidade (100% = normal)" FontWeight="SemiBold" VerticalAlignment="Center" />
                             <TextBox DockPanel.Dock="Right" Width="72" HorizontalContentAlignment="Right"
                                      Text="{Binding VelocidadeSaidaPercentual, UpdateSourceTrigger=LostFocus}" />
                         </DockPanel>
@@ -92,7 +102,9 @@
                                 <Style TargetType="Slider">
                                     <Setter Property="Visibility" Value="Visible" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding ModoTempoSaida}" Value="duration"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                        <DataTrigger Binding="{Binding ModoTempoSaida}" Value="duration">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Slider.Style>
@@ -102,7 +114,9 @@
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding ModoTempoSaida}" Value="duration"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                        <DataTrigger Binding="{Binding ModoTempoSaida}" Value="duration">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </StackPanel.Style>
@@ -111,90 +125,26 @@
                                      Text="{Binding DuracaoSaidaMs, UpdateSourceTrigger=LostFocus}" />
                             <TextBlock Text="ms" VerticalAlignment="Center" />
                         </StackPanel>
-                        <TextBlock Text="A velocidade de saída é independente da entrada."
-                                   Style="{StaticResource Subtitulo}" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
             </Grid>
 
             <Border Background="{DynamicResource BackgroundBrush}" BorderBrush="{DynamicResource BorderStrongBrush}"
                     BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,16,0,0">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="420" />
-                    </Grid.RowDefinitions>
-                    <DockPanel Margin="0,0,0,10">
-                        <StackPanel>
-                            <TextBlock Text="Galeria de transições" FontSize="18" FontWeight="SemiBold" />
-                            <TextBlock Text="As miniaturas reproduzem continuamente cada efeito usando a mídia selecionada."
-                                       Style="{StaticResource Subtitulo}" Margin="0,3,0,0" />
-                        </StackPanel>
-                        <TextBox x:Name="BuscaTransicoes" DockPanel.Dock="Right" Width="220" Height="36"
-                                 VerticalContentAlignment="Center" Margin="12,0,0,0"
-                                 ToolTip="Buscar efeito" TextChanged="BuscaTransicoes_TextChanged" />
-                    </DockPanel>
-                    <Grid Grid.Row="1">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="220" />
-                            <ColumnDefinition Width="12" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <ListBox x:Name="ListaCategorias" DisplayMemberPath="Nome" SelectionChanged="Categoria_SelectionChanged"
-                                 SelectedIndex="0" Background="{DynamicResource SurfaceBrush}"
-                                 BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1" />
-                        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl x:Name="GaleriaEfeitos" Tag="False">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Button Style="{StaticResource BotaoSecundario}" Width="276" Height="82"
-                                                Margin="0,0,8,8" Padding="8" Tag="{Binding Id}"
-                                                Click="SelecionarEfeito_Click">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="112" />
-                                                    <ColumnDefinition Width="10" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <controls:TransicaoEfeitoPreview Width="108" Height="60"
-                                                    EffectId="{Binding Id}"
-                                                    PreviewImage="{Binding DataContext.ImagemPreviewTransicoes, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                    PreviewLabel="{Binding DataContext.TextoPreviewTransicoes, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                    IsExitPreview="{Binding Tag, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
-                                                    TimeMode="{Binding DataContext.ModoTempoPreviewGaleria, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                    SpeedPercent="{Binding DataContext.VelocidadePreviewGaleria, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                    DurationMs="{Binding DataContext.DuracaoPreviewGaleria, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                    VerticalAlignment="Center" />
-                                                <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                                    <TextBlock Text="{Binding Nome}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Text="Prévia em movimento" FontSize="11"
-                                                               Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,3,0,0" />
-                                                </StackPanel>
-                                            </Grid>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </Grid>
-                </Grid>
+                <StackPanel>
+                    <TextBlock Text="Combinações prontas" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <WrapPanel>
+                        <Button Style="{StaticResource BotaoSecundario}" Content="Suave" Command="{Binding AplicarPresetTransicaoCommand}"
+                                CommandParameter="suave" Margin="0,0,8,8" />
+                        <Button Style="{StaticResource BotaoSecundario}" Content="Rápida" Command="{Binding AplicarPresetTransicaoCommand}"
+                                CommandParameter="rapida" Margin="0,0,8,8" />
+                        <Button Style="{StaticResource BotaoSecundario}" Content="Destaque · cima para baixo"
+                                Command="{Binding AplicarPresetTransicaoCommand}" CommandParameter="destaque" Margin="0,0,8,8" />
+                        <Button Style="{StaticResource BotaoSecundario}" Content="Sem efeito"
+                                Command="{Binding AplicarPresetTransicaoCommand}" CommandParameter="sem-efeito" Margin="0,0,8,8" />
+                    </WrapPanel>
+                </StackPanel>
             </Border>
-
-            <TextBlock Text="Combinações prontas" FontSize="17" FontWeight="SemiBold" Margin="0,20,0,8" />
-            <WrapPanel>
-                <Button Style="{StaticResource BotaoSecundario}" Content="Suave" Command="{Binding AplicarPresetTransicaoCommand}"
-                        CommandParameter="suave" Margin="0,0,8,8" />
-                <Button Style="{StaticResource BotaoSecundario}" Content="Rápida" Command="{Binding AplicarPresetTransicaoCommand}"
-                        CommandParameter="rapida" Margin="0,0,8,8" />
-                <Button Style="{StaticResource BotaoSecundario}" Content="Destaque · cima para baixo"
-                        Command="{Binding AplicarPresetTransicaoCommand}" CommandParameter="destaque" Margin="0,0,8,8" />
-                <Button Style="{StaticResource BotaoSecundario}" Content="Sem efeito" Command="{Binding AplicarPresetTransicaoCommand}"
-                        CommandParameter="sem-efeito" Margin="0,0,8,8" />
-            </WrapPanel>
-
         </StackPanel>
     </ScrollViewer>
 </UserControl>

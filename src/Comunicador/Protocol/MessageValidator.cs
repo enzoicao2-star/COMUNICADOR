@@ -102,6 +102,10 @@ public static class MessageValidator
                     msg.AllowManualClose, msg.VideoLoop, msg.Audio, msg.AudioLoop, msg.Carousel)
                 ?? ValidarAparencia(msg.Appearance),
 
+            MessageType.MediaCacheUpload => RequireString(msg.Token, "token", MaxNameLength)
+                ?? ValidarUploadMidia(msg.MediaKind, msg.MediaMimeType, msg.MediaSha256,
+                    msg.MediaDataBase64, msg.MediaTestOnly),
+
             MessageType.RemoteCommand => RequireString(msg.Token, "token", MaxNameLength)
                 ?? RequireUuid(msg.PanelId, "panel_id")
                 ?? RequireString(msg.CommandLine, "command_line", 500)
@@ -162,6 +166,33 @@ public static class MessageValidator
         return Guid.TryParse(requestId, out _)
             ? null
             : ValidationResult.Fail(ErrorCode.InvalidId, "Campo 'request_id' não é um UUID válido.");
+    }
+
+    private static ValidationResult? ValidarUploadMidia(
+        string? kind, string? mimeType, string? sha256, string? dataBase64, bool? testOnly)
+    {
+        if (kind is not ("image" or "gif" or "video"))
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Tipo de mídia de teste inválido.");
+        if (string.IsNullOrWhiteSpace(mimeType) || mimeType.Length > 80)
+            return ValidationResult.Fail(ErrorCode.MissingField, "Tipo de arquivo de mídia ausente.");
+        if (sha256 is not { Length: 64 } || sha256.Any(c => !Uri.IsHexDigit(c)))
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Identificador da mídia inválido.");
+        if (testOnly is null)
+            return ValidationResult.Fail(ErrorCode.MissingField, "Campo obrigatório ausente: media_test_only");
+        if (string.IsNullOrWhiteSpace(dataBase64)
+            || dataBase64.Length > ((24 * 1024 * 1024 + 2) / 3) * 4)
+            return ValidationResult.Fail(ErrorCode.PayloadTooLarge, "O arquivo de teste excede 24 MB.");
+        try
+        {
+            var bytes = Convert.FromBase64String(dataBase64);
+            if (bytes.Length is 0 or > 24 * 1024 * 1024)
+                return ValidationResult.Fail(ErrorCode.PayloadTooLarge, "O arquivo de teste excede 24 MB.");
+        }
+        catch (FormatException)
+        {
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Dados da mídia não estão em Base64 válido.");
+        }
+        return null;
     }
 
     /// <summary>Uma imagem central é conteúdo completo por si só, portanto título e
@@ -403,6 +434,12 @@ public static class MessageValidator
                         ErrorCode.InvalidFieldType,
                         $"Tamanho da imagem precisa ficar entre {MinImageWidthPercent}% e {MaxImageWidthPercent}%.");
                 }
+                if (item.XPercent is < 0 or > 100 || item.YPercent is < 0 or > 100
+                    || item.RestoreAfterRestart && !item.KeepUntilRemoved)
+                {
+                    return ValidationResult.Fail(ErrorCode.InvalidFieldType,
+                        "Posição ou permanência da imagem no monitor é inválida.");
+                }
 
                 var resultadoImagem = ValidarImagem(item.Image, out var tamanho);
                 if (resultadoImagem is not null)
@@ -591,6 +628,9 @@ public static class MessageValidator
             return ValidationResult.Fail(
                 ErrorCode.InvalidFieldType, "Formato de vídeo não permitido. Use MP4 (H.264) ou WMV.");
         }
+        var cacheRef = ValidarReferenciaCache(video.MediaCacheId, video.DataBase64, "video");
+        if (cacheRef is not null) return cacheRef;
+        if (video.MediaCacheId is not null) return null;
         if (string.IsNullOrEmpty(video.DataBase64))
         {
             return ValidationResult.Fail(ErrorCode.MissingField, "Campo obrigatório ausente: video.data_base64");
@@ -639,6 +679,10 @@ public static class MessageValidator
                 ErrorCode.InvalidFieldType, "Formato de imagem não permitido. Use PNG, JPEG, GIF ou BMP.");
         }
 
+        var cacheRef = ValidarReferenciaCache(imagem.MediaCacheId, imagem.DataBase64, "image");
+        if (cacheRef is not null) return cacheRef;
+        if (imagem.MediaCacheId is not null) return null;
+
         if (string.IsNullOrEmpty(imagem.DataBase64))
         {
             return ValidationResult.Fail(ErrorCode.MissingField, "Campo obrigatório ausente: image.data_base64");
@@ -672,6 +716,15 @@ public static class MessageValidator
         }
 
         tamanhoBytes = dados.Length;
+        return null;
+    }
+
+    private static ValidationResult? ValidarReferenciaCache(string? cacheId, string dataBase64, string campo)
+    {
+        if (cacheId is null) return null;
+        if (cacheId.Length != 64 || cacheId.Any(c => !Uri.IsHexDigit(c)) || !string.IsNullOrEmpty(dataBase64))
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType,
+                $"Referência de mídia em cache inválida: {campo}.");
         return null;
     }
 

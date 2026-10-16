@@ -15,15 +15,25 @@ public sealed class SupabaseClient
 {
     public const string ProjectUrl = "https://yofxuiajeyxeacophgdy.supabase.co";
     public const string PublishableKey = "sb_publishable_9vE6ehPLNhoByGInnUAlug_Ndd_fTam";
-    private static readonly HttpClient SharedHttpClient = new(new SocketsHttpHandler
+    private const int LargeDeliveryPayloadThresholdBytes = 512 * 1024;
+    private static readonly SocketsHttpHandler SharedHandler = new()
     {
         PooledConnectionLifetime = TimeSpan.FromMinutes(5),
         PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
         MaxConnectionsPerServer = 8,
         AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
-    })
+    };
+    private static readonly HttpClient SharedHttpClient = new(SharedHandler, disposeHandler: false)
     {
         Timeout = TimeSpan.FromSeconds(15),
+    };
+    private static readonly HttpClient DeliveryHttpClient = new(SharedHandler, disposeHandler: false)
+    {
+        Timeout = TimeSpan.FromSeconds(90),
+    };
+    private static readonly HttpClient LargeDeliveryHttpClient = new(SharedHandler, disposeHandler: false)
+    {
+        Timeout = TimeSpan.FromMinutes(3),
     };
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -40,7 +50,7 @@ public sealed class SupabaseClient
     public async Task<CloudAdminState> RegisterDeviceAsync(
         string deviceId, string machineName, string? panelVersion, string? receiverVersion,
         bool mediaBlocked,
-        CancellationToken ct = default)
+        CancellationToken ct = default, bool useDeliveryTimeout = false)
     {
         var result = await RpcAsync<List<CloudAdminState>>("register_device_status", new
         {
@@ -50,7 +60,7 @@ public sealed class SupabaseClient
             p_receiver_version = receiverVersion,
             p_has_panel = true,
             p_media_blocked = mediaBlocked,
-        }, ct).ConfigureAwait(false);
+        }, ct, useDeliveryTimeout ? DeliveryHttpClient : null).ConfigureAwait(false);
         return result.FirstOrDefault() ?? new CloudAdminState();
     }
 
@@ -148,10 +158,13 @@ public sealed class SupabaseClient
             deliver_at = deliverAt.ToUniversalTime(),
             payload,
         }, JsonOptions);
-        using var request = await CreateRequestAsync(HttpMethod.Post, "/rest/v1/deliveries", body, ct)
+        var client = body.Length >= LargeDeliveryPayloadThresholdBytes
+            ? LargeDeliveryHttpClient
+            : DeliveryHttpClient;
+        using var request = await CreateRequestAsync(HttpMethod.Post, "/rest/v1/deliveries", body, ct, client)
             .ConfigureAwait(false);
         request.Headers.TryAddWithoutValidation("Prefer", "return=minimal");
-        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        using var response = await client.SendAsync(request, ct).ConfigureAwait(false);
         await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
     }
 
@@ -198,20 +211,22 @@ public sealed class SupabaseClient
         await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
     }
 
-    private async Task<T> RpcAsync<T>(string function, object payload, CancellationToken ct)
+    private async Task<T> RpcAsync<T>(string function, object payload, CancellationToken ct,
+        HttpClient? client = null)
     {
+        client ??= _http;
         var body = JsonSerializer.Serialize(payload, JsonOptions);
-        using var request = await CreateRequestAsync(HttpMethod.Post, $"/rest/v1/rpc/{function}", body, ct)
+        using var request = await CreateRequestAsync(HttpMethod.Post, $"/rest/v1/rpc/{function}", body, ct, client)
             .ConfigureAwait(false);
-        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        using var response = await client.SendAsync(request, ct).ConfigureAwait(false);
         await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
         return (await DeserializeAsync<T>(response, ct).ConfigureAwait(false))!;
     }
 
     private async Task<HttpRequestMessage> CreateRequestAsync(
-        HttpMethod method, string path, string? body, CancellationToken ct)
+        HttpMethod method, string path, string? body, CancellationToken ct, HttpClient? client = null)
     {
-        var session = await EnsureSessionAsync(ct).ConfigureAwait(false);
+        var session = await EnsureSessionAsync(ct, client).ConfigureAwait(false);
         var request = new HttpRequestMessage(method, ProjectUrl + path);
         request.Headers.TryAddWithoutValidation("apikey", PublishableKey);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
@@ -219,8 +234,9 @@ public sealed class SupabaseClient
         return request;
     }
 
-    private async Task<CloudSession> EnsureSessionAsync(CancellationToken ct)
+    private async Task<CloudSession> EnsureSessionAsync(CancellationToken ct, HttpClient? client = null)
     {
+        client ??= _http;
         await _sessionGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
@@ -234,7 +250,7 @@ public sealed class SupabaseClient
                 {
                     _session = await RequestSessionAsync(
                         $"/auth/v1/token?grant_type=refresh_token",
-                        JsonSerializer.Serialize(new { refresh_token = _session.RefreshToken }), ct).ConfigureAwait(false);
+                        JsonSerializer.Serialize(new { refresh_token = _session.RefreshToken }), ct, client).ConfigureAwait(false);
                     SaveSession(_session);
                     return _session;
                 }
@@ -244,19 +260,21 @@ public sealed class SupabaseClient
                 }
             }
 
-            _session = await RequestSessionAsync("/auth/v1/signup", "{}", ct).ConfigureAwait(false);
+            _session = await RequestSessionAsync("/auth/v1/signup", "{}", ct, client).ConfigureAwait(false);
             SaveSession(_session);
             return _session;
         }
         finally { _sessionGate.Release(); }
     }
 
-    private async Task<CloudSession> RequestSessionAsync(string path, string body, CancellationToken ct)
+    private async Task<CloudSession> RequestSessionAsync(string path, string body, CancellationToken ct,
+        HttpClient? client = null)
     {
+        client ??= _http;
         using var request = new HttpRequestMessage(HttpMethod.Post, ProjectUrl + path);
         request.Headers.TryAddWithoutValidation("apikey", PublishableKey);
         request.Content = new StringContent(body, Encoding.UTF8, "application/json");
-        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        using var response = await client.SendAsync(request, ct).ConfigureAwait(false);
         await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
         var session = await DeserializeAsync<CloudSession>(response, ct).ConfigureAwait(false)
             ?? throw new HttpRequestException("O Supabase não retornou uma sessão.");

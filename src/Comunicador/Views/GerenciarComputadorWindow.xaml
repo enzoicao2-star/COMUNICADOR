@@ -28,8 +28,27 @@
                         </TextBlock>
                         <TextBlock Text="{Binding ComputadorGerenciado.StatusRecebimentoMidias}" Margin="0,5,0,0"
                                    Foreground="#A15C00" Visibility="{Binding ComputadorGerenciado.MidiasBloqueadas, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                        <Button Content="Testar comunicação" Style="{StaticResource BotaoSecundario}"
-                                HorizontalAlignment="Left" Margin="0,10,0,0"
+                        <TextBlock Text="O arquivo de amostra será recebido e descartado sem aparecer na tela."
+                                   Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,9,0,6" />
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="8" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                            <ComboBox SelectedValue="{Binding TipoMidiaTeste}" SelectedValuePath="Tag"
+                                      ToolTip="Tipo da mídia simulada">
+                                <ComboBoxItem Content="Imagem" Tag="image" />
+                                <ComboBoxItem Content="GIF" Tag="gif" />
+                                <ComboBoxItem Content="Vídeo" Tag="video" />
+                            </ComboBox>
+                            <ComboBox Grid.Column="2" SelectedValue="{Binding TamanhoMidiaTesteBytes}" SelectedValuePath="Tag"
+                                      ToolTip="Tamanho do arquivo de teste">
+                                <ComboBoxItem Content="256 KB" Tag="262144" />
+                                <ComboBoxItem Content="1 MB" Tag="1048576" />
+                                <ComboBoxItem Content="5 MB" Tag="5242880" />
+                                <ComboBoxItem Content="10 MB" Tag="10485760" />
+                                <ComboBoxItem Content="20 MB" Tag="20971520" />
+                            </ComboBox>
+                        </Grid>
+                        <Button Content="Testar transferência sem exibir" Style="{StaticResource BotaoSecundario}"
+                                HorizontalAlignment="Left" Margin="0,8,0,0"
                                 Command="{Binding TestarComunicacaoCommand}"
                                 CommandParameter="{Binding ComputadorGerenciado}" />
                         <TextBlock Text="{Binding TesteComunicacaoStatus}" Style="{StaticResource Subtitulo}"

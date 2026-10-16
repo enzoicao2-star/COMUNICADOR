@@ -243,7 +243,7 @@ public sealed class CloudSyncService : IDisposable
         string targetDeviceId, DateTime deliverAt, string title, string message,
         bool allowReply, CancellationToken ct)
     {
-        await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        await RegisterCurrentDeviceAsync(ct, forUserDelivery: true).ConfigureAwait(false);
         EnsureTargetIsNotOwner(targetDeviceId);
         await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId,
             new DateTimeOffset(deliverAt.ToUniversalTime()), new
@@ -260,7 +260,7 @@ public sealed class CloudSyncService : IDisposable
     public async Task QueueNotificationAsync(
         string targetDeviceId, EnvioPendente notification, CancellationToken ct = default)
     {
-        await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        await RegisterCurrentDeviceAsync(ct, forUserDelivery: true).ConfigureAwait(false);
         EnsureTargetIsNotOwner(targetDeviceId);
         await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
             new
@@ -298,7 +298,7 @@ public sealed class CloudSyncService : IDisposable
         if (!HasPermission(permission)) throw new UnauthorizedAccessException("Esta conta não tem permissão para esta ação.");
         if (string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Escolha outro computador para esta ação.");
-        await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        await RegisterCurrentDeviceAsync(ct, forUserDelivery: true).ConfigureAwait(false);
         EnsureTargetIsNotOwner(targetDeviceId);
         await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
             new { kind = "admin_command", command, sender = _settings.NomePainel }, ct).ConfigureAwait(false);
@@ -315,7 +315,7 @@ public sealed class CloudSyncService : IDisposable
             throw new ArgumentException("Identificador da solicitação inválido.", nameof(requestId));
         if (string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Escolha outro computador para esta ação.");
-        await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        await RegisterCurrentDeviceAsync(ct, forUserDelivery: true).ConfigureAwait(false);
         EnsureTargetIsNotOwner(targetDeviceId);
         await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
             new { kind = "admin_command", command = "run_cmd", request_id = requestId, line = command.Trim(),
@@ -332,7 +332,7 @@ public sealed class CloudSyncService : IDisposable
             throw new ArgumentException("Identificador do comando inválido.", nameof(requestId));
         if (string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Escolha outro computador para esta ação.");
-        await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        await RegisterCurrentDeviceAsync(ct, forUserDelivery: true).ConfigureAwait(false);
         EnsureTargetIsNotOwner(targetDeviceId);
         await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
             new { kind = "admin_command", command = "cancel_cmd", request_id = requestId,
@@ -505,7 +505,8 @@ public sealed class CloudSyncService : IDisposable
         }
     }
 
-    private async Task<CloudAdminState> RegisterCurrentDeviceAsync(CancellationToken ct)
+    private async Task<CloudAdminState> RegisterCurrentDeviceAsync(CancellationToken ct,
+        bool forUserDelivery = false)
     {
         await _deviceRegistrationGate.WaitAsync(ct).ConfigureAwait(false);
         try
@@ -519,7 +520,7 @@ public sealed class CloudSyncService : IDisposable
             var state = await _client.RegisterDeviceAsync(
                 _settings.PainelId, Environment.MachineName,
                 ProtocolConstants.CurrentPanelVersion, ProtocolConstants.CurrentReceiverVersion,
-                !_settings.AceitarImagensDeOutrosPaineis, ct).ConfigureAwait(false);
+                !_settings.AceitarImagensDeOutrosPaineis, ct, forUserDelivery).ConfigureAwait(false);
             _lastDeviceRegistration = state;
             _lastDeviceRegistrationAt = DateTimeOffset.UtcNow;
             SetAdmin(state.IsAdmin, state.AdminDeviceId);

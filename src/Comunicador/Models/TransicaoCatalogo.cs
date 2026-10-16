@@ -29,6 +29,32 @@ public static class TransicaoCatalogo
         Criar("Especiais e combinações", "Fade + Slide|Fade + Zoom|Fade + Blur|Slide + Scale|Zoom + Blur|Rotate + Fade|Flip + Zoom|Wipe + Glow|Glitch + RGB Split|Morph + Liquid|Parallax + Fade|Elastic Slide|3D Zoom + Rotation|Light Sweep + Crossfade|Portal + Zoom|Shatter + Reassemble|Blur + Slide + Fade"),
     ];
 
+    /// <summary>Remove opções cuja própria designação só faz sentido num dos lados.</summary>
+    public static IReadOnlyList<CategoriaTransicao> ObterCategoriasPara(bool saida) =>
+        Categorias
+            .Select(categoria => new CategoriaTransicao(categoria.Nome,
+                categoria.Opcoes.Where(opcao => PodeUsarNoLado(opcao.Id, saida)).ToArray()))
+            .Where(categoria => categoria.Opcoes.Count > 0)
+            .ToArray();
+
+    private static bool PodeUsarNoLado(string id, bool saida)
+    {
+        var somenteEntrada = id.EndsWith("_in", StringComparison.Ordinal)
+            || id.EndsWith("_open", StringComparison.Ordinal)
+            || id.EndsWith("_expand", StringComparison.Ordinal)
+            || id.EndsWith("_reveal", StringComparison.Ordinal)
+            || id is "scale_up"
+            || id is "assemble" or "staggered_reveal" or "text_reveal" or "typewriter"
+                or "word_by_word" or "letter_by_letter";
+        var somenteSaida = id.EndsWith("_out", StringComparison.Ordinal)
+            || id.EndsWith("_close", StringComparison.Ordinal)
+            || id.EndsWith("_collapse", StringComparison.Ordinal)
+            || id.EndsWith("_shrink", StringComparison.Ordinal)
+            || id is "blackout" or "break_apart" or "shatter" or "fall_out" or "scale_down"
+                or "zoom_out_to_center";
+        return !(saida ? somenteEntrada : somenteSaida);
+    }
+
     private static CategoriaTransicao Criar(string nome, string opcoes)
     {
         var itens = opcoes.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

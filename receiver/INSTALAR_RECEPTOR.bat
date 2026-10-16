@@ -226,8 +226,8 @@ goto :erro
 echo       Receptor %RECEIVER_VERSION% validado e salvo em: %INSTALL_DIR%
 
 echo.
-echo [5/8] Instalando dependencias Python ^(pystray, Pillow^)...
-"!PYTHON_EXE!" -c "from importlib.metadata import version; from pip._vendor.packaging.requirements import Requirement; from pathlib import Path; import sys; reqs=[Requirement(line) for line in Path(sys.argv[1]).read_text(encoding='utf-8').splitlines() if line.strip() and not line.lstrip().startswith('#')]; import pystray, PIL; sys.exit(0 if all(r.specifier.contains(version(r.name)) for r in reqs) else 1)" "%INSTALL_DIR%\requirements.txt" >nul 2>nul
+echo [5/8] Instalando dependencias Python ^(Pillow para imagens e GIFs^)...
+"!PYTHON_EXE!" -c "from importlib.metadata import version; from pip._vendor.packaging.requirements import Requirement; from pathlib import Path; import sys; reqs=[Requirement(line) for line in Path(sys.argv[1]).read_text(encoding='utf-8').splitlines() if line.strip() and not line.lstrip().startswith('#')]; import PIL; sys.exit(0 if all(r.specifier.contains(version(r.name)) for r in reqs) else 1)" "%INSTALL_DIR%\requirements.txt" >nul 2>nul
 if not errorlevel 1 (
     echo       Dependencias ja instaladas; nenhuma espera pelo pip.
 ) else (

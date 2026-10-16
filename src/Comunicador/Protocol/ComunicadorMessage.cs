@@ -132,6 +132,24 @@ public sealed class ComunicadorMessage
     [JsonPropertyName("audio_loop")]
     public bool? AudioLoop { get; set; }
 
+    [JsonPropertyName("media_kind")]
+    public string? MediaKind { get; set; }
+
+    [JsonPropertyName("media_mime_type")]
+    public string? MediaMimeType { get; set; }
+
+    [JsonPropertyName("media_sha256")]
+    public string? MediaSha256 { get; set; }
+
+    [JsonPropertyName("media_data_base64")]
+    public string? MediaDataBase64 { get; set; }
+
+    [JsonPropertyName("media_test_only")]
+    public bool? MediaTestOnly { get; set; }
+
+    [JsonPropertyName("bytes_received")]
+    public long? BytesReceived { get; set; }
+
     [JsonPropertyName("image_duration_seconds")]
     public double? ImageDurationSeconds { get; set; }
 

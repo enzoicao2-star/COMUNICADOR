@@ -29,6 +29,10 @@ public enum TipoMidiaMonitor
 public sealed class MidiaMonitorEditavel : ViewModelBase
 {
     private double _tamanhoPercentual = 70;
+    private double? _xPercent;
+    private double? _yPercent;
+    private bool _manterAteRemover;
+    private bool _restaurarAposReiniciar;
     private string? _dadosBase64;
     private BitmapSource? _imagemPreview;
     private bool _imagemPreviewCarregada;
@@ -96,10 +100,48 @@ public sealed class MidiaMonitorEditavel : ViewModelBase
     public double PreviewWidth => Math.Max(35, 220 * TamanhoPercentual / 100d);
     public string TamanhoTexto => $"{TamanhoPercentual:0}% da largura do monitor";
 
+    public double? XPercent
+    {
+        get => _xPercent;
+        set => SetField(ref _xPercent, value is null ? null : Math.Clamp(value.Value, 0, 100));
+    }
+
+    public double? YPercent
+    {
+        get => _yPercent;
+        set => SetField(ref _yPercent, value is null ? null : Math.Clamp(value.Value, 0, 100));
+    }
+
+    public bool ManterAteRemover
+    {
+        get => _manterAteRemover;
+        set
+        {
+            if (SetField(ref _manterAteRemover, value))
+                OnPropertyChanged(nameof(DuracaoIndefinida));
+        }
+    }
+
+    public bool RestaurarAposReiniciar
+    {
+        get => _restaurarAposReiniciar;
+        set
+        {
+            if (SetField(ref _restaurarAposReiniciar, value) && value)
+                ManterAteRemover = true;
+        }
+    }
+
+    public bool DuracaoIndefinida => ManterAteRemover;
+
     public ImagemMonitor ParaProtocolo(int monitorIndex) => new()
     {
         MonitorIndex = monitorIndex,
         WidthPercent = (int)TamanhoPercentual,
+        XPercent = XPercent,
+        YPercent = YPercent,
+        KeepUntilRemoved = ManterAteRemover,
+        RestoreAfterRestart = RestaurarAposReiniciar,
         Image = new ConteudoImagem
         {
             Name = Path.GetFileName(Nome),

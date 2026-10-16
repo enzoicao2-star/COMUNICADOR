@@ -83,8 +83,15 @@ public sealed class TransicaoEfeitoPreview : UserControl
             ClipToBounds = true,
             Child = content,
         };
-        Loaded += (_, _) => ReiniciarReproducao();
+        Loaded += (_, _) => AtualizarReproducaoVisibilidade();
         Unloaded += (_, _) => PararReproducao();
+        IsVisibleChanged += (_, _) => AtualizarReproducaoVisibilidade();
+    }
+
+    private void AtualizarReproducaoVisibilidade()
+    {
+        if (IsLoaded && IsVisible) ReiniciarReproducao();
+        else PararReproducao();
     }
 
     private static StackPanel CriarPlaceholder()
@@ -195,14 +202,25 @@ public sealed class TransicaoEfeitoPreview : UserControl
         var de = estadoVisivel > .5 ? visivel : oculto;
         var para = estadoVisivel > .5 ? oculto : visivel;
         AplicarEstado(de);
+        RenderOptions.SetBitmapScalingMode(_image, BitmapScalingMode.LowQuality);
 
         var duracao = TimeMode == "duration"
             ? Math.Clamp(DurationMs, 50, 10000)
             : Math.Clamp(60000d / Math.Clamp(SpeedPercent, 25, 250), 50, 10000);
         var easing = CriarEasing(id, estadoVisivel < .5);
 
+        if (EhDissolucao(id))
+        {
+            _animatedContent.Opacity = 1;
+            await AnimarDissolucaoAsync(id, estadoVisivel < .5, duracao, easing, cancellationToken);
+            ResetarAnimacao();
+            AplicarEstado(estadoVisivel > .5 ? para with { Opacity = 0 } : para);
+            return;
+        }
+
         if (EhMascara(id))
         {
+            _animatedContent.Opacity = 1;
             await AnimarMascaraAsync(id, estadoVisivel < .5, duracao, easing, cancellationToken);
             ResetarAnimacao();
             AplicarEstado(estadoVisivel > .5 ? para with { Opacity = 0 } : para);
@@ -211,6 +229,7 @@ public sealed class TransicaoEfeitoPreview : UserControl
 
         if (Contem(id, "blur", "focus", "defocus", "depth_of_field"))
         {
+            _animatedContent.Opacity = 1;
             await AnimarDesfoqueAsync(estadoVisivel < .5, duracao, easing, cancellationToken);
             ResetarAnimacao();
             AplicarEstado(para);
@@ -219,6 +238,7 @@ public sealed class TransicaoEfeitoPreview : UserControl
 
         if (EhEfeitoDeLuz(id))
         {
+            _animatedContent.Opacity = 1;
             await AnimarCamadaDeCorAsync(id, estadoVisivel < .5, duracao, easing, cancellationToken);
             ResetarAnimacao();
             AplicarEstado(para);
@@ -341,6 +361,74 @@ public sealed class TransicaoEfeitoPreview : UserControl
         _effectOverlay.Opacity = 0;
         _effectOverlay.Background = Brushes.Transparent;
     }
+
+    private async Task AnimarDissolucaoAsync(string id, bool entrada, double duracao,
+        IEasingFunction easing, CancellationToken cancellationToken)
+    {
+        var (colunas, linhas) = id switch
+        {
+            "pixel_dissolve" => (14, 9),
+            "film_grain_dissolve" => (12, 8),
+            "grid_dissolve" => (7, 5),
+            "tiles_dissolve" => (5, 4),
+            "mosaic_transition" => (6, 5),
+            "mosaic_scatter" => (8, 6),
+            _ => (11, 8),
+        };
+        var largura = Math.Max(_animatedContent.ActualWidth, 1);
+        var altura = Math.Max(_animatedContent.ActualHeight, 1);
+        var celulas = new List<(int X, int Y, RectangleGeometry Forma)>(colunas * linhas);
+        var mascara = new GeometryGroup();
+        for (var y = 0; y < linhas; y++)
+        for (var x = 0; x < colunas; x++)
+        {
+            var forma = new RectangleGeometry();
+            celulas.Add((x, y, forma));
+            mascara.Children.Add(forma);
+        }
+
+        IEnumerable<(int X, int Y, RectangleGeometry Forma)> ordem;
+        if (id is "pixel_dissolve" or "dissolve" or "film_grain_dissolve" or "mosaic_scatter")
+        {
+            var seed = id.Aggregate(17, (valor, caractere) => unchecked(valor * 31 + caractere));
+            var aleatorio = new Random(seed);
+            ordem = celulas.OrderBy(_ => aleatorio.Next()).ToArray();
+        }
+        else if (id == "mosaic_transition")
+            ordem = celulas.OrderBy(c => Math.Pow(c.X - (colunas - 1) / 2d, 2)
+                + Math.Pow(c.Y - (linhas - 1) / 2d, 2)).ToArray();
+        else if (id == "grid_dissolve")
+            ordem = celulas.OrderBy(c => c.X + c.Y).ThenBy(c => c.Y).ToArray();
+        else
+            ordem = celulas.OrderBy(c => c.Y).ThenBy(c => c.Y % 2 == 0 ? c.X : -c.X).ToArray();
+
+        var fila = ordem.ToArray();
+        var duracaoCelula = Math.Max(40, duracao * .68);
+        var intervalo = Math.Max(0, duracao - duracaoCelula);
+        for (var indice = 0; indice < fila.Length; indice++)
+        {
+            var celula = fila[indice];
+            var completa = new Rect(celula.X * largura / colunas, celula.Y * altura / linhas,
+                largura / colunas + 1, altura / linhas + 1);
+            var centro = new Rect(completa.X + completa.Width / 2, completa.Y + completa.Height / 2, 0, 0);
+            var atraso = fila.Length <= 1 ? 0 : intervalo * indice / (fila.Length - 1);
+            celula.Forma.BeginAnimation(RectangleGeometry.RectProperty,
+                new RectAnimation(entrada ? centro : completa, entrada ? completa : centro,
+                    TimeSpan.FromMilliseconds(duracaoCelula))
+                {
+                    BeginTime = TimeSpan.FromMilliseconds(atraso),
+                    EasingFunction = easing,
+                });
+        }
+
+        _animatedContent.Clip = mascara;
+        if (id == "pixel_dissolve") RenderOptions.SetBitmapScalingMode(_image, BitmapScalingMode.NearestNeighbor);
+        await Task.Delay(TimeSpan.FromMilliseconds(duracao), cancellationToken);
+    }
+
+    private static bool EhDissolucao(string id) =>
+        id is "dissolve" or "pixel_dissolve" or "grid_dissolve" or "tiles_dissolve"
+            or "mosaic_transition" or "mosaic_scatter" or "film_grain_dissolve";
 
     private async Task AnimarMascaraAsync(string id, bool entrada, double duracao,
         IEasingFunction easing, CancellationToken cancellationToken)
@@ -558,10 +646,24 @@ public sealed class TransicaoEfeitoPreview : UserControl
             "static", "digital", "scan", "match_cut", "morph", "liquid", "shape", "shatter", "particle", "smoke",
             "fog", "frost", "ice", "electric", "aurora", "checker", "grid", "tile", "stripe", "radial",
             "spiral", "luma", "grain", "letter", "text", "word", "typewriter");
-        var scale = Contem(id, "zoom", "scale", "pop", "expand", "shrink", "camera_pull", "dolly", "crash_zoom",
-            "whip_zoom", "zoom_match", "morph", "portal", "pulse", "reveal", "collapse", "hero", "card_",
-            "shared_element", "shared_axis", "expand_from_click", "match_move", "mask", "iris", "circle", "radial", "squeeze", "stretch")
-            ? .48 : Contem(id, "stack", "anticipation", "recoil") ? .72 : 1;
+        var scale = id switch
+        {
+            "zoom_in" or "zoom_out" or "zoom_through" => .22,
+            "zoom_through_tunnel" => .08,
+            "zoom_in_from_center" or "zoom_out_to_center" or "expand" or "mask_expansion" => .02,
+            "shrink" or "mask_collapse" => .08,
+            "scale_up" or "dolly_in" or "hero_transition" or "shared_element_transition" => .58,
+            "scale_down" or "dolly_out" => .55,
+            "pop_in" or "pop_out" => .12,
+            "camera_pull" or "perspective_zoom" => .72,
+            "crash_zoom" or "whip_zoom" => .1,
+            "overshoot_zoom" or "pulse_transition" => .72,
+            _ when Contem(id, "zoom", "scale", "pop", "expand", "shrink", "camera_pull", "dolly", "crash_zoom",
+                "whip_zoom", "zoom_match", "morph", "portal", "pulse", "reveal", "collapse", "hero", "card_",
+                "shared_element", "shared_axis", "expand_from_click", "match_move", "mask", "iris", "circle", "radial", "squeeze", "stretch") => .48,
+            _ when Contem(id, "stack", "anticipation", "recoil") => .72,
+            _ => 1,
+        };
         var angle = Contem(id, "rotate", "spin", "flip", "page_", "cube", "barrel", "tilt", "fold",
             "hinge", "carousel", "orbit", "origami", "tile_flip", "swing", "twist")
             ? Angulo(id) : 0;
@@ -577,7 +679,15 @@ public sealed class TransicaoEfeitoPreview : UserControl
 
     private static (double X, double Y) Deslocamento(string id)
     {
-        if (Contem(id, "left", "diagonal", "whip_pan", "truck_left")) return (-46, 0);
+        if (id == "push_left") return (46, 0);
+        if (id == "push_right") return (-46, 0);
+        if (id == "push_up") return (0, 32);
+        if (id == "push_down") return (0, -32);
+        if (id == "slide_over") return (46, 0);
+        if (id == "slide_under") return (-46, 0);
+        if (id == "parallax_slide") return (-64, 0);
+        if (id == "diagonal_slide") return (-38, -27);
+        if (Contem(id, "left", "whip_pan", "truck_left")) return (-46, 0);
         if (Contem(id, "right", "truck_right")) return (46, 0);
         if (Contem(id, "up", "top", "pedestal_up")) return (0, -32);
         if (Contem(id, "down", "bottom", "drop", "fall", "pedestal_down")) return (0, 32);
@@ -605,10 +715,22 @@ public sealed class TransicaoEfeitoPreview : UserControl
 
     private static IEasingFunction CriarEasing(string efeito, bool entrada)
     {
-        if (Contem(efeito, "bounce", "jello", "rubber", "spring"))
-            return new ElasticEase { EasingMode = entrada ? EasingMode.EaseOut : EasingMode.EaseIn, Oscillations = 2, Springiness = 3 };
-        if (Contem(efeito, "overshoot", "pop", "elastic", "recoil", "wobble"))
-            return new BackEase { EasingMode = entrada ? EasingMode.EaseOut : EasingMode.EaseIn, Amplitude = .8 };
+        var modo = entrada ? EasingMode.EaseOut : EasingMode.EaseIn;
+        if (Contem(efeito, "bounce"))
+            return new BounceEase { EasingMode = modo, Bounces = 3, Bounciness = 2.2 };
+        if (Contem(efeito, "elastic", "spring", "jello", "wobble"))
+            return new ElasticEase
+            {
+                EasingMode = modo,
+                Oscillations = Contem(efeito, "spring") ? 4 : 3,
+                Springiness = Contem(efeito, "jello") ? 4 : 3,
+            };
+        if (Contem(efeito, "rubber_band", "rubber_stretch", "overshoot", "pop", "recoil"))
+            return new BackEase { EasingMode = modo, Amplitude = Contem(efeito, "pop") ? 1.25 : .8 };
+        if (Contem(efeito, "inertia", "momentum", "throw"))
+            return new ExponentialEase { EasingMode = modo, Exponent = 4 };
+        if (Contem(efeito, "anticipation"))
+            return new BackEase { EasingMode = modo, Amplitude = 1.4 };
         return new CubicEase { EasingMode = entrada ? EasingMode.EaseOut : EasingMode.EaseIn };
     }
 

@@ -127,7 +127,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             Computadores.Snapshot, client, _conexoesReversas, _historicoRepositorio, _logsRepositorio, perfis);
         Historico = new HistoricoViewModel(_historicoRepositorio, reenvios, Computadores, enviador);
         Logs = new LogsViewModel(_logsRepositorio, _sync);
-        Mensagens = new MensagensViewModel(Computadores, enviador, _historicoRepositorio, _cloudSync, reenvios);
+        Mensagens = new MensagensViewModel(Computadores, enviador, _historicoRepositorio, _cloudSync, reenvios, Settings);
 
         _statusMonitor = new StatusMonitorService(Computadores.Snapshot, enviador, Settings);
         _statusMonitor.StatusAtualizado += Computadores.AtualizarStatus;

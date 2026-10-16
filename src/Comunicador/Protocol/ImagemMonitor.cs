@@ -12,6 +12,20 @@ public sealed class ImagemMonitor
     [JsonPropertyName("width_percent")]
     public int WidthPercent { get; set; } = 70;
 
+    [JsonPropertyName("x_percent")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? XPercent { get; set; }
+
+    [JsonPropertyName("y_percent")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? YPercent { get; set; }
+
+    [JsonPropertyName("keep_until_removed")]
+    public bool KeepUntilRemoved { get; set; }
+
+    [JsonPropertyName("restore_after_restart")]
+    public bool RestoreAfterRestart { get; set; }
+
     [JsonPropertyName("image")]
     public ConteudoImagem Image { get; set; } = new();
 }

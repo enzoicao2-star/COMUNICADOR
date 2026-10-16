@@ -56,7 +56,6 @@ public partial class NotificacaoRecebidaWindow : Window
             Grid.SetColumnSpan(ResponderButton, 3);
         }
 
-        DeSenderText.Text = sender;
         TituloText.Text = title;
         MensagemText.Text = message;
 
@@ -79,7 +78,6 @@ public partial class NotificacaoRecebidaWindow : Window
         {
             _avisoCentral = true;
             _avisoObrigatorio = modoExibicao == ProtocolConstants.DisplayMode.CenterAlert && !previewMode;
-            DeSenderText.Text = sender;
             if (_avisoObrigatorio)
             {
                 SizeToContent = SizeToContent.Manual;

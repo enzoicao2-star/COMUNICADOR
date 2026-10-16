@@ -44,6 +44,25 @@ public partial class MensagensView : UserControl
 
     private void PararPulsacao() => IndicadorEnvio.BeginAnimation(UIElement.OpacityProperty, null);
 
+    private void DefinirMonitor_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: DestinoMonitor destino }) return;
+        var imagens = destino.Midias.Where(midia => midia.EhImagem).ToList();
+        if (imagens.Count == 0)
+        {
+            MessageBox.Show(Window.GetWindow(this),
+                "Carregue ou escolha uma imagem para este monitor antes de definir a exibição.",
+                "Imagem necessária", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var janela = new DefinirMonitorWindow(destino, imagens)
+        {
+            Owner = Window.GetWindow(this),
+        };
+        janela.ShowDialog();
+    }
+
     private void PrepararListaDestinatarios()
     {
         if (DataContext is not MensagensViewModel viewModel) return;

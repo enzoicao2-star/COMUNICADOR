@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import ctypes
 import io
 import json
@@ -647,6 +648,95 @@ def default_config_dir() -> Path:
 def mensagem_tem_midia(msg: dict) -> bool:
     return bool(msg.get("image") or msg.get("screen_images")
                 or msg.get("video") or msg.get("screen_videos") or msg.get("audio"))
+
+
+def _resolver_midias_cache(msg: dict, config: "Config") -> None:
+    """Só libera a notificação para a interface depois de validar o arquivo inteiro."""
+    conteudos = []
+    if isinstance(msg.get("image"), dict):
+        conteudos.append((msg["image"], "image"))
+    conteudos.extend((item.get("image"), "image") for item in msg.get("screen_images") or []
+                     if isinstance(item, dict) and isinstance(item.get("image"), dict))
+    if isinstance(msg.get("video"), dict):
+        conteudos.append((msg["video"], "video"))
+    conteudos.extend((item.get("video"), "video") for item in msg.get("screen_videos") or []
+                     if isinstance(item, dict) and isinstance(item.get("video"), dict))
+
+    for conteudo, tipo in conteudos:
+        digest = conteudo.get("media_cache_id")
+        if digest is None:
+            continue
+        mime = conteudo.get("mime_type")
+        caminho = config.directory / "media-cache" / digest.lower()
+        try:
+            dados = caminho.read_bytes()
+        except OSError as exc:
+            raise ProtocolError(ErrorCode.CONTENT_BLOCKED,
+                                "MEDIA_NOT_READY: mídia ainda não foi carregada por completo.") from exc
+
+        limite = (protocolo.MAX_VIDEO_BYTES if tipo == "video" else
+                  protocolo.MAX_GIF_BYTES if mime == "image/gif" else protocolo.MAX_IMAGE_BYTES)
+        if tipo == "image":
+            assinatura_valida = protocolo._assinatura_imagem_valida(mime, dados)
+        else:
+            assinatura_valida = (
+                mime == "video/mp4" and len(dados) >= 12 and dados[4:8] == b"ftyp"
+            ) or (
+                mime == "video/x-ms-wmv" and dados.startswith(
+                    b"\x30\x26\xb2\x75\x8e\x66\xcf\x11\xa6\xd9\x00\xaa\x00\x62\xce\x6c")
+            )
+        if (not dados or len(dados) > limite
+                or hashlib.sha256(dados).hexdigest().lower() != digest.lower()
+                or not assinatura_valida):
+            raise ProtocolError(ErrorCode.CONTENT_BLOCKED,
+                                "MEDIA_NOT_READY: mídia em cache incompleta ou inválida.")
+        conteudo["data_base64"] = base64.b64encode(dados).decode("ascii")
+        conteudo.pop("media_cache_id", None)
+
+
+def processar_upload_midia_cache(msg: dict, config: "Config") -> dict:
+    if not config.token_is_valid(msg["token"]):
+        raise ProtocolError(ErrorCode.UNAUTHORIZED, "Token inválido ou painel não pareado.")
+    if config.is_owner_device():
+        raise ProtocolError(ErrorCode.CONTENT_BLOCKED, "O OWNER está protegido e não recebe envios.")
+    test_only = bool(msg["media_test_only"])
+    if not test_only and config.media_blocked and not config.sender_is_owner(msg):
+        raise ProtocolError(ErrorCode.CONTENT_BLOCKED,
+                            "Este computador bloqueou imagens, vídeos e áudios.")
+
+    dados = base64.b64decode(msg["media_data_base64"], validate=True)
+    if not test_only:
+        pasta = config.directory / "media-cache"
+        pasta.mkdir(parents=True, exist_ok=True)
+        digest = msg["media_sha256"].lower()
+        cache_path = pasta / digest
+        if not cache_path.exists() or cache_path.stat().st_size != len(dados):
+            temporario = pasta / f"{digest}.{uuid.uuid4().hex}.tmp"
+            try:
+                with temporario.open("wb") as arquivo:
+                    arquivo.write(dados)
+                    arquivo.flush()
+                    os.fsync(arquivo.fileno())
+                os.replace(temporario, cache_path)
+            finally:
+                temporario.unlink(missing_ok=True)
+
+        limite_cache = 256 * 1024 * 1024
+        arquivos = sorted(pasta.glob("*"), key=lambda caminho: caminho.stat().st_mtime)
+        tamanho_cache = sum(arquivo.stat().st_size for arquivo in arquivos if arquivo.is_file())
+        for arquivo in arquivos:
+            if tamanho_cache <= limite_cache:
+                break
+            if arquivo != cache_path and arquivo.is_file():
+                tamanho_cache -= arquivo.stat().st_size
+                arquivo.unlink(missing_ok=True)
+
+    ack = protocolo.base_message(MessageType.ACK)
+    ack["in_reply_to"] = msg["id"]
+    ack["status"] = "media_test_received" if test_only else "media_cached"
+    ack["media_sha256"] = msg["media_sha256"].lower()
+    ack["bytes_received"] = len(dados)
+    return ack
 
 
 def aplicar_papel_parede(image: dict, config: "Config") -> None:
@@ -1715,16 +1805,35 @@ class NotificationUi:
     """Interface Tkinter das notificações. Roda inteiramente na thread principal;
     threads de rede só enfileiram pedidos via `mostrar()` (thread-safe)."""
 
-    def __init__(self, test_mode: bool):
+    def __init__(self, test_mode: bool, config_dir: Optional[Path] = None):
         self.test_mode = test_mode
         self._pending: "queue.Queue[tuple]" = queue.Queue()
         self._root = None
+        self._pinned_image_path = config_dir / "pinned-image.json" if config_dir else None
         if not test_mode:
             import tkinter as tk
             self._tk = tk
             self._root = tk.Tk()
             self._root.withdraw()
             self._root.after(100, self._poll)
+            if self._pinned_image_path is not None:
+                self._root.after(500, self._restaurar_imagem_fixada)
+
+    def _restaurar_imagem_fixada(self):
+        caminho = self._pinned_image_path
+        if caminho is None or not caminho.exists():
+            return
+        try:
+            estado = json.loads(caminho.read_text(encoding="utf-8"))
+            imagens = estado.get("screen_images")
+            if not isinstance(imagens, list) or not imagens:
+                caminho.unlink(missing_ok=True)
+                return
+            self._exibir_imagens_monitores(
+                "Comunicador", "", "", False, lambda _resultado: None, [], None,
+                imagens, None, True, estado.get("appearance") or {})
+        except (OSError, ValueError, TypeError, KeyError):
+            logging.exception("Não foi possível restaurar a imagem fixada.")
 
     def mostrar(
             self, sender: str, title: str, message: str, allow_reply: bool, on_result,
@@ -2114,8 +2223,24 @@ class NotificationUi:
             grupos.setdefault(item.get("monitor_index", 0), []).append(item)
 
         janelas = []
-        finalizado = {"done": False, "closing": False}
+        restabelecer = any(item.get("restore_after_restart") for item in itens)
+        permanente = any(item.get("keep_until_removed") for item in itens)
+        finalizado = {"done": False, "closing": False, "pinned": restabelecer}
         bloquear_fechar_transicao = bool(transicao.get("block_close_during_transition", True))
+
+        if restabelecer and self._pinned_image_path is not None:
+            try:
+                self._pinned_image_path.parent.mkdir(parents=True, exist_ok=True)
+                temporario = self._pinned_image_path.with_suffix(".tmp")
+                temporario.write_text(json.dumps({
+                    "screen_images": itens,
+                    "appearance": appearance,
+                }, ensure_ascii=False), encoding="utf-8")
+                os.replace(temporario, self._pinned_image_path)
+            except (OSError, TypeError, ValueError):
+                logging.exception("Não foi possível salvar a imagem para restauração após reiniciar.")
+                restabelecer = False
+                finalizado["pinned"] = False
 
         def finish(value, manual=False):
             if manual and bloquear_fechar_transicao and any(
@@ -2137,6 +2262,11 @@ class NotificationUi:
                         janela.destroy()
                     except tk.TclError:
                         pass
+                if finalizado.get("pinned") and self._pinned_image_path is not None:
+                    try:
+                        self._pinned_image_path.unlink(missing_ok=True)
+                    except OSError:
+                        logging.exception("Não foi possível remover a configuração da imagem fixada.")
                 on_result(finalizado["value"])
 
             if not janelas:
@@ -2187,6 +2317,13 @@ class NotificationUi:
                 linha = posicao // colunas
                 x = origem_x + coluna * (largura_celula + espaco) + (largura_celula - largura) // 2
                 y = origem_y + linha * (altura_celula + espaco) + (altura_celula - altura) // 2
+                if item.get("x_percent") is not None and item.get("y_percent") is not None:
+                    centro_x = monitor["x"] + round(monitor["width"] * item["x_percent"] / 100)
+                    centro_y = monitor["y"] + round(monitor["height"] * item["y_percent"] / 100)
+                    x = min(max(monitor["x"], centro_x - largura // 2),
+                            monitor["x"] + monitor["width"] - largura)
+                    y = min(max(monitor["y"], centro_y - altura // 2),
+                            monitor["y"] + monitor["height"] - altura)
 
                 win = tk.Toplevel(self._root)
                 win.title(APP_NAME)
@@ -2221,11 +2358,12 @@ class NotificationUi:
                     animar = criar_animacao(label, quadros, estado_animacao, win)
                     win.after(quadros[0][1], animar)
                 win.geometry(f"{largura}x{altura}{x:+d}{y:+d}")
-                if manual_close:
+                if manual_close or permanente:
                     label.configure(cursor="hand2")
                     label.bind("<Button-1>", lambda _e: finish(None, manual=True))
                     win.bind("<Escape>", lambda _e: finish(None, manual=True))
-                win.protocol("WM_DELETE_WINDOW", lambda: finish(None, manual=True) if manual_close else None)
+                win.protocol("WM_DELETE_WINDOW", lambda: finish(None, manual=True)
+                             if manual_close or permanente else None)
                 win.lift()
                 janelas.append((win, monitor, x, y, largura, altura))
                 self._animar_janela_transicao(
@@ -2238,7 +2376,8 @@ class NotificationUi:
         if not janelas:
             on_result(None)
             return
-        self._root.after(max(3, int(duration)) * 1000, lambda: finish(None))
+        if duration is not None and not permanente:
+            self._root.after(max(3, int(duration)) * 1000, lambda: finish(None))
         if visual["play_sound"]:
             self._tocar_som(visual["sound_type"])
 
@@ -2408,6 +2547,8 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         try:
             if msg_type == MessageType.PING:
                 self._handle_ping(msg, server)
+            elif msg_type == MessageType.MEDIA_CACHE_UPLOAD:
+                self._handle_media_cache_upload(msg, server)
             elif msg_type == MessageType.PAIR_REQUEST:
                 self._handle_pair_request(msg, server)
             elif msg_type == MessageType.NOTIFICATION:
@@ -2435,6 +2576,48 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
                 ErrorCode.INTERNAL_ERROR,
                 "O receptor não conseguiu processar esta solicitação.",
                 in_reply_to=msg.get("id")))
+
+    def _handle_media_cache_upload(self, msg: dict, server: "ReceptorTcpServer") -> None:
+        if not server.config.token_is_valid(msg["token"]):
+            raise ProtocolError(ErrorCode.UNAUTHORIZED, "Token inválido ou painel não pareado.")
+        if getattr(server.config, "is_owner_device", lambda: False)():
+            raise ProtocolError(ErrorCode.CONTENT_BLOCKED, "O OWNER está protegido e não recebe envios.")
+        test_only = bool(msg["media_test_only"])
+        if not test_only and server.config.media_blocked and not server.config.sender_is_owner(msg):
+            raise ProtocolError(ErrorCode.CONTENT_BLOCKED,
+                                "Este computador bloqueou imagens, vídeos e áudios.")
+
+        dados = base64.b64decode(msg["media_data_base64"], validate=True)
+        cache_path = None
+        if not test_only:
+            pasta = server.config.directory / "media-cache"
+            pasta.mkdir(parents=True, exist_ok=True)
+            digest = msg["media_sha256"].lower()
+            cache_path = pasta / digest
+            if not cache_path.exists() or cache_path.stat().st_size != len(dados):
+                temporario = pasta / f"{digest}.{uuid.uuid4().hex}.tmp"
+                try:
+                    temporario.write_bytes(dados)
+                    os.replace(temporario, cache_path)
+                finally:
+                    temporario.unlink(missing_ok=True)
+
+            limite_cache = 256 * 1024 * 1024
+            arquivos = sorted(pasta.glob("*"), key=lambda caminho: caminho.stat().st_mtime)
+            tamanho_cache = sum(arquivo.stat().st_size for arquivo in arquivos if arquivo.is_file())
+            for arquivo in arquivos:
+                if tamanho_cache <= limite_cache:
+                    break
+                if arquivo != cache_path and arquivo.is_file():
+                    tamanho_cache -= arquivo.stat().st_size
+                    arquivo.unlink(missing_ok=True)
+
+        ack = protocolo.base_message(MessageType.ACK)
+        ack["in_reply_to"] = msg["id"]
+        ack["status"] = "media_test_received" if test_only else "media_cached"
+        ack["media_sha256"] = msg["media_sha256"].lower()
+        ack["bytes_received"] = len(dados)
+        self._safe_send(ack)
 
     def _read_message(self, buffer: bytes) -> Optional[bytes]:
         line, _rest = read_framed_message(self.request, buffer, allow_unterminated=True)
@@ -2478,7 +2661,7 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         token = msg["token"]
         if not server.config.token_is_valid(token):
             raise ProtocolError(ErrorCode.UNAUTHORIZED, "Token inválido ou painel não pareado.")
-        if server.config.is_owner_device():
+        if getattr(server.config, "is_owner_device", lambda: False)():
             raise ProtocolError(ErrorCode.CONTENT_BLOCKED,
                                 "O OWNER está protegido e não recebe envios.")
         wallpaper_modes = (
@@ -2487,13 +2670,14 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
             protocolo.DISPLAY_MODE_RESTORE_WALLPAPER,
         )
         wallpaper_action = msg.get("display_mode") in wallpaper_modes
-        if wallpaper_action and not server.config.sender_can_change_wallpaper(msg):
+        if wallpaper_action and not getattr(server.config, "sender_can_change_wallpaper", lambda _msg: True)(msg):
             raise ProtocolError(ErrorCode.CONTENT_BLOCKED,
                                 "Este painel não tem permissão para alterar o papel de parede.")
         if server.config.media_blocked and mensagem_tem_midia(msg) \
                 and not server.config.sender_is_owner(msg) and not wallpaper_action:
             raise ProtocolError(ErrorCode.CONTENT_BLOCKED,
                                 "Este computador bloqueou imagens, vídeos e áudios.")
+        _resolver_midias_cache(msg, server.config)
         if msg.get("display_mode") == protocolo.DISPLAY_MODE_CAROUSEL:
             status = handle_carousel(msg["carousel"], msg.get("image"),
                                      server.config, server.ui.test_mode)
@@ -2803,6 +2987,10 @@ class ReverseConnection(threading.Thread):
                 threading.Thread(
                     target=self._tratar_notificacao_segura, args=(msg,), daemon=True,
                     name=f"aviso-{msg.get('id', '')[:8]}").start()
+            elif msg.get("type") == MessageType.MEDIA_CACHE_UPLOAD:
+                threading.Thread(
+                    target=self._tratar_upload_cache_segura, args=(msg,), daemon=True,
+                    name=f"cache-midia-{msg.get('id', '')[:8]}").start()
             elif msg.get("type") == MessageType.UPDATE_REQUEST:
                 threading.Thread(
                     target=self._tratar_atualizacao_segura, args=(msg,), daemon=True,
@@ -2842,6 +3030,16 @@ class ReverseConnection(threading.Thread):
             logging.exception("Falha isolada ao tratar notificação reversa %s.", msg.get("id"))
             self._enviar(protocolo.make_error(ErrorCode.INTERNAL_ERROR,
                                               "Não foi possível aplicar a operação.", msg.get("id")))
+
+    def _tratar_upload_cache_segura(self, msg: dict) -> None:
+        try:
+            self._enviar(processar_upload_midia_cache(msg, self.config))
+        except ProtocolError as exc:
+            self._enviar(protocolo.make_error(exc.code, str(exc), msg.get("id")))
+        except Exception:
+            logging.exception("Falha ao pré-carregar mídia pela conexão reversa %s.", msg.get("id"))
+            self._enviar(protocolo.make_error(ErrorCode.INTERNAL_ERROR,
+                                              "Não foi possível guardar a mídia.", msg.get("id")))
 
     def _tratar_notificacao(self, msg: dict) -> None:
         if self.config.is_owner_device():
@@ -3050,30 +3248,6 @@ def descobrir_paineis(port: int, timeout: float = 4.0) -> list:
     return encontrados
 
 
-# --------------------------------------------------------------------------- bandeja (opcional)
-
-def start_tray_icon(config: Config, on_exit) -> Optional[object]:
-    try:
-        import pystray
-        from PIL import Image, ImageDraw
-    except ImportError:
-        logging.info("pystray/Pillow não instalados — ícone de bandeja desabilitado.")
-        return None
-
-    image = Image.new("RGB", (64, 64), "#1F2430")
-    draw = ImageDraw.Draw(image)
-    draw.ellipse((14, 14, 50, 50), fill="#3A7AFE")
-
-    menu = pystray.Menu(
-        pystray.MenuItem(f"Pareado com {len(config.paired_panels)} painel(éis)", None, enabled=False),
-        pystray.MenuItem(f"Computador: {config.computer_name}", None, enabled=False),
-        pystray.MenuItem("Sair", lambda icon, _item: (icon.stop(), on_exit())),
-    )
-    icon = pystray.Icon(APP_NAME, image, APP_NAME, menu)
-    threading.Thread(target=icon.run, daemon=True).start()
-    return icon
-
-
 # --------------------------------------------------------------------------- main
 
 def setup_logging(config_dir: Path, test_mode: bool) -> None:
@@ -3162,7 +3336,7 @@ def main(argv=None) -> int:
         config.data["computer_name"] = args.computer_name
         config.save()
 
-    ui = NotificationUi(test_mode=args.test_mode)
+    ui = NotificationUi(test_mode=args.test_mode, config_dir=config.directory)
     cloud_worker = None
     if not args.test_mode:
         cloud_worker = CloudDeliveryWorker(config, ui)
@@ -3249,10 +3423,6 @@ def main(argv=None) -> int:
         tcp_server.server_close()
         ui.stop()
 
-    tray_icon = None
-    if not args.test_mode:
-        tray_icon = start_tray_icon(config, shutdown)
-
     logging.info(
         "Comunicador Receptor pronto. computer_id=%s nome=%s tcp=%s udp=%s",
         config.computer_id, config.computer_name, tcp_server.server_address[1], discovery.bound_port)
@@ -3266,8 +3436,6 @@ def main(argv=None) -> int:
         pass
     finally:
         shutdown()
-        if tray_icon is not None:
-            tray_icon.stop()
         release_single_instance()
 
     return 0

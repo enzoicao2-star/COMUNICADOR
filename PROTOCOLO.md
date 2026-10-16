@@ -180,6 +180,22 @@ O painel mede localmente o tempo entre `ping` e `pong` para calcular a
 latência média mostrada na interface. Receptores 2.2.0 ou mais novos
 também respondem a esse fluxo pela conexão reversa já aberta.
 
+### `media_cache_upload` (TCP, painel → receptor)
+
+O painel pode adiantar o envio de uma mídia enquanto o usuário termina de
+configurar a mensagem. O pedido contém `token`, `media_kind` (`image`, `gif`
+ou `video`), `media_mime_type`, `media_sha256` (SHA-256 dos bytes),
+`media_data_base64` e `media_test_only`. O receptor valida o tamanho e o hash
+antes de confirmar. Com `media_test_only = false`, guarda os bytes no cache
+local; com `true`, mede a transferência e descarta os bytes sem abrir janela
+nem salvar o arquivo.
+
+O receptor responde com `ack`, `status = "media_cached"` ou
+`"media_test_received"`, e repete `media_sha256` e `bytes_received`. O painel
+só pode referenciar o cache depois de receber uma confirmação que corresponda
+ao hash e ao tamanho enviados. Uma transferência interrompida não produz essa
+confirmação e não pode ser exibida.
+
 ### `notification` (TCP, painel → receptor)
 
 ```json
@@ -213,9 +229,18 @@ O modo `lock_screen` requer receptor 2.5.4 ou posterior.
 os itens chegaram; `stop` a desliga. O receptor confirma cada etapa por ACK.
 
 Para imagem central, `screen_images` contém objetos com
-`monitor_index`, `width_percent` (10–100) e `image`. A imagem é
-transportada no próprio JSON por `{ name, mime_type, data_base64 }`;
-são aceitos PNG, JPEG, GIF e BMP após validação do MIME, Base64,
+`monitor_index`, `width_percent` (10–100) e `image`. Opcionalmente, cada item
+define `x_percent` e `y_percent` (0–100) para posicionar o centro da imagem,
+`keep_until_removed` para mantê-la sem limite de tempo, e
+`restore_after_restart` para restaurá-la quando o receptor iniciar; a última
+opção exige `keep_until_removed = true`. A imagem pode ser transportada no
+próprio JSON por `{ name, mime_type, data_base64 }`, ou usar
+`{ name, mime_type, data_base64: "", media_cache_id }` depois do ACK de
+`media_cache_upload`. `media_cache_id` é o SHA-256 confirmado do arquivo.
+Antes de exibir uma referência, o receptor lê o arquivo e confere novamente
+hash, tamanho e assinatura. Se a cópia não estiver completa ou íntegra, rejeita
+a solicitação antes de abrir qualquer janela; o painel reenvia os bytes
+originais. São aceitos PNG, JPEG, GIF e BMP após validação do MIME, Base64,
 tamanho e assinatura real do arquivo. `image_duration_seconds`
 (0,5–3600 segundos; pode incluir décimos) controla o fechamento automático e `allow_manual_close`
 controla se um clique na própria imagem pode fechá-la. Nesse modo, `title`
@@ -224,8 +249,10 @@ sem cartão, cabeçalho, fundo ou botões.
 
 Para vídeo central, `video` envia um único arquivo ao monitor principal e
 `screen_videos` contém objetos com `monitor_index`, `width_percent` e
-`video`. São aceitos MP4 e WMV após as mesmas validações de nome, MIME,
-Base64, tamanho e assinatura. `video_loop` define repetição; quando for
+`video`. Vídeos também podem usar `media_cache_id` após confirmação integral
+do upload, com `data_base64` vazio; o receptor confere o hash e a assinatura
+antes de reproduzir. São aceitos MP4 e WMV após as mesmas validações de nome,
+MIME, Base64, tamanho e assinatura. `video_loop` define repetição; quando for
 `true`, `image_duration_seconds` é obrigatório e encerra o loop no tempo
 definido. Sem repetição e sem duração, o vídeo fecha ao terminar.
 

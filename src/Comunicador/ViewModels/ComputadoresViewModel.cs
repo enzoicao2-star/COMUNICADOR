@@ -30,7 +30,9 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private readonly Dictionary<string, DateTimeOffset> _cloudReceiverUpdatesPending =
         new(StringComparer.OrdinalIgnoreCase);
     private string? _statusMensagem;
-    private string _testeComunicacaoStatus = "O teste envia apenas um ping, sem abrir conteúdo no outro computador.";
+    private string _testeComunicacaoStatus = "O teste envia mídia de amostra e mede a transferência sem exibi-la.";
+    private string _tipoMidiaTeste = "image";
+    private int _tamanhoMidiaTesteBytes = 1024 * 1024;
     private Computador? _computadorGerenciado;
     private string _comandoRemoto = string.Empty;
     private string _resultadoComandoRemoto = "Digite um comando e clique em Executar.";
@@ -114,6 +116,18 @@ public sealed class ComputadoresViewModel : ViewModelBase
     {
         get => _testeComunicacaoStatus;
         private set => SetField(ref _testeComunicacaoStatus, value);
+    }
+
+    public string TipoMidiaTeste
+    {
+        get => _tipoMidiaTeste;
+        set => SetField(ref _tipoMidiaTeste, value);
+    }
+
+    public int TamanhoMidiaTesteBytes
+    {
+        get => _tamanhoMidiaTesteBytes;
+        set => SetField(ref _tamanhoMidiaTesteBytes, Math.Clamp(value, 64 * 1024, 20 * 1024 * 1024));
     }
 
     public ICommand PairearCommand { get; }
@@ -208,17 +222,41 @@ public sealed class ComputadoresViewModel : ViewModelBase
         TestarComunicacaoCommand = new AsyncRelayCommand(async param =>
         {
             if (param is not Computador computador) return;
-            TesteComunicacaoStatus = $"Testando conexão com {computador.NomeExibicao}...";
+            TesteComunicacaoStatus = $"Preparando teste para {computador.NomeExibicao}...";
             try
             {
                 var (online, pingMs) = await _enviador.MedirStatusAsync(computador).ConfigureAwait(true);
                 AtualizarStatus(computador.Id,
                     online ? StatusComputador.Online : StatusComputador.Offline, pingMs);
-                TesteComunicacaoStatus = online
-                    ? pingMs is { } ping
-                        ? $"Comunicação funcionando · {ping:0} ms. Nenhuma mensagem ou imagem foi exibida."
-                        : "Conexão ativa. Nenhuma mensagem ou imagem foi exibida."
-                    : "Sem resposta do receptor. Nenhuma mensagem ou imagem foi enviada.";
+                if (!online)
+                {
+                    TesteComunicacaoStatus = "Sem resposta do Receptor. Nenhuma mídia foi enviada.";
+                    return;
+                }
+
+                var dados = GC.AllocateUninitializedArray<byte>(TamanhoMidiaTesteBytes);
+                Random.Shared.NextBytes(dados);
+                var mime = TipoMidiaTeste switch
+                {
+                    "gif" => "image/gif",
+                    "video" => "video/mp4",
+                    _ => "image/jpeg",
+                };
+                TesteComunicacaoStatus = $"Enviando {dados.Length / 1024d / 1024d:0.##} MB ao Receptor…";
+                var transferencia = await _enviador.UploadMediaCacheAsync(
+                    computador, TipoMidiaTeste, mime, dados, testOnly: true).ConfigureAwait(true);
+                if (!transferencia.Success)
+                {
+                    TesteComunicacaoStatus = $"O teste não foi concluído: {transferencia.ErrorMessage}";
+                    return;
+                }
+
+                var taxa = transferencia.ElapsedMilliseconds <= 0 ? 0
+                    : transferencia.BytesTransferred / 1024d / 1024d
+                        / (transferencia.ElapsedMilliseconds / 1000d);
+                var pingTexto = pingMs is { } ping ? $" · ping {ping:0} ms" : string.Empty;
+                TesteComunicacaoStatus = $"Recebido sem exibir · {transferencia.BytesTransferred / 1024d / 1024d:0.##} MB"
+                    + $" em {transferencia.ElapsedMilliseconds:0} ms · {taxa:0.##} MB/s{pingTexto}.";
             }
             catch (Exception ex) when (ex is IOException or InvalidOperationException
                 or System.Net.Sockets.SocketException or OperationCanceledException)
@@ -226,7 +264,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 TesteComunicacaoStatus = $"Falha no teste de conexão: {ex.Message}";
             }
         }, param => param is Computador { Pareado: true } computador
-            && !string.IsNullOrWhiteSpace(computador.Token));
+            && !computador.EhOwner && !string.IsNullOrWhiteSpace(computador.Token));
         EnviarCmdRemotoCommand = new AsyncRelayCommand(EnviarCmdRemotoAsync,
             param => _cloud.HasPermission("remote_command") && param is Computador computador
                 && !string.Equals(computador.Id, _settings.PainelId, StringComparison.OrdinalIgnoreCase));

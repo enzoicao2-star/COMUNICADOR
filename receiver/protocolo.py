@@ -7,8 +7,8 @@ deve ser replicada lá (e vice-versa) e documentada em PROTOCOLO.md.
 from __future__ import annotations
 
 import base64
-import binascii
 import hashlib
+import binascii
 import math
 import json
 import re
@@ -92,6 +92,7 @@ class MessageType:
     PING = "ping"
     PONG = "pong"
     NOTIFICATION = "notification"
+    MEDIA_CACHE_UPLOAD = "media_cache_upload"
     REMOTE_COMMAND = "remote_command"
     ACK = "ack"
     REPLY = "reply"
@@ -106,7 +107,8 @@ class MessageType:
 
 ALL_TYPES = {
     MessageType.DISCOVER, MessageType.ANNOUNCE, MessageType.PAIR_REQUEST, MessageType.PAIR_RESPONSE,
-    MessageType.PING, MessageType.PONG, MessageType.NOTIFICATION, MessageType.REMOTE_COMMAND,
+    MessageType.PING, MessageType.PONG, MessageType.NOTIFICATION, MessageType.MEDIA_CACHE_UPLOAD,
+    MessageType.REMOTE_COMMAND,
     MessageType.ACK, MessageType.REPLY,
     MessageType.ERROR, MessageType.REGISTER, MessageType.REGISTER_ACK,
     MessageType.UPDATE_REQUEST, MessageType.UPDATE_STATUS,
@@ -281,6 +283,13 @@ def _validar_imagem(imagem: dict) -> int:
         raise ProtocolError(
             ErrorCode.INVALID_FIELD_TYPE, "Formato de imagem não permitido. Use PNG, JPEG, GIF ou BMP.")
 
+    cache_id = imagem.get("media_cache_id")
+    if cache_id is not None:
+        if (not isinstance(cache_id, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", cache_id)
+                or imagem.get("data_base64") != ""):
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Referência da imagem em cache inválida.")
+        return 0
+
     limite_bytes = MAX_GIF_BYTES if mime_type == "image/gif" else MAX_IMAGE_BYTES
     limite_base64 = MAX_GIF_BASE64_LENGTH if mime_type == "image/gif" else MAX_IMAGE_BASE64_LENGTH
     data_base64 = _require_str(imagem, "data_base64", limite_base64)
@@ -307,6 +316,12 @@ def _validar_video(video: dict) -> int:
     mime_type = _require_str(video, "mime_type", 40)
     if mime_type not in {"video/mp4", "video/x-ms-wmv"}:
         raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Formato de vídeo não permitido. Use MP4 ou WMV.")
+    cache_id = video.get("media_cache_id")
+    if cache_id is not None:
+        if (not isinstance(cache_id, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", cache_id)
+                or video.get("data_base64") != ""):
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Referência do vídeo em cache inválida.")
+        return 0
     data_base64 = _require_str(video, "data_base64", MAX_VIDEO_BASE64_LENGTH)
     try:
         dados = base64.b64decode(data_base64, validate=True)
@@ -472,6 +487,16 @@ def _validar_conteudo_visual(msg: dict) -> None:
                     ErrorCode.INVALID_FIELD_TYPE,
                     f"Tamanho da imagem precisa ficar entre {MIN_IMAGE_WIDTH_PERCENT}% e "
                     f"{MAX_IMAGE_WIDTH_PERCENT}%.")
+            for chave in ("x_percent", "y_percent"):
+                coordenada = item.get(chave)
+                if coordenada is not None and (
+                        not isinstance(coordenada, (int, float)) or isinstance(coordenada, bool)
+                        or not 0 <= coordenada <= 100):
+                    raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Posição da imagem no monitor inválida.")
+            manter = item.get("keep_until_removed", False)
+            restaurar = item.get("restore_after_restart", False)
+            if not isinstance(manter, bool) or not isinstance(restaurar, bool) or restaurar and not manter:
+                raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Permanência da imagem no monitor inválida.")
             total += _validar_imagem(item.get("image"))
 
     if total > MAX_TOTAL_IMAGE_BYTES:
@@ -719,6 +744,26 @@ def validate(msg: dict) -> None:
         _validar_botoes(msg)
         _validar_conteudo_visual(msg)
         _validar_aparencia(msg)
+
+    elif msg_type == MessageType.MEDIA_CACHE_UPLOAD:
+        _require_str(msg, "token", MAX_NAME_LENGTH)
+        kind = _require_str(msg, "media_kind", MAX_NAME_LENGTH)
+        mime_type = _require_str(msg, "media_mime_type", 80)
+        digest = _require_str(msg, "media_sha256", 64)
+        encoded = _require_str(msg, "media_data_base64", 32 * 1024 * 1024)
+        _require_bool(msg, "media_test_only")
+        if kind not in {"image", "gif", "video"}:
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Tipo de mídia inválido.")
+        if len(digest) != 64 or any(char not in "0123456789abcdefABCDEF" for char in digest):
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Identificador da mídia inválido.")
+        try:
+            raw = base64.b64decode(encoded, validate=True)
+        except (ValueError, base64.binascii.Error) as exc:
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Dados da mídia não estão em Base64 válido.") from exc
+        if not raw or len(raw) > 24 * 1024 * 1024:
+            raise ProtocolError(ErrorCode.PAYLOAD_TOO_LARGE, "O arquivo de mídia excede 24 MB.")
+        if not hashlib.sha256(raw).hexdigest().lower() == digest.lower():
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "A mídia não corresponde ao identificador informado.")
 
     elif msg_type == MessageType.REMOTE_COMMAND:
         _require_str(msg, "token", MAX_NAME_LENGTH)

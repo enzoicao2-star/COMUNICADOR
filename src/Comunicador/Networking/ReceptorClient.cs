@@ -1,5 +1,7 @@
 using System.IO;
 using System.Net.Sockets;
+using System.Diagnostics;
+using System.Security.Cryptography;
 using Comunicador.Protocol;
 
 namespace Comunicador.Networking;
@@ -12,6 +14,7 @@ public sealed class ReceptorClient
     private static readonly TimeSpan PingTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan ReplyTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan AckTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan MediaTransferAckTimeout = TimeSpan.FromSeconds(90);
     private static readonly TimeSpan RemoteCommandConnectTimeout = TimeSpan.FromMilliseconds(800);
     private static readonly TimeSpan RemoteCommandAckTimeout = TimeSpan.FromSeconds(3);
 
@@ -207,6 +210,75 @@ public sealed class ReceptorClient
             // falha de envio vira resultado, nunca excecao: senao sobe para o
             // dispatcher e o usuario leva uma caixa de erro no lugar do aviso.
             return new NotificationResult(false, false, false, null, ex.Message);
+        }
+    }
+
+    public Task<MediaTransferResult> UploadMediaCacheAsync(
+        string ipAddress, int tcpPort, string token, string mediaKind, string mimeType,
+        byte[] data, bool testOnly, CancellationToken ct = default) =>
+        UploadMediaCacheCoreAsync(data, token, mediaKind, mimeType, testOnly,
+            async (framed, cancellationToken) =>
+            {
+                using var client = await ConnectAsync(ipAddress, tcpPort, ConnectTimeout, cancellationToken)
+                    .ConfigureAwait(false);
+                await using var stream = client.GetStream();
+                await TcpFraming.WriteFramedAsync(stream, framed, cancellationToken).ConfigureAwait(false);
+                using var ackCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                ackCts.CancelAfter(MediaTransferAckTimeout);
+                return await ReadValidatedAsync(stream, ackCts.Token).ConfigureAwait(false);
+            }, ct);
+
+    public Task<MediaTransferResult> UploadMediaCacheAsync(
+        ConexaoReversa connection, string token, string mediaKind, string mimeType,
+        byte[] data, bool testOnly, CancellationToken ct = default) =>
+        UploadMediaCacheCoreAsync(data, token, mediaKind, mimeType, testOnly,
+            (framed, cancellationToken) => connection.EnviarUploadMediaCacheAsync(
+                framed, MediaTransferAckTimeout, cancellationToken), ct);
+
+    private async Task<MediaTransferResult> UploadMediaCacheCoreAsync(
+        byte[] data, string token, string mediaKind, string mimeType, bool testOnly,
+        Func<byte[], CancellationToken, Task<ComunicadorMessage?>> send, CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var sha256 = Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();
+        try
+        {
+            var upload = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.MediaCacheUpload);
+            upload.PanelId = _panelId;
+            upload.Token = token;
+            upload.MediaKind = mediaKind;
+            upload.MediaMimeType = mimeType;
+            upload.MediaSha256 = sha256;
+            upload.MediaDataBase64 = Convert.ToBase64String(data);
+            upload.MediaTestOnly = testOnly;
+            var validacao = MessageValidator.Validate(upload);
+            if (!validacao.IsValid)
+                return new MediaTransferResult(false, sha256, data.LongLength, stopwatch.Elapsed.TotalMilliseconds,
+                    $"{validacao.Code}: {validacao.Message}");
+            var framed = MessageValidator.Frame(upload);
+            var tamanho = MessageValidator.ValidateSize(framed.Length, isUdp: false);
+            if (!tamanho.IsValid)
+                return new MediaTransferResult(false, sha256, data.LongLength, stopwatch.Elapsed.TotalMilliseconds,
+                    tamanho.Message);
+
+            var ack = await send(framed, ct).ConfigureAwait(false);
+            stopwatch.Stop();
+            if (ack?.Type == ProtocolConstants.MessageType.Error)
+                return new MediaTransferResult(false, sha256, data.LongLength, stopwatch.Elapsed.TotalMilliseconds,
+                    ack.Message);
+            var statusEsperado = testOnly ? "media_test_received" : "media_cached";
+            if (ack?.Type != ProtocolConstants.MessageType.Ack || ack.Status != statusEsperado
+                || !string.Equals(ack.MediaSha256, sha256, StringComparison.OrdinalIgnoreCase)
+                || ack.BytesReceived != data.LongLength)
+                return new MediaTransferResult(false, sha256, data.LongLength, stopwatch.Elapsed.TotalMilliseconds,
+                    "O Receptor não confirmou a transferência completa da mídia.");
+            return new MediaTransferResult(true, sha256, data.LongLength, stopwatch.Elapsed.TotalMilliseconds, null);
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException
+            or ReceptorComunicacaoException or ObjectDisposedException)
+        {
+            stopwatch.Stop();
+            return new MediaTransferResult(false, sha256, data.LongLength, stopwatch.Elapsed.TotalMilliseconds, ex.Message);
         }
     }
 

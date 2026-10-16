@@ -114,6 +114,22 @@ public sealed class EnviadorNotificacoes
             repetirVideo, audio, repetirAudio, ct, carousel, confirmationRequired).ConfigureAwait(false);
     }
 
+    public async Task<MediaTransferResult> UploadMediaCacheAsync(
+        Computador computador, string mediaKind, string mimeType, byte[] data,
+        bool testOnly, CancellationToken ct = default)
+    {
+        var reverse = _conexoesReversas.Obter(computador.Id);
+        var token = !string.IsNullOrEmpty(reverse?.Token) ? reverse.Token : computador.Token ?? string.Empty;
+        if (reverse is not null)
+        {
+            var reverso = await _client.UploadMediaCacheAsync(
+                reverse, token, mediaKind, mimeType, data, testOnly, ct).ConfigureAwait(false);
+            if (reverso.Success) return reverso;
+        }
+        return await _client.UploadMediaCacheAsync(computador.EnderecoIp, computador.PortaTcp,
+            token, mediaKind, mimeType, data, testOnly, ct).ConfigureAwait(false);
+    }
+
     /// <summary>Online se existe conexao reversa viva ou se o ping direto responde.</summary>
     public async Task<bool> EstaOnlineAsync(Computador computador, CancellationToken ct = default)
     {

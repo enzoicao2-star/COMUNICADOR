@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text;
 using Comunicador.Models;
 using Comunicador.Storage;
 
@@ -7,6 +8,7 @@ namespace Comunicador.Services;
 public static class Logger
 {
     private static readonly object Lock = new();
+    private static readonly Mutex ProcessLock = new(false, @"Local\Comunicador.LogFile");
     private static LogRepository? _repository;
     private static string _originId = Environment.MachineName;
     private static string _originName = Environment.MachineName;
@@ -35,7 +37,29 @@ public static class Logger
             {
                 AppPaths.EnsureCreated();
                 var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} [{level}] {message}{Environment.NewLine}";
-                File.AppendAllText(AppPaths.LogFile, line);
+                var lockHeld = false;
+                try
+                {
+                    try
+                    {
+                        lockHeld = ProcessLock.WaitOne(TimeSpan.FromSeconds(5));
+                    }
+                    catch (AbandonedMutexException)
+                    {
+                        lockHeld = true;
+                    }
+
+                    if (!lockHeld) return;
+                    using var stream = new FileStream(AppPaths.LogFile, FileMode.Append,
+                        FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
+                    using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+                    writer.Write(line);
+                    writer.Flush();
+                }
+                finally
+                {
+                    if (lockHeld) ProcessLock.ReleaseMutex();
+                }
             }
 
             _repository?.Adicionar(new LogEntry

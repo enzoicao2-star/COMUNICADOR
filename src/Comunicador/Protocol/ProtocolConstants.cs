@@ -129,6 +129,7 @@ public static class ProtocolConstants
         public const string Ping = "ping";
         public const string Pong = "pong";
         public const string Notification = "notification";
+        public const string MediaCacheUpload = "media_cache_upload";
         public const string RemoteCommand = "remote_command";
         public const string Ack = "ack";
         public const string Reply = "reply";
@@ -143,7 +144,7 @@ public static class ProtocolConstants
         public static readonly IReadOnlySet<string> All = new HashSet<string>
         {
             Discover, Announce, PairRequest, PairResponse, Ping, Pong,
-            Notification, RemoteCommand, Ack, Reply, Error, Register, RegisterAck,
+            Notification, MediaCacheUpload, RemoteCommand, Ack, Reply, Error, Register, RegisterAck,
             UpdateRequest, UpdateStatus, SyncRequest, SyncResponse,
         };
     }

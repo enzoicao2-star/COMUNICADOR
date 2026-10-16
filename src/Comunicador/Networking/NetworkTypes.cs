@@ -12,6 +12,9 @@ public sealed record PairResult(
 
 public sealed record NotificationResult(bool Delivered, bool WasShown, bool GotReply, string? ReplyText, string? ErrorMessage);
 
+public sealed record MediaTransferResult(
+    bool Success, string Sha256, long BytesTransferred, double ElapsedMilliseconds, string? ErrorMessage);
+
 public sealed record ReceiverUpdateResult(
     bool Success, string Status, string ReceiverVersion, string? Message);
 

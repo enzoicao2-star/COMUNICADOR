@@ -127,6 +127,22 @@ public sealed class ConexaoReversa : IDisposable
         }
     }
 
+    public async Task<ComunicadorMessage?> EnviarUploadMediaCacheAsync(
+        byte[] framed, TimeSpan timeout, CancellationToken ct = default)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(timeout);
+        var lockHeld = false;
+        try
+        {
+            await _envioLock.WaitAsync(cts.Token).ConfigureAwait(false);
+            lockHeld = true;
+            await TcpFraming.WriteFramedAsync(_stream, framed, cts.Token).ConfigureAwait(false);
+            return await LerAsync(cts.Token).ConfigureAwait(false);
+        }
+        finally { if (lockHeld) _envioLock.Release(); }
+    }
+
     public async Task<ReceiverUpdateResult> SolicitarAtualizacaoAsync(
         ComunicadorMessage solicitacao, CancellationToken ct,
         Action<long, long>? transferProgress = null)

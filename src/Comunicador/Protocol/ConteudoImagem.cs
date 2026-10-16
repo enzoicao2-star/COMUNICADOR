@@ -15,6 +15,10 @@ public sealed class ConteudoImagem
     [JsonPropertyName("data_base64")]
     public string DataBase64 { get; set; } = string.Empty;
 
+    [JsonPropertyName("media_cache_id")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MediaCacheId { get; set; }
+
     public static bool MimePermitido(string? mimeType) => mimeType is
         "image/png" or "image/jpeg" or "image/gif" or "image/bmp";
 
