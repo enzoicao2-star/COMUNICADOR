@@ -1,5 +1,12 @@
 [
   {
+    "version": "2.5.48.0",
+    "summary": "Completa as prévias dos efeitos de transição.",
+    "changes": [
+      "Ajusta os últimos efeitos sem movimento, incluindo inclinação, balanço, torção e cortes por correspondência, mantendo todas as opções animadas em loop."
+    ]
+  },
+  {
     "version": "2.5.47.0",
     "summary": "Prévia das transições com efeitos visuais distintos.",
     "changes": [

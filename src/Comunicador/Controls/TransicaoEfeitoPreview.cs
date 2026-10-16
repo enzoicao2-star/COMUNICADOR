@@ -44,6 +44,7 @@ public sealed class TransicaoEfeitoPreview : UserControl
     private readonly ScaleTransform _scale = new(1, 1);
     private readonly RotateTransform _rotation = new();
     private readonly TranslateTransform _translation = new();
+    private readonly SkewTransform _skew = new();
     private CancellationTokenSource? _playback;
 
     public string EffectId { get => (string)GetValue(EffectIdProperty); set => SetValue(EffectIdProperty, value); }
@@ -59,6 +60,7 @@ public sealed class TransicaoEfeitoPreview : UserControl
         var transform = new TransformGroup();
         transform.Children.Add(_scale);
         transform.Children.Add(_rotation);
+        transform.Children.Add(_skew);
         transform.Children.Add(_translation);
 
         _image = new Image { Stretch = Stretch.UniformToFill };
@@ -238,6 +240,10 @@ public sealed class TransicaoEfeitoPreview : UserControl
         var escalaYPara = para.Scale;
         var anguloDe = de.Angle;
         var anguloPara = para.Angle;
+        var skewXDe = 0d;
+        var skewXPara = 0d;
+        var skewYDe = 0d;
+        var skewYPara = 0d;
         if (Contem(id, "flip_horizontal", "flip_card", "3d_flip", "tile_flip"))
         {
             escalaXDe = estadoVisivel < .5 ? .02 : 1;
@@ -262,11 +268,20 @@ public sealed class TransicaoEfeitoPreview : UserControl
             escalaXDe = estadoVisivel < .5 ? 1.35 : 1;
             escalaXPara = estadoVisivel < .5 ? 1 : 1.35;
         }
+        else if (Contem(id, "skew"))
+        {
+            skewXDe = estadoVisivel < .5 ? -20 : 0;
+            skewXPara = estadoVisivel < .5 ? 0 : -20;
+            skewYDe = estadoVisivel < .5 ? 10 : 0;
+            skewYPara = estadoVisivel < .5 ? 0 : 10;
+        }
 
         Animar(UIElement.OpacityProperty, de.Opacity, para.Opacity, duracao, easing);
         Animar(ScaleTransform.ScaleXProperty, escalaXDe, escalaXPara, duracao, easing, _scale);
         Animar(ScaleTransform.ScaleYProperty, escalaYDe, escalaYPara, duracao, easing, _scale);
         Animar(RotateTransform.AngleProperty, anguloDe, anguloPara, duracao, easing, _rotation);
+        Animar(SkewTransform.AngleXProperty, skewXDe, skewXPara, duracao, easing, _skew);
+        Animar(SkewTransform.AngleYProperty, skewYDe, skewYPara, duracao, easing, _skew);
         Animar(TranslateTransform.XProperty, de.X, para.X, duracao, easing, _translation);
         Animar(TranslateTransform.YProperty, de.Y, para.Y, duracao, easing, _translation);
         await Task.Delay(TimeSpan.FromMilliseconds(duracao), cancellationToken);
@@ -317,6 +332,8 @@ public sealed class TransicaoEfeitoPreview : UserControl
         _rotation.BeginAnimation(RotateTransform.AngleProperty, null);
         _translation.BeginAnimation(TranslateTransform.XProperty, null);
         _translation.BeginAnimation(TranslateTransform.YProperty, null);
+        _skew.BeginAnimation(SkewTransform.AngleXProperty, null);
+        _skew.BeginAnimation(SkewTransform.AngleYProperty, null);
         _animatedContent.Clip = null;
         _animatedContent.Effect = null;
         RenderOptions.SetBitmapScalingMode(_image, BitmapScalingMode.HighQuality);
@@ -538,15 +555,15 @@ public sealed class TransicaoEfeitoPreview : UserControl
         var (x, y) = Deslocamento(id);
         var fade = Contem(id, "fade", "dissolve", "flash", "light", "burn", "glow", "blur", "focus",
             "mask", "reveal", "wipe", "iris", "curtain", "shutter", "pixel", "glitch", "noise",
-            "static", "digital", "scan", "morph", "liquid", "shape", "shatter", "particle", "smoke",
+            "static", "digital", "scan", "match_cut", "morph", "liquid", "shape", "shatter", "particle", "smoke",
             "fog", "frost", "ice", "electric", "aurora", "checker", "grid", "tile", "stripe", "radial",
             "spiral", "luma", "grain", "letter", "text", "word", "typewriter");
         var scale = Contem(id, "zoom", "scale", "pop", "expand", "shrink", "camera_pull", "dolly", "crash_zoom",
             "whip_zoom", "zoom_match", "morph", "portal", "pulse", "reveal", "collapse", "hero", "card_",
-            "shared_element", "shared_axis", "expand_from_click", "mask", "iris", "circle", "radial", "squeeze", "stretch")
+            "shared_element", "shared_axis", "expand_from_click", "match_move", "mask", "iris", "circle", "radial", "squeeze", "stretch")
             ? .48 : Contem(id, "stack", "anticipation", "recoil") ? .72 : 1;
         var angle = Contem(id, "rotate", "spin", "flip", "page_", "cube", "barrel", "tilt", "fold",
-            "hinge", "carousel", "orbit", "origami", "tile_flip")
+            "hinge", "carousel", "orbit", "origami", "tile_flip", "swing", "twist")
             ? Angulo(id) : 0;
         if (Contem(id, "glitch", "rgb", "chromatic", "vhs", "scramble", "digital_noise"))
         {
@@ -568,7 +585,7 @@ public sealed class TransicaoEfeitoPreview : UserControl
         if (Contem(id, "recoil")) return (0, 12);
         if (Contem(id, "stack")) return (24, 0);
         if (Contem(id, "slide", "push", "fly", "whip", "swipe", "wipe", "sweep", "reveal", "portal",
-            "tracking", "momentum", "inertia", "throw", "shared_axis")) return (42, 0);
+            "tracking", "momentum", "inertia", "throw", "shared_axis", "match_move")) return (42, 0);
         if (Contem(id, "bounce", "elastic", "spring", "rubber", "wobble", "jello")) return (0, 10);
         return (0, 0);
     }
@@ -577,6 +594,7 @@ public sealed class TransicaoEfeitoPreview : UserControl
     {
         var graus = Contem(id, "spin", "barrel", "carousel") ? 250
             : Contem(id, "orbit", "dutch_tilt") ? 78
+            : Contem(id, "twist", "swing") ? 70
             : Contem(id, "stack") ? 22
             : Contem(id, "flip", "page", "cube", "fold", "hinge", "tile") ? 100 : 40;
         return Contem(id, "left", "out") ? -graus : graus;
