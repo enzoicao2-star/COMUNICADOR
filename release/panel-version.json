@@ -1,9 +1,9 @@
 {
-  "version": "2.5.46.0",
+  "version": "2.5.47.0",
   "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-  "sha256": "99CD5517848CDF9D5E04AC243C7B6A4CDAE135AD3CB9E383391E09E4A8AC5F87",
-  "summary": "Corrige a abertura da tela de transições da mídia.",
+  "sha256": "4A63BF1E7A0D7C4CB5341BB5A70B992BDA96F683D4CC6C8E860B688D156D4B9B",
+  "summary": "Prévia das transições com efeitos visuais distintos.",
   "changes": [
-    "Impede que o seletor de entrada ou saída acesse a galeria antes de ela estar pronta durante a abertura da tela."
+    "A galeria agora mostra máscaras direcionais, geométricas e em padrões, além de desfoque, luz/cor e falha digital; cada opção continua animada em loop."
   ]
 }
