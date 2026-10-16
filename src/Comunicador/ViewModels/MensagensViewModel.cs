@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Net.Http;
+using System.Windows.Media.Imaging;
 using System.Windows.Input;
 using Comunicador.Models;
 using Comunicador.Networking;
@@ -36,6 +37,7 @@ public sealed class MensagensViewModel : ViewModelBase
     private string _modoTempoSaida = "speed";
     private int _duracaoEntradaMs = 600;
     private int _duracaoSaidaMs = 600;
+    private bool _previewEfeitoSaida;
     private int _atrasoEnvioImagemSegundos;
     private bool _permitirFecharImagem = true;
     private bool _bloquearFecharDuranteTransicao = true;
@@ -57,6 +59,7 @@ public sealed class MensagensViewModel : ViewModelBase
     private string? _nomeAudio;
     private string? _mimeAudio;
     private byte[]? _dadosAudio;
+    private BitmapSource? _imagemPreviewTransicoes;
     private bool _repetirVideo;
     private bool _repetirAudio;
     private bool _limitarDuracaoAudio;
@@ -206,6 +209,11 @@ public sealed class MensagensViewModel : ViewModelBase
         ? Convert.ToBase64String(_dadosImagem)
         : null;
 
+    public BitmapSource? ImagemPreviewTransicoes => _imagemPreviewTransicoes;
+    public string TextoPreviewTransicoes => _imagemPreviewTransicoes is not null
+        ? _mimeImagem == "image/gif" ? "GIF carregado" : "Imagem carregada"
+        : TemVideo || TemVideoConfigurado ? "Vídeo selecionado" : "Mídia selecionada";
+
     public bool TemImagem => _dadosImagem is { Length: > 0 };
     public bool TemImagemConfigurada => TemImagem || MonitoresDestino.Any(m => m.Midias.Any(i => i.EhImagem));
     public bool ImagemCompativelPapelParede => TemImagem
@@ -245,7 +253,10 @@ public sealed class MensagensViewModel : ViewModelBase
         set
         {
             if (SetField(ref _velocidadeEntradaPercentual, Math.Clamp(value, 25, 250)))
+            {
                 OnPropertyChanged(nameof(ResumoTransicoes));
+                OnPropertyChanged(nameof(VelocidadePreviewGaleria));
+            }
         }
     }
     public int VelocidadeSaidaPercentual
@@ -254,7 +265,10 @@ public sealed class MensagensViewModel : ViewModelBase
         set
         {
             if (SetField(ref _velocidadeSaidaPercentual, Math.Clamp(value, 25, 250)))
+            {
                 OnPropertyChanged(nameof(ResumoTransicoes));
+                OnPropertyChanged(nameof(VelocidadePreviewGaleria));
+            }
         }
     }
     public string ModoTempoEntrada
@@ -263,7 +277,11 @@ public sealed class MensagensViewModel : ViewModelBase
         set
         {
             if (value is not ("speed" or "duration")) return;
-            if (SetField(ref _modoTempoEntrada, value)) OnPropertyChanged(nameof(ResumoTransicoes));
+            if (SetField(ref _modoTempoEntrada, value))
+            {
+                OnPropertyChanged(nameof(ResumoTransicoes));
+                OnPropertyChanged(nameof(ModoTempoPreviewGaleria));
+            }
         }
     }
     public string ModoTempoSaida
@@ -272,7 +290,11 @@ public sealed class MensagensViewModel : ViewModelBase
         set
         {
             if (value is not ("speed" or "duration")) return;
-            if (SetField(ref _modoTempoSaida, value)) OnPropertyChanged(nameof(ResumoTransicoes));
+            if (SetField(ref _modoTempoSaida, value))
+            {
+                OnPropertyChanged(nameof(ResumoTransicoes));
+                OnPropertyChanged(nameof(ModoTempoPreviewGaleria));
+            }
         }
     }
     public int DuracaoEntradaMs
@@ -281,7 +303,10 @@ public sealed class MensagensViewModel : ViewModelBase
         set
         {
             if (SetField(ref _duracaoEntradaMs, Math.Clamp(value, 50, 10000)))
+            {
                 OnPropertyChanged(nameof(ResumoTransicoes));
+                OnPropertyChanged(nameof(DuracaoPreviewGaleria));
+            }
         }
     }
     public int DuracaoSaidaMs
@@ -290,9 +315,28 @@ public sealed class MensagensViewModel : ViewModelBase
         set
         {
             if (SetField(ref _duracaoSaidaMs, Math.Clamp(value, 50, 10000)))
+            {
                 OnPropertyChanged(nameof(ResumoTransicoes));
+                OnPropertyChanged(nameof(DuracaoPreviewGaleria));
+            }
         }
     }
+    public bool PreviewEfeitoSaida
+    {
+        get => _previewEfeitoSaida;
+        set
+        {
+            if (SetField(ref _previewEfeitoSaida, value))
+            {
+                OnPropertyChanged(nameof(ModoTempoPreviewGaleria));
+                OnPropertyChanged(nameof(VelocidadePreviewGaleria));
+                OnPropertyChanged(nameof(DuracaoPreviewGaleria));
+            }
+        }
+    }
+    public string ModoTempoPreviewGaleria => PreviewEfeitoSaida ? ModoTempoSaida : ModoTempoEntrada;
+    public int VelocidadePreviewGaleria => PreviewEfeitoSaida ? VelocidadeSaidaPercentual : VelocidadeEntradaPercentual;
+    public int DuracaoPreviewGaleria => PreviewEfeitoSaida ? DuracaoSaidaMs : DuracaoEntradaMs;
     public string NomeEfeitoEntrada => NomeEfeito(EfeitoEntrada);
     public string NomeEfeitoSaida => NomeEfeito(EfeitoSaida);
     public string ResumoTransicoes => $"{NomeEfeito(EfeitoEntrada)} → {NomeEfeito(EfeitoSaida)} · " +
@@ -747,6 +791,7 @@ public sealed class MensagensViewModel : ViewModelBase
                         break;
                     }
                 }
+                AtualizarImagemPreviewTransicoes();
                 OnPropertyChanged(nameof(TemVideoConfigurado));
                 OnPropertyChanged(nameof(TemImagemConfigurada));
                 OnPropertyChanged(nameof(PodePersonalizarTransicao));
@@ -957,6 +1002,7 @@ public sealed class MensagensViewModel : ViewModelBase
         }
 
         AtualizarMonitoresDestino();
+        AtualizarImagemPreviewTransicoes();
         OnPropertyChanged(nameof(QuantidadeDestinatariosSelecionados));
         OnPropertyChanged(nameof(TextoDestinatariosSelecionados));
         OnPropertyChanged(nameof(ComputadoresDoGrupoSelecionado));
@@ -1017,6 +1063,7 @@ public sealed class MensagensViewModel : ViewModelBase
                 MonitoresDestino.Add(destino);
             }
         }
+        AtualizarImagemPreviewTransicoes();
     }
 
     private void GuardarMidias(DestinoMonitor destino) =>
@@ -1242,6 +1289,7 @@ public sealed class MensagensViewModel : ViewModelBase
         OnPropertyChanged(nameof(TemVideoConfigurado));
         OnPropertyChanged(nameof(TemImagemConfigurada));
         OnPropertyChanged(nameof(PodePersonalizarTransicao));
+        AtualizarImagemPreviewTransicoes();
         StatusOperacao = $"{midia.Nome} adicionada ao {destino.Titulo}.";
     }
 
@@ -1548,11 +1596,55 @@ public sealed class MensagensViewModel : ViewModelBase
         OnPropertyChanged(nameof(CaminhoMidia));
         OnPropertyChanged(nameof(NomeMidia));
         OnPropertyChanged(nameof(TipoMidiaTexto));
+        AtualizarImagemPreviewTransicoes();
         OnPropertyChanged(nameof(RepetirVideo));
         OnPropertyChanged(nameof(RepetirAudio));
         OnPropertyChanged(nameof(LimitarDuracaoAudio));
         OnPropertyChanged(nameof(DescricaoFormato));
         CommandManager.InvalidateRequerySuggested();
+    }
+
+    private void AtualizarImagemPreviewTransicoes()
+    {
+        _imagemPreviewTransicoes = CriarImagemPreview(_dadosImagem, _mimeImagem)
+            ?? MonitoresDestino.SelectMany(m => m.Midias)
+                .Where(m => m.EhImagem)
+                .Select(m => m.ImagemPreview)
+                .FirstOrDefault(imagem => imagem is not null);
+        OnPropertyChanged(nameof(ImagemPreviewTransicoes));
+        OnPropertyChanged(nameof(TextoPreviewTransicoes));
+    }
+
+    private static BitmapSource? CriarImagemPreview(byte[]? dados, string? mime)
+    {
+        if (dados is not { Length: > 0 }) return null;
+        try
+        {
+            using var stream = new MemoryStream(dados, writable: false);
+            BitmapSource frame;
+            if (string.Equals(mime, "image/gif", StringComparison.OrdinalIgnoreCase))
+            {
+                frame = new GifBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat,
+                    BitmapCacheOption.OnLoad).Frames[0];
+            }
+            else
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.StreamSource = stream;
+                bitmap.EndInit();
+                frame = bitmap;
+            }
+
+            if (frame.CanFreeze) frame.Freeze();
+            return frame;
+        }
+        catch (Exception ex) when (ex is IOException or NotSupportedException or ArgumentException
+            or InvalidOperationException or IndexOutOfRangeException)
+        {
+            return null;
+        }
     }
 
     private ConteudoImagem? CriarConteudoImagem()

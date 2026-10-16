@@ -1,13 +1,11 @@
 {
-  "version": "2.5.44.0",
+  "version": "2.5.45.0",
   "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-  "sha256": "76C9B5FD7921E784F032105E18E2DFC84FD22BA7018E1374F4243389F1521713",
-  "summary": "CMD remoto mais rápido na rede local, com confirmação imediata e alternativa pela nuvem.",
+  "sha256": "AAD021D8E335BF2E257C9995E1FF4CB26801543A4F372F698563CC1CA2B6ECE1",
+  "summary": "Prévia animada de cada transição diretamente nas opções da galeria.",
   "changes": [
-    "Na mesma rede, o CMD remoto tenta usar a conexão direta do receptor em vez de esperar a entrega pela nuvem.",
-    "O painel confirma rapidamente quando o computador recebe o CMD; a saída completa aparece quando a execução termina.",
-    "Se a conexão local não estiver disponível, o painel envia o comando pela fila em nuvem como antes.",
-    "O caminho direto continua validando o pareamento, a permissão individual e a proteção do OWNER.",
-    "A velocidade das transições aceita ajuste percentual contínuo e tempo exato em milissegundos."
+    "Cada opção da galeria reproduz sua transição continuamente em uma miniatura, sem depender da prévia separada abaixo.",
+    "As miniaturas acompanham a mídia selecionada e alternam entre o sentido de entrada e o de saída.",
+    "A prévia usa a velocidade ou a duração exata configurada para o sentido selecionado."
   ]
 }

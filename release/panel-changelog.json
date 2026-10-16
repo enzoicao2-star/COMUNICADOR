@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.5.45.0",
+    "summary": "Prévia animada de cada transição diretamente nas opções da galeria.",
+    "changes": [
+      "Cada opção da galeria reproduz sua transição continuamente em uma miniatura, sem depender da prévia separada abaixo.",
+      "As miniaturas acompanham a mídia selecionada e alternam entre o sentido de entrada e o de saída.",
+      "A prévia usa a velocidade ou a duração exata configurada para o sentido selecionado."
+    ]
+  },
+  {
     "version": "2.2.2.0",
     "summary": "",
     "changes": []
