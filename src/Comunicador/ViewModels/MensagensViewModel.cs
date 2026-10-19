@@ -2176,6 +2176,9 @@ public sealed class MensagensViewModel : ViewModelBase
             }
             if (resultado.Delivered)
             {
+                if (modoExibicao == ProtocolConstants.DisplayMode.CenterImage)
+                    _computadores.RegistrarImagensPersistentes(computador,
+                        envio.ImagensPorMonitor.Where(item => item.KeepUntilRemoved && item.PersistentId is not null));
                 enviados++;
                 return;
             }

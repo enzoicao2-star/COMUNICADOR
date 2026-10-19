@@ -1,95 +1,62 @@
 using System.IO;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
 using Comunicador.ViewModels;
-using Microsoft.Win32;
 
 namespace Comunicador.Views;
 
-public partial class SelecionarMonitorWindow : Window
+public partial class SelecionarMonitorView : UserControl
 {
-    private MensagensViewModel? ViewModel => DataContext as MensagensViewModel;
+    private readonly MensagensViewModel _viewModel;
+    private DefinirMonitorView? _editorAtual;
+    private DestinoMonitor? _destinoAtual;
 
-    public SelecionarMonitorWindow(MensagensViewModel viewModel)
+    public event EventHandler? VoltarSolicitado;
+
+    public SelecionarMonitorView(MensagensViewModel viewModel)
     {
         InitializeComponent();
+        _viewModel = viewModel;
         DataContext = viewModel;
-        Loaded += async (_, _) => await viewModel.AtualizarMiniaturasDosDestinosAsync();
+        Loaded += async (_, _) => await CarregarPreviaAsync();
     }
 
-    private async void Atualizar_Click(object sender, RoutedEventArgs e)
+    private async Task CarregarPreviaAsync()
     {
-        if (ViewModel is { } viewModel) await viewModel.AtualizarMiniaturasDosDestinosAsync();
-    }
-
-    private void DefinirMonitor_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { DataContext: DestinoMonitor destino }) return;
-        var imagens = destino.Midias.Where(item => item.EhImagem).ToList();
-        if (imagens.Count == 0)
+        try
         {
-            MessageBox.Show(this, "Solte ou escolha uma imagem para este monitor antes de ajustar posição e tamanho.",
-                "Imagem necessária", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
+            await _viewModel.AtualizarMiniaturasDosDestinosAsync();
+            if (MonitorSelecionado.SelectedItem is DestinoMonitor destino)
+                MostrarEditor(destino);
         }
-
-        new DefinirMonitorWindow(destino, imagens) { Owner = this }.ShowDialog();
-    }
-
-    private void OutraImagem_Click(object sender, RoutedEventArgs e) => AbrirArquivo(sender, "Imagens|*.png;*.jpg;*.jpeg;*.gif;*.bmp");
-
-    private void OutroVideo_Click(object sender, RoutedEventArgs e) => AbrirArquivo(sender, "Vídeos|*.mp4;*.wmv");
-
-    private void AbrirArquivo(object sender, string filtro)
-    {
-        if (sender is not Button { DataContext: DestinoMonitor destino } || ViewModel is not { } viewModel) return;
-        var dialog = new OpenFileDialog { Filter = filtro + "|Todos os arquivos|*.*", Multiselect = false };
-        if (dialog.ShowDialog(this) == true) viewModel.CarregarArquivoNoMonitor(destino, dialog.FileName);
-    }
-
-    private void Monitor_DragOver(object sender, DragEventArgs e)
-    {
-        var arquivos = Arquivos(e);
-        var valido = arquivos.Length > 0 && (arquivos.All(EhImagem) || arquivos.Length == 1 && EhVideo(arquivos[0]));
-        e.Effects = valido ? DragDropEffects.Copy : DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    private void Monitor_DragEnter(object sender, DragEventArgs e)
-    {
-        Monitor_DragOver(sender, e);
-        if (e.Effects == DragDropEffects.Copy && sender is Border border
-            && TryFindResource("AccentBrush") is Brush accent)
+        catch (Exception ex) when (ex is IOException or InvalidOperationException
+            or HttpRequestException or TaskCanceledException)
         {
-            border.BorderBrush = accent;
-            border.BorderThickness = new Thickness(2);
+            StatusSelecao.Text = "Não foi possível atualizar a miniatura agora; você ainda pode configurar a mídia.";
         }
     }
 
-    private void Monitor_DragLeave(object sender, DragEventArgs e) => RestoreBorder(sender);
-
-    private void Monitor_Drop(object sender, DragEventArgs e)
+    private void Monitor_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        RestoreBorder(sender);
-        if (sender is Border { DataContext: DestinoMonitor destino } && ViewModel is { } viewModel)
-            foreach (var path in Arquivos(e)) viewModel.CarregarArquivoNoMonitor(destino, path);
-        e.Handled = true;
+        if (MonitorSelecionado.SelectedItem is not DestinoMonitor destino) return;
+        if (_editorAtual is not null && !ReferenceEquals(_destinoAtual, destino))
+            _editorAtual.SalvarConfiguracao();
+        MostrarEditor(destino);
     }
 
-    private void RestoreBorder(object sender)
+    private void MostrarEditor(DestinoMonitor destino)
     {
-        if (sender is not Border border) return;
-        border.SetResourceReference(Border.BorderBrushProperty, "CardGlassBorderBrush");
-        border.BorderThickness = new Thickness(1);
+        if (ReferenceEquals(_destinoAtual, destino) && _editorAtual is not null) return;
+        StatusSelecao.Text = string.Empty;
+        _destinoAtual = destino;
+        var editor = new DefinirMonitorView(destino, _viewModel);
+        editor.VoltarSolicitado += (_, _) => VoltarSolicitado?.Invoke(this, EventArgs.Empty);
+        editor.DefinicaoConcluida += (_, _) => StatusSelecao.Text = $"Configuração salva para {destino.Titulo}.";
+        _editorAtual = editor;
+        EditorMonitorHost.Content = editor;
     }
 
-    private static string[] Arquivos(DragEventArgs e) => e.Data.GetDataPresent(DataFormats.FileDrop)
-        ? e.Data.GetData(DataFormats.FileDrop) as string[] ?? [] : [];
-
-    private static bool EhImagem(string path) => Path.GetExtension(path).ToLowerInvariant()
-        is ".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp";
-
-    private static bool EhVideo(string path) => Path.GetExtension(path).ToLowerInvariant() is ".mp4" or ".wmv";
+    private void Voltar_Click(object sender, RoutedEventArgs e) =>
+        VoltarSolicitado?.Invoke(this, EventArgs.Empty);
 }

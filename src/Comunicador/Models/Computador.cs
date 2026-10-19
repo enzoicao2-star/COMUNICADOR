@@ -53,6 +53,7 @@ public sealed class Computador : ObservableModel
     private bool _podeUsarCmdRemoto;
     private List<string> _permissoesIndividuais = [];
     private bool _esteComputador;
+    private List<ImagemPersistenteAtiva> _imagensPersistentesAtivas = [];
 
     public string Id { get => _id; set => SetField(ref _id, value); }
 
@@ -440,6 +441,17 @@ public sealed class Computador : ObservableModel
     public string? Token { get => _token; set => SetField(ref _token, value); }
     [JsonIgnore]
     public bool EsteComputador { get => _esteComputador; set => SetField(ref _esteComputador, value); }
+    public List<ImagemPersistenteAtiva> ImagensPersistentesAtivas
+    {
+        get => _imagensPersistentesAtivas;
+        set
+        {
+            if (SetField(ref _imagensPersistentesAtivas, value ?? []))
+                OnPropertyChanged(nameof(TemImagemPersistenteAtiva));
+        }
+    }
+    [JsonIgnore]
+    public bool TemImagemPersistenteAtiva => ImagensPersistentesAtivas.Count > 0;
     public StatusComputador Status
     {
         get => _status;

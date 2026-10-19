@@ -6,6 +6,10 @@ namespace Comunicador.Protocol;
 /// imagens apontam para o mesmo monitor, o receptor as organiza juntas no centro.</summary>
 public sealed class ImagemMonitor
 {
+    [JsonPropertyName("persistent_id")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PersistentId { get; set; }
+
     [JsonPropertyName("monitor_index")]
     public int MonitorIndex { get; set; }
 

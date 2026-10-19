@@ -73,6 +73,8 @@ public sealed class MidiaMonitorEditavel : ViewModelBase
     private BitmapSource? _imagemPreview;
     private bool _imagemPreviewCarregada;
 
+    public string PersistentId { get; } = Guid.NewGuid().ToString("N");
+
     public string Caminho { get; init; } = string.Empty;
     public string Nome { get; init; } = string.Empty;
     public string MimeType { get; init; } = string.Empty;
@@ -175,6 +177,7 @@ public sealed class MidiaMonitorEditavel : ViewModelBase
 
     public ImagemMonitor ParaProtocolo(int monitorIndex) => new()
     {
+        PersistentId = ManterAteRemover ? $"{PersistentId}-{monitorIndex}" : null,
         MonitorIndex = monitorIndex,
         WidthPercent = (int)TamanhoPercentual,
         XPercent = XPercent,

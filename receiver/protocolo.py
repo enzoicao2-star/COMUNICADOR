@@ -71,10 +71,12 @@ DISPLAY_MODE_WALLPAPER = "wallpaper"
 DISPLAY_MODE_RESTORE_WALLPAPER = "restore_wallpaper"
 DISPLAY_MODE_LOCK_SCREEN = "lock_screen"
 DISPLAY_MODE_CAROUSEL = "carousel"
+DISPLAY_MODE_IMAGE_CONTROL = "image_control"
 DISPLAY_MODES = {
     DISPLAY_MODE_TOAST, DISPLAY_MODE_CENTER_IMAGE, DISPLAY_MODE_CENTER_VIDEO,
     DISPLAY_MODE_AUDIO, DISPLAY_MODE_CENTER_ALERT, DISPLAY_MODE_CENTER_MESSAGE,
-    DISPLAY_MODE_WALLPAPER, DISPLAY_MODE_RESTORE_WALLPAPER, DISPLAY_MODE_LOCK_SCREEN, DISPLAY_MODE_CAROUSEL,
+    DISPLAY_MODE_WALLPAPER, DISPLAY_MODE_RESTORE_WALLPAPER, DISPLAY_MODE_LOCK_SCREEN,
+    DISPLAY_MODE_CAROUSEL, DISPLAY_MODE_IMAGE_CONTROL,
 }
 SOUND_TYPES = {"information", "warning", "error"}
 TOAST_POSITIONS = {"bottom_right", "top_right"}
@@ -383,6 +385,32 @@ def _validar_conteudo_visual(msg: dict) -> None:
             ErrorCode.INVALID_FIELD_TYPE,
             "Campo 'display_mode' usa um modo não reconhecido.")
 
+    if modo == DISPLAY_MODE_IMAGE_CONTROL:
+        if any(msg.get(key) is not None for key in (
+                "image", "screen_images", "video", "screen_videos", "audio")):
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE,
+                                "Controle de imagem não aceita arquivos de mídia.")
+        image_id = _require_str(msg, "image_control_id", 64)
+        if not image_id.strip():
+            raise ProtocolError(ErrorCode.MISSING_FIELD, "Controle de imagem precisa de um identificador.")
+        action = _require_str(msg, "image_control_action", 16)
+        if action not in {"move", "resize", "remove"}:
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Ação de controle de imagem inválida.")
+
+        def validar_percentual(name, minimo, maximo):
+            value = msg.get(name)
+            if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                    or not math.isfinite(value) or not minimo <= value <= maximo):
+                raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE,
+                                    f"Campo '{name}' precisa ficar entre {minimo} e {maximo}.")
+
+        if action == "move":
+            validar_percentual("image_control_x_percent", 0, 100)
+            validar_percentual("image_control_y_percent", 0, 100)
+        if action == "resize":
+            validar_percentual("image_control_width_percent", MIN_IMAGE_WIDTH_PERCENT, MAX_IMAGE_WIDTH_PERCENT)
+        return
+
     imagem = msg.get("image")
     imagens_por_monitor = msg.get("screen_images")
     video = msg.get("video")
@@ -503,6 +531,11 @@ def _validar_conteudo_visual(msg: dict) -> None:
                         not isinstance(coordenada, (int, float)) or isinstance(coordenada, bool)
                         or not 0 <= coordenada <= 100):
                     raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Posição da imagem no monitor inválida.")
+            persistent_id = item.get("persistent_id")
+            if persistent_id is not None and (
+                    not isinstance(persistent_id, str) or not persistent_id.strip()
+                    or len(persistent_id) > 64):
+                raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Identificador da imagem persistente inválido.")
             manter = item.get("keep_until_removed", False)
             restaurar = item.get("restore_after_restart", False)
             if not isinstance(manter, bool) or not isinstance(restaurar, bool) or restaurar and not manter:

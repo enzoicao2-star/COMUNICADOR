@@ -23,6 +23,32 @@ def test_valid_notification_passes():
     protocolo.validate(make_valid_notification())
 
 
+@pytest.mark.parametrize(("action", "fields"), [
+    ("move", {"image_control_x_percent": 0, "image_control_y_percent": 100}),
+    ("resize", {"image_control_width_percent": 80}),
+    ("remove", {}),
+])
+def test_persistent_image_control_accepts_valid_actions(action, fields):
+    msg = make_valid_notification()
+    msg.update(display_mode=protocolo.DISPLAY_MODE_IMAGE_CONTROL,
+               image_control_id="img-123", image_control_action=action, **fields)
+    protocolo.validate(msg)
+
+
+@pytest.mark.parametrize(("action", "fields"), [
+    ("launch", {}),
+    ("move", {"image_control_x_percent": True, "image_control_y_percent": 50}),
+    ("move", {"image_control_x_percent": 50, "image_control_y_percent": float("nan")}),
+    ("resize", {"image_control_width_percent": 101}),
+])
+def test_persistent_image_control_rejects_invalid_actions(action, fields):
+    msg = make_valid_notification()
+    msg.update(display_mode=protocolo.DISPLAY_MODE_IMAGE_CONTROL,
+               image_control_id="img-123", image_control_action=action, **fields)
+    with pytest.raises(ProtocolError):
+        protocolo.validate(msg)
+
+
 def test_visual_transition_accepts_independent_image_animation_settings():
     msg = make_valid_notification()
     msg["appearance"] = {

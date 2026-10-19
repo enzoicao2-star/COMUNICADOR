@@ -231,6 +231,20 @@ public partial class ComputadoresView : UserControl
         ? VisualTreeHelper.GetParent(elemento)
         : LogicalTreeHelper.GetParent(elemento);
 
+    private async void ImagemPersistenteMover_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: ImagemPersistenteAtiva imagem, Tag: string acao }
+            || DataContext is not ComputadoresViewModel viewModel) return;
+        await viewModel.ControlarImagemPersistenteAsync(imagem, acao);
+    }
+
+    private async void ImagemPersistenteRemover_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: ImagemPersistenteAtiva imagem }
+            || DataContext is not ComputadoresViewModel viewModel) return;
+        await viewModel.ControlarImagemPersistenteAsync(imagem, "remove");
+    }
+
     private void AbrirGerenciamentoComputador_Click(object sender, RoutedEventArgs e)
         => AbrirGerenciamentoComputador(sender, e);
 

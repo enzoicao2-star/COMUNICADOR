@@ -94,17 +94,19 @@ public sealed class JsonStore<T>
     private static void MoveWithRetry(string source, string destination)
     {
         IOException? lastError = null;
-        for (var attempt = 0; attempt < 8; attempt++)
+        for (var attempt = 0; attempt < 16; attempt++)
         {
             try
             {
                 File.Move(source, destination, overwrite: true);
                 return;
             }
-            catch (IOException ex) when (attempt < 7)
+            catch (IOException ex) when (attempt < 15)
             {
                 lastError = ex;
-                Thread.Sleep(25 * (attempt + 1));
+                // Antivírus, sincronizadores e indexadores podem manter o destino
+                // aberto por alguns instantes durante a troca atômica.
+                Thread.Sleep(Math.Min(250, 50 * (attempt + 1)));
             }
         }
 

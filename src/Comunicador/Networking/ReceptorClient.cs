@@ -158,7 +158,12 @@ public sealed class ReceptorClient
         bool? repetirAudio = null,
         CancellationToken ct = default,
         CarouselCommand? carousel = null,
-        bool confirmationRequired = false)
+        bool confirmationRequired = false,
+        string? imageControlId = null,
+        string? imageControlAction = null,
+        double? imageControlXPercent = null,
+        double? imageControlYPercent = null,
+        int? imageControlWidthPercent = null)
     {
         try
         {
@@ -184,6 +189,11 @@ public sealed class ReceptorClient
             notification.AudioLoop = repetirAudio;
             notification.ImageDurationSeconds = duracaoImagemSegundos;
             notification.AllowManualClose = permitirFecharManualmente;
+            notification.ImageControlId = imageControlId;
+            notification.ImageControlAction = imageControlAction;
+            notification.ImageControlXPercent = imageControlXPercent;
+            notification.ImageControlYPercent = imageControlYPercent;
+            notification.ImageControlWidthPercent = imageControlWidthPercent;
             notification.Appearance = aparencia;
             notification.Carousel = carousel;
             var validacao = MessageValidator.Validate(notification);

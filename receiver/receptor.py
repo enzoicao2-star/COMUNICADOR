@@ -21,6 +21,7 @@ import ctypes
 import io
 import json
 import logging
+import math
 import ntpath
 import os
 import queue
@@ -1651,6 +1652,14 @@ class CloudDeliveryWorker(threading.Thread):
                              name=f"comando-admin-{delivery_id[:8]}").start()
             return
 
+        if payload.get("kind") == "persistent_image_control":
+            result = self.ui.controlar_imagem(
+                payload.get("image_control_id"), payload.get("image_control_action"),
+                payload.get("image_control_x_percent"), payload.get("image_control_y_percent"),
+                payload.get("image_control_width_percent"))
+            self._atualizar_entrega(delivery_id, result)
+            return
+
         if payload.get("kind") == "notification":
             image = payload.get("image")
             screen_images = payload.get("screen_images") or []
@@ -1946,6 +1955,8 @@ class NotificationUi:
     def __init__(self, test_mode: bool, config_dir: Optional[Path] = None):
         self.test_mode = test_mode
         self._pending: "queue.Queue[tuple]" = queue.Queue()
+        self._pending_image_controls: "queue.Queue[tuple]" = queue.Queue()
+        self._active_pinned_images: dict[str, dict] = {}
         self._root = None
         self._pinned_image_path = config_dir / "pinned-image.json" if config_dir else None
         if not test_mode:
@@ -1993,6 +2004,31 @@ class NotificationUi:
             appearance or {}, video, screen_videos or [], video_loop, audio, audio_loop,
             confirmation_required))
 
+    def controlar_imagem(self, image_id, action, x_percent=None, y_percent=None, width_percent=None):
+        if not isinstance(image_id, str) or not image_id.strip() or len(image_id) > 64:
+            return "Identificador da imagem inválido."
+        if action not in {"move", "resize", "remove"}:
+            return "Ação de controle de imagem inválida."
+
+        def percentual_valido(valor, minimo, maximo):
+            return (isinstance(valor, (int, float)) and not isinstance(valor, bool)
+                    and math.isfinite(valor) and minimo <= valor <= maximo)
+
+        if action == "move" and not (
+                percentual_valido(x_percent, 0, 100) and percentual_valido(y_percent, 0, 100)):
+            return "Posição da imagem inválida."
+        if action == "resize" and not percentual_valido(
+                width_percent, protocolo.MIN_IMAGE_WIDTH_PERCENT, protocolo.MAX_IMAGE_WIDTH_PERCENT):
+            return "Tamanho da imagem inválido."
+        if self.test_mode or self._root is None:
+            return "Receptor sem uma imagem ativa para controlar."
+        resposta = queue.Queue(maxsize=1)
+        self._pending_image_controls.put((image_id, action, x_percent, y_percent, width_percent, resposta))
+        try:
+            return resposta.get(timeout=10)
+        except queue.Empty:
+            return "O Receptor demorou para aplicar o controle da imagem."
+
     def _poll(self):
         try:
             while True:
@@ -2007,7 +2043,106 @@ class NotificationUi:
                         logging.exception("Falha ao devolver o resultado da notificação.")
         except queue.Empty:
             pass
+        try:
+            while True:
+                image_id, action, x_percent, y_percent, width_percent, resposta = \
+                    self._pending_image_controls.get_nowait()
+                try:
+                    resposta.put_nowait(self._controlar_imagem_na_ui(
+                        image_id, action, x_percent, y_percent, width_percent))
+                except Exception as exc:
+                    logging.exception("Falha ao controlar imagem fixada.")
+                    resposta.put_nowait(f"Não foi possível controlar a imagem: {exc}")
+        except queue.Empty:
+            pass
         self._root.after(100, self._poll)
+
+    def _salvar_controle_imagem_fixada(self, image_id, remover, item=None):
+        caminho = self._pinned_image_path
+        if caminho is None or not caminho.exists():
+            return
+        try:
+            estado = json.loads(caminho.read_text(encoding="utf-8"))
+            imagens = estado.get("screen_images")
+            if not isinstance(imagens, list):
+                return
+            if remover:
+                imagens = [imagem for imagem in imagens
+                           if imagem.get("persistent_id") != image_id]
+            else:
+                for imagem in imagens:
+                    if imagem.get("persistent_id") == image_id:
+                        for chave in ("x_percent", "y_percent", "width_percent"):
+                            imagem[chave] = item.get(chave)
+            if not imagens:
+                caminho.unlink(missing_ok=True)
+                return
+            estado["screen_images"] = imagens
+            temporario = caminho.with_suffix(".tmp")
+            temporario.write_text(json.dumps(estado, ensure_ascii=False), encoding="utf-8")
+            os.replace(temporario, caminho)
+        except (OSError, ValueError, TypeError):
+            logging.exception("Não foi possível salvar o controle da imagem fixada.")
+
+    def _controlar_imagem_na_ui(self, image_id, action, x_percent, y_percent, width_percent):
+        ativo = self._active_pinned_images.get(image_id)
+        if ativo is None:
+            return "A imagem não está mais na tela."
+        janela = ativo["window"]
+        item = ativo["item"]
+        monitor = ativo["monitor"]
+
+        if action == "remove":
+            try:
+                janela.destroy()
+            except self._tk.TclError:
+                pass
+            janelas = ativo.get("janelas")
+            if janelas is not None:
+                janelas[:] = [entrada for entrada in janelas if entrada[0] is not janela]
+            self._active_pinned_images.pop(image_id, None)
+            self._salvar_controle_imagem_fixada(image_id, remover=True)
+            return "Imagem removida."
+
+        if action == "move":
+            item["x_percent"] = x_percent
+            item["y_percent"] = y_percent
+        elif action == "resize":
+            tamanho_anterior = item.get("width_percent", 70)
+            item["width_percent"] = width_percent
+            item.setdefault("x_percent", 50)
+            item.setdefault("y_percent", 50)
+            quadros = self._fotos_tk(
+                item["image"], monitor["width"] * width_percent / 100,
+                monitor["height"] * .9)
+            if not quadros:
+                item["width_percent"] = tamanho_anterior
+                return "Não foi possível redimensionar esta imagem."
+            ativo["frame_state"]["frames"] = quadros
+            ativo["frame_state"]["indice"] = 0
+            ativo["label"].configure(image=quadros[0][0])
+            janela._image_refs = [quadro for quadro, _ in quadros]
+        else:
+            return "Ação de controle de imagem desconhecida."
+
+        foto = ativo["frame_state"]["frames"][0][0]
+        largura, altura = foto.width(), foto.height()
+        x_porcento = item.get("x_percent")
+        y_porcento = item.get("y_percent")
+        centro_x = monitor["x"] + round(monitor["width"] * x_porcento / 100)
+        centro_y = monitor["y"] + round(monitor["height"] * y_porcento / 100)
+        x = min(max(monitor["x"], centro_x - largura // 2),
+                monitor["x"] + monitor["width"] - largura)
+        y = min(max(monitor["y"], centro_y - altura // 2),
+                monitor["y"] + monitor["height"] - altura)
+        janela.geometry(f"{largura}x{altura}{x:+d}{y:+d}")
+        if ativo.get("janelas") is not None:
+            for indice, entrada in enumerate(ativo["janelas"]):
+                if entrada[0] is janela:
+                    ativo["janelas"][indice] = (janela, monitor, x, y, largura, altura)
+                    break
+        self._salvar_controle_imagem_fixada(image_id, remover=False, item=item)
+        return "Imagem atualizada."
 
     @staticmethod
     def _aparencia(appearance):
@@ -2400,6 +2535,9 @@ class NotificationUi:
                         janela.destroy()
                     except tk.TclError:
                         pass
+                for image_id, ativo in list(self._active_pinned_images.items()):
+                    if any(ativo.get("window") is janela for janela, *_ in janelas):
+                        self._active_pinned_images.pop(image_id, None)
                 if finalizado.get("pinned") and self._pinned_image_path is not None:
                     try:
                         self._pinned_image_path.unlink(missing_ok=True)
@@ -2440,14 +2578,17 @@ class NotificationUi:
                 max_altura = altura_celula
                 quadros = self._fotos_tk(item["image"], max_largura, max_altura)
                 if quadros:
-                    fotos.append((posicao, quadros))
+                    # Keep the configuration next to its decoded frames. Using
+                    # the loop's leftover `item` later made every image inherit
+                    # the final item's coordinates (or silently center).
+                    fotos.append((posicao, item, quadros))
 
             largura_grade = colunas * largura_celula + espaco * (colunas - 1)
             altura_grade = linhas * altura_celula + espaco * (linhas - 1)
             origem_x = monitor["x"] + (monitor["width"] - largura_grade) // 2
             origem_y = monitor["y"] + (monitor["height"] - altura_grade) // 2
 
-            for posicao, quadros in fotos:
+            for posicao, item, quadros in fotos:
                 foto = quadros[0][0]
                 largura = foto.width()
                 altura = foto.height()
@@ -2480,12 +2621,12 @@ class NotificationUi:
                                  bd=0, relief="flat", highlightthickness=0)
                 label.pack()
                 win._image_refs = [quadro for quadro, _ in quadros]
+                estado_animacao = {"indice": 0, "frames": quadros}
                 if len(quadros) > 1:
-                    estado_animacao = {"indice": 0}
-
-                    def criar_animacao(rotulo, frames, estado, janela):
+                    def criar_animacao(rotulo, estado, janela):
                         def proximo_quadro():
-                            if finalizado["done"] or not janela.winfo_exists():
+                            frames = estado["frames"]
+                            if finalizado["done"] or not janela.winfo_exists() or not frames:
                                 return
                             estado["indice"] = (estado["indice"] + 1) % len(frames)
                             imagem_atual, atraso = frames[estado["indice"]]
@@ -2493,7 +2634,7 @@ class NotificationUi:
                             janela.after(atraso, proximo_quadro)
                         return proximo_quadro
 
-                    animar = criar_animacao(label, quadros, estado_animacao, win)
+                    animar = criar_animacao(label, estado_animacao, win)
                     win.after(quadros[0][1], animar)
                 win.geometry(f"{largura}x{altura}{x:+d}{y:+d}")
                 if manual_close or permanente:
@@ -2504,6 +2645,18 @@ class NotificationUi:
                              if manual_close or permanente else None)
                 win.lift()
                 janelas.append((win, monitor, x, y, largura, altura))
+                persistent_id = item.get("persistent_id")
+                if item.get("keep_until_removed") and isinstance(persistent_id, str) and persistent_id:
+                    anterior = self._active_pinned_images.get(persistent_id)
+                    if anterior is not None:
+                        try:
+                            anterior["window"].destroy()
+                        except tk.TclError:
+                            pass
+                    self._active_pinned_images[persistent_id] = {
+                        "window": win, "label": label, "monitor": monitor, "item": item,
+                        "frame_state": estado_animacao, "janelas": janelas,
+                    }
                 self._animar_janela_transicao(
                     win, monitor, x, y, largura, altura,
                     transicao["entrance_effect"], transicao["entrance_speed_percent"],
@@ -2825,6 +2978,18 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         if getattr(server.config, "is_owner_device", lambda: False)():
             raise ProtocolError(ErrorCode.CONTENT_BLOCKED,
                                 "O OWNER está protegido e não recebe envios.")
+        if msg.get("display_mode") == protocolo.DISPLAY_MODE_IMAGE_CONTROL:
+            status = server.ui.controlar_imagem(
+                msg["image_control_id"], msg["image_control_action"],
+                msg.get("image_control_x_percent"), msg.get("image_control_y_percent"),
+                msg.get("image_control_width_percent"))
+            if not status.startswith("Imagem "):
+                raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, status)
+            ack = protocolo.base_message(MessageType.ACK)
+            ack["in_reply_to"] = msg["id"]
+            ack["status"] = "image_control_applied"
+            self._safe_send(ack)
+            return
         wallpaper_modes = (
             protocolo.DISPLAY_MODE_WALLPAPER,
             protocolo.DISPLAY_MODE_LOCK_SCREEN,

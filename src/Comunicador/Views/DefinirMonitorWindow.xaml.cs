@@ -5,37 +5,94 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using Comunicador.ViewModels;
+using Microsoft.Win32;
 
 namespace Comunicador.Views;
 
-public partial class DefinirMonitorWindow : Window
+public partial class DefinirMonitorView : UserControl
 {
-    private readonly IReadOnlyList<MidiaMonitorEditavel> _imagens;
+    private readonly DestinoMonitor _destino;
+    private readonly MensagensViewModel _viewModel;
     private bool _carregado;
     private bool _arrastando;
     private Point _inicioArrasto;
 
-    public DefinirMonitorWindow(DestinoMonitor destino, IReadOnlyList<MidiaMonitorEditavel> imagens)
+    public event EventHandler? VoltarSolicitado;
+    public event EventHandler? DefinicaoConcluida;
+
+    public DefinirMonitorView(DestinoMonitor destino, MensagensViewModel viewModel)
     {
         InitializeComponent();
-        _imagens = imagens;
-        var primeira = imagens[0];
-        SubtituloMonitor.Text = $"{destino.Titulo} · {destino.Resolucao} · {imagens.Count} imagem(ns)";
+        _destino = destino;
+        _viewModel = viewModel;
+        PapelParedePreview.DataContext = destino;
+        SubtituloMonitor.Text = $"{destino.Titulo} · {destino.Resolucao}";
         var larguraMonitor = destino.Monitor.Width > 0 ? destino.Monitor.Width : 1920;
         var alturaMonitor = destino.Monitor.Height > 0 ? destino.Monitor.Height : 1080;
         var escalaMonitor = Math.Min(520d / larguraMonitor, 310d / alturaMonitor);
         MonitorCanvas.Width = larguraMonitor * escalaMonitor;
         MonitorCanvas.Height = alturaMonitor * escalaMonitor;
+        AtualizarImagemPreview(carregarValores: true);
+        _carregado = true;
+        AtualizarPreview();
+    }
+
+    private List<MidiaMonitorEditavel> Imagens => _destino.Midias.Where(item => item.EhImagem).ToList();
+
+    public void AtualizarImagemPreview(bool carregarValores)
+    {
+        var primeira = Imagens.FirstOrDefault();
+        ImagemPreview.Visibility = primeira is null ? Visibility.Collapsed : Visibility.Visible;
+        if (primeira is null)
+        {
+            StatusImagem.Text = "Solte uma imagem ou GIF nesta prévia, ou carregue um arquivo.";
+            return;
+        }
+
         ImagemPreview.DataBase64 = primeira.DadosBase64;
         ImagemPreview.MimeType = primeira.MimeType;
-
-        var coordenadas = imagens.FirstOrDefault(item => item.XPercent.HasValue && item.YPercent.HasValue);
-        SliderX.Value = coordenadas?.XPercent ?? 50;
-        SliderY.Value = coordenadas?.YPercent ?? 50;
+        StatusImagem.Text = $"{primeira.Nome} · GIFs são reproduzidos nesta prévia.";
+        if (!carregarValores) return;
+        SliderX.Value = primeira.XPercent ?? 50;
+        SliderY.Value = primeira.YPercent ?? 50;
         SliderTamanho.Value = primeira.TamanhoPercentual;
-        ManterAteRemover.IsChecked = imagens.Any(item => item.ManterAteRemover);
-        RestaurarAposReiniciar.IsChecked = imagens.Any(item => item.RestaurarAposReiniciar);
-        _carregado = true;
+        ManterAteRemover.IsChecked = primeira.ManterAteRemover;
+        RestaurarAposReiniciar.IsChecked = primeira.RestaurarAposReiniciar;
+    }
+
+    private void CarregarImagem_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = $"Escolher imagem para {_destino.Titulo}",
+            Filter = "Imagens|*.png;*.jpg;*.jpeg;*.gif;*.bmp|Todos os arquivos|*.*",
+            CheckFileExists = true,
+        };
+        if (dialog.ShowDialog(Window.GetWindow(this)) == true)
+        {
+            _viewModel.CarregarArquivoNoMonitor(_destino, dialog.FileName);
+            AtualizarImagemPreview(carregarValores: true);
+            AtualizarPreview();
+        }
+    }
+
+    private void Monitor_DragOver(object sender, DragEventArgs e)
+    {
+        var arquivos = e.Data.GetDataPresent(DataFormats.FileDrop)
+            ? e.Data.GetData(DataFormats.FileDrop) as string[] ?? [] : [];
+        var extensao = arquivos.Length == 1 ? Path.GetExtension(arquivos[0]).ToLowerInvariant() : string.Empty;
+        e.Effects = extensao is ".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp"
+            ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void Monitor_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+        var arquivos = e.Data.GetData(DataFormats.FileDrop) as string[] ?? [];
+        if (arquivos.Length != 1) return;
+        _viewModel.CarregarArquivoNoMonitor(_destino, arquivos[0]);
+        AtualizarImagemPreview(carregarValores: true);
         AtualizarPreview();
     }
 
@@ -53,7 +110,8 @@ public partial class DefinirMonitorWindow : Window
         var proporcao = 1d;
         try
         {
-            var primeira = _imagens[0];
+            var primeira = Imagens.FirstOrDefault();
+            if (primeira is null) return;
             using var stream = new MemoryStream(primeira.Dados, writable: false);
             var decoder = primeira.MimeType.Equals("image/gif", StringComparison.OrdinalIgnoreCase)
                 ? new GifBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnDemand)
@@ -131,8 +189,20 @@ public partial class DefinirMonitorWindow : Window
 
     private void Definir_Click(object sender, RoutedEventArgs e)
     {
+        if (!SalvarConfiguracao())
+        {
+            StatusImagem.Text = "Carregue uma imagem antes de definir o monitor.";
+            return;
+        }
+        DefinicaoConcluida?.Invoke(this, EventArgs.Empty);
+    }
+
+    public bool SalvarConfiguracao()
+    {
+        var imagens = Imagens;
+        if (imagens.Count == 0) return false;
         var manter = ManterAteRemover.IsChecked == true || RestaurarAposReiniciar.IsChecked == true;
-        foreach (var imagem in _imagens)
+        foreach (var imagem in imagens)
         {
             imagem.XPercent = SliderX.Value;
             imagem.YPercent = SliderY.Value;
@@ -140,8 +210,8 @@ public partial class DefinirMonitorWindow : Window
             imagem.ManterAteRemover = manter;
             imagem.RestaurarAposReiniciar = RestaurarAposReiniciar.IsChecked == true;
         }
-        DialogResult = true;
+        return true;
     }
 
-    private void Cancelar_Click(object sender, RoutedEventArgs e) => DialogResult = false;
+    private void Cancelar_Click(object sender, RoutedEventArgs e) => VoltarSolicitado?.Invoke(this, EventArgs.Empty);
 }

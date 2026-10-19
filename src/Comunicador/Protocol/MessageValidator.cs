@@ -100,6 +100,7 @@ public static class MessageValidator
                     msg.DisplayMode, msg.Image, msg.ScreenImages,
                     msg.Video, msg.ScreenVideos, msg.ImageDurationSeconds,
                     msg.AllowManualClose, msg.VideoLoop, msg.Audio, msg.AudioLoop, msg.Carousel)
+                ?? ValidarControleImagem(msg)
                 ?? ValidarAparencia(msg.Appearance),
 
             MessageType.WallpaperPreviewRequest => RequireString(msg.Token, "token", MaxNameLength)
@@ -565,6 +566,27 @@ public static class MessageValidator
                 ErrorCode.PayloadTooLarge, $"O conjunto de mídias excede {MaxTotalMediaBytes} bytes.");
         }
 
+        return null;
+    }
+
+    private static ValidationResult? ValidarControleImagem(ComunicadorMessage msg)
+    {
+        if (msg.DisplayMode != DisplayMode.ImageControl) return null;
+        if (msg.Image is not null || msg.ScreenImages is { Count: > 0 }
+            || msg.Video is not null || msg.ScreenVideos is { Count: > 0 } || msg.Audio is not null)
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType,
+                "Controle de imagem não aceita arquivos de mídia.");
+        if (string.IsNullOrWhiteSpace(msg.ImageControlId) || msg.ImageControlId.Length > 64)
+            return ValidationResult.Fail(ErrorCode.MissingField, "Controle de imagem precisa de um identificador.");
+        if (msg.ImageControlAction is not ("move" or "resize" or "remove"))
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Ação de controle de imagem inválida.");
+        if (msg.ImageControlAction == "move"
+            && (msg.ImageControlXPercent is not { } x || !double.IsFinite(x) || x is < 0 or > 100
+                || msg.ImageControlYPercent is not { } y || !double.IsFinite(y) || y is < 0 or > 100))
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Posição da imagem inválida.");
+        if (msg.ImageControlAction == "resize"
+            && msg.ImageControlWidthPercent is not (>= MinImageWidthPercent and <= MaxImageWidthPercent))
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Tamanho da imagem inválido.");
         return null;
     }
 

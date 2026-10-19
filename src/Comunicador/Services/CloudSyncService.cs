@@ -305,6 +305,28 @@ public sealed class CloudSyncService : IDisposable
             }, ct).ConfigureAwait(false);
     }
 
+    public async Task QueuePersistentImageControlAsync(
+        string targetDeviceId, string imageId, string action,
+        double xPercent, double yPercent, int widthPercent, CancellationToken ct = default)
+    {
+        if (!HasPermission("send_media"))
+            throw new UnauthorizedAccessException("Este painel não tem permissão para controlar imagens.");
+        if (string.IsNullOrWhiteSpace(imageId) || action is not ("move" or "resize" or "remove"))
+            throw new ArgumentException("Controle de imagem inválido.");
+        await RegisterCurrentDeviceAsync(ct, forUserDelivery: true).ConfigureAwait(false);
+        EnsureTargetIsNotOwner(targetDeviceId);
+        await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
+            new
+            {
+                kind = "persistent_image_control",
+                image_control_id = imageId,
+                image_control_action = action,
+                image_control_x_percent = Math.Clamp(xPercent, 0, 100),
+                image_control_y_percent = Math.Clamp(yPercent, 0, 100),
+                image_control_width_percent = Math.Clamp(widthPercent, 10, 100),
+            }, ct).ConfigureAwait(false);
+    }
+
     public async Task QueuePanelUpdateNoticeAsync(
         string targetDeviceId, string message, CancellationToken ct = default)
     {

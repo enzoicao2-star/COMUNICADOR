@@ -44,37 +44,27 @@ public partial class MensagensView : UserControl
 
     private void PararPulsacao() => IndicadorEnvio.BeginAnimation(UIElement.OpacityProperty, null);
 
-    private void DefinirMonitor_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { DataContext: DestinoMonitor destino }) return;
-        var imagens = destino.Midias.Where(midia => midia.EhImagem).ToList();
-        if (imagens.Count == 0)
-        {
-            MessageBox.Show(Window.GetWindow(this),
-                "Carregue ou escolha uma imagem para este monitor antes de definir a exibição.",
-                "Imagem necessária", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        var janela = new DefinirMonitorWindow(destino, imagens)
-        {
-            Owner = Window.GetWindow(this),
-        };
-        janela.ShowDialog();
-    }
-
     private void SelecionarMonitor_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MensagensViewModel viewModel) return;
         if (viewModel.MonitoresDestino.Count == 0)
         {
-            MessageBox.Show(Window.GetWindow(this),
-                "Selecione pelo menos um computador em ‘Enviar para’ para escolher os monitores.",
-                "Nenhum destino selecionado", MessageBoxButton.OK, MessageBoxImage.Information);
+            viewModel.StatusOperacao = "Selecione pelo menos um computador em ‘Enviar para’ para definir o monitor.";
             return;
         }
 
-        new SelecionarMonitorWindow(viewModel) { Owner = Window.GetWindow(this) }.ShowDialog();
+        var pagina = new SelecionarMonitorView(viewModel);
+        pagina.VoltarSolicitado += (_, _) => FecharPaginaMonitor();
+        PaginaDefinirMonitor.Content = pagina;
+        PaginaDefinirMonitor.Visibility = Visibility.Visible;
+        PainelPrincipal.Visibility = Visibility.Collapsed;
+    }
+
+    private void FecharPaginaMonitor()
+    {
+        PaginaDefinirMonitor.Content = null;
+        PaginaDefinirMonitor.Visibility = Visibility.Collapsed;
+        PainelPrincipal.Visibility = Visibility.Visible;
     }
 
     private void PrepararListaDestinatarios()

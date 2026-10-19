@@ -1351,46 +1351,63 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private async Task ProcurarAsync()
     {
         StatusMensagem = "Procurando na rede...";
-        await _discovery.BroadcastOnceAsync().ConfigureAwait(true);
-
-        var scanner = new LanScanner(_settings.PortaTcp);
-        var encontrados = await scanner.VarrerAsync().ConfigureAwait(true);
-
-        var novos = 0;
-        foreach (var ip in encontrados)
+        try
         {
-            if (Computadores.Any(c => c.EnderecoIp == ip && c.PortaTcp == _settings.PortaTcp))
+            await _discovery.BroadcastOnceAsync().ConfigureAwait(true);
+
+            var scanner = new LanScanner(_settings.PortaTcp);
+            var encontrados = await scanner.VarrerAsync().ConfigureAwait(true);
+
+            var novos = 0;
+            foreach (var ip in encontrados)
             {
-                continue;
+                if (Computadores.Any(c => c.EnderecoIp == ip && c.PortaTcp == _settings.PortaTcp))
+                {
+                    continue;
+                }
+
+                Computadores.Add(new Computador
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Nome = ip,
+                    EnderecoIp = ip,
+                    PortaTcp = _settings.PortaTcp,
+                    Pareado = false,
+                    Status = StatusComputador.Online,
+                    UltimaVezVisto = DateTime.UtcNow,
+                });
+                novos++;
             }
 
-            Computadores.Add(new Computador
+            if (novos > 0)
             {
-                Id = Guid.NewGuid().ToString(),
-                Nome = ip,
-                EnderecoIp = ip,
-                PortaTcp = _settings.PortaTcp,
-                Pareado = false,
-                Status = StatusComputador.Online,
-                UltimaVezVisto = DateTime.UtcNow,
-            });
-            novos++;
+                try
+                {
+                    Persist();
+                    StatusMensagem = $"{novos} computador(es) encontrado(s) na varredura. Clique em \"Parear\".";
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    StatusMensagem = $"Encontrei {novos} computador(es), mas não consegui salvar a lista agora. Tente novamente em instantes.";
+                    Logger.Warning($"A busca encontrou computadores, mas a lista local não pôde ser salva: {ex.Message}");
+                }
+            }
+            else if (encontrados.Count > 0)
+            {
+                StatusMensagem = "Nenhum computador novo — os encontrados já estão na lista.";
+            }
+            else
+            {
+                StatusMensagem =
+                    $"Nenhum receptor encontrado na rede (porta {_settings.PortaTcp}). " +
+                    "Confirme que o receptor está rodando no outro computador.";
+            }
         }
-
-        if (novos > 0)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+            or InvalidOperationException or System.Net.Sockets.SocketException or OperationCanceledException)
         {
-            Persist();
-            StatusMensagem = $"{novos} computador(es) encontrado(s) na varredura. Clique em \"Parear\".";
-        }
-        else if (encontrados.Count > 0)
-        {
-            StatusMensagem = "Nenhum computador novo — os encontrados já estão na lista.";
-        }
-        else
-        {
-            StatusMensagem =
-                $"Nenhum receptor encontrado na rede (porta {_settings.PortaTcp}). " +
-                "Confirme que o receptor está rodando no outro computador.";
+            StatusMensagem = $"Não foi possível concluir a busca agora. Tente novamente em instantes. ({ex.Message})";
+            Logger.Warning($"Falha ao procurar receptores na rede: {ex.Message}");
         }
     }
 
@@ -1571,6 +1588,131 @@ public sealed class ComputadoresViewModel : ViewModelBase
         foreach (var computador in Computadores)
             computador.EsteComputador = EhComputadorLocal(computador);
         _store.Save(Computadores);
+    }
+
+    public void RegistrarImagensPersistentes(Computador computador, IEnumerable<ImagemMonitor> imagens)
+    {
+        var ativas = computador.ImagensPersistentesAtivas.ToList();
+        foreach (var imagem in imagens)
+        {
+            if (string.IsNullOrWhiteSpace(imagem.PersistentId)) continue;
+            ativas.RemoveAll(item => string.Equals(item.Id, imagem.PersistentId, StringComparison.Ordinal));
+            ativas.Add(new ImagemPersistenteAtiva
+            {
+                Id = imagem.PersistentId,
+                ComputerId = computador.Id,
+                Nome = imagem.Image.Name,
+                MonitorIndex = imagem.MonitorIndex,
+                XPercent = imagem.XPercent ?? 50,
+                YPercent = imagem.YPercent ?? 50,
+                WidthPercent = imagem.WidthPercent,
+            });
+        }
+        computador.ImagensPersistentesAtivas = ativas;
+        try { Persist(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Logger.Warning($"Imagem persistente exibida em {computador.NomeExibicao}, mas o controle local não pôde ser salvo: {ex.Message}");
+        }
+    }
+
+    public async Task ControlarImagemPersistenteAsync(ImagemPersistenteAtiva imagem, string acao)
+    {
+        if (!_cloud.HasPermission("send_media"))
+        {
+            StatusMensagem = "Este painel não tem permissão para controlar imagens.";
+            return;
+        }
+        var computador = Computadores.FirstOrDefault(item =>
+            string.Equals(item.Id, imagem.ComputerId, StringComparison.OrdinalIgnoreCase));
+        if (computador is null || computador.EhOwner)
+        {
+            StatusMensagem = "Não é possível controlar uma imagem neste computador.";
+            return;
+        }
+
+        var xAntigo = imagem.XPercent;
+        var yAntigo = imagem.YPercent;
+        var tamanhoAntigo = imagem.WidthPercent;
+        switch (acao)
+        {
+            case "left": imagem.XPercent = Math.Clamp(imagem.XPercent - 5, 0, 100); acao = "move"; break;
+            case "right": imagem.XPercent = Math.Clamp(imagem.XPercent + 5, 0, 100); acao = "move"; break;
+            case "up": imagem.YPercent = Math.Clamp(imagem.YPercent - 5, 0, 100); acao = "move"; break;
+            case "down": imagem.YPercent = Math.Clamp(imagem.YPercent + 5, 0, 100); acao = "move"; break;
+            case "smaller": imagem.WidthPercent = Math.Clamp(imagem.WidthPercent - 5,
+                ProtocolConstants.MinImageWidthPercent, ProtocolConstants.MaxImageWidthPercent); acao = "resize"; break;
+            case "larger": imagem.WidthPercent = Math.Clamp(imagem.WidthPercent + 5,
+                ProtocolConstants.MinImageWidthPercent, ProtocolConstants.MaxImageWidthPercent); acao = "resize"; break;
+        }
+        if (acao is not ("move" or "resize" or "remove")) return;
+
+        try
+        {
+            var enviou = false;
+            if (computador.Pareado && !string.IsNullOrWhiteSpace(computador.Token))
+            {
+                var resultado = await _client.SendNotificationAsync(
+                    computador.EnderecoIp, computador.PortaTcp, computador.Token,
+                    title: "Controle de imagem", message: string.Empty, allowReply: false,
+                    modoExibicao: ProtocolConstants.DisplayMode.ImageControl,
+                    imageControlId: imagem.Id, imageControlAction: acao,
+                    imageControlXPercent: imagem.XPercent, imageControlYPercent: imagem.YPercent,
+                    imageControlWidthPercent: imagem.WidthPercent).ConfigureAwait(true);
+                enviou = resultado.Delivered;
+                if (!enviou && computador.RegistradoNaNuvem)
+                {
+                    await _cloud.QueuePersistentImageControlAsync(computador.Id, imagem.Id, acao,
+                        imagem.XPercent, imagem.YPercent, imagem.WidthPercent).ConfigureAwait(true);
+                    enviou = true;
+                }
+                else if (!enviou)
+                {
+                    StatusMensagem = $"Não consegui falar com {computador.NomeExibicao}: {resultado.ErrorMessage}";
+                }
+            }
+            else if (computador.RegistradoNaNuvem)
+            {
+                await _cloud.QueuePersistentImageControlAsync(computador.Id, imagem.Id, acao,
+                    imagem.XPercent, imagem.YPercent, imagem.WidthPercent).ConfigureAwait(true);
+                enviou = true;
+            }
+
+            if (!enviou)
+            {
+                imagem.XPercent = xAntigo;
+                imagem.YPercent = yAntigo;
+                imagem.WidthPercent = tamanhoAntigo;
+                if (string.IsNullOrWhiteSpace(StatusMensagem))
+                    StatusMensagem = $"Não consegui controlar a imagem em {computador.NomeExibicao}.";
+                return;
+            }
+            if (acao == "remove")
+            {
+                computador.ImagensPersistentesAtivas.Remove(imagem);
+                computador.ImagensPersistentesAtivas = computador.ImagensPersistentesAtivas.ToList();
+                StatusMensagem = $"Imagem removida de {computador.NomeExibicao}.";
+            }
+            else
+            {
+                StatusMensagem = acao == "move"
+                    ? $"Posição da imagem atualizada em {computador.NomeExibicao}."
+                    : $"Tamanho da imagem atualizado em {computador.NomeExibicao}.";
+            }
+            try { Persist(); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Logger.Warning($"Controle da imagem enviado, mas a configuração local não pôde ser salva: {ex.Message}");
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException
+            or UnauthorizedAccessException or InvalidOperationException)
+        {
+            imagem.XPercent = xAntigo;
+            imagem.YPercent = yAntigo;
+            imagem.WidthPercent = tamanhoAntigo;
+            StatusMensagem = $"Não consegui controlar a imagem em {computador.NomeExibicao}: {ex.Message}";
+        }
     }
 
     private static List<MonitorInfo> MonitoresOuPadrao(IReadOnlyList<MonitorInfo>? monitores) =>

@@ -112,11 +112,12 @@ public static class ProtocolConstants
         public const string RestoreWallpaper = "restore_wallpaper";
         public const string LockScreen = "lock_screen";
         public const string Carousel = "carousel";
+        public const string ImageControl = "image_control";
 
         public static readonly IReadOnlySet<string> All = new HashSet<string>
         {
             Toast, CenterImage, CenterVideo, Audio, CenterAlert, CenterMessage, Wallpaper, RestoreWallpaper,
-            LockScreen, Carousel,
+            LockScreen, Carousel, ImageControl,
         };
     }
 

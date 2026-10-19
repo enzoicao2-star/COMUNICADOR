@@ -361,19 +361,6 @@
                                             </Style>
                                         </CheckBox.Style>
                                     </CheckBox>
-                                    <Button Content="Definir monitor" Margin="8,0,0,6"
-                                            Click="SelecionarMonitor_Click"
-                                            ToolTip="Escolha em qual monitor a imagem ou o vídeo aparecerá">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource BotaoSecundario}">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding TemAudio}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
-                                                    <DataTrigger Binding="{Binding AlterarImagemSistema}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
                                 </WrapPanel>
                                 <TextBlock Text="{Binding ResumoTransicoes}" Margin="0,0,0,7">
                                     <TextBlock.Style>
@@ -555,7 +542,7 @@
                             <Grid>
                                 <StackPanel>
                                     <TextBlock Text="Destino da mídia" Style="{StaticResource RotuloCampo}" />
-                                    <TextBlock Text="Escolha os monitores numa janela própria. O papel de parede atual aparece atrás da mídia, e você pode soltar um arquivo diretamente no monitor desejado."
+                                    <TextBlock Text="Abra a configuração dentro do programa para escolher o monitor, carregar a imagem e ajustar posição e tamanho."
                                                Style="{StaticResource Subtitulo}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,10" />
                                 </StackPanel>
                                 <Button HorizontalAlignment="Right" VerticalAlignment="Center" Content="Definir monitor"
@@ -640,6 +627,7 @@
             </controls:ResponsiveColumnsPanel>
         </ScrollViewer>
     </DockPanel>
+    <ContentControl x:Name="PaginaDefinirMonitor" Panel.ZIndex="20" Visibility="Collapsed" />
 
     <Grid x:Name="DestinatariosOverlay" Panel.ZIndex="20" Visibility="Collapsed"
           Background="Transparent" MouseDown="FecharOverlayAoClicarFora">

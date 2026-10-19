@@ -156,6 +156,26 @@ public sealed class ComunicadorMessage
     [JsonPropertyName("allow_manual_close")]
     public bool? AllowManualClose { get; set; }
 
+    [JsonPropertyName("image_control_id")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ImageControlId { get; set; }
+
+    [JsonPropertyName("image_control_action")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ImageControlAction { get; set; }
+
+    [JsonPropertyName("image_control_x_percent")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? ImageControlXPercent { get; set; }
+
+    [JsonPropertyName("image_control_y_percent")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? ImageControlYPercent { get; set; }
+
+    [JsonPropertyName("image_control_width_percent")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ImageControlWidthPercent { get; set; }
+
     [JsonPropertyName("appearance")]
     public AparenciaNotificacao? Appearance { get; set; }
 
