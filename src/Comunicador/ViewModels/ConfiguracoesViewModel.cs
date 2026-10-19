@@ -538,7 +538,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         _nomePainel = perfil.NomePublico;
         OnPropertyChanged(nameof(NomePainel));
         _client.UpdatePanelName(perfil.NomePublico);
-        SettingsStore.Save(_settings);
+        SettingsStore.SaveBestEffort(_settings);
     });
 
     private void OnGlobalConfigReceived(ConfiguracaoGlobalPrograma config) => UiDispatcher.Invoke(() =>
@@ -607,7 +607,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         OnPropertyChanged(nameof(PodeAlterarInicializacaoLocal));
         OnPropertyChanged(nameof(ExibirPoliticaInicializacaoGlobal));
         AtualizarSelecaoPaletas();
-        SettingsStore.Save(_settings);
+        SettingsStore.SaveBestEffort(_settings);
         ThemeService.Apply(_settings);
         ThemeService.ApplyCardAppearance(_settings);
         ThemeService.SetReduceMotion(_settings.ReduzirMovimento);
@@ -711,7 +711,7 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         _settings.TransparenciaCards = TransparenciaCards;
         _settings.BlurCards = BlurCards;
         _settings.VelocidadeFundo = VelocidadeFundo;
-        SettingsStore.Save(_settings);
+        var salvoLocalmente = SettingsStore.SaveBestEffort(_settings);
         _client.UpdatePanelName(_settings.NomePainel);
         var perfilAtual = _perfis.Obter(_settings.PainelId);
         var badges = perfilAtual?.Badges.Select(b => b.Clone()).ToList() ?? new List<BadgeUsuario>();
@@ -741,9 +741,10 @@ public sealed class ConfiguracoesViewModel : ViewModelBase
         _embeddedReceptorServer.AtualizarDisponibilidade();
         StatusReceptorEmbutido = CalcularStatusReceptor();
 
-        StatusOperacao = automatico
-            ? "Salvo automaticamente neste painel."
-            : "Configurações salvas neste painel.";
+        StatusOperacao = !salvoLocalmente
+            ? "Configurações aplicadas nesta sessão, mas o arquivo local está ocupado. Tente salvar novamente."
+            : automatico ? "Salvo automaticamente neste painel."
+                : "Configurações salvas neste painel.";
     }
 
     private string CalcularStatusReceptor() =>

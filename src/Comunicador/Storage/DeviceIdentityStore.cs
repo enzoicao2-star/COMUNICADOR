@@ -20,9 +20,10 @@ public static class DeviceIdentityStore
             AppPaths.EnsureCreated();
             try
             {
-                if (File.Exists(AppPaths.DeviceIdentityFile))
+                var identityJson = AtomicFileStore.ReadAllTextWithRecovery(AppPaths.DeviceIdentityFile);
+                if (identityJson is not null)
                 {
-                    using var document = JsonDocument.Parse(File.ReadAllText(AppPaths.DeviceIdentityFile));
+                    using var document = JsonDocument.Parse(identityJson);
                     if (document.RootElement.TryGetProperty("device_id", out var value)
                         && Guid.TryParse(value.GetString(), out var existing))
                         return existing.ToString();
@@ -36,7 +37,13 @@ public static class DeviceIdentityStore
             var id = Guid.TryParse(legacyPanelId, out var legacy)
                 ? legacy
                 : LerIdentidadeDoReceptor() ?? Guid.NewGuid();
-            Save(id.ToString(), hasPanel: true);
+            try { Save(id.ToString(), hasPanel: true); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Configurações e receptor já podem fornecer a identidade estável.
+                // Uma falha de escrita local não deve impedir a abertura do painel.
+                Services.Logger.Warning($"A identidade local será salva novamente: {ex.Message}", "armazenamento");
+            }
             return id.ToString();
         }
     }
@@ -75,9 +82,10 @@ public static class DeviceIdentityStore
             var blocked = mediaBlocked ?? false;
             try
             {
-                if (File.Exists(AppPaths.DeviceIdentityFile))
+                var currentJson = AtomicFileStore.ReadAllTextWithRecovery(AppPaths.DeviceIdentityFile);
+                if (currentJson is not null)
                 {
-                    using var current = JsonDocument.Parse(File.ReadAllText(AppPaths.DeviceIdentityFile));
+                    using var current = JsonDocument.Parse(currentJson);
                     if (current.RootElement.TryGetProperty("created_at", out var created))
                         createdAt = created.GetString() ?? createdAt;
                     if (!mediaBlocked.HasValue && current.RootElement.TryGetProperty("media_blocked", out var media))
@@ -94,7 +102,9 @@ public static class DeviceIdentityStore
                 media_blocked = blocked,
                 created_at = createdAt,
             }, new JsonSerializerOptions { WriteIndented = true });
-            AtomicFileStore.WriteAllText(AppPaths.DeviceIdentityFile, payload);
+            if (!string.Equals(AtomicFileStore.ReadAllTextWithRecovery(AppPaths.DeviceIdentityFile),
+                payload, StringComparison.Ordinal))
+                AtomicFileStore.WriteAllTextWithRecovery(AppPaths.DeviceIdentityFile, payload);
         }
     }
 

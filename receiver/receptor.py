@@ -49,7 +49,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.26"
+RECEIVER_VERSION = "2.5.27"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -1376,13 +1376,19 @@ class CloudDeliveryWorker(threading.Thread):
         temporario = self._session_path.with_name(
             f"{self._session_path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
         recuperacao = self._session_path.with_name(self._session_path.name + ".recovery")
+        snapshot_retido = False
         try:
             self._session_path.parent.mkdir(parents=True, exist_ok=True)
             temporario.write_text(json.dumps(session, indent=2), encoding="utf-8")
             try:
                 temporario.replace(self._session_path)
             except OSError:
-                temporario.replace(recuperacao)
+                try:
+                    temporario.replace(recuperacao)
+                except OSError:
+                    # A escrita terminou; o arquivo exclusivo também serve como
+                    # cópia persistente quando o Windows impede renomeações.
+                    snapshot_retido = temporario.is_file()
             else:
                 try:
                     if recuperacao.stat().st_mtime_ns <= self._session_path.stat().st_mtime_ns:
@@ -1392,14 +1398,36 @@ class CloudDeliveryWorker(threading.Thread):
         except OSError as exc:
             logging.warning("Sessão da nuvem não pôde ser salva localmente: %s", exc)
         finally:
+            if not snapshot_retido:
+                try:
+                    temporario.unlink(missing_ok=True)
+                except OSError:
+                    pass
             try:
-                temporario.unlink(missing_ok=True)
+                snapshots = self._session_snapshot_paths()
+                snapshots.sort(key=lambda path: path.stat().st_mtime_ns, reverse=True)
+                for antigo in snapshots[3:]:
+                    try:
+                        antigo.unlink()
+                    except OSError:
+                        pass
             except OSError:
                 pass
+
+    def _session_snapshot_paths(self):
+        padrao = re.compile(
+            rf"{re.escape(self._session_path.name)}\.\d+\.[0-9a-f]{{32}}\.tmp",
+            re.IGNORECASE)
+        return [path for path in self._session_path.parent.glob(
+            self._session_path.name + ".*.tmp") if padrao.fullmatch(path.name)]
 
     def _ler_sessao_arquivo(self):
         recuperacao = self._session_path.with_name(self._session_path.name + ".recovery")
         arquivos = [self._session_path, recuperacao]
+        try:
+            arquivos.extend(self._session_snapshot_paths())
+        except OSError:
+            pass
 
         def data_modificacao(path):
             try:

@@ -701,7 +701,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
             ordem.Insert(Math.Clamp(primeiroIndice, 0, ordem.Count), novoId);
             alterou = true;
         }
-        if (alterou) SettingsStore.Save(_settings);
+        if (alterou) SettingsStore.SaveBestEffort(_settings);
     }
 
     private bool PodeEnviarComandoAdmin(object? param, string command) =>
@@ -1125,7 +1125,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
         _settings.OrdemComputadoresPorPainel ??= new Dictionary<string, List<string>>();
         _settings.OrdemComputadoresPorPainel[_settings.PainelId] =
             Computadores.Select(computador => computador.Id).ToList();
-        SettingsStore.Save(_settings);
+        if (!SettingsStore.SaveBestEffort(_settings))
+            StatusMensagem = "A ordem foi aplicada nesta sessão, mas o arquivo local está ocupado.";
     }
 
     /// <summary>Um receptor abriu conexao para este painel e se registrou. Ele ja chega

@@ -49,6 +49,30 @@ public sealed class RepositoryTests
     }
 
     [Fact]
+    public void JsonStore_ConservaSnapshotQuandoPrincipalERecuperacaoEstaoBloqueados()
+    {
+        WithTemporaryStore(directory =>
+        {
+            var path = Path.Combine(directory, "history.json");
+            File.WriteAllText(path, "[]");
+            File.WriteAllText(path + ".recovery", "[]");
+            var store = new JsonStore<HistoricoEntry>(path);
+
+            using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            using (new FileStream(path + ".recovery", FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                for (var index = 0; index < 5; index++)
+                    store.Save([new HistoricoEntry { Id = $"snapshot-{index}" }]);
+                Assert.Equal("snapshot-4", Assert.Single(store.Load()).Id);
+                Assert.InRange(Directory.EnumerateFiles(directory, "history.json.*.tmp").Count(), 1, 3);
+            }
+
+            store.Save([new HistoricoEntry { Id = "primary-restored" }]);
+            Assert.Equal("primary-restored", Assert.Single(store.Load()).Id);
+        });
+    }
+
+    [Fact]
     public async Task AtomicFileStore_ConcurrentWritersLeaveOneCompleteFile()
     {
         var directory = Path.Combine(Path.GetTempPath(), "Comunicador-tests", Guid.NewGuid().ToString("N"));
@@ -100,6 +124,29 @@ public sealed class RepositoryTests
     }
 
     [Fact]
+    public void AtomicFileStore_ConservaSnapshotQuandoOsDoisDestinosEstaoBloqueados()
+    {
+        WithTemporaryStore(directory =>
+        {
+            var path = Path.Combine(directory, "config.json");
+            File.WriteAllText(path, "{\"version\":1}");
+            File.WriteAllText(path + ".recovery", "{\"version\":1}");
+
+            using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            using (new FileStream(path + ".recovery", FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                for (var version = 2; version <= 6; version++)
+                    AtomicFileStore.WriteAllTextWithRecovery(path, $"{{\"version\":{version}}}");
+                Assert.Equal("{\"version\":6}", AtomicFileStore.ReadAllTextWithRecovery(path));
+                Assert.InRange(Directory.EnumerateFiles(directory, "config.json.*.tmp").Count(), 1, 3);
+            }
+
+            AtomicFileStore.WriteAllTextWithRecovery(path, "{\"version\":7}");
+            Assert.Equal("{\"version\":7}", AtomicFileStore.ReadAllTextWithRecovery(path));
+        });
+    }
+
+    [Fact]
     public void Historico_NaoInterrompeOperacaoQuandoArquivoPrincipalERecuperacaoEstaoBloqueados()
     {
         WithTemporaryStore(directory =>
@@ -119,6 +166,28 @@ public sealed class RepositoryTests
 
                 Assert.Null(exception);
                 Assert.Equal("kept-in-memory", Assert.Single(history.Itens).Id);
+            }
+        });
+    }
+
+    [Fact]
+    public void Perfis_MantemEdicaoEmMemoriaQuandoArquivosLocaisEstaoBloqueados()
+    {
+        WithTemporaryStore(directory =>
+        {
+            var path = Path.Combine(directory, "profiles.json");
+            File.WriteAllText(path, "[]");
+            File.WriteAllText(path + ".recovery", "[]");
+            var repository = new PerfilComputadorRepository(new JsonStore<PerfilComputador>(path));
+
+            using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            using (new FileStream(path + ".recovery", FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                var exception = Record.Exception(() => repository.Salvar(
+                    "computer-1", "Nome atualizado", false, [], "computer-1"));
+
+                Assert.Null(exception);
+                Assert.Equal("Nome atualizado", repository.Obter("computer-1")?.NomePublico);
             }
         });
     }

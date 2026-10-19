@@ -555,5 +555,16 @@
       "Mantém a comunicação na nuvem ativa mesmo quando não é possível salvar a sessão local naquele momento.",
       "O Receptor 2.5.26 recupera a sessão compartilhada e evita que disputas pelo arquivo interrompam as entregas."
     ]
+  },
+  {
+    "version": "2.5.52.0",
+    "summary": "Mantém o Comunicador aberto e conserva dados locais quando o Windows bloqueia a troca de arquivos.",
+    "changes": [
+      "Carrega as preferências existentes mesmo quando uma atualização do arquivo está temporariamente indisponível.",
+      "Aplica migrações de configuração em memória com uma única tentativa de gravação.",
+      "Evita interromper a abertura e a sincronização por falhas ao salvar metadados locais.",
+      "Conserva uma cópia completa de preferências, sessão, histórico e perfis quando os arquivos principais estão bloqueados.",
+      "O Receptor 2.5.27 também lê e conserva essas cópias da sessão compartilhada."
+    ]
   }
 ]

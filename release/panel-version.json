@@ -1,12 +1,13 @@
 {
-    "version":  "2.5.51.0",
+    "version":  "2.5.52.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "9DE863F0F81DD2B10991B45CAAB64FB67E691511C4F04AB36D65F80F200211BD",
-    "summary":  "Corrige a abertura e a sessão compartilhada entre Comunicador e Receptor.",
+    "sha256":  "53E503EA7FA7B96336F903A158CC9581B5CC9F768283D4E4B48A9E154F8CA5A6",
+    "summary":  "Mantém o Comunicador aberto e conserva dados locais quando o Windows bloqueia a troca de arquivos.",
     "changes":  [
-                    "Salva as preferências em uma cópia de recuperação quando outro processo mantém o arquivo principal aberto.",
-                    "Lê a cópia mais recente e retorna ao arquivo principal assim que o bloqueio termina.",
-                    "Mantém a comunicação na nuvem ativa mesmo quando não é possível salvar a sessão local naquele momento.",
-                    "O Receptor 2.5.26 recupera a sessão compartilhada e evita que disputas pelo arquivo interrompam as entregas."
+                    "Carrega as preferências existentes mesmo quando uma atualização do arquivo está temporariamente indisponível.",
+                    "Aplica migrações de configuração em memória com uma única tentativa de gravação.",
+                    "Evita interromper a abertura e a sincronização por falhas ao salvar metadados locais.",
+                    "Conserva uma cópia completa de preferências, sessão, histórico e perfis quando os arquivos principais estão bloqueados.",
+                    "O Receptor 2.5.27 também lê e conserva essas cópias da sessão compartilhada."
                 ]
 }

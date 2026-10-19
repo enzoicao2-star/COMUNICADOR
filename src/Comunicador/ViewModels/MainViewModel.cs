@@ -104,7 +104,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             && !string.Equals(perfilLocal.NomePublico, Settings.NomePainel, StringComparison.Ordinal))
         {
             Settings.NomePainel = perfilLocal.NomePublico;
-            SettingsStore.Save(Settings);
+            SettingsStore.SaveBestEffort(Settings);
         }
 
         _cloudSync = new CloudSyncService(new SupabaseClient(), Settings, perfis);
@@ -460,15 +460,19 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
                     break;
                 case "disable_panel":
                     Settings.EntradaPainelHabilitada = false;
-                    SettingsStore.Save(Settings);
+                    var bloqueioSalvo = SettingsStore.SaveBestEffort(Settings);
                     _embeddedReceptorServer.Stop();
-                    result = "A entrada de conexões locais do painel foi bloqueada.";
+                    result = bloqueioSalvo
+                        ? "A entrada de conexões locais do painel foi bloqueada."
+                        : "A entrada foi bloqueada nesta sessão; o arquivo local está ocupado.";
                     break;
                 case "enable_panel":
                     Settings.EntradaPainelHabilitada = true;
-                    SettingsStore.Save(Settings);
+                    var liberacaoSalva = SettingsStore.SaveBestEffort(Settings);
                     _embeddedReceptorServer.AtualizarDisponibilidade();
-                    result = "A entrada de conexões locais do painel foi habilitada.";
+                    result = liberacaoSalva
+                        ? "A entrada de conexões locais do painel foi habilitada."
+                        : "A entrada foi habilitada nesta sessão; o arquivo local está ocupado.";
                     break;
                 case "reinstall_panel":
                     try

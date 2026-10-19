@@ -617,7 +617,8 @@ public sealed class MensagensViewModel : ViewModelBase
             if (!SetField(ref _transicoesAtivas, value)) return;
             OnPropertyChanged(nameof(ResumoTransicoes));
             _settings.TransicoesAtivas = value;
-            SettingsStore.Save(_settings);
+            if (!SettingsStore.SaveBestEffort(_settings))
+                StatusOperacao = "A opção foi aplicada nesta sessão, mas o arquivo local está ocupado.";
         }
     }
 

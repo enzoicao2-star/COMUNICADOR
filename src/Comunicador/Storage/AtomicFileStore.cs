@@ -1,6 +1,7 @@
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 
 namespace Comunicador.Storage;
 
@@ -34,26 +35,27 @@ public static class AtomicFileStore
     {
         var fullPath = Path.GetFullPath(path);
         var recoveryPath = fullPath + ".recovery";
-        var hasPrimary = File.Exists(fullPath);
-        var hasRecovery = File.Exists(recoveryPath);
-        if (!hasPrimary && !hasRecovery) return null;
+        var candidates = new[] { fullPath, recoveryPath }
+            .Concat(SnapshotPaths(fullPath))
+            .Where(File.Exists)
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .ThenByDescending(candidate => candidate == fullPath ? 0 : candidate == recoveryPath ? 1 : 2)
+            .ToList();
+        if (candidates.Count == 0) return null;
 
-        var recoveryFirst = hasRecovery && (!hasPrimary
-            || File.GetLastWriteTimeUtc(recoveryPath) >= File.GetLastWriteTimeUtc(fullPath));
-        var first = recoveryFirst ? recoveryPath : fullPath;
-        var second = recoveryFirst ? fullPath : recoveryPath;
         Exception? firstError = null;
-        foreach (var candidate in new[] { first, second })
+        foreach (var candidate in candidates)
         {
-            if (!File.Exists(candidate)) continue;
             try
             {
                 using var stream = new FileStream(candidate, FileMode.Open, FileAccess.Read,
                     FileShare.ReadWrite | FileShare.Delete);
                 using var reader = new StreamReader(stream, Encoding.UTF8);
-                return reader.ReadToEnd();
+                var contents = reader.ReadToEnd();
+                using var document = JsonDocument.Parse(contents);
+                if (document.RootElement.ValueKind == JsonValueKind.Object) return contents;
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
             {
                 firstError ??= ex;
             }
@@ -74,6 +76,7 @@ public static class AtomicFileStore
 
         using var mutex = new Mutex(false, MutexName(fullPath));
         var ownsMutex = false;
+        var retainedSnapshot = false;
         var temporary = fullPath + $".{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
         try
         {
@@ -97,19 +100,24 @@ public static class AtomicFileStore
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    MoveWithRetry(temporary, fullPath + ".recovery");
+                    try { MoveWithRetry(temporary, fullPath + ".recovery"); }
+                    catch (Exception recoveryError) when (recoveryError is IOException or UnauthorizedAccessException)
+                    {
+                        // O arquivo já foi gravado e fechado. Mantê-lo com nome exclusivo
+                        // preserva os dados mesmo quando o Windows bloqueia renomeações.
+                        retainedSnapshot = true;
+                    }
                 }
             }
             else
             {
                 MoveWithRetry(temporary, fullPath);
             }
+            if (recoverLockedDestination) PruneSnapshots(fullPath);
         }
         finally
         {
-            try { if (File.Exists(temporary)) File.Delete(temporary); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+            if (!retainedSnapshot) TryDelete(temporary);
             if (ownsMutex) mutex.ReleaseMutex();
         }
     }
@@ -144,6 +152,36 @@ public static class AtomicFileStore
     private static void TryDelete(string path)
     {
         try { File.Delete(path); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    private static IEnumerable<string> SnapshotPaths(string fullPath)
+    {
+        var directory = Path.GetDirectoryName(fullPath)!;
+        if (!Directory.Exists(directory)) return [];
+        var fileName = Path.GetFileName(fullPath);
+        var prefix = fileName + ".";
+        return Directory.EnumerateFiles(directory, fileName + ".*.tmp")
+            .Where(candidate =>
+            {
+                var name = Path.GetFileName(candidate);
+                if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+                var parts = name[prefix.Length..].Split('.');
+                return parts.Length == 3 && int.TryParse(parts[0], out _)
+                    && Guid.TryParseExact(parts[1], "N", out _)
+                    && parts[2].Equals("tmp", StringComparison.OrdinalIgnoreCase);
+            });
+    }
+
+    private static void PruneSnapshots(string fullPath)
+    {
+        try
+        {
+            foreach (var obsolete in SnapshotPaths(fullPath)
+                .OrderByDescending(File.GetLastWriteTimeUtc).Skip(3))
+                TryDelete(obsolete);
+        }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
     }

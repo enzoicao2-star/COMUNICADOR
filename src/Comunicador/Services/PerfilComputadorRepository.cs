@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json;
 using Comunicador.Models;
 using Comunicador.Protocol;
@@ -11,6 +12,7 @@ public sealed class PerfilComputadorRepository
     private readonly JsonStore<PerfilComputador> _store;
     private readonly object _gate = new();
     private readonly List<PerfilComputador> _profiles;
+    private bool _persistFailureReported;
 
     public event Action? Alterado;
 
@@ -241,7 +243,18 @@ public sealed class PerfilComputadorRepository
                 .Take(MaxProfiles).ToHashSet();
             _profiles.RemoveAll(p => !keep.Contains(p));
         }
-        _store.Save(_profiles);
+        try
+        {
+            _store.Save(_profiles);
+            _persistFailureReported = false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            if (_persistFailureReported) return;
+            _persistFailureReported = true;
+            Logger.Warning("Os perfis continuam disponíveis nesta sessão, mas a cópia local está bloqueada.",
+                "armazenamento", ex.ToString());
+        }
     }
 
 }

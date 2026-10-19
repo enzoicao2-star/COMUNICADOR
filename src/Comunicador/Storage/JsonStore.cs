@@ -27,27 +27,13 @@ public sealed class JsonStore<T>
         lock (_lock)
         {
             AppPaths.EnsureCreated();
-            var hasPrimary = File.Exists(_path);
-            var hasRecovery = File.Exists(_recoveryPath);
-            if (!hasPrimary && !hasRecovery)
-            {
-                return new List<T>();
-            }
-
-            // A recovery copy is written only after Windows refuses to replace the
-            // primary file. Prefer whichever copy was written most recently.
-            var recoveryFirst = hasRecovery && (!hasPrimary
-                || File.GetLastWriteTimeUtc(_recoveryPath) >= File.GetLastWriteTimeUtc(_path));
-            if (recoveryFirst)
-            {
-                if (TryLoad(_recoveryPath, out var recovered)) return recovered;
-                if (TryLoad(_path, out var primaryAfterRecoveryFailure)) return primaryAfterRecoveryFailure;
-            }
-            else
-            {
-                if (TryLoad(_path, out var primary)) return primary;
-                if (TryLoad(_recoveryPath, out var recovery)) return recovery;
-            }
+            var candidates = new[] { _path, _recoveryPath }
+                .Concat(SnapshotPaths())
+                .Where(File.Exists)
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .ThenByDescending(candidate => candidate == _path ? 0 : candidate == _recoveryPath ? 1 : 2);
+            foreach (var candidate in candidates)
+                if (TryLoad(candidate, out var items)) return items;
 
             return new List<T>();
         }
@@ -60,6 +46,7 @@ public sealed class JsonStore<T>
             AppPaths.EnsureCreated();
             using var processMutex = new Mutex(false, MutexName(_path));
             var ownsMutex = false;
+            var retainedSnapshot = false;
             var tmpPath = _path + $".{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
             try
             {
@@ -98,17 +85,16 @@ public sealed class JsonStore<T>
                     }
                     catch (Exception recoveryError) when (recoveryError is IOException or UnauthorizedAccessException)
                     {
-                        throw new IOException(
-                            $"Could not save local data to either '{_path}' or its recovery copy.",
-                            new AggregateException(primaryError, recoveryError));
+                        // The complete temporary file is durable. Load() considers
+                        // it until Windows allows a later save to replace the main file.
+                        retainedSnapshot = true;
                     }
                 }
+                PruneSnapshots();
             }
             finally
             {
-                try { if (File.Exists(tmpPath)) File.Delete(tmpPath); }
-                catch (IOException) { }
-                catch (UnauthorizedAccessException) { }
+                if (!retainedSnapshot) TryDelete(tmpPath);
                 if (ownsMutex) processMutex.ReleaseMutex();
             }
         }
@@ -163,6 +149,36 @@ public sealed class JsonStore<T>
     private static void TryDelete(string path)
     {
         try { File.Delete(path); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    private IEnumerable<string> SnapshotPaths()
+    {
+        var directory = Path.GetDirectoryName(_path)!;
+        if (!Directory.Exists(directory)) return [];
+        var fileName = Path.GetFileName(_path);
+        var prefix = fileName + ".";
+        return Directory.EnumerateFiles(directory, fileName + ".*.tmp")
+            .Where(candidate =>
+            {
+                var name = Path.GetFileName(candidate);
+                if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+                var parts = name[prefix.Length..].Split('.');
+                return parts.Length == 3 && int.TryParse(parts[0], out _)
+                    && Guid.TryParseExact(parts[1], "N", out _)
+                    && parts[2].Equals("tmp", StringComparison.OrdinalIgnoreCase);
+            });
+    }
+
+    private void PruneSnapshots()
+    {
+        try
+        {
+            foreach (var obsolete in SnapshotPaths()
+                .OrderByDescending(File.GetLastWriteTimeUtc).Skip(3))
+                TryDelete(obsolete);
+        }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
     }

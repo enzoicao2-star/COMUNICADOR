@@ -11,6 +11,7 @@ public static class SettingsStore
 {
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
     private static readonly object Gate = new();
+    private static int _noncriticalSaveFailureLogged;
 
     public static AppSettings Load()
     {
@@ -20,7 +21,7 @@ public static class SettingsStore
         {
             var fresh = new AppSettings();
             fresh.PainelId = DeviceIdentityStore.GetOrCreate();
-            Save(fresh);
+            SaveBestEffort(fresh);
             return fresh;
         }
 
@@ -29,10 +30,11 @@ public static class SettingsStore
             var settings = JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings();
             settings.AceitarMensagensDeOutrosPaineis = true;
             var stableId = DeviceIdentityStore.GetOrCreate(settings.PainelId);
+            var needsSave = false;
             if (!string.Equals(settings.PainelId, stableId, StringComparison.OrdinalIgnoreCase))
             {
                 settings.PainelId = stableId;
-                Save(settings);
+                needsSave = true;
             }
             TryMarkPanelInstalled(settings);
             if (settings.VersaoConfiguracao < 2)
@@ -40,28 +42,29 @@ public static class SettingsStore
                 settings.VersaoConfiguracao = 2;
                 settings.IntervaloPingSegundos = 5;
                 settings.IntensidadeFundo = 100;
-                Save(settings);
+                needsSave = true;
             }
             if (settings.VersaoConfiguracao < 3)
             {
                 settings.VersaoConfiguracao = 3;
                 settings.IniciarComWindows = true;
                 settings.PreferenciaInicializacaoComWindows = true;
-                Save(settings);
+                needsSave = true;
             }
             if (settings.VersaoConfiguracao < 4)
             {
                 settings.VersaoConfiguracao = 4;
                 settings.TransicoesAtivas = false;
-                Save(settings);
+                needsSave = true;
             }
+            if (needsSave) SaveBestEffort(settings);
             return settings;
         }
         catch (JsonException)
         {
             var fresh = new AppSettings();
             fresh.PainelId = DeviceIdentityStore.GetOrCreate();
-            Save(fresh);
+            SaveBestEffort(fresh);
             return fresh;
         }
     }
@@ -72,8 +75,27 @@ public static class SettingsStore
         {
             AppPaths.EnsureCreated();
             var json = JsonSerializer.Serialize(settings, Options);
-            AtomicFileStore.WriteAllTextWithRecovery(AppPaths.ConfiguracoesFile, json);
+            if (!string.Equals(AtomicFileStore.ReadAllTextWithRecovery(AppPaths.ConfiguracoesFile),
+                json, StringComparison.Ordinal))
+                AtomicFileStore.WriteAllTextWithRecovery(AppPaths.ConfiguracoesFile, json);
             TryMarkPanelInstalled(settings);
+        }
+    }
+
+    public static bool SaveBestEffort(AppSettings settings)
+    {
+        try
+        {
+            Save(settings);
+            Interlocked.Exchange(ref _noncriticalSaveFailureLogged, 0);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            if (Interlocked.Exchange(ref _noncriticalSaveFailureLogged, 1) == 0)
+                Logger.Warning($"As preferências continuam em memória; o arquivo local será atualizado depois: {ex.Message}",
+                    "armazenamento");
+            return false;
         }
     }
 

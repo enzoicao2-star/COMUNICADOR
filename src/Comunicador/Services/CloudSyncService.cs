@@ -562,7 +562,8 @@ public sealed class CloudSyncService : IDisposable
                 or UnauthorizedAccessException or JsonException)
             {
                 Status = $"Supabase indisponível: {ex.Message}";
-                Logger.Error($"Falha na sincronização com o Supabase: {ex.Message}",
+                var summary = ex is IOException or UnauthorizedAccessException ? ex.ToString() : ex.Message;
+                Logger.Error($"Falha na sincronização com o Supabase: {summary}",
                     "sincronizacao", ex.ToString());
                 StateChanged?.Invoke();
             }
@@ -606,7 +607,7 @@ public sealed class CloudSyncService : IDisposable
         IsAdmin = isAdmin;
         AdminDeviceId = adminDeviceId;
         _settings.EstePainelEhOwner = isAdmin;
-        if (changed) SettingsStore.Save(_settings);
+        if (changed) SettingsStore.SaveBestEffort(_settings);
     }
 
     public void Dispose()

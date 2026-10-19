@@ -43,7 +43,7 @@ def test_cloud_session_uses_recovery_when_primary_is_locked(tmp_path, monkeypatc
     assert not list(tmp_path.glob("*.tmp"))
 
 
-def test_cloud_session_keeps_working_when_local_save_fails(tmp_path, monkeypatch):
+def test_cloud_session_keeps_working_and_preserves_snapshot_when_moves_fail(tmp_path, monkeypatch):
     worker = _session_worker(tmp_path)
     worker._json_request = lambda *_args: {
         "access_token": "in-memory", "refresh_token": "token", "expires_in": 3600}
@@ -53,7 +53,13 @@ def test_cloud_session_keeps_working_when_local_save_fails(tmp_path, monkeypatch
 
     assert session["access_token"] == "in-memory"
     assert session["expires_at"] > time.time()
-    assert not list(tmp_path.glob("*.tmp"))
+    assert len(list(tmp_path.glob("*.tmp"))) == 1
+    assert worker._ler_sessao_arquivo()["access_token"] == "in-memory"
+
+    for index in range(5):
+        worker._salvar_sessao({"access_token": f"new-{index}", "expires_at": int(time.time()) + 3600})
+    assert 1 <= len(list(tmp_path.glob("*.tmp"))) <= 3
+    assert worker._ler_sessao_arquivo()["access_token"] == "new-4"
 
 
 def test_cloud_session_reuses_newer_session_from_panel(tmp_path):
