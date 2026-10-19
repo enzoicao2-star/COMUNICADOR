@@ -30,6 +30,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private readonly object _cloudReceiverUpdateSync = new();
     private readonly Dictionary<string, DateTimeOffset> _cloudReceiverUpdatesPending =
         new(StringComparer.OrdinalIgnoreCase);
+    private bool _computerStoreFailureReported;
     private string? _statusMensagem;
     private string _testeComunicacaoStatus = "O teste envia mídia de amostra e mede a transferência sem exibi-la.";
     private string _tipoMidiaTeste = "image";
@@ -772,10 +773,10 @@ public sealed class ComputadoresViewModel : ViewModelBase
             CommandManager.InvalidateRequerySuggested();
             ResultadoComandoRemoto = $"> {line}\nAguardando resposta de {computador.NomeExibicao}…";
 
-            var tentativaLocal = string.IsNullOrWhiteSpace(computador.EnderecoIp) || computador.PortaTcp <= 0
+            var tentativaLocal = !PodeEnviarCmdRemotoPelaRedeLocal(computador)
                 ? new RemoteCommandAttempt(false, true, null, null)
                 : await _client.SendRemoteCommandAsync(
-                    computador.EnderecoIp, computador.PortaTcp, computador.Token ?? string.Empty,
+                    computador.EnderecoIp!, computador.PortaTcp, computador.Token!,
                     line, requestId,
                     () => UiDispatcher.Invoke(() =>
                     {
@@ -1587,8 +1588,25 @@ public sealed class ComputadoresViewModel : ViewModelBase
     {
         foreach (var computador in Computadores)
             computador.EsteComputador = EhComputadorLocal(computador);
-        _store.Save(Computadores);
+        try
+        {
+            _store.Save(Computadores);
+            _computerStoreFailureReported = false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            StatusMensagem = "Os dados continuam disponíveis nesta sessão, mas a cópia local está temporariamente bloqueada.";
+            if (_computerStoreFailureReported) return;
+            _computerStoreFailureReported = true;
+            Logger.Warning("A lista de computadores não pôde ser salva localmente; será tentada novamente na próxima alteração.",
+                "armazenamento", ex.ToString());
+        }
     }
+
+    internal static bool PodeEnviarCmdRemotoPelaRedeLocal(Computador computador) =>
+        !string.IsNullOrWhiteSpace(computador.EnderecoIp)
+        && computador.PortaTcp > 0
+        && !string.IsNullOrWhiteSpace(computador.Token);
 
     public void RegistrarImagensPersistentes(Computador computador, IEnumerable<ImagemMonitor> imagens)
     {

@@ -562,7 +562,8 @@ public sealed class CloudSyncService : IDisposable
                 or UnauthorizedAccessException or JsonException)
             {
                 Status = $"Supabase indisponível: {ex.Message}";
-                Logger.Error($"Falha na sincronização com o Supabase: {ex.Message}");
+                Logger.Error($"Falha na sincronização com o Supabase: {ex.Message}",
+                    "sincronizacao", ex.ToString());
                 StateChanged?.Invoke();
             }
 

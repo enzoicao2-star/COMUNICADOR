@@ -306,9 +306,8 @@ public sealed class SupabaseClient
     private static void SaveSession(CloudSession session)
     {
         AppPaths.EnsureCreated();
-        var temporary = AppPaths.CloudSessionFile + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(session, JsonOptions));
-        File.Move(temporary, AppPaths.CloudSessionFile, true);
+        AtomicFileStore.WriteAllText(AppPaths.CloudSessionFile,
+            JsonSerializer.Serialize(session, JsonOptions));
     }
 
     private static async Task<T?> DeserializeAsync<T>(HttpResponseMessage response, CancellationToken ct)

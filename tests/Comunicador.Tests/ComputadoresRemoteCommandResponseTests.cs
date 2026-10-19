@@ -10,6 +10,22 @@ namespace Comunicador.Tests;
 public sealed class ComputadoresRemoteCommandResponseTests
 {
     [Fact]
+    public void Cmd_remoto_sem_token_local_usa_fila_em_nuvem()
+    {
+        var computador = new Computador
+        {
+            EnderecoIp = "192.168.100.169",
+            PortaTcp = 57933,
+        };
+
+        Assert.False(ComputadoresViewModel.PodeEnviarCmdRemotoPelaRedeLocal(computador));
+
+        computador.Token = "token-pareado";
+
+        Assert.True(ComputadoresViewModel.PodeEnviarCmdRemotoPelaRedeLocal(computador));
+    }
+
+    [Fact]
     public void Formata_resposta_rapida_do_comando_para_o_computador_e_pedido_atuais()
     {
         using var payload = JsonDocument.Parse("""

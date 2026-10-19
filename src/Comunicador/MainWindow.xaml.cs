@@ -639,6 +639,7 @@ public partial class MainWindow : Window
     internal void PrepareForBackgroundStartup()
     {
         _iniciadoEmSegundoPlano = true;
+        _trayIcon.Visible = true;
         ShowInTaskbar = false;
         ShowActivated = false;
         WindowState = WindowState.Minimized;
@@ -649,6 +650,8 @@ public partial class MainWindow : Window
     {
         if (_allowExit || !string.IsNullOrWhiteSpace(App.BenchmarkFile)) return;
         e.Cancel = true;
+        _viewModel?.Mensagens.DescartarRascunhoDeMidia();
+        _trayIcon.Visible = true;
         Hide();
     }
 
@@ -663,6 +666,7 @@ public partial class MainWindow : Window
             Opacity = 1;
         }
         Show();
+        _trayIcon.Visible = false;
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
         Activate();
         if (iniciouOculto && _viewModel is not null)

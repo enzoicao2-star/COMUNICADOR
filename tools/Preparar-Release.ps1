@@ -51,7 +51,7 @@ foreach ($nativeLibrary in @('PresentationNative_cor3.dll', 'wpfgfx_cor3.dll',
 }
 
 $smokeMarker = Join-Path ([IO.Path]::GetTempPath()) ('Comunicador-smoke-' + [guid]::NewGuid().ToString('N') + '.txt')
-$smokeExtractionRoot = Join-Path $sourceDirectory '.smoke-bundle-extraction'
+$smokeExtractionRoot = Join-Path $sourceDirectory ('.smoke-bundle-extraction-' + [guid]::NewGuid().ToString('N'))
 $previousBundleExtractionRoot = $env:DOTNET_BUNDLE_EXTRACT_BASE_DIR
 New-Item -ItemType Directory -Force -Path $smokeExtractionRoot | Out-Null
 try {
@@ -69,6 +69,11 @@ try {
 finally {
     $env:DOTNET_BUNDLE_EXTRACT_BASE_DIR = $previousBundleExtractionRoot
     Remove-Item -LiteralPath $smokeMarker -Force -ErrorAction SilentlyContinue
+    $sourcePrefix = [IO.Path]::GetFullPath($sourceDirectory).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    $smokePath = [IO.Path]::GetFullPath($smokeExtractionRoot)
+    if ($smokePath.StartsWith($sourcePrefix, [StringComparison]::OrdinalIgnoreCase) -and [IO.Path]::GetFileName($smokePath).StartsWith('.smoke-bundle-extraction-', [StringComparison]::Ordinal)) {
+        Remove-Item -LiteralPath $smokePath -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 if ($null -ne $existingManifest -and [version]$Version -eq [version]$existingManifest.version -and

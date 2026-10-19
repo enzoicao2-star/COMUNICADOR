@@ -103,9 +103,7 @@ public static class CarouselService
                 var extension = image!.MimeType == "image/png" ? ".png" : ".jpg";
                 var fileName = index.ToString("D8") + extension;
                 var path = Path.Combine(folder, fileName);
-                var temporary = path + ".tmp";
-                File.WriteAllBytes(temporary, Convert.FromBase64String(image.DataBase64));
-                File.Move(temporary, path, overwrite: true);
+                AtomicFileStore.WriteAllBytes(path, Convert.FromBase64String(image.DataBase64));
                 if (stage.Received.TryGetValue(index, out var previous) && previous != fileName)
                     File.Delete(Path.Combine(folder, previous));
                 stage.Received[index] = fileName;
@@ -163,9 +161,7 @@ public static class CarouselService
 
     private static void Save(string path, StoredCarousel value)
     {
-        var temporary = path + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(value));
-        File.Move(temporary, path, overwrite: true);
+        AtomicFileStore.WriteAllText(path, JsonSerializer.Serialize(value));
     }
 
     private static void InstallWorker()
@@ -173,9 +169,9 @@ public static class CarouselService
         var name = "Comunicador.Receiver.carousel-worker.ps1";
         using var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream(name)
             ?? throw new IOException("O carrossel não foi incluído no painel.");
-        var temporary = Path.Combine(Root, "carousel-worker.ps1.tmp");
-        using (var output = File.Create(temporary)) resource.CopyTo(output);
-        File.Move(temporary, Path.Combine(Root, "carousel-worker.ps1"), overwrite: true);
+        using var output = new MemoryStream();
+        resource.CopyTo(output);
+        AtomicFileStore.WriteAllBytes(Path.Combine(Root, "carousel-worker.ps1"), output.ToArray());
     }
 
     private static void WaitForWorkerStop()

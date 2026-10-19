@@ -1,4 +1,5 @@
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using Comunicador.Models;
 using Comunicador.Storage;
@@ -8,10 +9,16 @@ namespace Comunicador.Services;
 public static class Logger
 {
     private static readonly object Lock = new();
-    private static readonly Mutex ProcessLock = new(false, @"Local\Comunicador.LogFile");
+    private static readonly Mutex ProcessLock = new(false, LogMutexName());
     private static LogRepository? _repository;
     private static string _originId = Environment.MachineName;
     private static string _originName = Environment.MachineName;
+
+    private static string LogMutexName()
+    {
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(AppPaths.LogFile.ToUpperInvariant()));
+        return @"Global\Comunicador.LogFile." + Convert.ToHexString(digest);
+    }
 
     public static void Configure(LogRepository repository, string originId, string originName)
     {

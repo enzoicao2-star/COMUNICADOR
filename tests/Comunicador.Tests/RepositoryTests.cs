@@ -49,6 +49,58 @@ public sealed class RepositoryTests
     }
 
     [Fact]
+    public async Task AtomicFileStore_ConcurrentWritersLeaveOneCompleteFile()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Comunicador-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "state.json");
+            var expected = Enumerable.Range(0, 4)
+                .Select(index => $"{{\"writer\":{index},\"payload\":\"{new string((char)('a' + index), 8192)}\"}}")
+                .ToArray();
+            var writes = Enumerable.Range(0, expected.Length).Select(index => Task.Run(() =>
+            {
+                for (var iteration = 0; iteration < 20; iteration++)
+                    AtomicFileStore.WriteAllText(path, expected[index]);
+            }));
+
+            await Task.WhenAll(writes);
+
+            Assert.Contains(File.ReadAllText(path), expected);
+            Assert.Empty(Directory.EnumerateFiles(directory, "*.tmp"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Historico_NaoInterrompeOperacaoQuandoArquivoPrincipalERecuperacaoEstaoBloqueados()
+    {
+        WithTemporaryStore(directory =>
+        {
+            var path = Path.Combine(directory, "history.json");
+            File.WriteAllText(path, "[]");
+            File.WriteAllText(path + ".recovery", "[]");
+            var store = new JsonStore<HistoricoEntry>(path);
+            var history = new HistoricoRepository(store);
+
+            using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            using (new FileStream(path + ".recovery", FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                var entry = new HistoricoEntry { Id = "kept-in-memory" };
+
+                var exception = Record.Exception(() => history.Adicionar(entry));
+
+                Assert.Null(exception);
+                Assert.Equal("kept-in-memory", Assert.Single(history.Itens).Id);
+            }
+        });
+    }
+
+    [Fact]
     public void Historico_SnapshotEMesclar_MantemOrdemEAtualizaPorId()
     {
         WithTemporaryStore(directory =>

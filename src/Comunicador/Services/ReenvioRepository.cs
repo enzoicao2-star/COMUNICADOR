@@ -21,9 +21,7 @@ public sealed class ReenvioRepository
     {
         var path = PathFor(id) ?? throw new ArgumentException("Identificador de envio inválido.", nameof(id));
         Directory.CreateDirectory(_directory);
-        var temp = path + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(envio));
-        File.Move(temp, path, true);
+        AtomicFileStore.WriteAllText(path, JsonSerializer.Serialize(envio));
     }
 
     public EnvioPendente? Ler(string id)

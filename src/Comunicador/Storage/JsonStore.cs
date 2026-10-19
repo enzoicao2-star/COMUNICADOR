@@ -117,7 +117,9 @@ public sealed class JsonStore<T>
     private static string MutexName(string path)
     {
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(path.ToUpperInvariant()));
-        return @"Local\Comunicador.JsonStore." + Convert.ToHexString(digest);
+        // App instances started in separate Windows sessions share the roaming
+        // profile but do not share Local\ mutexes. Global\ serializes those writes.
+        return @"Global\Comunicador.JsonStore." + Convert.ToHexString(digest);
     }
 
     private static void MoveWithRetry(string source, string destination)

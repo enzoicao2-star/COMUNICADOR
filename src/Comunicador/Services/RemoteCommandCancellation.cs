@@ -1,4 +1,5 @@
 using System.IO;
+using Comunicador.Storage;
 
 namespace Comunicador.Services;
 
@@ -14,7 +15,7 @@ public static class RemoteCommandCancellation
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, DateTimeOffset.UtcNow.ToString("O"));
+            AtomicFileStore.WriteAllText(path, DateTimeOffset.UtcNow.ToString("O"));
             return true;
         }
         catch (IOException) { return false; }

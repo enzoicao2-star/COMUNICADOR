@@ -534,5 +534,16 @@
       "Corrige a recuperação segura do administrador após a troca da sessão na nuvem.",
       "Oculta o ícone da bandeja quando o painel continua rodando em segundo plano."
     ]
+  },
+  {
+    "version": "2.5.50.0",
+    "summary": "Corrige envios, gravações concorrentes, CMD remoto e rascunhos de mídia.",
+    "changes": [
+      "Evita que uma falha ao salvar o histórico interrompa um envio de mídia.",
+      "Serializa gravações locais também entre sessões do Windows e melhora a recuperação de arquivos bloqueados.",
+      "Restaura o ícone do Comunicador quando a janela fica oculta e descarta a mídia preparada nesse momento.",
+      "Evita tentar CMD local sem token de pareamento; o envio segue pela nuvem quando disponível.",
+      "Publica uma nova versão do Receptor; o pacote estável não cria ícone próprio na bandeja."
+    ]
   }
 ]

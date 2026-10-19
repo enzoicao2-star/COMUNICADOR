@@ -31,9 +31,7 @@ public static class WallpaperService
         AppPaths.EnsureCreated();
         SaveOriginalWallpaper();
         var path = Path.Combine(AppPaths.LocalSharedDir, "wallpaper" + extension);
-        var temporary = path + ".tmp";
-        File.WriteAllBytes(temporary, bytes);
-        File.Move(temporary, path, true);
+        AtomicFileStore.WriteAllBytes(path, bytes);
         if (!SystemParametersInfo(SpiSetDesktopWallpaper, 0, path, UpdateIniFile | SendWinIniChange))
             throw new Win32Exception(Marshal.GetLastWin32Error());
         return path;
@@ -100,6 +98,6 @@ public static class WallpaperService
         using var key = Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop", writable: false);
         var originalPath = key?.GetValue("WallPaper") as string;
         if (!string.IsNullOrWhiteSpace(originalPath) && File.Exists(originalPath))
-            File.WriteAllText(backup, originalPath);
+            AtomicFileStore.WriteAllText(backup, originalPath);
     }
 }

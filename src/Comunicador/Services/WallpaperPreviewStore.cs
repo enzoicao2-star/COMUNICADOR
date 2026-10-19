@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Comunicador.Protocol;
+using Comunicador.Storage;
 
 using System.IO;
 
@@ -48,20 +49,8 @@ public static class WallpaperPreviewStore
             || bytes.Length is 0 or > 512 * 1024
             || !ConteudoImagem.AssinaturaCorresponde("image/jpeg", bytes)) return;
 
-        Directory.CreateDirectory(Folder);
         var path = GetPath(computerId, monitorIndex);
-        var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try
-        {
-            File.WriteAllBytes(temporary, bytes);
-            File.Move(temporary, path, true);
-        }
-        finally
-        {
-            try { File.Delete(temporary); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
-        }
+        AtomicFileStore.WriteAllBytes(path, bytes);
     }
 
     private static string GetPath(string computerId, int monitorIndex)

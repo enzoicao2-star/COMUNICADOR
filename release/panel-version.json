@@ -1,11 +1,13 @@
 {
-    "version":  "2.5.49.0",
+    "version":  "2.5.50.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "D66DBD201C68C318A37F965CD056D8F33B43D86E190CA4006245F3B333F86502",
-    "summary":  "Corrige o status online e o acesso administrativo.",
+    "sha256":  "EA2AF0341C1A2A23DD493876C5164F48042F02D1666DB9A8DFBF0D89EBBE300C",
+    "summary":  "Corrige envios, gravações concorrentes, CMD remoto e rascunhos de mídia.",
     "changes":  [
-                    "O painel considera o sinal de vida recente recebido pela nuvem e só marca um computador offline após um minuto sem sinal.",
-                    "Corrige a recuperação segura do administrador após a troca da sessão na nuvem.",
-                    "Oculta o ícone da bandeja quando o painel continua rodando em segundo plano."
+                    "Evita que uma falha ao salvar o histórico interrompa um envio de mídia.",
+                    "Serializa gravações locais também entre sessões do Windows e melhora a recuperação de arquivos bloqueados.",
+                    "Restaura o ícone do Comunicador quando a janela fica oculta e descarta a mídia preparada nesse momento.",
+                    "Evita tentar CMD local sem token de pareamento; o envio segue pela nuvem quando disponível.",
+                    "Publica uma nova versão do Receptor; o pacote estável não cria ícone próprio na bandeja."
                 ]
 }

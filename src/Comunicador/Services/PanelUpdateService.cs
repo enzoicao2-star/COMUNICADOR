@@ -54,7 +54,7 @@ public sealed class PanelUpdateService
                 var updatedScript = await Http.GetStringAsync(
                     $"{UpdaterUrl}?t={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}", cancellationToken);
                 updater = Path.Combine(AppPaths.RootDir, "Atualizar-Comunicador-atualizado.ps1");
-                await File.WriteAllTextAsync(updater, updatedScript, cancellationToken);
+                AtomicFileStore.WriteAllText(updater, updatedScript);
             }
             catch (Exception ex) when (updater is not null
                 && ex is HttpRequestException or IOException or UnauthorizedAccessException) { }
@@ -123,15 +123,13 @@ public sealed class PanelUpdateService
             var current = Assembly.GetExecutingAssembly().GetName().Version?.ToString();
             if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(version) || version != current) return null;
             var healthPath = Path.Combine(directory, "Comunicador.inicializacao-ok.json");
-            var temporary = healthPath + ".tmp";
-            await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(new
+            AtomicFileStore.WriteAllText(healthPath, JsonSerializer.Serialize(new
             {
                 token,
                 version,
                 process_id = Environment.ProcessId,
                 confirmed_at = DateTimeOffset.UtcNow,
-            })).ConfigureAwait(false);
-            File.Move(temporary, healthPath, true);
+            }));
             return new PanelUpdateCompletion(version, automatic);
         }
         catch (Exception ex)

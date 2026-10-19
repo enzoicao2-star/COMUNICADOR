@@ -29,6 +29,8 @@ public sealed class MensagensViewModel : ViewModelBase
     private readonly Dictionary<string, Task<MediaTransferResult>> _preloads = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConditionalWeakTable<byte[], Lazy<Task<string>>> _preloadHashes = new();
     private readonly SemaphoreSlim _preloadGate = new(3, 3);
+    private bool _envioEmAndamento;
+    private bool _descartarMidiaAoConcluirEnvio;
 
     private string _titulo = string.Empty;
     private string _mensagem = string.Empty;
@@ -1980,7 +1982,36 @@ public sealed class MensagensViewModel : ViewModelBase
         StatusOperacao = "Prévia encerrada. Nenhuma mensagem foi enviada.";
     }
 
+    public void DescartarRascunhoDeMidia()
+    {
+        if (_envioEmAndamento)
+        {
+            _descartarMidiaAoConcluirEnvio = true;
+            return;
+        }
+
+        LimparRascunhoDeMidia();
+    }
+
     private async Task EnviarAsync()
+    {
+        _envioEmAndamento = true;
+        try
+        {
+            await EnviarCoreAsync().ConfigureAwait(true);
+        }
+        finally
+        {
+            _envioEmAndamento = false;
+            if (_descartarMidiaAoConcluirEnvio)
+            {
+                _descartarMidiaAoConcluirEnvio = false;
+                LimparRascunhoDeMidia();
+            }
+        }
+    }
+
+    private async Task EnviarCoreAsync()
     {
         var selecionados = Destinatarios.Where(d => d.Selecionado).ToList();
         // Mídia central é conteúdo puro: não exige título, mensagem nem interação.
@@ -2206,6 +2237,21 @@ public sealed class MensagensViewModel : ViewModelBase
             : $"Concluído em {enviados}; falhou em {erros.Count}. {string.Join(" | ", erros)}";
         Titulo = string.Empty;
         Mensagem = string.Empty;
+    }
+
+    private void LimparRascunhoDeMidia()
+    {
+        LimparMidiaGeral();
+        _midiasPorMonitor.Clear();
+        foreach (var destino in MonitoresDestino)
+            destino.Midias.Clear();
+
+        DefinirComoPapelDeParede = false;
+        DefinirComoTelaDeBloqueio = false;
+        ExibirImagemCentral = false;
+        ExibirMensagemCentral = false;
+        NotificarMidiaAlterada();
+        StatusOperacao = "A mídia carregada foi descartada ao ocultar o Comunicador.";
     }
 
 }

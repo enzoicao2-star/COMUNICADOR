@@ -71,9 +71,7 @@ public static class SettingsStore
         {
             AppPaths.EnsureCreated();
             var json = JsonSerializer.Serialize(settings, Options);
-            var temporario = AppPaths.ConfiguracoesFile + ".tmp";
-            File.WriteAllText(temporario, json);
-            File.Move(temporario, AppPaths.ConfiguracoesFile, overwrite: true);
+            AtomicFileStore.WriteAllText(AppPaths.ConfiguracoesFile, json);
             DeviceIdentityStore.MarkPanelInstalled(
                 settings.PainelId, hasPanel: true,
                 mediaBlocked: !settings.AceitarImagensDeOutrosPaineis);

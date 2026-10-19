@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using Comunicador.Models;
 using Comunicador.Storage;
 
@@ -12,6 +13,7 @@ public sealed class HistoricoRepository
     private readonly JsonStore<HistoricoEntry> _store;
     private readonly BatchObservableCollection<HistoricoEntry> _itens = new();
     private readonly Dictionary<string, HistoricoEntry> _porId = new(StringComparer.Ordinal);
+    private bool _persistFailureReported;
 
     public ObservableCollection<HistoricoEntry> Itens => _itens;
     public event Action? Changed;
@@ -168,5 +170,21 @@ public sealed class HistoricoRepository
         _ => 0,
     };
 
-    private void Persist() => _store.Save(Itens);
+    private void Persist()
+    {
+        try
+        {
+            _store.Save(Itens);
+            _persistFailureReported = false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A delivery must not be aborted just because both local history files
+            // are temporarily locked. Keep the entry in memory and report once.
+            if (_persistFailureReported) return;
+            _persistFailureReported = true;
+            Logger.Warning("O histórico continua disponível nesta sessão, mas não pôde ser salvo localmente.",
+                "historico", ex.ToString());
+        }
+    }
 }
