@@ -87,9 +87,8 @@ public sealed class StatusMonitorService : IDisposable
             Logger.Warning($"Falha ao verificar presença de {computador.NomeExibicao}: {ex.Message}");
         }
 
-        // A brief packet loss must not make the card flicker offline. The
-        // computer remains online while any successful ping, cloud heartbeat,
-        // or reverse connection has been seen in the last minute.
+        // A brief packet loss must not make the card flicker offline. Cloud
+        // heartbeats and reverse connections refresh UltimaVezVisto as well.
         var ultimoSinal = computador.UltimaVezVisto;
         if (DateTime.UtcNow - ultimoSinal >= TempoSemSinalParaOffline
             && computador.Status != StatusComputador.Offline)

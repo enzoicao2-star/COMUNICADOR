@@ -1,9 +1,11 @@
 {
-  "version": "2.5.48.0",
-  "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-  "sha256": "4DBA5A13210C8FBE857494DC372D4C7F829601443DD2F2112300AD933C092C15",
-  "summary": "Completa as prévias dos efeitos de transição.",
-  "changes": [
-    "Ajusta os últimos efeitos sem movimento, incluindo inclinação, balanço, torção e cortes por correspondência, mantendo todas as opções animadas em loop."
-  ]
+    "version":  "2.5.49.0",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
+    "sha256":  "D66DBD201C68C318A37F965CD056D8F33B43D86E190CA4006245F3B333F86502",
+    "summary":  "Corrige o status online e o acesso administrativo.",
+    "changes":  [
+                    "O painel considera o sinal de vida recente recebido pela nuvem e só marca um computador offline após um minuto sem sinal.",
+                    "Corrige a recuperação segura do administrador após a troca da sessão na nuvem.",
+                    "Oculta o ícone da bandeja quando o painel continua rodando em segundo plano."
+                ]
 }

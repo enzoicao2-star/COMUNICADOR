@@ -939,7 +939,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
                     Nome = device.MachineName,
                     EnderecoIp = string.Empty,
                     PortaTcp = _settings.PortaTcp,
-                    Status = device.LastSeenAt > DateTimeOffset.UtcNow.AddSeconds(-120)
+                    Status = device.LastSeenAt > DateTimeOffset.UtcNow.AddMinutes(-1)
                         ? StatusComputador.Online : StatusComputador.Offline,
                     UltimaVezVisto = device.LastSeenAt.UtcDateTime,
                 };
@@ -991,19 +991,24 @@ public sealed class ComputadoresViewModel : ViewModelBase
                         Computadores.Move(currentIndex, firstStaleIndex);
                 }
             }
-            if (!computador.Pareado)
+            var cloudLastSeen = device.LastSeenAt.UtcDateTime;
+            if (cloudLastSeen > computador.UltimaVezVisto)
             {
-                var status = device.LastSeenAt > DateTimeOffset.UtcNow.AddSeconds(-120)
-                    ? StatusComputador.Online : StatusComputador.Offline;
-                if (computador.Status != status) { computador.Status = status; changed = true; }
-                computador.UltimaVezVisto = device.LastSeenAt.UtcDateTime;
+                computador.UltimaVezVisto = cloudLastSeen;
+                changed = true;
             }
-            else if (migratedIdentity)
+            var hasRecentSignal = DateTime.UtcNow - computador.UltimaVezVisto < TimeSpan.FromMinutes(1);
+            if (hasRecentSignal && computador.Status != StatusComputador.Online)
             {
-                computador.Status = device.LastSeenAt > DateTimeOffset.UtcNow.AddSeconds(-120)
-                    ? StatusComputador.Online : StatusComputador.Offline;
-                computador.UltimaVezVisto = device.LastSeenAt.UtcDateTime;
+                computador.Status = StatusComputador.Online;
                 computador.PingMs = null;
+                changed = true;
+            }
+            else if (!computador.Pareado && !hasRecentSignal && computador.Status != StatusComputador.Offline)
+            {
+                computador.Status = StatusComputador.Offline;
+                computador.PingMs = null;
+                changed = true;
             }
             if (!string.Equals(computador.Nome, device.MachineName, StringComparison.Ordinal))
             {

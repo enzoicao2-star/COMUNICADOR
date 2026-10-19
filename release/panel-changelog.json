@@ -1,35 +1,5 @@
 [
   {
-    "version": "2.5.48.0",
-    "summary": "Completa as prévias dos efeitos de transição.",
-    "changes": [
-      "Ajusta os últimos efeitos sem movimento, incluindo inclinação, balanço, torção e cortes por correspondência, mantendo todas as opções animadas em loop."
-    ]
-  },
-  {
-    "version": "2.5.47.0",
-    "summary": "Prévia das transições com efeitos visuais distintos.",
-    "changes": [
-      "A galeria agora mostra máscaras direcionais, geométricas e em padrões, além de desfoque, luz/cor e falha digital; cada opção continua animada em loop."
-    ]
-  },
-  {
-    "version": "2.5.46.0",
-    "summary": "Corrige a abertura da tela de transições da mídia.",
-    "changes": [
-      "Impede que o seletor de entrada ou saída acesse a galeria antes de ela estar pronta durante a abertura da tela."
-    ]
-  },
-  {
-    "version": "2.5.45.0",
-    "summary": "Prévia animada de cada transição diretamente nas opções da galeria.",
-    "changes": [
-      "Cada opção da galeria reproduz sua transição continuamente em uma miniatura, sem depender da prévia separada abaixo.",
-      "As miniaturas acompanham a mídia selecionada e alternam entre o sentido de entrada e o de saída.",
-      "A prévia usa a velocidade ou a duração exata configurada para o sentido selecionado."
-    ]
-  },
-  {
     "version": "2.2.2.0",
     "summary": "",
     "changes": []
@@ -524,6 +494,45 @@
       "Se a conexão local não estiver disponível, o painel envia o comando pela fila em nuvem como antes.",
       "O caminho direto continua validando o pareamento, a permissão individual e a proteção do OWNER.",
       "A velocidade das transições aceita ajuste percentual contínuo e tempo exato em milissegundos."
+    ]
+  },
+  {
+    "version": "2.5.45.0",
+    "summary": "Prévia animada de cada transição diretamente nas opções da galeria.",
+    "changes": [
+      "Cada opção da galeria reproduz sua transição continuamente em uma miniatura, sem depender da prévia separada abaixo.",
+      "As miniaturas acompanham a mídia selecionada e alternam entre o sentido de entrada e o de saída.",
+      "A prévia usa a velocidade ou a duração exata configurada para o sentido selecionado."
+    ]
+  },
+  {
+    "version": "2.5.46.0",
+    "summary": "Corrige a abertura da tela de transições da mídia.",
+    "changes": [
+      "Impede que o seletor de entrada ou saída acesse a galeria antes de ela estar pronta durante a abertura da tela."
+    ]
+  },
+  {
+    "version": "2.5.47.0",
+    "summary": "Prévia das transições com efeitos visuais distintos.",
+    "changes": [
+      "A galeria agora mostra máscaras direcionais, geométricas e em padrões, além de desfoque, luz/cor e falha digital; cada opção continua animada em loop."
+    ]
+  },
+  {
+    "version": "2.5.48.0",
+    "summary": "Completa as prévias dos efeitos de transição.",
+    "changes": [
+      "Ajusta os últimos efeitos sem movimento, incluindo inclinação, balanço, torção e cortes por correspondência, mantendo todas as opções animadas em loop."
+    ]
+  },
+  {
+    "version": "2.5.49.0",
+    "summary": "Corrige o status online e o acesso administrativo.",
+    "changes": [
+      "O painel considera o sinal de vida recente recebido pela nuvem e só marca um computador offline após um minuto sem sinal.",
+      "Corrige a recuperação segura do administrador após a troca da sessão na nuvem.",
+      "Oculta o ícone da bandeja quando o painel continua rodando em segundo plano."
     ]
   }
 ]

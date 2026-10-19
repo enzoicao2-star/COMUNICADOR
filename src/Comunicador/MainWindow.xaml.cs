@@ -66,7 +66,7 @@ public partial class MainWindow : Window
         {
             Text = "Comunicador — recebendo notificações",
             Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!),
-            Visible = true,
+            Visible = false,
         };
         DataContextChanged += OnDataContextChanged;
         ContentRendered += OnContentRendered;
@@ -648,9 +648,6 @@ public partial class MainWindow : Window
         if (_allowExit || !string.IsNullOrWhiteSpace(App.BenchmarkFile)) return;
         e.Cancel = true;
         Hide();
-        _trayIcon.ShowBalloonTip(2500, "Comunicador",
-            "O painel continua recebendo mensagens e lembretes em segundo plano.",
-            Forms.ToolTipIcon.Info);
     }
 
     internal void RestaurarDaBandeja()
