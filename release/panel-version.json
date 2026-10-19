@@ -1,6 +1,6 @@
 {
     "version":  "2.5.53.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/80baee9/release/Comunicador.exe",
     "sha256":  "0E33758F278362D3334A7AF8D123E3CA239908E63C3CC8132AFE49B8239D7A2C",
     "summary":  "Mostra o progresso da atualização mesmo com o arquivo bloqueado e evita tentar atualizar o próprio computador como receptor remoto.",
     "changes":  [
