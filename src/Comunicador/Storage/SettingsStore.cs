@@ -48,6 +48,12 @@ public static class SettingsStore
                 settings.PreferenciaInicializacaoComWindows = true;
                 Save(settings);
             }
+            if (settings.VersaoConfiguracao < 4)
+            {
+                settings.VersaoConfiguracao = 4;
+                settings.TransicoesAtivas = false;
+                Save(settings);
+            }
             return settings;
         }
         catch (JsonException)

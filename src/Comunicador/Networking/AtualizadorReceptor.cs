@@ -17,6 +17,11 @@ public sealed class AtualizadorReceptor
         _conexoes = conexoes;
     }
 
+    public Task<byte[]?> BuscarMiniaturaPapelParedeAsync(
+        string computerId, string panelId, int monitorIndex, CancellationToken ct = default) =>
+        _conexoes.Obter(computerId)?.BuscarMiniaturaPapelParedeAsync(panelId, monitorIndex, ct)
+        ?? Task.FromResult<byte[]?>(null);
+
     public async Task<ReceiverUpdateResult> AtualizarAsync(
         Computador computador, Action<ReceiverUpdateProgress>? report = null,
         CancellationToken ct = default)

@@ -83,6 +83,39 @@ public sealed class ReceptorClient
         }
     }
 
+    public async Task<byte[]?> GetWallpaperPreviewAsync(
+        string ipAddress, int tcpPort, string token, int monitorIndex, CancellationToken ct = default)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(8));
+            using var client = await ConnectAsync(ipAddress, tcpPort, ConnectTimeout, cts.Token).ConfigureAwait(false);
+            await using var stream = client.GetStream();
+            var request = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.WallpaperPreviewRequest);
+            request.Token = token;
+            request.PanelId = _panelId;
+            request.MonitorIndex = monitorIndex;
+            var validation = MessageValidator.Validate(request);
+            if (!validation.IsValid) return null;
+            await TcpFraming.WriteFramedAsync(stream, MessageValidator.Frame(request), cts.Token).ConfigureAwait(false);
+            var response = await ReadValidatedAsync(stream, cts.Token).ConfigureAwait(false);
+            if (response.Type != ProtocolConstants.MessageType.Ack
+                || !string.Equals(response.InReplyTo, request.Id, StringComparison.OrdinalIgnoreCase)
+                || response.Status != "wallpaper_preview"
+                || response.Image is null
+                || response.Image.MimeType != "image/jpeg") return null;
+            var bytes = Convert.FromBase64String(response.Image.DataBase64);
+            return bytes.Length is > 0 and <= 512 * 1024
+                && ConteudoImagem.AssinaturaCorresponde("image/jpeg", bytes) ? bytes : null;
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException
+            or ReceptorComunicacaoException or ObjectDisposedException or FormatException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Consulta a versão que está efetivamente rodando após um reinício.</summary>
     public async Task<string?> GetReceiverVersionAsync(
         string ipAddress, int tcpPort, string token, CancellationToken ct = default)

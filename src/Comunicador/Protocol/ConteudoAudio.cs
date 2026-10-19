@@ -15,6 +15,13 @@ public sealed class ConteudoAudio
     [JsonPropertyName("data_base64")]
     public string DataBase64 { get; set; } = string.Empty;
 
+    [JsonIgnore]
+    internal byte[]? RawData { get; set; }
+
+    [JsonPropertyName("media_cache_id")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MediaCacheId { get; set; }
+
     public static bool MimePermitido(string? mimeType) => mimeType is
         "audio/mpeg" or "audio/wav";
 

@@ -145,6 +145,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             Settings, paineisPareados, paineisPareadosStore, _historicoRepositorio,
             _logsRepositorio, _conexoesReversas, perfis, _cloudSync);
         _embeddedReceptorServer.ReceptorRegistrado += Computadores.RegistrarViaConexaoReversa;
+        _embeddedReceptorServer.WallpaperPreviewReceived += Computadores.SalvarMiniaturaPapelParede;
         Configuracoes = new ConfiguracoesViewModel(Settings, paineisPareados, paineisPareadosStore,
             _embeddedReceptorServer, perfis, client, _panelUpdate, _cloudSync);
 
@@ -227,6 +228,41 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     private void OnCloudDeliveryReceived(CloudDelivery delivery) =>
         UiDispatcher.Invoke(() => _ = HandleCloudDeliveryAsync(delivery));
+
+    public async Task NotifyPanelUpdateReadyAsync(string version) =>
+        await BroadcastPanelUpdateNoticeAsync(
+            $"A nova versão {version} do Comunicador foi instalada e está pronta para usar.")
+            .ConfigureAwait(false);
+
+    private async Task BroadcastPanelUpdateNoticeAsync(string message)
+    {
+        // The OWNER is the single announcer for each automatic release, preventing
+        // every panel that updates at once from sending duplicate notices.
+        if (!_cloudSync.IsAdmin && !Settings.EstePainelEhOwner) return;
+
+        string[] targets = [];
+        UiDispatcher.Invoke(() => targets = Computadores.Computadores
+            .Where(computer => computer.TemPainel && computer.RegistradoNaNuvem
+                && !computer.PainelDesinstalado && !computer.EhOwner
+                && !string.Equals(computer.Id, Settings.PainelId, StringComparison.OrdinalIgnoreCase))
+            .Select(computer => computer.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray());
+
+        foreach (var target in targets)
+        {
+            try
+            {
+                await _cloudSync.QueuePanelUpdateNoticeAsync(target, message).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException
+                or UnauthorizedAccessException or JsonException)
+            {
+                Logger.Warning($"Não foi possível avisar o painel {target} sobre a atualização: {ex.Message}");
+            }
+        }
+    }
 
     private async Task HandleCloudDeliveryAsync(CloudDelivery delivery)
     {
@@ -544,6 +580,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
                     {
                         Logger.Info($"Nova versão do painel ({info.LatestVersion}) detectada pela política automática '{politica}'.");
                         await _panelUpdate.StartUpdateAsync(info, ct, automaticPanelUpdate: true).ConfigureAwait(false);
+                        await BroadcastPanelUpdateNoticeAsync(
+                            $"A nova versão {info.LatestVersion} do Comunicador está sendo baixada automaticamente.")
+                            .ConfigureAwait(false);
                         return;
                     }
                 }

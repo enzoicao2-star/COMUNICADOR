@@ -143,6 +143,42 @@ public sealed class ConexaoReversa : IDisposable
         finally { if (lockHeld) _envioLock.Release(); }
     }
 
+    public async Task<byte[]?> BuscarMiniaturaPapelParedeAsync(
+        string panelId, int monitorIndex, CancellationToken ct = default)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        var lockHeld = false;
+        try
+        {
+            await _envioLock.WaitAsync(timeout.Token).ConfigureAwait(false);
+            lockHeld = true;
+            var request = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.WallpaperPreviewRequest);
+            request.Token = Token;
+            request.PanelId = panelId;
+            request.MonitorIndex = monitorIndex;
+            if (!MessageValidator.Validate(request).IsValid) return null;
+            await TcpFraming.WriteFramedAsync(_stream, MessageValidator.Frame(request), timeout.Token)
+                .ConfigureAwait(false);
+            var response = await LerAsync(timeout.Token).ConfigureAwait(false);
+            if (response?.Type != ProtocolConstants.MessageType.Ack
+                || response.InReplyTo != request.Id || response.Status != "wallpaper_preview"
+                || response.Image?.MimeType != "image/jpeg") return null;
+            var bytes = Convert.FromBase64String(response.Image.DataBase64);
+            return bytes.Length is > 0 and <= 512 * 1024
+                && ConteudoImagem.AssinaturaCorresponde("image/jpeg", bytes) ? bytes : null;
+        }
+        catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException
+            or OperationCanceledException or FormatException or ArgumentException)
+        {
+            return null;
+        }
+        finally
+        {
+            if (lockHeld) _envioLock.Release();
+        }
+    }
+
     public async Task<ReceiverUpdateResult> SolicitarAtualizacaoAsync(
         ComunicadorMessage solicitacao, CancellationToken ct,
         Action<long, long>? transferProgress = null)

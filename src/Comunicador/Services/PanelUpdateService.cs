@@ -103,23 +103,25 @@ public sealed class PanelUpdateService
 
     /// <summary>Confirma ao atualizador que a nova interface continuou ativa após abrir.
     /// A confirmação é ligada à instalação pendente por um token exclusivo.</summary>
-    public static async Task ReportHealthyStartupAsync()
+    public static async Task<PanelUpdateCompletion?> ReportHealthyStartupAsync()
     {
         var executable = Environment.ProcessPath;
         var directory = executable is null ? null : Path.GetDirectoryName(executable);
-        if (directory is null) return;
+        if (directory is null) return null;
         var pendingPath = Path.Combine(directory, "Comunicador.atualizacao-pendente.json");
-        if (!File.Exists(pendingPath)) return;
+        if (!File.Exists(pendingPath)) return null;
         await Task.Delay(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         try
         {
-            if (!File.Exists(pendingPath)) return;
+            if (!File.Exists(pendingPath)) return null;
             using var pending = JsonDocument.Parse(await File.ReadAllTextAsync(pendingPath).ConfigureAwait(false));
             var root = pending.RootElement;
             var token = root.GetProperty("token").GetString();
             var version = root.GetProperty("version").GetString();
+            var automatic = root.TryGetProperty("automatic", out var automaticNode)
+                && automaticNode.ValueKind == JsonValueKind.True;
             var current = Assembly.GetExecutingAssembly().GetName().Version?.ToString();
-            if (string.IsNullOrWhiteSpace(token) || version != current) return;
+            if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(version) || version != current) return null;
             var healthPath = Path.Combine(directory, "Comunicador.inicializacao-ok.json");
             var temporary = healthPath + ".tmp";
             await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(new
@@ -130,10 +132,12 @@ public sealed class PanelUpdateService
                 confirmed_at = DateTimeOffset.UtcNow,
             })).ConfigureAwait(false);
             File.Move(temporary, healthPath, true);
+            return new PanelUpdateCompletion(version, automatic);
         }
         catch (Exception ex)
         {
             Logger.Warning($"Não foi possível confirmar a abertura após a atualização: {ex.Message}");
+            return null;
         }
     }
 
@@ -239,6 +243,8 @@ public sealed class PanelUpdateService
 
 public sealed record PanelUpdateInfo(
     Version CurrentVersion, Version LatestVersion, bool IsAvailable, string Summary, IReadOnlyList<string> Changes);
+
+public sealed record PanelUpdateCompletion(string Version, bool Automatic);
 
 public sealed class PanelUpdateProgress
 {

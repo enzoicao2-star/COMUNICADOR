@@ -92,6 +92,8 @@ class MessageType:
     PING = "ping"
     PONG = "pong"
     NOTIFICATION = "notification"
+    WALLPAPER_PREVIEW_REQUEST = "wallpaper_preview_request"
+    WALLPAPER_CHANGED = "wallpaper_changed"
     MEDIA_CACHE_UPLOAD = "media_cache_upload"
     REMOTE_COMMAND = "remote_command"
     ACK = "ack"
@@ -107,7 +109,9 @@ class MessageType:
 
 ALL_TYPES = {
     MessageType.DISCOVER, MessageType.ANNOUNCE, MessageType.PAIR_REQUEST, MessageType.PAIR_RESPONSE,
-    MessageType.PING, MessageType.PONG, MessageType.NOTIFICATION, MessageType.MEDIA_CACHE_UPLOAD,
+        MessageType.PING, MessageType.PONG, MessageType.NOTIFICATION,
+        MessageType.WALLPAPER_PREVIEW_REQUEST, MessageType.WALLPAPER_CHANGED,
+        MessageType.MEDIA_CACHE_UPLOAD,
     MessageType.REMOTE_COMMAND,
     MessageType.ACK, MessageType.REPLY,
     MessageType.ERROR, MessageType.REGISTER, MessageType.REGISTER_ACK,
@@ -347,6 +351,12 @@ def _validar_audio(audio: dict) -> int:
     mime_type = _require_str(audio, "mime_type", 40)
     if mime_type not in {"audio/mpeg", "audio/wav"}:
         raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Formato de áudio não permitido. Use MP3 ou WAV.")
+    cache_id = audio.get("media_cache_id")
+    if cache_id is not None:
+        if (not isinstance(cache_id, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", cache_id)
+                or audio.get("data_base64") != ""):
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Referência do áudio em cache inválida.")
+        return 0
     data_base64 = _require_str(audio, "data_base64", MAX_AUDIO_BASE64_LENGTH)
     try:
         dados = base64.b64decode(data_base64, validate=True)
@@ -722,6 +732,13 @@ def validate(msg: dict) -> None:
     elif msg_type == MessageType.PING:
         _require_str(msg, "token", MAX_NAME_LENGTH)
 
+    elif msg_type == MessageType.WALLPAPER_PREVIEW_REQUEST:
+        _require_str(msg, "token", MAX_NAME_LENGTH)
+        _require_uuid(msg, "panel_id")
+        monitor_index = _require_int(msg, "monitor_index")
+        if not 0 <= monitor_index < MAX_MONITORS:
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Índice de monitor inválido.")
+
     elif msg_type == MessageType.PONG:
         _require_str(msg, "computer_id", MAX_NAME_LENGTH)
         _require_str(msg, "computer_name", MAX_NAME_LENGTH)
@@ -745,6 +762,18 @@ def validate(msg: dict) -> None:
         _validar_conteudo_visual(msg)
         _validar_aparencia(msg)
 
+    elif msg_type == MessageType.WALLPAPER_CHANGED:
+        _require_str(msg, "token", MAX_NAME_LENGTH)
+        _require_uuid(msg, "computer_id")
+        monitor_index = _require_int(msg, "monitor_index")
+        if not 0 <= monitor_index < MAX_MONITORS:
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Índice de monitor inválido.")
+        imagem = msg.get("image")
+        if not isinstance(imagem, dict) or imagem.get("mime_type") != "image/jpeg":
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "A miniatura do papel de parede precisa ser JPEG.")
+        if _validar_imagem(imagem) > 512 * 1024:
+            raise ProtocolError(ErrorCode.PAYLOAD_TOO_LARGE, "A miniatura do papel de parede excede 512 KB.")
+
     elif msg_type == MessageType.MEDIA_CACHE_UPLOAD:
         _require_str(msg, "token", MAX_NAME_LENGTH)
         kind = _require_str(msg, "media_kind", MAX_NAME_LENGTH)
@@ -752,16 +781,19 @@ def validate(msg: dict) -> None:
         digest = _require_str(msg, "media_sha256", 64)
         encoded = _require_str(msg, "media_data_base64", 32 * 1024 * 1024)
         _require_bool(msg, "media_test_only")
-        if kind not in {"image", "gif", "video"}:
+        if kind not in {"image", "gif", "video", "audio"}:
             raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Tipo de mídia inválido.")
+        if kind == "audio" and mime_type not in {"audio/mpeg", "audio/wav"}:
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Formato de áudio não permitido.")
         if len(digest) != 64 or any(char not in "0123456789abcdefABCDEF" for char in digest):
             raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Identificador da mídia inválido.")
         try:
             raw = base64.b64decode(encoded, validate=True)
         except (ValueError, base64.binascii.Error) as exc:
             raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Dados da mídia não estão em Base64 válido.") from exc
-        if not raw or len(raw) > 24 * 1024 * 1024:
-            raise ProtocolError(ErrorCode.PAYLOAD_TOO_LARGE, "O arquivo de mídia excede 24 MB.")
+        max_media_bytes = 12 * 1024 * 1024 if kind == "audio" else 24 * 1024 * 1024
+        if not raw or len(raw) > max_media_bytes:
+            raise ProtocolError(ErrorCode.PAYLOAD_TOO_LARGE, "O arquivo de mídia excede o limite permitido.")
         if not hashlib.sha256(raw).hexdigest().lower() == digest.lower():
             raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "A mídia não corresponde ao identificador informado.")
 

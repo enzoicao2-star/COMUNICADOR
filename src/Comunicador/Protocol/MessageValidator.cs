@@ -102,6 +102,19 @@ public static class MessageValidator
                     msg.AllowManualClose, msg.VideoLoop, msg.Audio, msg.AudioLoop, msg.Carousel)
                 ?? ValidarAparencia(msg.Appearance),
 
+            MessageType.WallpaperPreviewRequest => RequireString(msg.Token, "token", MaxNameLength)
+                ?? RequireUuid(msg.PanelId, "panel_id")
+                ?? (msg.MonitorIndex is >= 0 and < MaxMonitors
+                    ? null
+                    : ValidationResult.Fail(ErrorCode.InvalidFieldType,
+                        $"Campo 'monitor_index' deve estar entre 0 e {MaxMonitors - 1}.")),
+
+            MessageType.WallpaperChanged => RequireString(msg.Token, "token", MaxNameLength)
+                ?? RequireUuid(msg.ComputerId, "computer_id")
+                ?? (msg.MonitorIndex is >= 0 and < MaxMonitors
+                    ? ValidarMiniaturaPapelParede(msg.Image)
+                    : ValidationResult.Fail(ErrorCode.InvalidFieldType, "Índice de monitor inválido.")),
+
             MessageType.MediaCacheUpload => RequireString(msg.Token, "token", MaxNameLength)
                 ?? ValidarUploadMidia(msg.MediaKind, msg.MediaMimeType, msg.MediaSha256,
                     msg.MediaDataBase64, msg.MediaTestOnly),
@@ -171,28 +184,53 @@ public static class MessageValidator
     private static ValidationResult? ValidarUploadMidia(
         string? kind, string? mimeType, string? sha256, string? dataBase64, bool? testOnly)
     {
-        if (kind is not ("image" or "gif" or "video"))
+        if (kind is not ("image" or "gif" or "video" or "audio"))
             return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Tipo de mídia de teste inválido.");
         if (string.IsNullOrWhiteSpace(mimeType) || mimeType.Length > 80)
             return ValidationResult.Fail(ErrorCode.MissingField, "Tipo de arquivo de mídia ausente.");
+        if (kind == "audio" && mimeType is not ("audio/mpeg" or "audio/wav"))
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Formato de áudio não permitido.");
         if (sha256 is not { Length: 64 } || sha256.Any(c => !Uri.IsHexDigit(c)))
             return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Identificador da mídia inválido.");
         if (testOnly is null)
             return ValidationResult.Fail(ErrorCode.MissingField, "Campo obrigatório ausente: media_test_only");
+        var maxBytes = kind == "audio" ? 12 * 1024 * 1024 : 24 * 1024 * 1024;
         if (string.IsNullOrWhiteSpace(dataBase64)
-            || dataBase64.Length > ((24 * 1024 * 1024 + 2) / 3) * 4)
-            return ValidationResult.Fail(ErrorCode.PayloadTooLarge, "O arquivo de teste excede 24 MB.");
+            || dataBase64.Length > ((maxBytes + 2) / 3) * 4)
+            return ValidationResult.Fail(ErrorCode.PayloadTooLarge, $"O arquivo excede {maxBytes / (1024 * 1024)} MB.");
         try
         {
             var bytes = Convert.FromBase64String(dataBase64);
-            if (bytes.Length is 0 or > 24 * 1024 * 1024)
-                return ValidationResult.Fail(ErrorCode.PayloadTooLarge, "O arquivo de teste excede 24 MB.");
+            if (bytes.Length == 0 || bytes.Length > maxBytes)
+                return ValidationResult.Fail(ErrorCode.PayloadTooLarge, $"O arquivo excede {maxBytes / (1024 * 1024)} MB.");
+            var computedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
+            if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                    Convert.FromHexString(computedHash), Convert.FromHexString(sha256)))
+                return ValidationResult.Fail(ErrorCode.InvalidFieldType, "A mídia não corresponde ao identificador informado.");
         }
         catch (FormatException)
         {
             return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Dados da mídia não estão em Base64 válido.");
         }
         return null;
+    }
+
+    private static ValidationResult? ValidarMiniaturaPapelParede(ConteudoImagem? imagem)
+    {
+        if (imagem is null || imagem.MimeType != "image/jpeg" || string.IsNullOrWhiteSpace(imagem.DataBase64))
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Miniatura do papel de parede inválida.");
+        try
+        {
+            var bytes = Convert.FromBase64String(imagem.DataBase64);
+            return bytes.Length is > 0 and <= 512 * 1024
+                && ConteudoImagem.AssinaturaCorresponde("image/jpeg", bytes)
+                ? null
+                : ValidationResult.Fail(ErrorCode.PayloadTooLarge, "A miniatura precisa ser JPEG e ter até 512 KB.");
+        }
+        catch (FormatException)
+        {
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Dados da miniatura não estão em Base64 válido.");
+        }
     }
 
     /// <summary>Uma imagem central é conteúdo completo por si só, portanto título e
@@ -581,6 +619,13 @@ public static class MessageValidator
         if (!ConteudoAudio.MimePermitido(audio.MimeType))
         {
             return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Formato de áudio não permitido. Use MP3 ou WAV.");
+        }
+        if (audio.MediaCacheId is { } cacheId)
+        {
+            if (cacheId.Length != 64 || cacheId.Any(c => !Uri.IsHexDigit(c))
+                || audio.DataBase64.Length != 0)
+                return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Referência do áudio em cache inválida.");
+            return null;
         }
         if (string.IsNullOrEmpty(audio.DataBase64))
         {

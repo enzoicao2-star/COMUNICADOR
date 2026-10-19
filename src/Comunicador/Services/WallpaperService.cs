@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using Comunicador.Protocol;
 using Comunicador.Storage;
@@ -49,6 +51,46 @@ public static class WallpaperService
             throw new Win32Exception(Marshal.GetLastWin32Error());
         File.Delete(backup);
         return originalPath;
+    }
+
+    public static ConteudoImagem? GetPreview()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop", writable: false);
+            var path = key?.GetValue("WallPaper") as string;
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
+
+            using var stream = File.OpenRead(path);
+            var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.OnLoad);
+            if (decoder.Frames.Count == 0) return null;
+            BitmapSource source = decoder.Frames[0];
+            var scale = Math.Min(1d, Math.Min(480d / source.PixelWidth, 270d / source.PixelHeight));
+            if (scale < 1)
+            {
+                var resized = new TransformedBitmap(source, new ScaleTransform(scale, scale));
+                resized.Freeze();
+                source = resized;
+            }
+
+            var encoder = new JpegBitmapEncoder { QualityLevel = 72 };
+            encoder.Frames.Add(BitmapFrame.Create(source));
+            using var output = new MemoryStream();
+            encoder.Save(output);
+            var bytes = output.ToArray();
+            return new ConteudoImagem
+            {
+                Name = Path.GetFileName(path),
+                MimeType = "image/jpeg",
+                DataBase64 = Convert.ToBase64String(bytes),
+                RawData = bytes,
+            };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+            or NotSupportedException or InvalidOperationException or ArgumentException)
+        {
+            return null;
+        }
     }
 
     private static void SaveOriginalWallpaper()

@@ -347,6 +347,33 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
+                                    <CheckBox Content="Transições ligadas" IsChecked="{Binding TransicoesAtivas}"
+                                              VerticalAlignment="Center" Margin="3,0,0,6"
+                                              ToolTip="As transições começam desligadas. Ative para usar os efeitos de entrada e saída escolhidos.">
+                                        <CheckBox.Style>
+                                            <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding PodePersonalizarTransicao}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </CheckBox.Style>
+                                    </CheckBox>
+                                    <Button Content="Definir monitor" Margin="8,0,0,6"
+                                            Click="SelecionarMonitor_Click"
+                                            ToolTip="Escolha em qual monitor a imagem ou o vídeo aparecerá">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource BotaoSecundario}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding TemAudio}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                                    <DataTrigger Binding="{Binding AlterarImagemSistema}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
                                 </WrapPanel>
                                 <TextBlock Text="{Binding ResumoTransicoes}" Margin="0,0,0,7">
                                     <TextBlock.Style>
@@ -525,134 +552,16 @@
                                 </Style>
                             </StackPanel.Style>
                             <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,15,0,13" />
-                            <TextBlock Text="Prévia dos monitores escolhidos" Style="{StaticResource RotuloCampo}" />
-                            <TextBlock Text="Aparecem somente os monitores dos computadores marcados. A mídia já carregada pode ser reutilizada sem abrir outro seletor."
-                                       Style="{StaticResource Subtitulo}" FontSize="11" Margin="0,0,0,9" />
-                            <TextBlock Text="Marque um computador em “Enviar para” para escolher o monitor de destino."
-                                       FontSize="11" Margin="0,2,0,10">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Subtitulo}">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding MonitoresDestino.Count}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                            <ItemsControl ItemsSource="{Binding MonitoresDestino}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <controls:ResponsiveColumnsPanel MinColumnWidth="300" MaxColumns="4"
-                                                                     ColumnGap="10" RowGap="10" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Background="{DynamicResource CardSurfaceBrush}"
-                                            BorderBrush="{DynamicResource CardGlassBorderBrush}" BorderThickness="1"
-                                            CornerRadius="9" Padding="11"
-                                            AllowDrop="True" PreviewDragOver="MonitorCard_DragOver"
-                                            PreviewDragEnter="MonitorCard_DragEnter" PreviewDragLeave="MonitorCard_DragLeave"
-                                            Drop="MonitorCard_Drop">
-                                        <StackPanel>
-                                            <StackPanel Margin="0,0,0,8">
-                                                <TextBlock Text="{Binding Titulo}" Foreground="{DynamicResource TextPrimaryBrush}"
-                                                           FontWeight="SemiBold" TextWrapping="Wrap" MaxHeight="38"
-                                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding Titulo}" />
-                                                <TextBlock Text="{Binding Resolucao}" Foreground="{DynamicResource TextSecondaryBrush}"
-                                                           FontSize="10" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
-                                            </StackPanel>
-                                            <Border Height="{Binding AlturaPreview}" MinHeight="80" MaxHeight="155"
-                                                    Background="#080B11" BorderBrush="#52637C" BorderThickness="1"
-                                                    CornerRadius="5" Padding="5">
-                                                <Grid>
-                                                    <ItemsControl ItemsSource="{Binding Midias}">
-                                                        <ItemsControl.ItemsPanel>
-                                                            <ItemsPanelTemplate>
-                                                                <WrapPanel HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                            </ItemsPanelTemplate>
-                                                        </ItemsControl.ItemsPanel>
-                                                        <ItemsControl.ItemTemplate>
-                                                            <DataTemplate>
-                                                                <Grid Width="{Binding PreviewWidth}" MaxHeight="130" Margin="3">
-                                                                    <Image Source="{Binding ImagemPreview}" MaxHeight="130" Stretch="Uniform" />
-                                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                                        <StackPanel.Style>
-                                                                            <Style TargetType="StackPanel">
-                                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                                                <Style.Triggers><DataTrigger Binding="{Binding EhVideo}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
-                                                                            </Style>
-                                                                        </StackPanel.Style>
-                                                                        <TextBlock Text="&#xE714;" FontFamily="Segoe MDL2 Assets" FontSize="28" Foreground="White" HorizontalAlignment="Center" />
-                                                                        <TextBlock Text="Vídeo" Foreground="White" FontSize="11" HorizontalAlignment="Center" />
-                                                                    </StackPanel>
-                                                                </Grid>
-                                                            </DataTemplate>
-                                                        </ItemsControl.ItemTemplate>
-                                                    </ItemsControl>
-                                                    <TextBlock Text="Solte imagem, GIF ou vídeo aqui" Foreground="#AAB6C8"
-                                                               FontSize="11" TextAlignment="Center" HorizontalAlignment="Center"
-                                                               VerticalAlignment="Center" IsHitTestVisible="False">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding Midias.Count}" Value="0">
-                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                </Grid>
-                                            </Border>
-                                            <ItemsControl ItemsSource="{Binding Midias}" Margin="0,8,0,0">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Grid Margin="0,0,0,3">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="85" />
-                                                                <ColumnDefinition />
-                                                                <ColumnDefinition Width="Auto" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <TextBlock Text="{Binding Nome}" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11"
-                                                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                                            <Slider Grid.Column="1" Minimum="10" Maximum="100" TickFrequency="5"
-                                                                    IsSnapToTickEnabled="True" Value="{Binding TamanhoPercentual}"
-                                                                    Tag="%" Margin="7,0" />
-                                                            <Button Grid.Column="2" Style="{StaticResource BotaoSecundario}" Padding="7,0"
-                                                                    Height="26" ToolTip="Remover mídia"
-                                                                    Command="{Binding DataContext.RemoverImagemMonitorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                    CommandParameter="{Binding}">
-                                                                <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="11" />
-                                                            </Button>
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                            <WrapPanel Margin="0,5,0,0">
-                                                <Button Style="{StaticResource BotaoSecundario}" Content="Definir monitor"
-                                                        Margin="0,0,7,5" Click="DefinirMonitor_Click"
-                                                        ToolTip="Ajustar posição, tamanho e permanência da imagem neste monitor" />
-                                                <Button Style="{StaticResource BotaoPrimario}" Content="Usar mídia carregada"
-                                                        Margin="0,0,7,5"
-                                                        Command="{Binding DataContext.UsarImagemCarregadaNoMonitorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                        CommandParameter="{Binding}" />
-                                                <Button Style="{StaticResource BotaoSecundario}" Content="Outra imagem"
-                                                        Margin="0,0,0,5"
-                                                        Command="{Binding DataContext.AdicionarImagemMonitorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                        CommandParameter="{Binding}" />
-                                                <Button Style="{StaticResource BotaoSecundario}" Content="Outro vídeo"
-                                                        Margin="7,0,0,5"
-                                                        Command="{Binding DataContext.AdicionarVideoMonitorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                        CommandParameter="{Binding}" />
-                                            </WrapPanel>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
+                            <Grid>
+                                <StackPanel>
+                                    <TextBlock Text="Destino da mídia" Style="{StaticResource RotuloCampo}" />
+                                    <TextBlock Text="Escolha os monitores numa janela própria. O papel de parede atual aparece atrás da mídia, e você pode soltar um arquivo diretamente no monitor desejado."
+                                               Style="{StaticResource Subtitulo}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,10" />
+                                </StackPanel>
+                                <Button HorizontalAlignment="Right" VerticalAlignment="Center" Content="Definir monitor"
+                                        Style="{StaticResource BotaoPrimario}" Click="SelecionarMonitor_Click" />
+                            </Grid>
+                        </StackPanel>>
                     </StackPanel>
                 </Border>
 

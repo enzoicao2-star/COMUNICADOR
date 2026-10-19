@@ -63,6 +63,20 @@ public partial class MensagensView : UserControl
         janela.ShowDialog();
     }
 
+    private void SelecionarMonitor_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MensagensViewModel viewModel) return;
+        if (viewModel.MonitoresDestino.Count == 0)
+        {
+            MessageBox.Show(Window.GetWindow(this),
+                "Selecione pelo menos um computador em ‘Enviar para’ para escolher os monitores.",
+                "Nenhum destino selecionado", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        new SelecionarMonitorWindow(viewModel) { Owner = Window.GetWindow(this) }.ShowDialog();
+    }
+
     private void PrepararListaDestinatarios()
     {
         if (DataContext is not MensagensViewModel viewModel) return;

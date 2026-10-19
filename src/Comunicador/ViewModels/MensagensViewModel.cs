@@ -49,7 +49,7 @@ public sealed class MensagensViewModel : ViewModelBase
     private int _atrasoEnvioImagemSegundos;
     private bool _permitirFecharImagem = true;
     private bool _bloquearFecharDuranteTransicao = true;
-    private bool _transicoesAtivas = true;
+    private bool _transicoesAtivas;
     private bool _tocarSom = true;
     private string _tipoSom = ProtocolConstants.SoundType.Information;
     private string _posicaoAviso = ProtocolConstants.ToastPosition.BottomRight;
@@ -351,7 +351,7 @@ public sealed class MensagensViewModel : ViewModelBase
     public int DuracaoPreviewGaleria => PreviewEfeitoSaida ? DuracaoSaidaMs : DuracaoEntradaMs;
     public string NomeEfeitoEntrada => NomeEfeito(EfeitoEntrada);
     public string NomeEfeitoSaida => NomeEfeito(EfeitoSaida);
-    public string ResumoTransicoes => $"{NomeEfeito(EfeitoEntrada)} → {NomeEfeito(EfeitoSaida)} · " +
+    public string ResumoTransicoes => !TransicoesAtivas ? "Transições desligadas" : $"{NomeEfeito(EfeitoEntrada)} → {NomeEfeito(EfeitoSaida)} · " +
         $"{(ModoTempoEntrada == "speed" ? $"{VelocidadeEntradaPercentual}%" : $"{DuracaoEntradaMs} ms")} / " +
         $"{(ModoTempoSaida == "speed" ? $"{VelocidadeSaidaPercentual}%" : $"{DuracaoSaidaMs} ms")}";
 
@@ -613,6 +613,7 @@ public sealed class MensagensViewModel : ViewModelBase
         set
         {
             if (!SetField(ref _transicoesAtivas, value)) return;
+            OnPropertyChanged(nameof(ResumoTransicoes));
             _settings.TransicoesAtivas = value;
             SettingsStore.Save(_settings);
         }
@@ -738,6 +739,7 @@ public sealed class MensagensViewModel : ViewModelBase
         _reenvios = reenvios;
         _settings = settings;
         _transicoesAtivas = settings.TransicoesAtivas;
+        _computadores.WallpaperPreviewUpdated += OnWallpaperPreviewUpdated;
         _cloud.StateChanged += () => UiDispatcher.Invoke(() =>
         {
             if (!PodeAlterarPapelParede) { DefinirComoPapelDeParede = false; DefinirComoTelaDeBloqueio = false; }
@@ -1081,6 +1083,7 @@ public sealed class MensagensViewModel : ViewModelBase
             foreach (var monitor in monitores.OrderBy(m => m.Index))
             {
                 var destino = new DestinoMonitor { Computador = computador, Monitor = monitor };
+                destino.DefinirWallpaperPreview(_computadores.ObterMiniaturaPapelParede(computador.Id, monitor.Index));
                 if (_midiasPorMonitor.TryGetValue(destino.Chave, out var midias))
                 {
                     foreach (var midia in midias)
@@ -1092,6 +1095,22 @@ public sealed class MensagensViewModel : ViewModelBase
             }
         }
         AtualizarImagemPreviewTransicoes();
+    }
+
+    private void OnWallpaperPreviewUpdated(string computerId, int monitorIndex, byte[] bytes)
+    {
+        foreach (var destino in MonitoresDestino.Where(item =>
+                     string.Equals(item.Computador.Id, computerId, StringComparison.OrdinalIgnoreCase)
+                     && item.Monitor.Index == monitorIndex))
+            destino.DefinirWallpaperPreview(bytes);
+    }
+
+    public async Task AtualizarMiniaturasDosDestinosAsync()
+    {
+        foreach (var computerId in MonitoresDestino.Select(item => item.Computador.Id)
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+            await _computadores.AtualizarMiniaturasPapelParedeAsync(computerId, force: true)
+                .ConfigureAwait(true);
     }
 
     private void GuardarMidias(DestinoMonitor destino) =>
@@ -1440,6 +1459,9 @@ public sealed class MensagensViewModel : ViewModelBase
             if (!monitores.Any(m => m.Midias.Any(item => item.EhVideo))
                 && _dadosVideo is { Length: > 0 } && _mimeVideo is not null)
                 _ = IniciarPreload(destino, "video", _mimeVideo, _dadosVideo);
+            if (!monitores.Any(m => m.Midias.Any(item => item.MimeType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase)))
+                && _dadosAudio is { Length: > 0 } && _mimeAudio is not null)
+                _ = IniciarPreload(destino, "audio", _mimeAudio, _dadosAudio);
             foreach (var item in monitores.SelectMany(m => m.Midias))
             {
                 var tipo = item.EhVideo ? "video" : item.MimeType == "image/gif" ? "gif" : "image";
@@ -1451,9 +1473,13 @@ public sealed class MensagensViewModel : ViewModelBase
     private async Task<EnvioPendente> CriarEnvioComCacheAsync(Computador computador, EnvioPendente original)
     {
         if (original.ModoExibicao is not (ProtocolConstants.DisplayMode.CenterImage
-            or ProtocolConstants.DisplayMode.CenterVideo)) return original;
+            or ProtocolConstants.DisplayMode.CenterVideo
+            or ProtocolConstants.DisplayMode.Audio
+            or ProtocolConstants.DisplayMode.Wallpaper
+            or ProtocolConstants.DisplayMode.LockScreen)) return original;
         var imagem = original.Imagem is null ? null : await ImagemComCacheAsync(computador, original.Imagem).ConfigureAwait(true);
         var video = original.Video is null ? null : await VideoComCacheAsync(computador, original.Video).ConfigureAwait(true);
+        var audio = original.Audio is null ? null : await AudioComCacheAsync(computador, original.Audio).ConfigureAwait(true);
         var imagens = new List<ImagemMonitor>(original.ImagensPorMonitor.Count);
         foreach (var item in original.ImagensPorMonitor)
             imagens.Add(new ImagemMonitor
@@ -1470,7 +1496,7 @@ public sealed class MensagensViewModel : ViewModelBase
                 MonitorIndex = item.MonitorIndex, WidthPercent = item.WidthPercent,
                 Video = await VideoComCacheAsync(computador, item.Video).ConfigureAwait(true),
             });
-        if (imagem?.MediaCacheId is null && video?.MediaCacheId is null
+        if (imagem?.MediaCacheId is null && video?.MediaCacheId is null && audio?.MediaCacheId is null
             && !imagens.Any(item => item.Image.MediaCacheId is not null)
             && !videos.Any(item => item.Video.MediaCacheId is not null)) return original;
         return new EnvioPendente
@@ -1479,7 +1505,7 @@ public sealed class MensagensViewModel : ViewModelBase
             PermitirResposta = original.PermitirResposta, ConfirmacaoObrigatoria = original.ConfirmacaoObrigatoria,
             Botoes = original.Botoes, ModoExibicao = original.ModoExibicao,
             Imagem = imagem, ImagensPorMonitor = imagens, Video = video, VideosPorMonitor = videos,
-            Audio = original.Audio, DuracaoSegundos = original.DuracaoSegundos,
+            Audio = audio, DuracaoSegundos = original.DuracaoSegundos,
             PermitirFecharManualmente = original.PermitirFecharManualmente,
             RepetirVideo = original.RepetirVideo, RepetirAudio = original.RepetirAudio,
             Aparencia = original.Aparencia,
@@ -1491,13 +1517,14 @@ public sealed class MensagensViewModel : ViewModelBase
         var dados = original.RawData ?? Convert.FromBase64String(original.DataBase64);
         var tipo = original.MimeType == "image/gif" ? "gif" : "image";
         var upload = IniciarPreload(computador, tipo, original.MimeType, dados);
-        if (!upload.IsCompleted) return original;
         var resultado = await upload.ConfigureAwait(true);
+        if (!resultado.Success)
+            throw new IOException($"A imagem ainda não foi copiada para {computador.NomeExibicao}; ela ficou salva localmente para tentar novamente. {resultado.ErrorMessage}");
         return new ConteudoImagem
         {
             Name = original.Name, MimeType = original.MimeType,
-            DataBase64 = resultado.Success ? string.Empty : original.DataBase64,
-            MediaCacheId = resultado.Success ? resultado.Sha256 : null,
+            DataBase64 = string.Empty,
+            MediaCacheId = resultado.Sha256,
         };
     }
 
@@ -1505,13 +1532,30 @@ public sealed class MensagensViewModel : ViewModelBase
     {
         var dados = original.RawData ?? Convert.FromBase64String(original.DataBase64);
         var upload = IniciarPreload(computador, "video", original.MimeType, dados);
-        if (!upload.IsCompleted) return original;
         var resultado = await upload.ConfigureAwait(true);
+        if (!resultado.Success)
+            throw new IOException($"O vídeo ainda não foi copiado para {computador.NomeExibicao}; ele ficou salvo localmente para tentar novamente. {resultado.ErrorMessage}");
         return new ConteudoVideo
         {
             Name = original.Name, MimeType = original.MimeType,
-            DataBase64 = resultado.Success ? string.Empty : original.DataBase64,
-            MediaCacheId = resultado.Success ? resultado.Sha256 : null,
+            DataBase64 = string.Empty,
+            MediaCacheId = resultado.Sha256,
+        };
+    }
+
+    private async Task<ConteudoAudio> AudioComCacheAsync(Computador computador, ConteudoAudio original)
+    {
+        var dados = original.RawData ?? Convert.FromBase64String(original.DataBase64);
+        var upload = IniciarPreload(computador, "audio", original.MimeType, dados);
+        var resultado = await upload.ConfigureAwait(true);
+        if (!resultado.Success)
+            throw new IOException($"O áudio ainda não foi copiado para {computador.NomeExibicao}; ele ficou salvo localmente para tentar novamente. {resultado.ErrorMessage}");
+        return new ConteudoAudio
+        {
+            Name = original.Name,
+            MimeType = original.MimeType,
+            DataBase64 = string.Empty,
+            MediaCacheId = resultado.Sha256,
         };
     }
 
@@ -1876,6 +1920,7 @@ public sealed class MensagensViewModel : ViewModelBase
             Name = _nomeAudio,
             MimeType = _mimeAudio,
             DataBase64 = Convert.ToBase64String(_dadosAudio),
+            RawData = _dadosAudio,
         };
     }
 
@@ -2086,10 +2131,20 @@ public sealed class MensagensViewModel : ViewModelBase
                 if ((!computador.Pareado && computador.RegistradoNaNuvem)
                     || midiaOwnerParaDestinoBloqueado)
                 {
-                    // O receptor valida o OWNER pela identidade registrada na nuvem.
-                    // Para destinos com bloqueio de mídia, usar sempre essa rota evita
-                    // que a recusa da conexão pareada descarte uma mídia do OWNER.
-                    await _cloud.QueueNotificationAsync(computador.Id, envio).ConfigureAwait(true);
+                    // Se houver caminho direto, grave a mídia no cache do receptor e
+                    // envie só a referência pela nuvem. Para receptor sem pareamento,
+                    // a própria fila é o único transporte disponível; nesse caso o
+                    // conteúdo completo fica na mensagem até a entrega.
+                    var envioNuvem = envio;
+                    try
+                    {
+                        envioNuvem = await CriarEnvioComCacheAsync(computador, envio).ConfigureAwait(true);
+                    }
+                    catch (IOException ex) when (possuiMidia)
+                    {
+                        Logger.Warning($"Mídia será transportada pela fila segura para {computador.NomeExibicao}: {ex.Message}", "envio");
+                    }
+                    await _cloud.QueueNotificationAsync(computador.Id, envioNuvem).ConfigureAwait(true);
                     resultado = new NotificationResult(true, false, false, null, null);
                 }
                 else

@@ -336,6 +336,34 @@ MEDIA_PLAYER_SCRIPT = r'''param(
 )
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class ReceiverOverlayNativeMethods {
+    const int GWL_EXSTYLE = -20;
+    const long WS_EX_TRANSPARENT = 0x00000020L;
+    const long WS_EX_TOOLWINDOW = 0x00000080L;
+    const long WS_EX_NOACTIVATE = 0x08000000L;
+    [DllImport("user32.dll", EntryPoint="GetWindowLongPtrW", SetLastError=true)]
+    static extern IntPtr GetWindowLongPtr64(IntPtr hWnd, int index);
+    [DllImport("user32.dll", EntryPoint="SetWindowLongPtrW", SetLastError=true)]
+    static extern IntPtr SetWindowLongPtr64(IntPtr hWnd, int index, IntPtr value);
+    [DllImport("user32.dll", EntryPoint="GetWindowLongW", SetLastError=true)]
+    static extern int GetWindowLong32(IntPtr hWnd, int index);
+    [DllImport("user32.dll", EntryPoint="SetWindowLongW", SetLastError=true)]
+    static extern int SetWindowLong32(IntPtr hWnd, int index, int value);
+    public static void EnableClickThrough(IntPtr hWnd) {
+        long style = IntPtr.Size == 8
+            ? GetWindowLongPtr64(hWnd, GWL_EXSTYLE).ToInt64()
+            : GetWindowLong32(hWnd, GWL_EXSTYLE);
+        style |= WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
+        if (IntPtr.Size == 8)
+            SetWindowLongPtr64(hWnd, GWL_EXSTYLE, new IntPtr(style));
+        else
+            SetWindowLong32(hWnd, GWL_EXSTYLE, unchecked((int)style));
+    }
+}
+"@
 $window = New-Object System.Windows.Window
 $window.WindowStyle = [System.Windows.WindowStyle]::None
 $window.ResizeMode = [System.Windows.ResizeMode]::NoResize
@@ -344,6 +372,13 @@ $window.ShowActivated = $false
 $window.Topmost = $true
 $window.AllowsTransparency = $true
 $window.Background = [System.Windows.Media.Brushes]::Transparent
+if (-not $AllowClose) {
+    $window.IsHitTestVisible = $false
+    $window.Add_SourceInitialized({
+        $handle = (New-Object System.Windows.Interop.WindowInteropHelper($window)).Handle
+        [ReceiverOverlayNativeMethods]::EnableClickThrough($handle)
+    })
+}
 $media = New-Object System.Windows.Controls.MediaElement
 $media.LoadedBehavior = [System.Windows.Controls.MediaState]::Manual
 $media.UnloadedBehavior = [System.Windows.Controls.MediaState]::Manual
@@ -661,6 +696,8 @@ def _resolver_midias_cache(msg: dict, config: "Config") -> None:
         conteudos.append((msg["video"], "video"))
     conteudos.extend((item.get("video"), "video") for item in msg.get("screen_videos") or []
                      if isinstance(item, dict) and isinstance(item.get("video"), dict))
+    if isinstance(msg.get("audio"), dict):
+        conteudos.append((msg["audio"], "audio"))
 
     for conteudo, tipo in conteudos:
         digest = conteudo.get("media_cache_id")
@@ -675,9 +712,18 @@ def _resolver_midias_cache(msg: dict, config: "Config") -> None:
                                 "MEDIA_NOT_READY: mídia ainda não foi carregada por completo.") from exc
 
         limite = (protocolo.MAX_VIDEO_BYTES if tipo == "video" else
+                  protocolo.MAX_AUDIO_BYTES if tipo == "audio" else
                   protocolo.MAX_GIF_BYTES if mime == "image/gif" else protocolo.MAX_IMAGE_BYTES)
         if tipo == "image":
             assinatura_valida = protocolo._assinatura_imagem_valida(mime, dados)
+        elif tipo == "audio":
+            assinatura_valida = (
+                mime == "audio/mpeg" and (
+                    dados.startswith(b"ID3") or (len(dados) >= 2 and dados[0] == 0xff and dados[1] & 0xe0 == 0xe0))
+            ) or (
+                mime == "audio/wav" and len(dados) >= 12
+                and dados[:4] == b"RIFF" and dados[8:12] == b"WAVE"
+            )
         else:
             assinatura_valida = (
                 mime == "video/mp4" and len(dados) >= 12 and dados[4:8] == b"ftyp"
@@ -709,8 +755,16 @@ def processar_upload_midia_cache(msg: dict, config: "Config") -> dict:
         pasta = config.directory / "media-cache"
         pasta.mkdir(parents=True, exist_ok=True)
         digest = msg["media_sha256"].lower()
+        if hashlib.sha256(dados).hexdigest().lower() != digest:
+            raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "A mídia não corresponde ao identificador informado.")
         cache_path = pasta / digest
-        if not cache_path.exists() or cache_path.stat().st_size != len(dados):
+        cache_valido = False
+        try:
+            cache_valido = (cache_path.stat().st_size == len(dados)
+                            and hashlib.sha256(cache_path.read_bytes()).hexdigest().lower() == digest)
+        except OSError:
+            pass
+        if not cache_valido:
             temporario = pasta / f"{digest}.{uuid.uuid4().hex}.tmp"
             try:
                 with temporario.open("wb") as arquivo:
@@ -761,6 +815,72 @@ def aplicar_papel_parede(image: dict, config: "Config") -> None:
     import ctypes
     if not ctypes.windll.user32.SystemParametersInfoW(20, 0, str(destino), 3):
         raise OSError("O Windows recusou a alteração do papel de parede.")
+
+
+def assinatura_papel_parede() -> Optional[tuple]:
+    """Identifica alterações do papel de parede sem ler ou transferir a imagem."""
+    if os.name != "nt":
+        return None
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Desktop") as key:
+            caminho, _ = winreg.QueryValueEx(key, "WallPaper")
+        arquivo = Path(caminho) if caminho else None
+        if arquivo is None or not arquivo.is_file():
+            return (caminho or "", 0, 0)
+        info = arquivo.stat()
+        return (str(arquivo).casefold(), info.st_mtime_ns, info.st_size)
+    except (OSError, ValueError):
+        return None
+
+
+def obter_miniatura_papel_parede(config: Optional["Config"] = None) -> Optional[dict]:
+    """Cria uma miniatura JPEG pequena para o painel; nunca altera a tela local."""
+    if os.name != "nt":
+        return None
+    try:
+        import winreg
+        from io import BytesIO
+        from PIL import Image
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Desktop") as key:
+            caminho, _ = winreg.QueryValueEx(key, "WallPaper")
+        if not caminho or not Path(caminho).is_file():
+            return None
+        with Image.open(caminho) as original:
+            original.thumbnail((480, 270), Image.Resampling.LANCZOS)
+            if original.mode not in ("RGB", "L"):
+                original = original.convert("RGB")
+            elif original.mode == "L":
+                original = original.convert("RGB")
+            output = BytesIO()
+            original.save(output, format="JPEG", quality=72, optimize=True)
+        dados = output.getvalue()
+        if not dados or len(dados) > 512 * 1024:
+            return None
+        if config is not None:
+            cache = Path(config.directory) / "wallpaper-preview.jpg"
+            temporario = cache.with_name(
+                f".{cache.name}.{os.getpid()}.{time.time_ns()}.tmp")
+            try:
+                cache.parent.mkdir(parents=True, exist_ok=True)
+                temporario.write_bytes(dados)
+                os.replace(temporario, cache)
+            except OSError:
+                logging.warning("Não foi possível guardar localmente a miniatura do papel de parede.",
+                                exc_info=True)
+            finally:
+                try:
+                    temporario.unlink(missing_ok=True)
+                except OSError:
+                    pass
+        return {
+            "name": Path(caminho).name[:240] or "papel-de-parede.jpg",
+            "mime_type": "image/jpeg",
+            "data_base64": base64.b64encode(dados).decode("ascii"),
+        }
+    except (OSError, ValueError, ImportError):
+        logging.debug("Não foi possível gerar a miniatura do papel de parede.", exc_info=True)
+        return None
 
 
 def restaurar_papel_parede(config: "Config") -> str:
@@ -1571,6 +1691,12 @@ class CloudDeliveryWorker(threading.Thread):
                         result = f"Não foi possível restaurar o papel de parede: {exc}"
                     self._atualizar_entrega(delivery_id, result)
                     return
+                try:
+                    _resolver_midias_cache(payload, self.config)
+                except ProtocolError as exc:
+                    logging.warning("Entrega cloud %s recusada: %s", delivery_id, exc)
+                    self._atualizar_entrega(delivery_id, "A imagem não está completa no cache local; a entrega não foi exibida.")
+                    return
                 if not image:
                     self._atualizar_entrega(delivery_id, "Ação recusada: a imagem não foi recebida.")
                     return
@@ -1597,6 +1723,18 @@ class CloudDeliveryWorker(threading.Thread):
                     payload["title"] = "Mídia bloqueada neste computador"
                 if not payload.get("message"):
                     payload["message"] = "Este computador bloqueou a mídia enviada."
+            elif has_media:
+                try:
+                    _resolver_midias_cache(payload, self.config)
+                    image = payload.get("image")
+                    screen_images = payload.get("screen_images") or []
+                    video = payload.get("video")
+                    screen_videos = payload.get("screen_videos") or []
+                    audio = payload.get("audio")
+                except ProtocolError as exc:
+                    logging.warning("Entrega cloud %s recusada: %s", delivery_id, exc)
+                    self._atualizar_entrega(delivery_id, "A mídia não está completa no cache local; a entrega não foi exibida.")
+                    return
 
         def concluir(resposta):
             threading.Thread(
@@ -2547,6 +2685,8 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         try:
             if msg_type == MessageType.PING:
                 self._handle_ping(msg, server)
+            elif msg_type == MessageType.WALLPAPER_PREVIEW_REQUEST:
+                self._handle_wallpaper_preview_request(msg, server)
             elif msg_type == MessageType.MEDIA_CACHE_UPLOAD:
                 self._handle_media_cache_upload(msg, server)
             elif msg_type == MessageType.PAIR_REQUEST:
@@ -2593,8 +2733,16 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
             pasta = server.config.directory / "media-cache"
             pasta.mkdir(parents=True, exist_ok=True)
             digest = msg["media_sha256"].lower()
+            if hashlib.sha256(dados).hexdigest().lower() != digest:
+                raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "A mídia não corresponde ao identificador informado.")
             cache_path = pasta / digest
-            if not cache_path.exists() or cache_path.stat().st_size != len(dados):
+            cache_valido = False
+            try:
+                cache_valido = (cache_path.stat().st_size == len(dados)
+                                and hashlib.sha256(cache_path.read_bytes()).hexdigest().lower() == digest)
+            except OSError:
+                pass
+            if not cache_valido:
                 temporario = pasta / f"{digest}.{uuid.uuid4().hex}.tmp"
                 try:
                     temporario.write_bytes(dados)
@@ -2617,6 +2765,19 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
         ack["status"] = "media_test_received" if test_only else "media_cached"
         ack["media_sha256"] = msg["media_sha256"].lower()
         ack["bytes_received"] = len(dados)
+        self._safe_send(ack)
+
+    def _handle_wallpaper_preview_request(self, msg: dict, server: "ReceptorTcpServer") -> None:
+        if not server.config.token_is_valid(msg["token"]):
+            raise ProtocolError(ErrorCode.UNAUTHORIZED, "Token inválido ou painel não pareado.")
+        if getattr(server.config, "is_owner_device", lambda: False)():
+            raise ProtocolError(ErrorCode.CONTENT_BLOCKED, "O OWNER está protegido e não recebe solicitações.")
+        imagem = obter_miniatura_papel_parede(server.config)
+        ack = protocolo.base_message(MessageType.ACK)
+        ack["in_reply_to"] = msg["id"]
+        ack["status"] = "wallpaper_preview" if imagem else "wallpaper_preview_unavailable"
+        if imagem:
+            ack["image"] = imagem
         self._safe_send(ack)
 
     def _read_message(self, buffer: bytes) -> Optional[bytes]:
@@ -2978,6 +3139,15 @@ class ReverseConnection(threading.Thread):
         self.config.remember_panel_host(self.host)
         logging.info("Registrado no painel %s:%s via conexão reversa.", self.host, self.port)
 
+        # Publica a miniatura ao iniciar (inclusive depois de uma atualização) e
+        # avisa novamente quando o papel de parede mudar.
+        if not self.ui.test_mode and os.name == "nt":
+            threading.Thread(
+                target=self._monitorar_papel_de_parede,
+                args=(resposta["token"],),
+                daemon=True,
+                name=f"miniatura-papel-{self.config.computer_id[:8]}").start()
+
         # A partir daqui a conexão fica aberta recebendo notificações do painel.
         while self._running:
             msg, buffer = self._ler(buffer)
@@ -2999,6 +3169,10 @@ class ReverseConnection(threading.Thread):
                 self._tratar_sync(msg)
             elif msg.get("type") == MessageType.PING:
                 self._tratar_ping(msg)
+            elif msg.get("type") == MessageType.WALLPAPER_PREVIEW_REQUEST:
+                threading.Thread(
+                    target=self._tratar_pedido_miniatura_seguro, args=(msg,), daemon=True,
+                    name=f"miniatura-papel-{msg.get('id', '')[:8]}").start()
             else:
                 self._enviar(protocolo.make_error(
                     ErrorCode.UNKNOWN_TYPE,
@@ -3020,6 +3194,53 @@ class ReverseConnection(threading.Thread):
             pong["panel_version"] = self.config.panel_version
         pong["status"] = "online"
         self._enviar(pong)
+
+    def _monitorar_papel_de_parede(self, token: str) -> None:
+        assinatura_anterior = object()
+        while self._running and self._sock is not None:
+            assinatura = assinatura_papel_parede()
+            if assinatura is not None and assinatura != assinatura_anterior:
+                imagem = obter_miniatura_papel_parede(self.config)
+                if imagem is not None:
+                    mensagem = protocolo.base_message(MessageType.WALLPAPER_CHANGED)
+                    mensagem["token"] = token
+                    mensagem["computer_id"] = self.config.computer_id
+                    mensagem["monitor_index"] = 0
+                    mensagem["image"] = imagem
+                    try:
+                        with socket.create_connection((self.host, self.port), timeout=5) as client:
+                            client.settimeout(5)
+                            client.sendall(protocolo.frame(mensagem))
+                            resposta, _ = read_framed_message(client, b"", allow_unterminated=True)
+                            if resposta:
+                                try:
+                                    resposta_json = json.loads(resposta)
+                                    if resposta_json.get("type") != MessageType.ERROR.value:
+                                        assinatura_anterior = assinatura
+                                except (json.JSONDecodeError, AttributeError, TypeError):
+                                    pass
+                    except (OSError, ProtocolError):
+                        logging.debug("Não foi possível atualizar a miniatura em %s.", self.host)
+            for _ in range(15):
+                if not self._running or self._sock is None:
+                    return
+                time.sleep(1)
+
+    def _tratar_pedido_miniatura_seguro(self, msg: dict) -> None:
+        try:
+            if not self.config.token_is_valid(msg.get("token", "")):
+                self._enviar(protocolo.make_error(
+                    ErrorCode.UNAUTHORIZED, "Token inválido ou painel não pareado.", msg.get("id")))
+                return
+            ack = protocolo.base_message(MessageType.ACK)
+            ack["in_reply_to"] = msg["id"]
+            ack["image"] = obter_miniatura_papel_parede(self.config)
+            ack["status"] = "wallpaper_preview" if ack["image"] else "wallpaper_preview_unavailable"
+            self._enviar(ack)
+        except Exception:
+            logging.exception("Falha ao preparar miniatura do papel de parede.")
+            self._enviar(protocolo.make_error(
+                ErrorCode.INTERNAL_ERROR, "Não foi possível obter a miniatura.", msg.get("id")))
 
     def _tratar_notificacao_segura(self, msg: dict) -> None:
         try:
@@ -3063,6 +3284,11 @@ class ReverseConnection(threading.Thread):
             self._enviar(protocolo.make_error(
                 ErrorCode.CONTENT_BLOCKED,
                 "Este computador bloqueou imagens, vídeos e áudios.", msg["id"]))
+            return
+        try:
+            _resolver_midias_cache(msg, self.config)
+        except ProtocolError as exc:
+            self._enviar(protocolo.make_error(exc.code, str(exc), msg.get("id")))
             return
         if msg.get("display_mode") == protocolo.DISPLAY_MODE_CAROUSEL:
             status = handle_carousel(msg["carousel"], msg.get("image"),

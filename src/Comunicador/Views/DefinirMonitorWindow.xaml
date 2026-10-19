@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:Comunicador.Controls"
+        xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
         Title="Definir monitor" Width="900" Height="650" MinWidth="760" MinHeight="560"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip">
     <Border Background="{DynamicResource BackgroundBrush}" Padding="22">
@@ -58,6 +59,15 @@
                                 <controls:AnimatedImage x:Name="ImagemPreview" Stretch="Uniform"
                                     Cursor="SizeAll" MouseLeftButtonDown="Preview_MouseDown"
                                     MouseMove="Preview_MouseMove" MouseLeftButtonUp="Preview_MouseUp" />
+                                <primitives:Thumb x:Name="AlcaRedimensionar" Width="18" Height="18"
+                                    Cursor="SizeNWSE" DragDelta="Redimensionar_DragDelta">
+                                    <primitives:Thumb.Template>
+                                        <ControlTemplate TargetType="{x:Type primitives:Thumb}">
+                                            <Border CornerRadius="9" Background="{DynamicResource AccentBrush}"
+                                                BorderBrush="White" BorderThickness="2" />
+                                        </ControlTemplate>
+                                    </primitives:Thumb.Template>
+                                </primitives:Thumb>
                             </Canvas>
                         </Border>
                         <TextBlock Grid.Row="2" Text="A imagem permanece dentro dos limites do monitor."

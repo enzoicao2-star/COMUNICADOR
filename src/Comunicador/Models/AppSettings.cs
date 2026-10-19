@@ -4,7 +4,7 @@ namespace Comunicador.Models;
 
 public sealed class AppSettings
 {
-    public int VersaoConfiguracao { get; set; } = 3;
+    public int VersaoConfiguracao { get; set; } = 4;
     public string PainelId { get; set; } = Guid.NewGuid().ToString();
     public int PortaTcp { get; set; } = ProtocolConstants.TcpPort;
     public int PortaDescobertaUdp { get; set; } = ProtocolConstants.UdpDiscoveryPort;
@@ -31,7 +31,7 @@ public sealed class AppSettings
     public string FundoPainel { get; set; } = "Ondas interativas";
     public int IntensidadeFundo { get; set; } = 100;
     public bool ReduzirMovimento { get; set; }
-    public bool TransicoesAtivas { get; set; } = true;
+    public bool TransicoesAtivas { get; set; }
     public int TransparenciaCards { get; set; } = 70;
     public int BlurCards { get; set; } = 18;
     public int VelocidadeFundo { get; set; } = 100;

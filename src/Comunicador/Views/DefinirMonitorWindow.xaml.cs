@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using Comunicador.ViewModels;
@@ -20,11 +21,11 @@ public partial class DefinirMonitorWindow : Window
         _imagens = imagens;
         var primeira = imagens[0];
         SubtituloMonitor.Text = $"{destino.Titulo} · {destino.Resolucao} · {imagens.Count} imagem(ns)";
-        var proporcao = destino.Monitor.Width > 0 && destino.Monitor.Height > 0
-            ? (double)destino.Monitor.Height / destino.Monitor.Width
-            : 9d / 16d;
-        MonitorCanvas.Width = 520;
-        MonitorCanvas.Height = Math.Clamp(520 * proporcao, 190, 310);
+        var larguraMonitor = destino.Monitor.Width > 0 ? destino.Monitor.Width : 1920;
+        var alturaMonitor = destino.Monitor.Height > 0 ? destino.Monitor.Height : 1080;
+        var escalaMonitor = Math.Min(520d / larguraMonitor, 310d / alturaMonitor);
+        MonitorCanvas.Width = larguraMonitor * escalaMonitor;
+        MonitorCanvas.Height = alturaMonitor * escalaMonitor;
         ImagemPreview.DataBase64 = primeira.DadosBase64;
         ImagemPreview.MimeType = primeira.MimeType;
 
@@ -73,6 +74,8 @@ public partial class DefinirMonitorWindow : Window
         Canvas.SetTop(ImagemPreview, Math.Clamp(
             MonitorCanvas.Height * SliderY.Value / 100d - ImagemPreview.Height / 2,
             0, MonitorCanvas.Height - ImagemPreview.Height));
+        Canvas.SetLeft(AlcaRedimensionar, Canvas.GetLeft(ImagemPreview) + ImagemPreview.Width - AlcaRedimensionar.Width / 2);
+        Canvas.SetTop(AlcaRedimensionar, Canvas.GetTop(ImagemPreview) + ImagemPreview.Height - AlcaRedimensionar.Height / 2);
     }
 
     private void Preview_MouseDown(object sender, MouseButtonEventArgs e)
@@ -104,6 +107,20 @@ public partial class DefinirMonitorWindow : Window
     {
         _arrastando = false;
         MonitorCanvas.ReleaseMouseCapture();
+    }
+
+    private void Redimensionar_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (MonitorCanvas.Width <= 0 || ImagemPreview.Width <= 0) return;
+        var proporcao = ImagemPreview.Width / Math.Max(1, ImagemPreview.Height);
+        var deltaHorizontal = e.HorizontalChange;
+        var deltaVerticalComoLargura = e.VerticalChange * proporcao;
+        var delta = Math.Abs(deltaHorizontal) >= Math.Abs(deltaVerticalComoLargura)
+            ? deltaHorizontal
+            : deltaVerticalComoLargura;
+        var larguraDesejada = Math.Clamp(
+            ImagemPreview.Width + delta, MonitorCanvas.Width * .1, MonitorCanvas.Width);
+        SliderTamanho.Value = 100 * larguraDesejada / MonitorCanvas.Width;
     }
 
     private void Permanencia_Changed(object sender, RoutedEventArgs e)

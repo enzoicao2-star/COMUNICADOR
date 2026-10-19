@@ -168,6 +168,9 @@ public sealed class ComunicadorMessage
     [JsonPropertyName("command_line")]
     public string? CommandLine { get; set; }
 
+    [JsonPropertyName("monitor_index")]
+    public int? MonitorIndex { get; set; }
+
     [JsonPropertyName("request_id")]
     public string? RequestId { get; set; }
 

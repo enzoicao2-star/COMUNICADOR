@@ -539,6 +539,7 @@ try {
             sha256 = $expectedHash
             token = [guid]::NewGuid().ToString('N')
             started_at = [DateTimeOffset]::UtcNow.ToString('o')
+            automatic = [bool]$AutomaticPanelUpdate
         }
         $pending | ConvertTo-Json | Set-Content -LiteralPath $pendingPath -Encoding UTF8
     }

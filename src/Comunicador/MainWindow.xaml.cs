@@ -94,7 +94,9 @@ public partial class MainWindow : Window
         ContentRendered -= OnContentRendered;
         _firstContentRendered.TrySetResult(true);
         if (_viewModel is null) return;
-        _ = Services.PanelUpdateService.ReportHealthyStartupAsync();
+        var updateCompletion = await Services.PanelUpdateService.ReportHealthyStartupAsync();
+        if (updateCompletion is { Automatic: true })
+            await _viewModel.NotifyPanelUpdateReadyAsync(updateCompletion.Version);
         if (_iniciadoEmSegundoPlano) return;
         if (string.IsNullOrWhiteSpace(App.BenchmarkFile)) return;
 

@@ -28,6 +28,7 @@ public sealed class EmbeddedReceptorServer : IDisposable
 
     /// <summary>Disparado quando um receptor se registra abrindo conexao para este painel.</summary>
     public event Action<ConexaoReversa>? ReceptorRegistrado;
+    public event Action<string, int, byte[]>? WallpaperPreviewReceived;
 
     private TcpListener? _tcpListener;
     private UdpClient? _udpClient;
@@ -259,6 +260,12 @@ public sealed class EmbeddedReceptorServer : IDisposable
             case ProtocolConstants.MessageType.Notification:
                 await TratarNotificationAsync(stream, msg, ct).ConfigureAwait(false);
                 break;
+            case ProtocolConstants.MessageType.WallpaperPreviewRequest:
+                await TratarWallpaperPreviewAsync(stream, msg, ct).ConfigureAwait(false);
+                break;
+            case ProtocolConstants.MessageType.WallpaperChanged:
+                await TratarWallpaperChangedAsync(stream, msg, ct).ConfigureAwait(false);
+                break;
             case ProtocolConstants.MessageType.RemoteCommand:
                 await TratarComandoRemotoAsync(stream, msg, ct).ConfigureAwait(false);
                 break;
@@ -372,6 +379,47 @@ public sealed class EmbeddedReceptorServer : IDisposable
         pong.IsOwner = _settings.EstePainelEhOwner;
         pong.Status = "online";
         await EnviarAsync(stream, pong, ct).ConfigureAwait(false);
+    }
+
+    private async Task TratarWallpaperPreviewAsync(
+        NetworkStream stream, ComunicadorMessage msg, CancellationToken ct)
+    {
+        if (!TokenValido(msg.Token) || _settings.EstePainelEhOwner)
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.ContentBlocked,
+                "Este computador não permite consultar o papel de parede.", msg.Id), ct).ConfigureAwait(false);
+            return;
+        }
+
+        var ack = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ack);
+        ack.InReplyTo = msg.Id;
+        var preview = Services.WallpaperService.GetPreview();
+        ack.Status = preview is null ? "wallpaper_preview_unavailable" : "wallpaper_preview";
+        ack.Image = preview;
+        await EnviarAsync(stream, ack, ct).ConfigureAwait(false);
+    }
+
+    private async Task TratarWallpaperChangedAsync(
+        NetworkStream stream, ComunicadorMessage msg, CancellationToken ct)
+    {
+        PainelPareado? pareado = null;
+        UiDispatcher.Invoke(() => pareado = _paineisPareados.FirstOrDefault(item =>
+            item.PanelId == msg.ComputerId && item.Token == msg.Token));
+        if (_settings.EstePainelEhOwner || pareado is null || msg.Image is null)
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.Unauthorized,
+                "Este painel não pode receber miniaturas deste computador.", msg.Id), ct).ConfigureAwait(false);
+            return;
+        }
+
+        var bytes = Convert.FromBase64String(msg.Image.DataBase64);
+        WallpaperPreviewReceived?.Invoke(msg.ComputerId!, msg.MonitorIndex!.Value, bytes);
+        var ack = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ack);
+        ack.InReplyTo = msg.Id;
+        ack.Status = "wallpaper_preview_saved";
+        await EnviarAsync(stream, ack, ct).ConfigureAwait(false);
     }
 
     private async Task TratarPairRequestAsync(NetworkStream stream, ComunicadorMessage msg, CancellationToken ct)

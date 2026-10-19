@@ -7,18 +7,53 @@ using Comunicador.Protocol;
 
 namespace Comunicador.ViewModels;
 
-public sealed class DestinoMonitor
+public sealed class DestinoMonitor : ViewModelBase
 {
+    private BitmapSource? _wallpaperPreview;
     public Computador Computador { get; init; } = null!;
     public MonitorInfo Monitor { get; init; } = null!;
     public ObservableCollection<MidiaMonitorEditavel> Midias { get; } = new();
+
+    public BitmapSource? WallpaperPreview
+    {
+        get => _wallpaperPreview;
+        private set => SetField(ref _wallpaperPreview, value);
+    }
+    public string WallpaperPreviewState => WallpaperPreview is null
+        ? "Miniatura do papel de parede ainda não disponível"
+        : "Papel de parede atual deste computador";
+
+    public void DefinirWallpaperPreview(byte[]? bytes)
+    {
+        BitmapSource? preview = null;
+        if (bytes is { Length: > 0 })
+        {
+            try
+            {
+                using var stream = new MemoryStream(bytes, writable: false);
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.StreamSource = stream;
+                bitmap.EndInit();
+                if (bitmap.CanFreeze) bitmap.Freeze();
+                preview = bitmap;
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException or NotSupportedException)
+            {
+                preview = null;
+            }
+        }
+        WallpaperPreview = preview;
+        OnPropertyChanged(nameof(WallpaperPreviewState));
+    }
 
     public string Chave => $"{Computador.Id}:{Monitor.Index}";
     public string Titulo => $"{Computador.NomeExibicao} · Monitor {Monitor.Index + 1}";
     public string Resolucao => Monitor.Descricao;
     public double AlturaPreview => Monitor.Width > 0 && Monitor.Height > 0
-        ? Math.Clamp(260d * Monitor.Height / Monitor.Width, 105, 180)
-        : 146;
+        ? Math.Clamp(300d * Monitor.Height / Monitor.Width, 96, 220)
+        : 169;
 }
 
 public enum TipoMidiaMonitor
@@ -48,6 +83,7 @@ public sealed class MidiaMonitorEditavel : ViewModelBase
     public TipoMidiaMonitor Tipo { get; init; }
     public bool EhImagem => Tipo == TipoMidiaMonitor.Imagem;
     public bool EhVideo => Tipo == TipoMidiaMonitor.Video;
+    public string? PreviewDataBase64 => EhImagem ? DadosBase64 : null;
     public BitmapSource? ImagemPreview
     {
         get

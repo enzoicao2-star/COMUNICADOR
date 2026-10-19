@@ -16,6 +16,7 @@ namespace Comunicador.ViewModels;
 public sealed class ComputadoresViewModel : ViewModelBase
 {
     public event Action<double?>? PingMedioAtualizado;
+    public event Action<string, int, byte[]>? WallpaperPreviewUpdated;
     private readonly JsonStore<Computador> _store;
     private readonly DiscoveryService _discovery;
     private readonly ReceptorClient _client;
@@ -45,6 +46,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private string? _ultimoAdminDeviceId;
     private long _ultimaConfiguracaoGlobalRevision;
     private DispatcherTimer? _avisoTopoTimer;
+    private readonly DispatcherTimer _wallpaperPreviewTimer = new() { Interval = TimeSpan.FromHours(5) };
+    private readonly SemaphoreSlim _wallpaperPreviewRefreshGate = new(1, 1);
     private string? _avisoTopo;
 
     public ObservableCollection<Computador> Computadores { get; } = new();
@@ -176,6 +179,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
         _cloud = cloud;
         _cloud.ResponseReceived += OnRemoteCommandResponse;
         _cloud.DevicesReceived += OnCloudDevicesReceived;
+        _wallpaperPreviewTimer.Tick += async (_, _) => await AtualizarMiniaturasPapelParedeAsync();
+        _wallpaperPreviewTimer.Start();
 
         _settings.OrdemComputadoresPorPainel ??= new Dictionary<string, List<string>>();
         var ordemSalva = _settings.OrdemComputadoresPorPainel.TryGetValue(_settings.PainelId, out var idsOrdenados)
@@ -1175,6 +1180,62 @@ public sealed class ComputadoresViewModel : ViewModelBase
             Persist();
             PublicarPingMedio();
         });
+        _ = AtualizarMiniaturasPapelParedeAsync(conexao.ComputerId, force: true);
+    }
+
+    public byte[]? ObterMiniaturaPapelParede(string computerId, int monitorIndex) =>
+        WallpaperPreviewStore.Load(computerId, monitorIndex)
+        ?? (monitorIndex == 0 ? null : WallpaperPreviewStore.Load(computerId, 0));
+
+    public void SalvarMiniaturaPapelParede(string computerId, int monitorIndex, byte[] bytes)
+    {
+        WallpaperPreviewStore.Save(computerId, monitorIndex, bytes);
+        Services.UiDispatcher.Invoke(() => WallpaperPreviewUpdated?.Invoke(computerId, monitorIndex, bytes));
+    }
+
+    public async Task AtualizarMiniaturasPapelParedeAsync(string? computerId = null, bool force = false)
+    {
+        if (!await _wallpaperPreviewRefreshGate.WaitAsync(0).ConfigureAwait(false)) return;
+        try
+        {
+            List<Computador> computadores = [];
+            Services.UiDispatcher.Invoke(() => computadores = Computadores
+                .Where(item => item.Pareado && !item.EhOwner && !item.PainelDesinstalado
+                    && (computerId is null || string.Equals(item.Id, computerId, StringComparison.OrdinalIgnoreCase)))
+                .ToList());
+
+            foreach (var computador in computadores)
+            {
+                var indices = computador.Monitores.Count > 0
+                    ? computador.Monitores.Select(monitor => monitor.Index).Distinct().Order().ToList()
+                    : new List<int> { 0 };
+                foreach (var index in indices)
+                {
+                    if (!force && !WallpaperPreviewStore.IsStale(computador.Id, index, TimeSpan.FromHours(5)))
+                        continue;
+                    var bytes = await _atualizador.BuscarMiniaturaPapelParedeAsync(
+                        computador.Id, _settings.PainelId, index).ConfigureAwait(false);
+                    if (bytes is null && !string.IsNullOrWhiteSpace(computador.EnderecoIp)
+                        && !string.IsNullOrWhiteSpace(computador.Token))
+                    {
+                        bytes = await _client.GetWallpaperPreviewAsync(computador.EnderecoIp,
+                            computador.PortaTcp, computador.Token, index).ConfigureAwait(false);
+                    }
+                    if (bytes is null) continue;
+                    WallpaperPreviewStore.Save(computador.Id, index, bytes);
+                    Services.UiDispatcher.Invoke(() => WallpaperPreviewUpdated?.Invoke(computador.Id, index, bytes));
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+            or System.Net.Sockets.SocketException or OperationCanceledException or InvalidOperationException)
+        {
+            Logger.Warning($"Não foi possível atualizar algumas miniaturas de papel de parede: {ex.Message}");
+        }
+        finally
+        {
+            _wallpaperPreviewRefreshGate.Release();
+        }
     }
 
     public void AtualizarStatus(string computadorId, StatusComputador status, double? pingMs)

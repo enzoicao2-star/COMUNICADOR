@@ -305,6 +305,31 @@ public sealed class CloudSyncService : IDisposable
             }, ct).ConfigureAwait(false);
     }
 
+    public async Task QueuePanelUpdateNoticeAsync(
+        string targetDeviceId, string message, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(targetDeviceId)
+            || string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase)) return;
+
+        await RegisterCurrentDeviceAsync(ct, forUserDelivery: true).ConfigureAwait(false);
+        try { EnsureTargetIsNotOwner(targetDeviceId); }
+        catch (UnauthorizedAccessException) { return; }
+
+        // Use the existing durable notification delivery so offline panels receive
+        // the announcement when they reconnect. The empty sender keeps the notice
+        // focused on the update, without exposing a person's name.
+        await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
+            new
+            {
+                kind = "notification",
+                sender = string.Empty,
+                title = "Atualização do Comunicador",
+                message,
+                allow_reply = false,
+                display_mode = ProtocolConstants.DisplayMode.Toast,
+            }, ct).ConfigureAwait(false);
+    }
+
     public async Task QueueAdminCommandAsync(string targetDeviceId, string command, CancellationToken ct = default)
     {
         var permission = command switch
