@@ -107,7 +107,24 @@ public sealed class CloudSyncService : IDisposable
 
     public async Task<CloudAdminResult> ToggleAdminAsync(string password, CancellationToken ct = default)
     {
-        await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+        }
+        catch (HttpRequestException ex) when (ex.Message.Contains("device id already registered", StringComparison.OrdinalIgnoreCase))
+        {
+            var recovery = await _client.RecoverAdminDeviceAsync(_settings.PainelId, password, ct).ConfigureAwait(false);
+            if (recovery.Status != "recovered") return recovery;
+
+            _lastDeviceRegistration = null;
+            var recoveredState = await RegisterCurrentDeviceAsync(ct).ConfigureAwait(false);
+            SetAdmin(recoveredState.IsAdmin, recoveredState.AdminDeviceId);
+            recovery.IsAdmin = recoveredState.IsAdmin;
+            recovery.AdminDeviceId = recoveredState.AdminDeviceId;
+            Status = "Acesso administrativo recuperado neste computador.";
+            StateChanged?.Invoke();
+            return recovery;
+        }
         var result = await _client.ToggleAdminAsync(password, ct).ConfigureAwait(false);
         SetAdmin(result.IsAdmin, result.AdminDeviceId);
         Status = result.Status switch
@@ -117,6 +134,8 @@ public sealed class CloudSyncService : IDisposable
             "disabled" => "Este computador deixou de ser administrador.",
             "invalid_password" => "Senha de administrador incorreta.",
             "password_too_short" => "A senha precisa ter pelo menos 8 caracteres.",
+            "device_not_admin" => "A senha só recupera o painel que já é o administrador.",
+            "session_has_another_device" => "Esta sessão já está vinculada a outro computador.",
             _ => "Não foi possível alterar o administrador.",
         };
         StateChanged?.Invoke();

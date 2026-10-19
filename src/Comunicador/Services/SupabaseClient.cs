@@ -73,6 +73,17 @@ public sealed class SupabaseClient
         return result.FirstOrDefault() ?? new CloudAdminResult { Status = "unavailable" };
     }
 
+    public async Task<CloudAdminResult> RecoverAdminDeviceAsync(
+        string deviceId, string password, CancellationToken ct = default)
+    {
+        var result = await RpcAsync<List<CloudAdminResult>>("recover_admin_device", new
+        {
+            p_device_id = deviceId,
+            p_password = password,
+        }, ct).ConfigureAwait(false);
+        return result.FirstOrDefault() ?? new CloudAdminResult { Status = "unavailable" };
+    }
+
     public async Task<CloudAdminState> GetAdminStateAsync(CancellationToken ct = default)
     {
         var result = await RpcAsync<List<CloudAdminState>>("get_admin_state", new { }, ct)

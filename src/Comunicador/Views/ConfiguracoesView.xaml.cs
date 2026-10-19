@@ -143,14 +143,17 @@ public partial class ConfiguracoesView : UserControl
             try
             {
                 var resultado = await viewModel.AlternarAdministradorAsync(dialogo.Senha).ConfigureAwait(true);
-                var sucesso = resultado is "created" or "transferred" or "disabled";
+                var sucesso = resultado is "created" or "transferred" or "disabled" or "recovered";
                 var texto = resultado switch
                 {
                     "created" => "Senha criada. Este computador agora é o administrador supremo.",
                     "transferred" => "O acesso administrativo foi recuperado neste computador.",
+                    "recovered" => "O acesso administrativo foi recuperado neste computador.",
                     "disabled" => "O acesso administrativo foi desativado neste computador.",
                     "invalid_password" => "Senha incorreta.",
                     "password_too_short" => "Use uma senha com pelo menos 8 caracteres.",
+                    "device_not_admin" => "A senha só recupera o painel que já é o administrador.",
+                    "session_has_another_device" => "Esta sessão já está vinculada a outro computador.",
                     _ => "Não foi possível concluir a validação agora.",
                 };
                 if (!sucesso)
