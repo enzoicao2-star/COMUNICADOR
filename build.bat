@@ -6,7 +6,7 @@ set "COMUNICADOR_BUILD_ROOT=%~dp0"
 cd /d "%ROOT%"
 
 echo ===============================================
-echo   Comunicador 2.5.50 - build completo
+echo   Comunicador 2.5.51 - build completo
 echo ===============================================
 
 echo.
@@ -33,9 +33,14 @@ if errorlevel 1 goto :erro
 echo.
 echo [4/8] Executando os testes do receptor Python...
 set "PYTEST_TEMP=%TEMP%\Comunicador-pytest-%RANDOM%%RANDOM%"
+if exist "!PYTEST_TEMP!" (
+    echo ERRO: a pasta temporaria dos testes ja existe: !PYTEST_TEMP!
+    goto :erro
+)
 python -m pytest receiver\tests -q -p no:cacheprovider --basetemp "!PYTEST_TEMP!"
 if errorlevel 1 goto :erro
-rmdir /s /q "!PYTEST_TEMP!" >nul 2>nul
+powershell -NoProfile -Command "$temp=[IO.Path]::GetFullPath($env:TEMP).TrimEnd([IO.Path]::DirectorySeparatorChar)+[IO.Path]::DirectorySeparatorChar; $target=[IO.Path]::GetFullPath($env:PYTEST_TEMP); if (-not $target.StartsWith($temp,[StringComparison]::OrdinalIgnoreCase) -or -not [IO.Path]::GetFileName($target).StartsWith('Comunicador-pytest-',[StringComparison]::Ordinal)) { throw 'Pasta temporaria dos testes fora de TEMP.' }; Remove-Item -LiteralPath $target -Recurse -Force"
+if errorlevel 1 goto :erro
 
 echo.
 echo [5/8] Executando testes C# e integracao C# com Python...
@@ -43,7 +48,7 @@ dotnet test tests\Comunicador.Tests\Comunicador.Tests.csproj -c Release --no-res
 if errorlevel 1 goto :erro
 
 echo.
-echo [6/8] Compilando o painel 2.5.50 em Release...
+echo [6/8] Compilando o painel 2.5.51 em Release...
 dotnet build src\Comunicador\Comunicador.csproj -c Release --no-restore
 if errorlevel 1 goto :erro
 
@@ -52,7 +57,7 @@ echo [7/8] Publicando self-contained, single-file e win-x64...
 rem Fecha somente uma copia que esteja rodando diretamente desta pasta dist.
 rem Isso evita arquivo bloqueado ao substituir o executavel durante um upgrade.
 powershell -NoProfile -Command "$exe=[IO.Path]::GetFullPath((Join-Path $env:COMUNICADOR_BUILD_ROOT 'dist\Comunicador.exe')); Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'Comunicador.exe' -and $_.ExecutablePath -eq $exe } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
-set "PUBLISH_TEMP=%TEMP%\Comunicador-publish-2.5.50-%RANDOM%%RANDOM%"
+set "PUBLISH_TEMP=%TEMP%\Comunicador-publish-2.5.51-%RANDOM%%RANDOM%"
 if exist "!PUBLISH_TEMP!" (
     echo ERRO: a pasta temporaria de publicacao ja existe: !PUBLISH_TEMP!
     goto :erro
@@ -74,8 +79,8 @@ if not exist "dist\Comunicador.exe" (
     goto :erro
 )
 for /f "delims=" %%V in ('powershell -NoProfile -Command "(Get-Item -LiteralPath 'dist\Comunicador.exe').VersionInfo.FileVersion"') do set "VERSAO_GERADA=%%V"
-if not "!VERSAO_GERADA!"=="2.5.50.0" (
-    echo ERRO: versao gerada !VERSAO_GERADA!, esperada 2.5.50.0.
+if not "!VERSAO_GERADA!"=="2.5.51.0" (
+    echo ERRO: versao gerada !VERSAO_GERADA!, esperada 2.5.51.0.
     goto :erro
 )
 

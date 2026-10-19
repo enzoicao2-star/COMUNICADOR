@@ -304,7 +304,12 @@ for (`$attempt = 0; `$attempt -lt 20; `$attempt++) {
         } | Sort-Object -Unique)
     }
     finally {
-        Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
+        $tempPrefix = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+        $cleanupTarget = [IO.Path]::GetFullPath($temporaryRoot)
+        if ($cleanupTarget.StartsWith($tempPrefix, [StringComparison]::OrdinalIgnoreCase) -and
+            [IO.Path]::GetFileName($cleanupTarget).StartsWith('Comunicador-instalacao-', [StringComparison]::Ordinal)) {
+            Remove-Item -LiteralPath $cleanupTarget -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
 }
 
@@ -363,6 +368,20 @@ function Install-Shortcuts([string]$Root, [string]$ExePath) {
 
 $target = [IO.Path]::GetFullPath($ExecutablePath)
 $targetDirectory = Split-Path -Parent $target
+$mutexHashAlgorithm = [Security.Cryptography.SHA256]::Create()
+try {
+    $mutexHash = ([BitConverter]::ToString($mutexHashAlgorithm.ComputeHash(
+        [Text.Encoding]::UTF8.GetBytes($target.ToUpperInvariant())))).Replace('-', '')
+}
+finally { $mutexHashAlgorithm.Dispose() }
+$updateMutex = [Threading.Mutex]::new($false, ('Global\Comunicador.Update.' + $mutexHash))
+$ownsUpdateMutex = $false
+try { $ownsUpdateMutex = $updateMutex.WaitOne(0) }
+catch [Threading.AbandonedMutexException] { $ownsUpdateMutex = $true }
+if (-not $ownsUpdateMutex) {
+    Write-Host 'Uma atualização deste Comunicador já está em andamento.'
+    exit 0
+}
 $backupPath = Join-Path $targetDirectory 'Comunicador.anterior.exe'
 $pendingPath = Join-Path $targetDirectory 'Comunicador.atualizacao-pendente.json'
 $healthPath = Join-Path $targetDirectory 'Comunicador.inicializacao-ok.json'
@@ -498,7 +517,7 @@ if ($rollbackRequested) {
 else { Write-Host ('Nova versao encontrada no GitHub: ' + $latestVersion + '.') }
 Write-Host 'Baixando e validando antes de substituir a copia instalada...'
 New-Item -ItemType Directory -Force -Path $targetDirectory | Out-Null
-$downloadPath = Join-Path $targetDirectory 'Comunicador.download.exe'
+$downloadPath = Join-Path $targetDirectory ('Comunicador.download.' + [guid]::NewGuid().ToString('N') + '.exe')
 
 try {
     Remove-Item -LiteralPath $downloadPath -Force -ErrorAction SilentlyContinue

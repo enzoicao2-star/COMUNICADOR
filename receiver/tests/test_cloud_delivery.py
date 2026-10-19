@@ -1,4 +1,7 @@
+import json
 import sys
+import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,6 +15,55 @@ class RecordingUi:
     def mostrar(self, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
+
+
+def _session_worker(tmp_path):
+    worker = object.__new__(receptor.CloudDeliveryWorker)
+    worker._session_path = tmp_path / "cloud_session.json"
+    worker._session_lock = threading.Lock()
+    worker._session = None
+    return worker
+
+
+def test_cloud_session_uses_recovery_when_primary_is_locked(tmp_path, monkeypatch):
+    worker = _session_worker(tmp_path)
+    worker._session_path.write_text('{"access_token":"old"}', encoding="utf-8")
+    original_replace = Path.replace
+
+    def replace_with_locked_primary(path, destination):
+        if destination == worker._session_path:
+            raise PermissionError("file is in use")
+        return original_replace(path, destination)
+
+    monkeypatch.setattr(Path, "replace", replace_with_locked_primary)
+    worker._salvar_sessao({"access_token": "new", "refresh_token": "token"})
+
+    assert worker._ler_sessao_arquivo()["access_token"] == "new"
+    assert (tmp_path / "cloud_session.json.recovery").exists()
+    assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_cloud_session_keeps_working_when_local_save_fails(tmp_path, monkeypatch):
+    worker = _session_worker(tmp_path)
+    worker._json_request = lambda *_args: {
+        "access_token": "in-memory", "refresh_token": "token", "expires_in": 3600}
+    monkeypatch.setattr(Path, "replace", lambda *_args: (_ for _ in ()).throw(PermissionError("locked")))
+
+    session = worker._obter_sessao()
+
+    assert session["access_token"] == "in-memory"
+    assert session["expires_at"] > time.time()
+    assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_cloud_session_reuses_newer_session_from_panel(tmp_path):
+    worker = _session_worker(tmp_path)
+    worker._session = {"access_token": "expired", "refresh_token": "old", "expires_at": 1}
+    newer = {"access_token": "fresh", "refresh_token": "new", "expires_at": int(time.time()) + 3600}
+    worker._session_path.write_text(json.dumps(newer), encoding="utf-8")
+    worker._json_request = lambda *_args: (_ for _ in ()).throw(AssertionError("unexpected refresh"))
+
+    assert worker._obter_sessao()["access_token"] == "fresh"
 
 
 def _worker(media_blocked=False, is_owner=False):

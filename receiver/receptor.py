@@ -49,7 +49,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.25"
+RECEIVER_VERSION = "2.5.26"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -1373,27 +1373,75 @@ class CloudDeliveryWorker(threading.Thread):
             return json.loads(conteudo.decode("utf-8")) if conteudo else None
 
     def _salvar_sessao(self, session):
-        self._session_path.parent.mkdir(parents=True, exist_ok=True)
-        temporario = self._session_path.with_suffix(".tmp")
-        temporario.write_text(json.dumps(session, indent=2), encoding="utf-8")
-        temporario.replace(self._session_path)
+        temporario = self._session_path.with_name(
+            f"{self._session_path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
+        recuperacao = self._session_path.with_name(self._session_path.name + ".recovery")
+        try:
+            self._session_path.parent.mkdir(parents=True, exist_ok=True)
+            temporario.write_text(json.dumps(session, indent=2), encoding="utf-8")
+            try:
+                temporario.replace(self._session_path)
+            except OSError:
+                temporario.replace(recuperacao)
+            else:
+                try:
+                    if recuperacao.stat().st_mtime_ns <= self._session_path.stat().st_mtime_ns:
+                        recuperacao.unlink()
+                except OSError:
+                    pass
+        except OSError as exc:
+            logging.warning("Sessão da nuvem não pôde ser salva localmente: %s", exc)
+        finally:
+            try:
+                temporario.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    def _ler_sessao_arquivo(self):
+        recuperacao = self._session_path.with_name(self._session_path.name + ".recovery")
+        arquivos = [self._session_path, recuperacao]
+
+        def data_modificacao(path):
+            try:
+                return path.stat().st_mtime_ns
+            except OSError:
+                return -1
+
+        arquivos.sort(key=data_modificacao, reverse=True)
+        for arquivo in arquivos:
+            try:
+                session = json.loads(arquivo.read_text(encoding="utf-8"))
+                if isinstance(session, dict) and session.get("access_token"):
+                    int(session.get("expires_at", 0))
+                    return session
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                continue
+        return None
 
     def _obter_sessao(self):
         with self._session_lock:
             if self._session is None:
-                try:
-                    self._session = json.loads(self._session_path.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError):
-                    self._session = None
+                self._session = self._ler_sessao_arquivo()
             agora = int(time.time())
             if self._session and int(self._session.get("expires_at", 0)) > agora + 60:
                 return self._session
+            salva = self._ler_sessao_arquivo()
+            if salva and (self._session is None or
+                          int(salva.get("expires_at", 0)) > int(self._session.get("expires_at", 0))):
+                self._session = salva
+                if int(self._session.get("expires_at", 0)) > agora + 60:
+                    return self._session
             if self._session and self._session.get("refresh_token"):
                 try:
                     self._session = self._json_request(
                         "/auth/v1/token?grant_type=refresh_token", "POST",
                         {"refresh_token": self._session["refresh_token"]})
                 except (OSError, urllib.error.URLError, ValueError):
+                    salva = self._ler_sessao_arquivo()
+                    if (salva and salva.get("refresh_token") != self._session.get("refresh_token")
+                            and int(salva.get("expires_at", 0)) > agora + 60):
+                        self._session = salva
+                        return self._session
                     self._session = None
             if self._session is None:
                 self._session = self._json_request("/auth/v1/signup", "POST", {})

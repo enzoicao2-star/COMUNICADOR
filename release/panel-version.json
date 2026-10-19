@@ -1,13 +1,12 @@
 {
-    "version":  "2.5.50.0",
+    "version":  "2.5.51.0",
     "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
-    "sha256":  "EA2AF0341C1A2A23DD493876C5164F48042F02D1666DB9A8DFBF0D89EBBE300C",
-    "summary":  "Corrige envios, gravações concorrentes, CMD remoto e rascunhos de mídia.",
+    "sha256":  "9DE863F0F81DD2B10991B45CAAB64FB67E691511C4F04AB36D65F80F200211BD",
+    "summary":  "Corrige a abertura e a sessão compartilhada entre Comunicador e Receptor.",
     "changes":  [
-                    "Evita que uma falha ao salvar o histórico interrompa um envio de mídia.",
-                    "Serializa gravações locais também entre sessões do Windows e melhora a recuperação de arquivos bloqueados.",
-                    "Restaura o ícone do Comunicador quando a janela fica oculta e descarta a mídia preparada nesse momento.",
-                    "Evita tentar CMD local sem token de pareamento; o envio segue pela nuvem quando disponível.",
-                    "Publica uma nova versão do Receptor; o pacote estável não cria ícone próprio na bandeja."
+                    "Salva as preferências em uma cópia de recuperação quando outro processo mantém o arquivo principal aberto.",
+                    "Lê a cópia mais recente e retorna ao arquivo principal assim que o bloqueio termina.",
+                    "Mantém a comunicação na nuvem ativa mesmo quando não é possível salvar a sessão local naquele momento.",
+                    "O Receptor 2.5.26 recupera a sessão compartilhada e evita que disputas pelo arquivo interrompam as entregas."
                 ]
 }

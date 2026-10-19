@@ -77,6 +77,29 @@ public sealed class RepositoryTests
     }
 
     [Fact]
+    public void AtomicFileStore_RecuperaConfiguracaoQuandoArquivoPrincipalEstaAberto()
+    {
+        WithTemporaryStore(directory =>
+        {
+            var path = Path.Combine(directory, "config.json");
+            AtomicFileStore.WriteAllText(path, "{\"version\":1}");
+
+            using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                AtomicFileStore.WriteAllTextWithRecovery(path, "{\"version\":2}");
+                Assert.Equal("{\"version\":2}", AtomicFileStore.ReadAllTextWithRecovery(path));
+                Assert.True(File.Exists(path + ".recovery"));
+            }
+
+            AtomicFileStore.WriteAllTextWithRecovery(path, "{\"version\":3}");
+
+            Assert.Equal("{\"version\":3}", AtomicFileStore.ReadAllTextWithRecovery(path));
+            Assert.False(File.Exists(path + ".recovery"));
+            Assert.Empty(Directory.EnumerateFiles(directory, "*.tmp"));
+        });
+    }
+
+    [Fact]
     public void Historico_NaoInterrompeOperacaoQuandoArquivoPrincipalERecuperacaoEstaoBloqueados()
     {
         WithTemporaryStore(directory =>

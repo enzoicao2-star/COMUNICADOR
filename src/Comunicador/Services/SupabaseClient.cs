@@ -255,6 +255,18 @@ public sealed class SupabaseClient
             if (_session is not null && _session.ExpiresAt > DateTimeOffset.UtcNow.AddMinutes(1).ToUnixTimeSeconds())
                 return _session;
 
+            // O Receptor compartilha a mesma identidade e pode ter renovado a sessão.
+            var savedSession = LoadSession();
+            if (savedSession is not null && (_session is null
+                || savedSession.ExpiresAt > _session.ExpiresAt
+                || savedSession.ExpiresAt == _session.ExpiresAt
+                    && savedSession.RefreshToken != _session.RefreshToken))
+            {
+                _session = savedSession;
+                if (_session.ExpiresAt > DateTimeOffset.UtcNow.AddMinutes(1).ToUnixTimeSeconds())
+                    return _session;
+            }
+
             if (_session is not null && !string.IsNullOrWhiteSpace(_session.RefreshToken))
             {
                 try
@@ -267,6 +279,14 @@ public sealed class SupabaseClient
                 }
                 catch (HttpRequestException)
                 {
+                    savedSession = LoadSession();
+                    if (savedSession is not null
+                        && savedSession.RefreshToken != _session.RefreshToken
+                        && savedSession.ExpiresAt > DateTimeOffset.UtcNow.AddMinutes(1).ToUnixTimeSeconds())
+                    {
+                        _session = savedSession;
+                        return _session;
+                    }
                     _session = null;
                 }
             }
@@ -297,17 +317,25 @@ public sealed class SupabaseClient
     {
         try
         {
-            if (!File.Exists(AppPaths.CloudSessionFile)) return null;
-            return JsonSerializer.Deserialize<CloudSession>(File.ReadAllText(AppPaths.CloudSessionFile), JsonOptions);
+            var json = AtomicFileStore.ReadAllTextWithRecovery(AppPaths.CloudSessionFile);
+            return json is null ? null : JsonSerializer.Deserialize<CloudSession>(json, JsonOptions);
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException) { return null; }
     }
 
     private static void SaveSession(CloudSession session)
     {
-        AppPaths.EnsureCreated();
-        AtomicFileStore.WriteAllText(AppPaths.CloudSessionFile,
-            JsonSerializer.Serialize(session, JsonOptions));
+        try
+        {
+            AppPaths.EnsureCreated();
+            AtomicFileStore.WriteAllTextWithRecovery(AppPaths.CloudSessionFile,
+                JsonSerializer.Serialize(session, JsonOptions));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A sessão já está em memória; a persistência local não pode impedir a requisição.
+            Logger.Warning($"A sessão da nuvem não pôde ser salva localmente: {ex.Message}", "armazenamento");
+        }
     }
 
     private static async Task<T?> DeserializeAsync<T>(HttpResponseMessage response, CancellationToken ct)

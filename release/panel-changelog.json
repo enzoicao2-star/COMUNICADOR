@@ -545,5 +545,15 @@
       "Evita tentar CMD local sem token de pareamento; o envio segue pela nuvem quando disponível.",
       "Publica uma nova versão do Receptor; o pacote estável não cria ícone próprio na bandeja."
     ]
+  },
+  {
+    "version": "2.5.51.0",
+    "summary": "Corrige a abertura e a sessão compartilhada entre Comunicador e Receptor.",
+    "changes": [
+      "Salva as preferências em uma cópia de recuperação quando outro processo mantém o arquivo principal aberto.",
+      "Lê a cópia mais recente e retorna ao arquivo principal assim que o bloqueio termina.",
+      "Mantém a comunicação na nuvem ativa mesmo quando não é possível salvar a sessão local naquele momento.",
+      "O Receptor 2.5.26 recupera a sessão compartilhada e evita que disputas pelo arquivo interrompam as entregas."
+    ]
   }
 ]

@@ -19,10 +19,53 @@ public static class AtomicFileStore
         });
     }
 
+    public static void WriteAllTextWithRecovery(string path, string contents)
+    {
+        Write(path, stream =>
+        {
+            using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+                bufferSize: 4096, leaveOpen: true);
+            writer.Write(contents);
+            writer.Flush();
+        }, recoverLockedDestination: true);
+    }
+
+    public static string? ReadAllTextWithRecovery(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        var recoveryPath = fullPath + ".recovery";
+        var hasPrimary = File.Exists(fullPath);
+        var hasRecovery = File.Exists(recoveryPath);
+        if (!hasPrimary && !hasRecovery) return null;
+
+        var recoveryFirst = hasRecovery && (!hasPrimary
+            || File.GetLastWriteTimeUtc(recoveryPath) >= File.GetLastWriteTimeUtc(fullPath));
+        var first = recoveryFirst ? recoveryPath : fullPath;
+        var second = recoveryFirst ? fullPath : recoveryPath;
+        Exception? firstError = null;
+        foreach (var candidate in new[] { first, second })
+        {
+            if (!File.Exists(candidate)) continue;
+            try
+            {
+                using var stream = new FileStream(candidate, FileMode.Open, FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete);
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+                return reader.ReadToEnd();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                firstError ??= ex;
+            }
+        }
+
+        throw new IOException($"Could not read local state from '{fullPath}' or its recovery copy.", firstError);
+    }
+
     public static void WriteAllBytes(string path, byte[] contents) =>
         Write(path, stream => stream.Write(contents));
 
-    private static void Write(string path, Action<Stream> write)
+    private static void Write(string path, Action<Stream> write, bool recoverLockedDestination = false)
     {
         var fullPath = Path.GetFullPath(path);
         var directory = Path.GetDirectoryName(fullPath)
@@ -45,7 +88,22 @@ public static class AtomicFileStore
                 stream.Flush(flushToDisk: true);
             }
 
-            MoveWithRetry(temporary, fullPath);
+            if (recoverLockedDestination)
+            {
+                try
+                {
+                    MoveWithRetry(temporary, fullPath);
+                    TryDelete(fullPath + ".recovery");
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    MoveWithRetry(temporary, fullPath + ".recovery");
+                }
+            }
+            else
+            {
+                MoveWithRetry(temporary, fullPath);
+            }
         }
         finally
         {
@@ -81,5 +139,12 @@ public static class AtomicFileStore
                 Thread.Sleep(50 * (attempt + 1));
             }
         }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try { File.Delete(path); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 }

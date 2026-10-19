@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using Comunicador.Models;
+using Comunicador.Services;
 
 namespace Comunicador.Storage;
 
@@ -14,7 +15,8 @@ public static class SettingsStore
     public static AppSettings Load()
     {
         AppPaths.EnsureCreated();
-        if (!File.Exists(AppPaths.ConfiguracoesFile))
+        var json = AtomicFileStore.ReadAllTextWithRecovery(AppPaths.ConfiguracoesFile);
+        if (json is null)
         {
             var fresh = new AppSettings();
             fresh.PainelId = DeviceIdentityStore.GetOrCreate();
@@ -24,7 +26,6 @@ public static class SettingsStore
 
         try
         {
-            var json = File.ReadAllText(AppPaths.ConfiguracoesFile);
             var settings = JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings();
             settings.AceitarMensagensDeOutrosPaineis = true;
             var stableId = DeviceIdentityStore.GetOrCreate(settings.PainelId);
@@ -33,7 +34,7 @@ public static class SettingsStore
                 settings.PainelId = stableId;
                 Save(settings);
             }
-            DeviceIdentityStore.MarkPanelInstalled(settings.PainelId);
+            TryMarkPanelInstalled(settings);
             if (settings.VersaoConfiguracao < 2)
             {
                 settings.VersaoConfiguracao = 2;
@@ -71,10 +72,22 @@ public static class SettingsStore
         {
             AppPaths.EnsureCreated();
             var json = JsonSerializer.Serialize(settings, Options);
-            AtomicFileStore.WriteAllText(AppPaths.ConfiguracoesFile, json);
+            AtomicFileStore.WriteAllTextWithRecovery(AppPaths.ConfiguracoesFile, json);
+            TryMarkPanelInstalled(settings);
+        }
+    }
+
+    private static void TryMarkPanelInstalled(AppSettings settings)
+    {
+        try
+        {
             DeviceIdentityStore.MarkPanelInstalled(
                 settings.PainelId, hasPanel: true,
                 mediaBlocked: !settings.AceitarImagensDeOutrosPaineis);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Logger.Warning($"A identificação local será atualizada novamente: {ex.Message}", "armazenamento");
         }
     }
 }
