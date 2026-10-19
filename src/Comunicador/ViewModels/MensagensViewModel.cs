@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Net.Http;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Windows.Media.Imaging;
 using System.Windows.Input;
@@ -26,6 +27,7 @@ public sealed class MensagensViewModel : ViewModelBase
     private readonly HashSet<Computador> _computadoresObservados = new();
     private readonly object _preloadSync = new();
     private readonly Dictionary<string, Task<MediaTransferResult>> _preloads = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConditionalWeakTable<byte[], Lazy<Task<string>>> _preloadHashes = new();
     private readonly SemaphoreSlim _preloadGate = new(3, 3);
 
     private string _titulo = string.Empty;
@@ -67,6 +69,9 @@ public sealed class MensagensViewModel : ViewModelBase
     private string? _mimeAudio;
     private byte[]? _dadosAudio;
     private BitmapSource? _imagemPreviewTransicoes;
+    private byte[]? _dadosImagemPreview;
+    private string? _mimeImagemPreview;
+    private BitmapSource? _imagemPreviewCarregada;
     private bool _repetirVideo;
     private bool _repetirAudio;
     private bool _limitarDuracaoAudio;
@@ -213,7 +218,7 @@ public sealed class MensagensViewModel : ViewModelBase
     public string? MimeImagem => _mimeImagem;
 
     public string? ImagemPreviewBase64 => _dadosImagem is { Length: > 0 }
-        ? Convert.ToBase64String(_dadosImagem)
+        ? MidiaMonitorEditavel.CodificarBase64(_dadosImagem)
         : null;
 
     public BitmapSource? ImagemPreviewTransicoes => _imagemPreviewTransicoes;
@@ -1249,7 +1254,7 @@ public sealed class MensagensViewModel : ViewModelBase
         if (destino.Midias.Any(i =>
                 i.Tipo == tipo
                 && string.Equals(i.MimeType, mime, StringComparison.OrdinalIgnoreCase)
-                && i.Dados.SequenceEqual(dados)))
+                && (ReferenceEquals(i.Dados, dados) || i.Dados.SequenceEqual(dados))))
         {
             StatusOperacao = $"{nome} já está no {destino.Titulo}.";
             return;
@@ -1265,7 +1270,7 @@ public sealed class MensagensViewModel : ViewModelBase
             Caminho = caminho ?? string.Empty,
             Nome = nome,
             MimeType = mime,
-            Dados = dados.ToArray(),
+            Dados = dados,
             Tipo = tipo,
         });
         ExibirImagemCentral = true;
@@ -1362,16 +1367,32 @@ public sealed class MensagensViewModel : ViewModelBase
         .SelectMany(m => m.Midias.Where(i => i.EhVideo).Select(i => i.ParaVideoProtocolo(m.Monitor.Index)))
         .ToList();
 
-    private static string ChavePreload(string computadorId, string tipo, byte[] dados) =>
-        $"{computadorId}\u001f{tipo}\u001f{Convert.ToHexString(SHA256.HashData(dados)).ToLowerInvariant()}";
-
     private Task<MediaTransferResult> IniciarPreload(Computador computador, string tipo, string mime, byte[] dados)
     {
-        var chave = ChavePreload(computador.Id, tipo, dados);
+        // A identidade do arquivo é calculada uma vez, fora da interface.
+        var hashTask = _preloadHashes.GetValue(dados, static bytes => new Lazy<Task<string>>(
+            () => Task.Run(() => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()))).Value;
+        return hashTask.IsCompletedSuccessfully
+            ? IniciarPreloadComHash(computador, tipo, mime, dados, hashTask.Result)
+            : AguardarHashEIniciarPreloadAsync(computador, tipo, mime, dados, hashTask);
+    }
+
+    private async Task<MediaTransferResult> AguardarHashEIniciarPreloadAsync(
+        Computador computador, string tipo, string mime, byte[] dados, Task<string> hashTask)
+    {
+        var hash = await hashTask.ConfigureAwait(false);
+        return await IniciarPreloadComHash(computador, tipo, mime, dados, hash).ConfigureAwait(false);
+    }
+
+    private Task<MediaTransferResult> IniciarPreloadComHash(
+        Computador computador, string tipo, string mime, byte[] dados, string hash)
+    {
+        var chave = $"{computador.Id}\u001f{tipo}\u001f{hash}";
         lock (_preloadSync)
         {
             if (_preloads.TryGetValue(chave, out var existente)) return existente;
-            var tarefa = TransferirMidiaCacheAsync(computador, tipo, mime, dados);
+            // Validação, Base64 e montagem da mensagem nunca ocupam o dispatcher do WPF.
+            var tarefa = Task.Run(() => TransferirMidiaCacheAsync(computador, tipo, mime, dados));
             _preloads[chave] = tarefa;
             _ = RemoverPreloadFalhoAsync(chave, tarefa);
             return tarefa;
@@ -1467,7 +1488,7 @@ public sealed class MensagensViewModel : ViewModelBase
 
     private async Task<ConteudoImagem> ImagemComCacheAsync(Computador computador, ConteudoImagem original)
     {
-        var dados = Convert.FromBase64String(original.DataBase64);
+        var dados = original.RawData ?? Convert.FromBase64String(original.DataBase64);
         var tipo = original.MimeType == "image/gif" ? "gif" : "image";
         var upload = IniciarPreload(computador, tipo, original.MimeType, dados);
         if (!upload.IsCompleted) return original;
@@ -1482,7 +1503,7 @@ public sealed class MensagensViewModel : ViewModelBase
 
     private async Task<ConteudoVideo> VideoComCacheAsync(Computador computador, ConteudoVideo original)
     {
-        var dados = Convert.FromBase64String(original.DataBase64);
+        var dados = original.RawData ?? Convert.FromBase64String(original.DataBase64);
         var upload = IniciarPreload(computador, "video", original.MimeType, dados);
         if (!upload.IsCompleted) return original;
         var resultado = await upload.ConfigureAwait(true);
@@ -1763,7 +1784,13 @@ public sealed class MensagensViewModel : ViewModelBase
 
     private void AtualizarImagemPreviewTransicoes()
     {
-        _imagemPreviewTransicoes = CriarImagemPreview(_dadosImagem, _mimeImagem)
+        if (!ReferenceEquals(_dadosImagemPreview, _dadosImagem) || _mimeImagemPreview != _mimeImagem)
+        {
+            _dadosImagemPreview = _dadosImagem;
+            _mimeImagemPreview = _mimeImagem;
+            _imagemPreviewCarregada = CriarImagemPreview(_dadosImagem, _mimeImagem);
+        }
+        _imagemPreviewTransicoes = _imagemPreviewCarregada
             ?? MonitoresDestino.SelectMany(m => m.Midias)
                 .Where(m => m.EhImagem)
                 .Select(m => m.ImagemPreview)
@@ -1797,7 +1824,7 @@ public sealed class MensagensViewModel : ViewModelBase
             if (frame.CanFreeze) frame.Freeze();
             return frame;
         }
-        catch (Exception ex) when (ex is IOException or NotSupportedException or ArgumentException
+        catch (Exception ex) when (ex is IOException or FileFormatException or NotSupportedException or ArgumentException
             or InvalidOperationException or IndexOutOfRangeException)
         {
             return null;
@@ -1816,7 +1843,8 @@ public sealed class MensagensViewModel : ViewModelBase
         {
             Name = NomeImagem,
             MimeType = _mimeImagem,
-            DataBase64 = Convert.ToBase64String(_dadosImagem),
+            DataBase64 = ImagemPreviewBase64!,
+            RawData = _dadosImagem,
         };
     }
 
@@ -1831,7 +1859,8 @@ public sealed class MensagensViewModel : ViewModelBase
         {
             Name = _nomeVideo,
             MimeType = _mimeVideo,
-            DataBase64 = Convert.ToBase64String(_dadosVideo),
+            DataBase64 = MidiaMonitorEditavel.CodificarBase64(_dadosVideo),
+            RawData = _dadosVideo,
         };
     }
 
@@ -1931,7 +1960,8 @@ public sealed class MensagensViewModel : ViewModelBase
                 : null,
         };
         var haImagemParaEnviar = imagem is not null || selecionados.Any(destino =>
-            CriarImagensPorMonitor(destino.Computador.Id).Count > 0);
+            MonitoresDestino.Any(m => m.Computador.Id == destino.Computador.Id
+                && m.Midias.Any(item => item.EhImagem)));
         if (AtrasoEnvioImagemSegundos > 0 && haImagemParaEnviar)
         {
             var enviarApos = DateTimeOffset.UtcNow.AddSeconds(AtrasoEnvioImagemSegundos);

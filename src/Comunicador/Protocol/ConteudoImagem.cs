@@ -15,6 +15,10 @@ public sealed class ConteudoImagem
     [JsonPropertyName("data_base64")]
     public string DataBase64 { get; set; } = string.Empty;
 
+    // Reutiliza os bytes já carregados no painel sem alterar o formato enviado ao receptor.
+    [JsonIgnore]
+    internal byte[]? RawData { get; set; }
+
     [JsonPropertyName("media_cache_id")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? MediaCacheId { get; set; }

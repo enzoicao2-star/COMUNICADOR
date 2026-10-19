@@ -1,4 +1,5 @@
 using Comunicador.Protocol;
+using Comunicador.ViewModels;
 using Xunit;
 
 namespace Comunicador.Tests;
@@ -8,6 +9,30 @@ public sealed class ImagemMensagemTests
     private const string PngUmPixel =
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
     private const string GifUmPixel = "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+
+    [Fact]
+    public void MesmaImagemEmDoisMonitoresReaproveitaCodificacaoEContinuaValida()
+    {
+        var dados = Convert.FromBase64String(PngUmPixel);
+        var primeira = new MidiaMonitorEditavel
+        {
+            Dados = dados, Nome = "pixel.png", MimeType = "image/png", Tipo = TipoMidiaMonitor.Imagem,
+        };
+        var segunda = new MidiaMonitorEditavel
+        {
+            Dados = dados, Nome = "pixel.png", MimeType = "image/png", Tipo = TipoMidiaMonitor.Imagem,
+        };
+        var imagem1 = primeira.ParaProtocolo(0);
+        var imagem2 = segunda.ParaProtocolo(1);
+        Assert.Same(imagem1.Image.DataBase64, imagem2.Image.DataBase64);
+
+        var mensagem = NotificacaoCentral();
+        mensagem.Image = null;
+        mensagem.ScreenImages = [imagem1, imagem2];
+        Assert.True(MessageValidator.Validate(mensagem).IsValid);
+        Assert.True(MessageValidator.TryParse(MessageValidator.Frame(mensagem)[..^1], out var recebido, out _));
+        Assert.Equal(PngUmPixel, recebido!.ScreenImages![1].Image.DataBase64);
+    }
 
     private static ConteudoImagem Imagem() => new()
     {

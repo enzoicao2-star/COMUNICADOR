@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Windows.Media.Imaging;
 using Comunicador.Models;
 using Comunicador.Protocol;
@@ -28,12 +29,12 @@ public enum TipoMidiaMonitor
 
 public sealed class MidiaMonitorEditavel : ViewModelBase
 {
+    private static readonly ConditionalWeakTable<byte[], string> CodificacoesBase64 = new();
     private double _tamanhoPercentual = 70;
     private double? _xPercent;
     private double? _yPercent;
     private bool _manterAteRemover;
     private bool _restaurarAposReiniciar;
-    private string? _dadosBase64;
     private BitmapSource? _imagemPreview;
     private bool _imagemPreviewCarregada;
 
@@ -41,7 +42,9 @@ public sealed class MidiaMonitorEditavel : ViewModelBase
     public string Nome { get; init; } = string.Empty;
     public string MimeType { get; init; } = string.Empty;
     public byte[] Dados { get; init; } = Array.Empty<byte>();
-    public string DadosBase64 => _dadosBase64 ??= Convert.ToBase64String(Dados);
+    public string DadosBase64 => CodificarBase64(Dados);
+    internal static string CodificarBase64(byte[] dados) =>
+        CodificacoesBase64.GetValue(dados, static bytes => Convert.ToBase64String(bytes));
     public TipoMidiaMonitor Tipo { get; init; }
     public bool EhImagem => Tipo == TipoMidiaMonitor.Imagem;
     public bool EhVideo => Tipo == TipoMidiaMonitor.Video;
@@ -146,7 +149,8 @@ public sealed class MidiaMonitorEditavel : ViewModelBase
         {
             Name = Path.GetFileName(Nome),
             MimeType = MimeType,
-            DataBase64 = Convert.ToBase64String(Dados),
+            DataBase64 = DadosBase64,
+            RawData = Dados,
         },
     };
 
@@ -158,7 +162,8 @@ public sealed class MidiaMonitorEditavel : ViewModelBase
         {
             Name = Path.GetFileName(Nome),
             MimeType = MimeType,
-            DataBase64 = Convert.ToBase64String(Dados),
+            DataBase64 = DadosBase64,
+            RawData = Dados,
         },
     };
 }

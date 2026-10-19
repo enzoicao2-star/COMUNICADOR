@@ -81,6 +81,25 @@ public sealed class MensagensViewModelTests
     }
 
     [Fact]
+    public void ImagemTruncadaNaoFechaOPainelAoAtualizarPrevia()
+    {
+        var pasta = Path.Combine(Path.GetTempPath(), $"comunicador-imagem-truncada-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(pasta);
+        using var contexto = CriarContexto(pasta);
+        contexto.Computadores.Computadores.Add(ComputadorPareado("remoto", "PC remoto", 1));
+        contexto.Mensagens.Destinatarios.Single().Selecionado = true;
+        DefinirImagemCarregada(contexto.Mensagens);
+        DefinirCampo(contexto.Mensagens, "_dadosImagem",
+            new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
+
+        var monitor = contexto.Mensagens.MonitoresDestino.Single();
+        contexto.Mensagens.UsarImagemCarregadaNoMonitorCommand.Execute(monitor);
+
+        Assert.Single(monitor.Midias);
+        Assert.Null(contexto.Mensagens.ImagemPreviewTransicoes);
+    }
+
+    [Fact]
     public void Atualiza_os_monitores_quando_o_receptor_envia_nova_topologia()
     {
         var pasta = Path.Combine(Path.GetTempPath(), $"comunicador-monitores-{Guid.NewGuid():N}");
@@ -145,7 +164,8 @@ public sealed class MensagensViewModelTests
             enviador,
             new HistoricoRepository(new JsonStore<HistoricoEntry>(Path.Combine(pasta, "historico.json"))),
             cloud,
-            new ReenvioRepository(Path.Combine(pasta, "reenvios")));
+            new ReenvioRepository(Path.Combine(pasta, "reenvios")),
+            settings);
         return new Contexto(pasta, discovery, computadores, mensagens, cloud, perfis);
     }
 
@@ -172,7 +192,8 @@ public sealed class MensagensViewModelTests
 
     private static void DefinirImagemCarregada(MensagensViewModel mensagens)
     {
-        DefinirCampo(mensagens, "_dadosImagem", new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
+        DefinirCampo(mensagens, "_dadosImagem", Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="));
         DefinirCampo(mensagens, "_mimeImagem", "image/png");
         DefinirCampo(mensagens, "_nomeImagem", "teste.png");
         DefinirCampo(mensagens, "_caminhoImagem", "C:\\teste.png");

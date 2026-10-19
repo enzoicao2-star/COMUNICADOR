@@ -15,6 +15,9 @@ public sealed class ConteudoVideo
     [JsonPropertyName("data_base64")]
     public string DataBase64 { get; set; } = string.Empty;
 
+    [JsonIgnore]
+    internal byte[]? RawData { get; set; }
+
     [JsonPropertyName("media_cache_id")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? MediaCacheId { get; set; }
