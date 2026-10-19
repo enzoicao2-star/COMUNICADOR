@@ -12,11 +12,13 @@ public sealed class JsonStore<T>
     private static readonly JsonSerializerOptions Options = new();
     private static readonly ConcurrentDictionary<string, object> PathLocks = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _path;
+    private readonly string _recoveryPath;
     private readonly object _lock;
 
     public JsonStore(string path)
     {
         _path = Path.GetFullPath(path);
+        _recoveryPath = _path + ".recovery";
         _lock = PathLocks.GetOrAdd(_path, static _ => new object());
     }
 
@@ -25,22 +27,29 @@ public sealed class JsonStore<T>
         lock (_lock)
         {
             AppPaths.EnsureCreated();
-            if (!File.Exists(_path))
+            var hasPrimary = File.Exists(_path);
+            var hasRecovery = File.Exists(_recoveryPath);
+            if (!hasPrimary && !hasRecovery)
             {
                 return new List<T>();
             }
 
-            try
+            // A recovery copy is written only after Windows refuses to replace the
+            // primary file. Prefer whichever copy was written most recently.
+            var recoveryFirst = hasRecovery && (!hasPrimary
+                || File.GetLastWriteTimeUtc(_recoveryPath) >= File.GetLastWriteTimeUtc(_path));
+            if (recoveryFirst)
             {
-                using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read,
-                    FileShare.ReadWrite | FileShare.Delete, bufferSize: 64 * 1024,
-                    FileOptions.SequentialScan);
-                return JsonSerializer.Deserialize<List<T>>(stream, Options) ?? new List<T>();
+                if (TryLoad(_recoveryPath, out var recovered)) return recovered;
+                if (TryLoad(_path, out var primaryAfterRecoveryFailure)) return primaryAfterRecoveryFailure;
             }
-            catch (JsonException)
+            else
             {
-                return new List<T>();
+                if (TryLoad(_path, out var primary)) return primary;
+                if (TryLoad(_recoveryPath, out var recovery)) return recovery;
             }
+
+            return new List<T>();
         }
     }
 
@@ -73,7 +82,27 @@ public sealed class JsonStore<T>
                     stream.Flush(flushToDisk: true);
                 }
 
-                MoveWithRetry(tmpPath, _path);
+                try
+                {
+                    MoveWithRetry(tmpPath, _path);
+                    TryDelete(_recoveryPath);
+                }
+                catch (Exception primaryError) when (primaryError is IOException or UnauthorizedAccessException)
+                {
+                    // Keep a durable copy even when another process (for example,
+                    // antivirus or a stale app instance) holds the primary file.
+                    // Load() will use it until a later save can update the primary.
+                    try
+                    {
+                        MoveWithRetry(tmpPath, _recoveryPath);
+                    }
+                    catch (Exception recoveryError) when (recoveryError is IOException or UnauthorizedAccessException)
+                    {
+                        throw new IOException(
+                            $"Could not save local data to either '{_path}' or its recovery copy.",
+                            new AggregateException(primaryError, recoveryError));
+                    }
+                }
             }
             finally
             {
@@ -93,23 +122,46 @@ public sealed class JsonStore<T>
 
     private static void MoveWithRetry(string source, string destination)
     {
-        IOException? lastError = null;
-        for (var attempt = 0; attempt < 16; attempt++)
+        const int attempts = 4;
+        for (var attempt = 0; attempt < attempts; attempt++)
         {
             try
             {
                 File.Move(source, destination, overwrite: true);
                 return;
             }
-            catch (IOException ex) when (attempt < 15)
+            catch (IOException) when (attempt < attempts - 1)
             {
-                lastError = ex;
-                // Antivírus, sincronizadores e indexadores podem manter o destino
-                // aberto por alguns instantes durante a troca atômica.
-                Thread.Sleep(Math.Min(250, 50 * (attempt + 1)));
+                Thread.Sleep(50 * (attempt + 1));
+            }
+            catch (UnauthorizedAccessException) when (attempt < attempts - 1)
+            {
+                Thread.Sleep(50 * (attempt + 1));
             }
         }
+    }
 
-        throw lastError ?? new IOException($"Could not replace local data file: {destination}");
+    private static bool TryLoad(string path, out List<T> items)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete, bufferSize: 64 * 1024,
+                FileOptions.SequentialScan);
+            items = JsonSerializer.Deserialize<List<T>>(stream, Options) ?? new List<T>();
+            return true;
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            items = new List<T>();
+            return false;
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try { File.Delete(path); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 }

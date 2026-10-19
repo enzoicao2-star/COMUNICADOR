@@ -26,6 +26,29 @@ public sealed class RepositoryTests
     }
 
     [Fact]
+    public void JsonStore_SalvaEmRecuperacaoQuandoArquivoPrincipalEstaBloqueado()
+    {
+        WithTemporaryStore(directory =>
+        {
+            var path = Path.Combine(directory, "history.json");
+            File.WriteAllText(path, "[]");
+            var store = new JsonStore<HistoricoEntry>(path);
+
+            using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                store.Save([new HistoricoEntry { Id = "saved-during-lock" }]);
+                Assert.Equal("saved-during-lock", Assert.Single(store.Load()).Id);
+                Assert.True(File.Exists(path + ".recovery"));
+            }
+
+            store.Save([new HistoricoEntry { Id = "primary-restored" }]);
+
+            Assert.Equal("primary-restored", Assert.Single(store.Load()).Id);
+            Assert.False(File.Exists(path + ".recovery"));
+        });
+    }
+
+    [Fact]
     public void Historico_SnapshotEMesclar_MantemOrdemEAtualizaPorId()
     {
         WithTemporaryStore(directory =>
