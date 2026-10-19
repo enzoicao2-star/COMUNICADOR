@@ -79,7 +79,11 @@ public sealed class PanelUpdateService
         process.ArgumentList.Add(updater);
         if (suportaProgresso)
         {
-            if (File.Exists(ProgressFilePath)) File.Delete(ProgressFilePath);
+            foreach (var path in new[] { ProgressFilePath, ProgressFilePath + ".tmp" })
+            {
+                try { File.Delete(path); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            }
             process.ArgumentList.Add("-ProgressPath");
             process.ArgumentList.Add(ProgressFilePath);
             process.ArgumentList.Add("-PanelProcessId");
@@ -201,6 +205,30 @@ public sealed class PanelUpdateService
     {
         try { return File.ReadAllText(path).Contains("[string]$ProgressPath", StringComparison.Ordinal); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    internal static async Task<PanelUpdateProgress?> ReadLatestProgressAsync(
+        string path, DateTimeOffset startedAtUtc)
+    {
+        var minimumWriteTime = startedAtUtc.UtcDateTime;
+        foreach (var candidate in new[] { path, path + ".tmp" }
+            .OrderByDescending(File.GetLastWriteTimeUtc))
+        {
+            if (File.GetLastWriteTimeUtc(candidate) < minimumWriteTime) continue;
+            try
+            {
+                await using var stream = new FileStream(candidate, FileMode.Open, FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete);
+                var progress = await JsonSerializer.DeserializeAsync<PanelUpdateProgress>(stream,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }).ConfigureAwait(false);
+                if (progress is not null) return progress;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+            {
+                // O atualizador pode estar sobrescrevendo o .tmp; leremos no próximo ciclo.
+            }
+        }
+        return null;
     }
 
     private static bool SupportsStagedRestart(string path)

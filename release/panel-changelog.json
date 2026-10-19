@@ -566,5 +566,14 @@
       "Conserva uma cópia completa de preferências, sessão, histórico e perfis quando os arquivos principais estão bloqueados.",
       "O Receptor 2.5.27 também lê e conserva essas cópias da sessão compartilhada."
     ]
+  },
+  {
+    "version": "2.5.53.0",
+    "summary": "Mostra o progresso da atualização mesmo com o arquivo bloqueado e evita tentar atualizar o próprio computador como receptor remoto.",
+    "changes": [
+      "Lê a cópia temporária do progresso quando o Windows impede a troca do arquivo principal.",
+      "Ignora registros antigos de progresso para não encerrar a atualização errada.",
+      "Não tenta atualizar o receptor integrado do próprio computador pela rede ou pela nuvem."
+    ]
   }
 ]

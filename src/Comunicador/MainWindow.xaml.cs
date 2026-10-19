@@ -50,6 +50,7 @@ public partial class MainWindow : Window
     private int _navigationPauseGeneration;
     private bool _navigationTransitionActive;
     private bool _atualizacaoEmAndamento;
+    private DateTimeOffset _atualizacaoIniciadaEmUtc;
     private bool _lendoProgressoAtualizacao;
     private bool _spinnerAtualizacaoVisivel;
     private readonly DispatcherTimer _temporizadorAtualizacao = new() { Interval = TimeSpan.FromMilliseconds(300) };
@@ -169,6 +170,7 @@ public partial class MainWindow : Window
     private void OnAtualizacaoPainelIniciada(object? sender, EventArgs e)
     {
         _atualizacaoEmAndamento = true;
+        _atualizacaoIniciadaEmUtc = DateTimeOffset.UtcNow.AddSeconds(-5);
         UpdateStatus.Visibility = Visibility.Visible;
         DefinirTextoAtualizacao("Atualizando · 0% · preparando download...");
         UpdateStatusText.ToolTip = null;
@@ -197,13 +199,11 @@ public partial class MainWindow : Window
     {
         if (_lendoProgressoAtualizacao || _viewModel is null) return;
         var caminho = _viewModel.Configuracoes.CaminhoProgressoAtualizacaoPainel;
-        if (!File.Exists(caminho)) return;
         _lendoProgressoAtualizacao = true;
         try
         {
-            var progresso = JsonSerializer.Deserialize<Services.PanelUpdateProgress>(
-                await File.ReadAllTextAsync(caminho),
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var progresso = await Services.PanelUpdateService.ReadLatestProgressAsync(
+                caminho, _atualizacaoIniciadaEmUtc);
             if (progresso is null) return;
 
             switch (progresso.Phase)

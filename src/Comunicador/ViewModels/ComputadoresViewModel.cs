@@ -1449,6 +1449,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
         var desatualizados = Computadores
             .Where(computador => computador.Pareado && computador.TemReceptor
+                && !EhComputadorLocal(computador)
                 && Version.TryParse(computador.VersaoReceptor, out var instalada)
                 && instalada < versaoAtual)
             .ToList();
@@ -1475,6 +1476,11 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
     private async Task AtualizarReceptorAsync(Computador computador)
     {
+        if (EhComputadorLocal(computador))
+        {
+            StatusMensagem = "O receptor deste computador é atualizado junto com o Comunicador.";
+            return;
+        }
         computador.ProgressoAtualizacaoReceptor = 0;
         computador.EtapaAtualizacaoReceptor = "Iniciando atualização";
         computador.AtualizandoReceptor = true;

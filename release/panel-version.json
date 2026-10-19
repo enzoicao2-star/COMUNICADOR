@@ -1,13 +1,11 @@
 {
-    "version":  "2.5.52.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/af95e39/release/Comunicador.exe",
-    "sha256":  "53E503EA7FA7B96336F903A158CC9581B5CC9F768283D4E4B48A9E154F8CA5A6",
-    "summary":  "Mantém o Comunicador aberto e conserva dados locais quando o Windows bloqueia a troca de arquivos.",
+    "version":  "2.5.53.0",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
+    "sha256":  "0E33758F278362D3334A7AF8D123E3CA239908E63C3CC8132AFE49B8239D7A2C",
+    "summary":  "Mostra o progresso da atualização mesmo com o arquivo bloqueado e evita tentar atualizar o próprio computador como receptor remoto.",
     "changes":  [
-                    "Carrega as preferências existentes mesmo quando uma atualização do arquivo está temporariamente indisponível.",
-                    "Aplica migrações de configuração em memória com uma única tentativa de gravação.",
-                    "Evita interromper a abertura e a sincronização por falhas ao salvar metadados locais.",
-                    "Conserva uma cópia completa de preferências, sessão, histórico e perfis quando os arquivos principais estão bloqueados.",
-                    "O Receptor 2.5.27 também lê e conserva essas cópias da sessão compartilhada."
+                    "Lê a cópia temporária do progresso quando o Windows impede a troca do arquivo principal.",
+                    "Ignora registros antigos de progresso para não encerrar a atualização errada.",
+                    "Não tenta atualizar o receptor integrado do próprio computador pela rede ou pela nuvem."
                 ]
 }
