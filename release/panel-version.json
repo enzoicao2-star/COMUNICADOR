@@ -1,6 +1,6 @@
 {
     "version":  "2.5.52.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/main/release/Comunicador.exe",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/af95e39/release/Comunicador.exe",
     "sha256":  "53E503EA7FA7B96336F903A158CC9581B5CC9F768283D4E4B48A9E154F8CA5A6",
     "summary":  "Mantém o Comunicador aberto e conserva dados locais quando o Windows bloqueia a troca de arquivos.",
     "changes":  [
