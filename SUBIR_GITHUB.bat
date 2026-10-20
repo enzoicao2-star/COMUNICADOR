@@ -5,7 +5,7 @@ set "ROOT=%~dp0"
 cd /d "%ROOT%"
 
 echo ===============================================
-echo   Comunicador 2.5.61 - validar e subir ao GitHub
+echo   Comunicador 2.5.62 - validar e subir ao GitHub
 echo ===============================================
 echo.
 
@@ -29,7 +29,7 @@ if errorlevel 1 goto :erro
 
 echo.
 echo [2/5] Preparando o executavel da atualizacao automatica...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%tools\Preparar-Release.ps1" -Version "2.5.61.0"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%tools\Preparar-Release.ps1" -Version "2.5.62.0"
 if errorlevel 1 goto :erro
 
 echo.
@@ -39,7 +39,7 @@ if errorlevel 1 goto :erro
 
 git diff --cached --quiet
 if errorlevel 1 (
-    set "MENSAGEM=Comunicador 2.5.61 - silencia avisos internos de miniatura"
+    set "MENSAGEM=Comunicador 2.5.62 - corrige posicao da imagem e permissoes do CMD"
     if not "%~1"=="" set "MENSAGEM=%~1"
     git commit -m "!MENSAGEM!"
     if errorlevel 1 goto :erro
@@ -76,8 +76,8 @@ if errorlevel 1 goto :erro
 echo.
 echo ===============================================
 echo   Tudo enviado ao GitHub com sucesso.
-echo   Receptor publicado: 2.5.31
-echo   Painel publicado:    2.5.61
+echo   Receptor publicado: 2.5.32
+echo   Painel publicado:    2.5.62
 echo   Versoes de teste:    release\teste\ (painel e receptor separados)
 echo ===============================================
 echo Esta janela fecha sozinha em 5 segundos...

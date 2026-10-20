@@ -24,6 +24,7 @@ public partial class NotificacaoRecebidaWindow : Window
     private readonly bool _imagemCentral;
     private readonly bool _bloquearFechamentoManual;
     private readonly int? _monitorIndex;
+    private readonly ImagemMonitor? _imagemPosicionada;
     private readonly string _posicaoToast;
     private bool _fechamentoConfirmado;
 
@@ -113,6 +114,8 @@ public partial class NotificacaoRecebidaWindow : Window
                     {
                         new() { MonitorIndex = monitorIndex ?? 0, WidthPercent = 70, Image = imagem! },
                     };
+                if (itens.Count == 1 && itens[0].XPercent is not null && itens[0].YPercent is not null)
+                    _imagemPosicionada = itens[0];
                 var areaMonitor = ObterAreaMonitor(monitorIndex);
                 var colunas = itens.Count == 1 ? 1 : 2;
                 var linhas = (int)Math.Ceiling(itens.Count / (double)colunas);
@@ -153,7 +156,17 @@ public partial class NotificacaoRecebidaWindow : Window
                 Height = double.NaN;
                 MaxWidth = Math.Max(1, areaMonitor.Width - 20);
                 MaxHeight = Math.Max(1, areaMonitor.Height - 20);
-                SizeToContent = SizeToContent.WidthAndHeight;
+                if (renderizadas.Count == 1)
+                {
+                    // O tamanho da janela deve acompanhar a imagem, nunca a tela inteira.
+                    Width = renderizadas[0].Width;
+                    Height = renderizadas[0].Height;
+                    SizeToContent = SizeToContent.Manual;
+                }
+                else
+                {
+                    SizeToContent = SizeToContent.WidthAndHeight;
+                }
 
                 if (permitirFecharManualmente != false)
                 {
@@ -195,7 +208,9 @@ public partial class NotificacaoRecebidaWindow : Window
             OkPanel.Visibility = Visibility.Visible;
         }
 
-        TimeSpan? tempoAteFechar = _confirmacaoObrigatoria
+        TimeSpan? tempoAteFechar = _imagemCentral && imagensPorMonitor?.Any(item => item.KeepUntilRemoved) == true
+            ? null
+            : _confirmacaoObrigatoria
             ? null
             : _avisoCentral
             ? TimeSpan.FromSeconds(Math.Clamp(
@@ -232,7 +247,10 @@ public partial class NotificacaoRecebidaWindow : Window
             }
             else if (_avisoCentral)
             {
-                PosicionarCentro(this, _monitorIndex);
+                if (_imagemPosicionada is not null)
+                    PosicionarImagem(this, _monitorIndex, _imagemPosicionada);
+                else
+                    PosicionarCentro(this, _monitorIndex);
                 AnimarEntradaCentral(this);
             }
             else
@@ -447,6 +465,27 @@ public partial class NotificacaoRecebidaWindow : Window
         var area = ObterAreaMonitor(monitorIndex);
         window.Left = area.Left + (area.Width - window.ActualWidth) / 2;
         window.Top = area.Top + (area.Height - window.ActualHeight) / 2;
+    }
+
+    private static void PosicionarImagem(Window window, int? monitorIndex, ImagemMonitor image)
+    {
+        var area = ObterAreaMonitor(monitorIndex);
+        var position = CalcularPosicaoImagem(area, window.ActualWidth, window.ActualHeight,
+            image.XPercent ?? 50, image.YPercent ?? 50);
+        window.Left = position.X;
+        window.Top = position.Y;
+    }
+
+    internal static Point CalcularPosicaoImagem(Rect monitor, double width, double height,
+        double xPercent, double yPercent)
+    {
+        width = Math.Clamp(width, 0, monitor.Width);
+        height = Math.Clamp(height, 0, monitor.Height);
+        var centerX = monitor.Left + monitor.Width * Math.Clamp(xPercent, 0, 100) / 100d;
+        var centerY = monitor.Top + monitor.Height * Math.Clamp(yPercent, 0, 100) / 100d;
+        return new Point(
+            Math.Clamp(centerX - width / 2d, monitor.Left, monitor.Right - width),
+            Math.Clamp(centerY - height / 2d, monitor.Top, monitor.Bottom - height));
     }
 
     private static void PosicionarBloqueioMonitor(Window window, int? monitorIndex)

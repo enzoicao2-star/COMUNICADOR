@@ -10,9 +10,24 @@ namespace Comunicador.ViewModels;
 public sealed class DestinoMonitor : ViewModelBase
 {
     private BitmapSource? _wallpaperPreview;
-    public Computador Computador { get; init; } = null!;
-    public MonitorInfo Monitor { get; init; } = null!;
+    public Computador Computador { get; private set; } = null!;
+    public MonitorInfo Monitor { get; private set; } = null!;
     public ObservableCollection<MidiaMonitorEditavel> Midias { get; } = new();
+
+    public DestinoMonitor(Computador computador, MonitorInfo monitor)
+    {
+        Computador = computador;
+        Monitor = monitor;
+    }
+
+    public void AtualizarOrigem(Computador computador, MonitorInfo monitor)
+    {
+        Computador = computador;
+        Monitor = monitor;
+        OnPropertyChanged(nameof(Titulo));
+        OnPropertyChanged(nameof(Resolucao));
+        OnPropertyChanged(nameof(AlturaPreview));
+    }
 
     public BitmapSource? WallpaperPreview
     {

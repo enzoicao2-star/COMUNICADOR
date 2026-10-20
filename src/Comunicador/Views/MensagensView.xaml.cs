@@ -62,6 +62,8 @@ public partial class MensagensView : UserControl
 
     private void FecharPaginaMonitor()
     {
+        if (PaginaDefinirMonitor.Content is SelecionarMonitorView pagina)
+            pagina.SalvarConfiguracaoAtual();
         PaginaDefinirMonitor.Content = null;
         PaginaDefinirMonitor.Visibility = Visibility.Collapsed;
         PainelPrincipal.Visibility = Visibility.Visible;

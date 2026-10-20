@@ -639,5 +639,14 @@
       "Entregas internas sem mensagem são descartadas silenciosamente.",
       "Confirmações técnicas continuam registradas sem gerar notificações visíveis."
     ]
+  },
+  {
+    "version": "2.5.62.0",
+    "summary": "Corrige a posição e a seleção da imagem por monitor e libera CMD para painéis autorizados.",
+    "changes": [
+      "A imagem escolhida em Definir monitor aparece na área principal, mantém tamanho e posição e é a imagem enviada.",
+      "A prévia local posiciona a imagem nas coordenadas escolhidas no monitor.",
+      "Permissão individual e tag ADMIN autorizam o CMD remoto no painel e no receptor."
+    ]
   }
 ]

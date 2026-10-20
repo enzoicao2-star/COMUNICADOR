@@ -89,11 +89,9 @@ public partial class App : Application
                         smokeWindow.UpdateLayout();
                         smokeWindow.NavegarPara(new MensagensView());
                         smokeWindow.UpdateLayout();
-                        var destino = new DestinoMonitor
-                        {
-                            Computador = new Computador { Id = "smoke-monitor", Nome = "Prévia" },
-                            Monitor = new MonitorInfo { Index = 0, Name = "Monitor", Width = 1920, Height = 1080 },
-                        };
+                        var destino = new DestinoMonitor(
+                            new Computador { Id = "smoke-monitor", Nome = "Prévia" },
+                            new MonitorInfo { Index = 0, Name = "Monitor", Width = 1920, Height = 1080 });
                         var monitorView = new DefinirMonitorView(destino, null!);
                         smokeWindow.NavegarPara(monitorView);
                         smokeWindow.UpdateLayout();

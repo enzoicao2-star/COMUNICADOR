@@ -100,6 +100,45 @@ public sealed class MensagensViewModelTests
     }
 
     [Fact]
+    public void ImagemDoEditorSubstituiPrincipalESobreviveAtualizacaoDosMonitores()
+    {
+        var pasta = Path.Combine(Path.GetTempPath(), $"comunicador-editor-monitor-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(pasta);
+        using var contexto = CriarContexto(pasta);
+        var computador = ComputadorPareado("remoto", "PC remoto", 1);
+        contexto.Computadores.Computadores.Add(computador);
+        contexto.Mensagens.Destinatarios.Single().Selecionado = true;
+        DefinirImagemCarregada(contexto.Mensagens);
+        var destino = contexto.Mensagens.MonitoresDestino.Single();
+
+        contexto.Mensagens.PrepararMonitorParaEdicao(destino);
+        Assert.Equal("teste.png", Assert.Single(destino.Midias).Nome);
+
+        var arquivoNovo = Path.Combine(pasta, "nova.gif");
+        File.WriteAllBytes(arquivoNovo, Convert.FromBase64String(
+            "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="));
+        contexto.Mensagens.CarregarArquivoNoMonitor(destino, arquivoNovo);
+        var unica = Assert.Single(destino.Midias);
+        Assert.Equal("nova.gif", unica.Nome);
+        Assert.Equal("nova.gif", contexto.Mensagens.NomeMidia);
+        Assert.Equal("GIF", contexto.Mensagens.TipoMidiaTexto);
+        Assert.Equal(unica.DadosBase64, contexto.Mensagens.ImagemPreviewBase64);
+
+        unica.TamanhoPercentual = 10;
+        unica.XPercent = 5;
+        unica.YPercent = 10;
+        computador.Monitores = CriarMonitores(1);
+
+        Assert.Same(destino, contexto.Mensagens.MonitoresDestino.Single());
+        var configurada = Assert.Single(contexto.Mensagens.MonitoresDestino.Single().Midias);
+        var payload = configurada.ParaProtocolo(0);
+        Assert.Equal(10, payload.WidthPercent);
+        Assert.Equal(5, payload.XPercent);
+        Assert.Equal(10, payload.YPercent);
+        Assert.Equal("nova.gif", payload.Image.Name);
+    }
+
+    [Fact]
     public void Atualiza_os_monitores_quando_o_receptor_envia_nova_topologia()
     {
         var pasta = Path.Combine(Path.GetTempPath(), $"comunicador-monitores-{Guid.NewGuid():N}");

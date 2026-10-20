@@ -1068,12 +1068,13 @@ public sealed class MensagensViewModel : ViewModelBase
 
     private void AtualizarMonitoresDestino()
     {
+        var destinosAtuais = MonitoresDestino.ToDictionary(destino => destino.Chave,
+            StringComparer.OrdinalIgnoreCase);
         foreach (var destino in MonitoresDestino)
         {
             GuardarMidias(destino);
         }
-        MonitoresDestino.Clear();
-
+        var destinosAtualizados = new List<DestinoMonitor>();
         foreach (var computador in Destinatarios
                      .Where(d => d.Selecionado)
                      .Select(d => d.Computador)
@@ -1085,17 +1086,26 @@ public sealed class MensagensViewModel : ViewModelBase
 
             foreach (var monitor in monitores.OrderBy(m => m.Index))
             {
-                var destino = new DestinoMonitor { Computador = computador, Monitor = monitor };
+                var chave = $"{computador.Id}:{monitor.Index}";
+                var destino = destinosAtuais.TryGetValue(chave, out var existente)
+                    ? existente : new DestinoMonitor(computador, monitor);
+                destino.AtualizarOrigem(computador, monitor);
                 destino.DefinirWallpaperPreview(_computadores.ObterMiniaturaPapelParede(computador.Id, monitor.Index));
-                if (_midiasPorMonitor.TryGetValue(destino.Chave, out var midias))
+                if (!destinosAtuais.ContainsKey(chave)
+                    && _midiasPorMonitor.TryGetValue(destino.Chave, out var midias))
                 {
                     foreach (var midia in midias)
                     {
                         destino.Midias.Add(midia);
                     }
                 }
-                MonitoresDestino.Add(destino);
+                destinosAtualizados.Add(destino);
             }
+        }
+        if (!MonitoresDestino.SequenceEqual(destinosAtualizados))
+        {
+            MonitoresDestino.Clear();
+            foreach (var destino in destinosAtualizados) MonitoresDestino.Add(destino);
         }
         AtualizarImagemPreviewTransicoes();
     }
@@ -1199,10 +1209,16 @@ public sealed class MensagensViewModel : ViewModelBase
 
     public void CarregarArquivoNoMonitor(DestinoMonitor destino, string caminho)
     {
+        destino = MonitoresDestino.FirstOrDefault(item =>
+            string.Equals(item.Chave, destino.Chave, StringComparison.OrdinalIgnoreCase)) ?? destino;
         var extensao = Path.GetExtension(caminho).ToLowerInvariant();
         if (MimeImagemPelaExtensao(caminho).Length > 0)
         {
-            AdicionarImagemAoMonitor(destino, caminho);
+            var anterior = destino.Midias.LastOrDefault();
+            AdicionarImagemAoMonitor(destino, caminho, substituir: true);
+            var atual = destino.Midias.LastOrDefault();
+            if (atual is not null && !ReferenceEquals(atual, anterior))
+                SincronizarImagemPrincipal(atual);
             ExibirImagemCentral = true;
             CommandManager.InvalidateRequerySuggested();
             return;
@@ -1219,7 +1235,7 @@ public sealed class MensagensViewModel : ViewModelBase
             : "Este arquivo não é compatível com a prévia do monitor. Use imagem, GIF ou vídeo MP4/WMV.";
     }
 
-    private bool AdicionarImagemAoMonitor(DestinoMonitor destino, string caminho)
+    private bool AdicionarImagemAoMonitor(DestinoMonitor destino, string caminho, bool substituir = false)
     {
         try
         {
@@ -1239,7 +1255,13 @@ public sealed class MensagensViewModel : ViewModelBase
                 return true;
             }
 
-            if (!PodeAdicionarMidia(destino, TipoMidiaMonitor.Imagem, dados.Length)) return false;
+            var anteriores = substituir ? destino.Midias.Where(item => item.EhImagem).ToList() : [];
+            foreach (var anterior in anteriores) destino.Midias.Remove(anterior);
+            if (!PodeAdicionarMidia(destino, TipoMidiaMonitor.Imagem, dados.Length))
+            {
+                foreach (var anterior in anteriores) destino.Midias.Add(anterior);
+                return false;
+            }
 
             AdicionarMidia(destino, new MidiaMonitorEditavel
             {
@@ -1256,6 +1278,22 @@ public sealed class MensagensViewModel : ViewModelBase
             StatusOperacao = $"Não foi possível abrir a imagem: {ex.Message}";
             return true;
         }
+    }
+
+    public void PrepararMonitorParaEdicao(DestinoMonitor destino)
+    {
+        if (destino.Midias.Count == 0 && (TemImagem || TemVideo))
+            UsarMidiaCarregadaNoMonitor(destino);
+    }
+
+    private void SincronizarImagemPrincipal(MidiaMonitorEditavel midia)
+    {
+        LimparMidiaGeral();
+        _dadosImagem = midia.Dados;
+        _mimeImagem = midia.MimeType;
+        _caminhoImagem = midia.Caminho;
+        _nomeImagem = midia.Nome;
+        NotificarMidiaAlterada();
     }
 
     private void UsarMidiaCarregadaNoMonitor(DestinoMonitor destino)

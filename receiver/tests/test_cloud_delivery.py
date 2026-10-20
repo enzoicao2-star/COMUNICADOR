@@ -249,7 +249,7 @@ def test_wallpaper_permission_reads_individual_profile_permission():
             return [{"config": {"permitir_papel_parede_remoto": True, "modelos_badge": []}}]
         if path == "/rest/v1/rpc/get_admin_state":
             return []
-        if path == "/rest/v1/panel_profiles?device_id=eq.panel-7&select=badges":
+        if path == "/rest/v1/panel_profiles?device_id=eq.panel-7&select=device_id,badges":
             return [{"device_id": "panel-7", "badges": [
                 {"id": "__individual_permissions",
                  "permissoes_individuais": ["change_wallpaper"]},
@@ -267,7 +267,7 @@ def test_remote_command_permission_reads_individual_profile_permission():
     worker.is_current_owner = lambda _panel_id: False
 
     def authorized(path, method="GET", body=None):
-        if path == "/rest/v1/panel_profiles?device_id=eq.panel-remote&select=badges":
+        if path == "/rest/v1/panel_profiles?device_id=eq.panel-remote&select=device_id,badges":
             return [{"device_id": "panel-remote", "badges": [
                 {"id": "__individual_permissions",
                  "permissoes_individuais": ["remote_command"]},
@@ -277,6 +277,21 @@ def test_remote_command_permission_reads_individual_profile_permission():
     worker._autorizado = authorized
 
     assert worker.has_panel_permission("panel-remote", "remote_command") is True
+
+
+def test_remote_command_permission_accepts_admin_badge():
+    worker = _worker()
+    worker.is_current_owner = lambda _panel_id: False
+
+    def authorized(path, method="GET", body=None):
+        if path == "/rest/v1/panel_profiles?device_id=eq.panel-admin&select=device_id,badges":
+            return [{"device_id": "panel-admin", "badges": [{"id": "admin"}]}]
+        raise AssertionError(f"Caminho inesperado: {path}")
+
+    worker._autorizado = authorized
+
+    assert worker.has_panel_permission("panel-admin", "remote_command") is True
+    assert worker.has_panel_permission("panel-admin", "change_wallpaper") is False
 
 
 def test_local_sender_wallpaper_permission_requires_paired_panel_token():
@@ -299,7 +314,7 @@ def test_wallpaper_permission_accepts_role_and_respects_global_block():
             "modelos_badge": [{"id": "wallpaper-admin", "permissoes": ["change_wallpaper"]}],
         }}],
         "/rest/v1/rpc/get_admin_state": [],
-        "/rest/v1/panel_profiles?device_id=eq.panel-8&select=badges": [{
+        "/rest/v1/panel_profiles?device_id=eq.panel-8&select=device_id,badges": [{
             "device_id": "panel-8", "badges": [{"id": "badge-1", "role_id": "wallpaper-admin"}],
         }],
     }

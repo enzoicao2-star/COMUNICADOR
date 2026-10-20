@@ -250,7 +250,8 @@ public sealed class CloudSyncService : IDisposable
                 .PermissoesIndividuais.Contains(permission, StringComparer.Ordinal) == true) return true;
         if (permission is "customize_panel" or "manage_shared_content"
             && profile?.Badges.Any(b => b.Id == "admin") == true) return true;
-        if (permission == "manage_profiles" && profile?.Badges.Any(b => b.Id == "admin") == true) return true;
+        if (permission is "manage_profiles" or "remote_command"
+            && profile?.Badges.Any(b => b.Id == "admin") == true) return true;
         if (GlobalConfig?.ModelosBadge is not { } roles || profile is null) return false;
         return profile.Badges.Any(b => b.RoleId is not null
             && roles.Any(role => role.Id == b.RoleId && role.Permissoes.Contains(permission)));

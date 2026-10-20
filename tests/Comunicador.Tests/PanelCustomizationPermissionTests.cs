@@ -19,7 +19,23 @@ public sealed class PanelCustomizationPermissionTests
 
         Assert.True(contexto.Cloud.HasPermissionForDevice("adm", "customize_panel"));
         Assert.True(contexto.Cloud.HasPermissionForDevice("adm", "manage_profiles"));
+        Assert.True(contexto.Cloud.HasPermissionForDevice("adm", "remote_command"));
         Assert.False(contexto.Cloud.HasPermissionForDevice("adm", "send_media"));
+    }
+
+    [Fact]
+    public void Permissao_individual_de_cmd_e_reconhecida()
+    {
+        using var contexto = CriarContexto();
+        contexto.Perfis.Salvar("cmd", "Painel CMD", false,
+            [new BadgeUsuario
+            {
+                Id = "__individual_permissions",
+                PermissoesIndividuais = ["remote_command"],
+            }], "cmd");
+        DefinirAdmin(contexto.Cloud, false, "owner");
+
+        Assert.True(contexto.Cloud.HasPermissionForDevice("cmd", "remote_command"));
     }
 
     [Fact]

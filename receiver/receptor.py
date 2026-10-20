@@ -49,7 +49,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.31"
+RECEIVER_VERSION = "2.5.32"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -1550,7 +1550,7 @@ class CloudDeliveryWorker(threading.Thread):
 
         query_id = urllib.parse.quote(panel_id, safe="")
         profiles = self._autorizado(
-            f"/rest/v1/panel_profiles?device_id=eq.{query_id}&select=badges") or []
+            f"/rest/v1/panel_profiles?device_id=eq.{query_id}&select=device_id,badges") or []
         profile = next((item for item in profiles
                         if isinstance(item, dict)
                         and str(item.get("device_id", "")).lower() == panel_id.lower()), None)
@@ -1568,6 +1568,8 @@ class CloudDeliveryWorker(threading.Thread):
                 permissions = badge.get("permissoes_individuais") or []
                 if isinstance(permissions, list) and permission in permissions:
                     return True
+            if badge.get("id") == "admin" and permission == "remote_command":
+                return True
             role_id = badge.get("role_id")
             if isinstance(role_id, str) and role_id:
                 role_ids.add(role_id)
