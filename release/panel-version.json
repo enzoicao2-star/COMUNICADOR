@@ -1,11 +1,12 @@
 {
-    "version":  "2.5.62.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/3e049ce6849b3af06e41cef8fde4d2f970204bf5/release/Comunicador.exe",
-    "sha256":  "BE6FBBA2417CBE0732569A7D014BA3FDCA7704B24484C04195059EAC8049A321",
-    "summary":  "Corrige a posição e a seleção da imagem por monitor e libera CMD para painéis autorizados.",
+    "version":  "2.5.63.0",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/a12a601799258db2f041cf7dfe913f661464f314/release/Comunicador.exe",
+    "sha256":  "F146D102E8254B15840F1415D1F0055E8D8968BEEE91F7C5F126D1FAFA1C7943",
+    "summary":  "Mostra e controla mídias ativas na tela a partir de qualquer painel autorizado.",
     "changes":  [
-                    "A imagem escolhida em Definir monitor aparece na área principal, mantém tamanho e posição e é a imagem enviada.",
-                    "A prévia local posiciona a imagem nas coordenadas escolhidas no monitor.",
-                    "Permissão individual e tag ADMIN autorizam o CMD remoto no painel e no receptor."
+                    "Novo card Mídias na tela mostra miniatura e posição real de cada imagem exibida.",
+                    "Permite mover, alterar tamanho, programar a remoção ou remover agora.",
+                    "A opção Sem limite de tempo mantém a imagem até a remoção manual.",
+                    "Miniaturas e estado ativo ficam em arquivos locais; consultas pela nuvem são temporárias."
                 ]
 }
