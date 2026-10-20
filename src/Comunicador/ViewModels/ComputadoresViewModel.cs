@@ -18,6 +18,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public event Action<double?>? PingMedioAtualizado;
     public event Action<string, int, byte[]>? WallpaperPreviewUpdated;
     private readonly JsonStore<Computador> _store;
+    private readonly AsyncJsonStoreWriter<Computador> _storeWriter;
     private readonly DiscoveryService _discovery;
     private readonly ReceptorClient _client;
     private readonly EnviadorNotificacoes _enviador;
@@ -171,6 +172,11 @@ public sealed class ComputadoresViewModel : ViewModelBase
         PerfilComputadorRepository perfis, CloudSyncService cloud)
     {
         _store = store;
+        _storeWriter = new AsyncJsonStoreWriter<Computador>(store, ex =>
+        {
+            Logger.Warning("A lista de computadores não pôde ser salva localmente; será tentada novamente na próxima alteração.",
+                "armazenamento", ex.ToString());
+        });
         _discovery = discovery;
         _client = client;
         _enviador = enviador;
@@ -1597,7 +1603,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
             computador.EsteComputador = EhComputadorLocal(computador);
         try
         {
-            _store.Save(Computadores);
+            _storeWriter.Queue(Computadores);
             _computerStoreFailureReported = false;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -1609,6 +1615,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 "armazenamento", ex.ToString());
         }
     }
+
+    public Task FlushPendingSavesAsync() => _storeWriter.FlushAsync();
 
     internal static bool PodeEnviarCmdRemotoPelaRedeLocal(Computador computador) =>
         !string.IsNullOrWhiteSpace(computador.EnderecoIp)

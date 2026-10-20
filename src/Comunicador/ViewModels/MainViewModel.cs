@@ -672,5 +672,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         _sync.Dispose();
         _cloudSync.Dispose();
         _embeddedReceptorServer.Dispose();
+        try { Computadores.FlushPendingSavesAsync().Wait(TimeSpan.FromSeconds(2)); }
+        catch (AggregateException) { }
     }
 }

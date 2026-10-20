@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
+using System.Text.Json;
 using Comunicador.Models;
 using Comunicador.Storage;
 
@@ -12,6 +13,9 @@ public sealed class LogRepository
     private readonly JsonStore<LogEntry> _store;
     private readonly BatchObservableCollection<LogEntry> _itens = new();
     private readonly HashSet<string> _ids = new(StringComparer.Ordinal);
+    private readonly object _persistGate = new();
+    private List<LogEntry>? _pendingPersist;
+    private Task? _persistTask;
     public ObservableCollection<LogEntry> Itens => _itens;
 
     public LogRepository(JsonStore<LogEntry> store)
@@ -121,5 +125,57 @@ public sealed class LogRepository
         return resultado;
     }
 
-    private void Persist() => _store.Save(Itens);
+    private void Persist()
+    {
+        // Copiar a lista na thread da interface é rápido. Serializar milhares de
+        // entradas e esperar o Windows liberar arquivos bloqueados fica em segundo plano.
+        var snapshot = Itens.ToList();
+        lock (_persistGate)
+        {
+            _pendingPersist = snapshot;
+            _persistTask ??= Task.Run(PersistPending);
+        }
+    }
+
+    private void PersistPending()
+    {
+        try
+        {
+            while (true)
+            {
+                List<LogEntry>? snapshot;
+                lock (_persistGate)
+                {
+                    snapshot = _pendingPersist;
+                    _pendingPersist = null;
+                }
+                if (snapshot is null) return;
+                try { _store.Save(snapshot); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+                {
+                    // O log de texto já foi gravado. A próxima mudança tentará salvar
+                    // novamente o histórico estruturado sem travar a interface.
+                }
+            }
+        }
+        finally
+        {
+            lock (_persistGate)
+            {
+                _persistTask = null;
+                if (_pendingPersist is not null) _persistTask = Task.Run(PersistPending);
+            }
+        }
+    }
+
+    internal async Task FlushPendingAsync()
+    {
+        while (true)
+        {
+            Task? task;
+            lock (_persistGate) task = _persistTask;
+            if (task is null) return;
+            await task.ConfigureAwait(false);
+        }
+    }
 }

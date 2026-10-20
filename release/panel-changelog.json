@@ -575,5 +575,14 @@
       "Ignora registros antigos de progresso para não encerrar a atualização errada.",
       "Não tenta atualizar o receptor integrado do próprio computador pela rede ou pela nuvem."
     ]
+  },
+  {
+    "version": "2.5.54.0",
+    "summary": "Evita travamentos espontâneos durante a sincronização e reduz gravações repetidas de arquivos locais.",
+    "changes": [
+      "Deixa de tratar a resposta de cada sinal de vida do canal rápido como uma nova conexão.",
+      "Grava o histórico de logs e a lista de computadores fora da thread da interface.",
+      "Consolida atualizações locais consecutivas e mantém a mais recente."
+    ]
   }
 ]

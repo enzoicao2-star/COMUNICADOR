@@ -126,12 +126,16 @@ public sealed class SupabaseRealtimeDeliveryListener
             var payload = message[4];
             if (eventName == "phx_reply")
             {
+                var replyReference = message[1].ValueKind == JsonValueKind.String
+                    ? message[1].GetString() : null;
                 var status = payload.TryGetProperty("status", out var statusNode)
                     ? statusNode.GetString()
                     : null;
                 if (string.Equals(status, "error", StringComparison.OrdinalIgnoreCase))
                     throw new WebSocketException($"Supabase Realtime recusou a inscrição: {payload}");
-                if (string.Equals(status, "ok", StringComparison.OrdinalIgnoreCase))
+                // O servidor também responde a cada heartbeat. Apenas a resposta
+                // ao phx_join confirma uma nova conexão; as demais são rotina.
+                if (IsJoinAcknowledgement(replyReference, reference, joined, status))
                 {
                     joined = true;
                     Logger.Info("Canal rápido de entregas Supabase conectado.");
@@ -148,6 +152,11 @@ public sealed class SupabaseRealtimeDeliveryListener
             }
         }
     }
+
+    internal static bool IsJoinAcknowledgement(
+        string? replyReference, string joinReference, bool joined, string? status) =>
+        !joined && string.Equals(replyReference, joinReference, StringComparison.Ordinal)
+        && string.Equals(status, "ok", StringComparison.OrdinalIgnoreCase);
 
     private static async Task SendFrameAsync(ClientWebSocket socket, object frame, CancellationToken ct)
     {
