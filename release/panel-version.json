@@ -1,11 +1,11 @@
 {
-  "version": "2.5.61.0",
-  "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/9ed32b50c8dd793790151abd711420493d57e8d4/release/Comunicador.exe",
-  "sha256": "014C5FB6867A203F4FF3A0D5FB7DCD1163C4958767C7469998DB9886A58E9B23",
-  "summary": "Impede que respostas internas e miniaturas apareçam como lembretes e avisos.",
-  "changes": [
-    "Respostas de miniatura deixam de abrir avisos no painel e no receptor.",
-    "Entregas internas sem mensagem são descartadas silenciosamente.",
-    "Confirmações técnicas continuam registradas sem gerar notificações visíveis."
-  ]
+    "version":  "2.5.62.0",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/3e049ce6849b3af06e41cef8fde4d2f970204bf5/release/Comunicador.exe",
+    "sha256":  "BE6FBBA2417CBE0732569A7D014BA3FDCA7704B24484C04195059EAC8049A321",
+    "summary":  "Corrige a posição e a seleção da imagem por monitor e libera CMD para painéis autorizados.",
+    "changes":  [
+                    "A imagem escolhida em Definir monitor aparece na área principal, mantém tamanho e posição e é a imagem enviada.",
+                    "A prévia local posiciona a imagem nas coordenadas escolhidas no monitor.",
+                    "Permissão individual e tag ADMIN autorizam o CMD remoto no painel e no receptor."
+                ]
 }
