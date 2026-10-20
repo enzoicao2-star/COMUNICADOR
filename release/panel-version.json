@@ -1,11 +1,11 @@
 {
-    "version":  "2.5.53.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/80baee9/release/Comunicador.exe",
-    "sha256":  "0E33758F278362D3334A7AF8D123E3CA239908E63C3CC8132AFE49B8239D7A2C",
-    "summary":  "Mostra o progresso da atualização mesmo com o arquivo bloqueado e evita tentar atualizar o próprio computador como receptor remoto.",
+    "version":  "2.5.54.0",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/fce651875b2c206bd8a282c8fce287133aac21a0/release/Comunicador.exe",
+    "sha256":  "0E10384C8AEBD7D1F0571F7F554F3021C9DE0A0ABC4DCB679446CAAE06CC743A",
+    "summary":  "Evita travamentos espontâneos durante a sincronização e reduz gravações repetidas de arquivos locais.",
     "changes":  [
-                    "Lê a cópia temporária do progresso quando o Windows impede a troca do arquivo principal.",
-                    "Ignora registros antigos de progresso para não encerrar a atualização errada.",
-                    "Não tenta atualizar o receptor integrado do próprio computador pela rede ou pela nuvem."
+                    "Deixa de tratar a resposta de cada sinal de vida do canal rápido como uma nova conexão.",
+                    "Grava o histórico de logs e a lista de computadores fora da thread da interface.",
+                    "Consolida atualizações locais consecutivas e mantém a mais recente."
                 ]
 }
