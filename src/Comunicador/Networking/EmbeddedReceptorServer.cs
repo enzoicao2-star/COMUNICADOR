@@ -25,6 +25,7 @@ public sealed class EmbeddedReceptorServer : IDisposable
     private readonly RegistroConexoesReversas _conexoesReversas;
     private readonly PerfilComputadorRepository _perfis;
     private readonly CloudSyncService _cloud;
+    private readonly MediaCacheStore _mediaCache = new(Path.Combine(AppPaths.LocalSharedDir, "media-cache"));
 
     /// <summary>Disparado quando um receptor se registra abrindo conexao para este painel.</summary>
     public event Action<ConexaoReversa>? ReceptorRegistrado;
@@ -260,6 +261,9 @@ public sealed class EmbeddedReceptorServer : IDisposable
             case ProtocolConstants.MessageType.Notification:
                 await TratarNotificationAsync(stream, msg, ct).ConfigureAwait(false);
                 break;
+            case ProtocolConstants.MessageType.MediaCacheUpload:
+                await TratarUploadMediaCacheAsync(stream, msg, ct).ConfigureAwait(false);
+                break;
             case ProtocolConstants.MessageType.WallpaperPreviewRequest:
                 await TratarWallpaperPreviewAsync(stream, msg, ct).ConfigureAwait(false);
                 break;
@@ -460,6 +464,58 @@ public sealed class EmbeddedReceptorServer : IDisposable
         await EnviarAsync(stream, response, ct).ConfigureAwait(false);
     }
 
+    private async Task TratarUploadMediaCacheAsync(NetworkStream stream, ComunicadorMessage msg, CancellationToken ct)
+    {
+        if (!TokenValido(msg.Token))
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.Unauthorized,
+                "Token inválido ou painel não pareado.", msg.Id), ct).ConfigureAwait(false);
+            return;
+        }
+        if (_settings.EstePainelEhOwner || _cloud.IsAdmin)
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.ContentBlocked,
+                "O OWNER está protegido e não recebe envios.", msg.Id), ct).ConfigureAwait(false);
+            return;
+        }
+        if (msg.MediaTestOnly != true
+            && (!_settings.AceitarImagensDeOutrosPaineis || !_settings.MidiasPermitidasGlobalmente)
+            && !await SenderIsOwnerAsync(msg, ct).ConfigureAwait(false))
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.ContentBlocked,
+                "Este painel bloqueou o recebimento de imagens, vídeos e áudios.", msg.Id), ct).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var data = Convert.FromBase64String(msg.MediaDataBase64!);
+            await _mediaCache.StoreAsync(msg.MediaSha256!, msg.MediaKind!, msg.MediaMimeType!,
+                data, msg.MediaTestOnly == true, ct).ConfigureAwait(false);
+            var ack = ComunicadorMessage.CreateBase(ProtocolConstants.MessageType.Ack);
+            ack.InReplyTo = msg.Id;
+            ack.Status = msg.MediaTestOnly == true ? "media_test_received" : "media_cached";
+            ack.MediaSha256 = msg.MediaSha256!.ToLowerInvariant();
+            ack.BytesReceived = data.LongLength;
+            await EnviarAsync(stream, ack, ct).ConfigureAwait(false);
+        }
+        catch (InvalidDataException ex)
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.ContentBlocked, ex.Message, msg.Id), ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            await EnviarAsync(stream, ComunicadorMessage.Error(
+                ProtocolConstants.ErrorCode.InternalError,
+                "Não foi possível guardar a mídia neste computador.", msg.Id), ct).ConfigureAwait(false);
+            Logger.Warning($"Falha ao guardar mídia recebida: {ex.Message}", "midia");
+        }
+    }
+
     private async Task TratarNotificationAsync(NetworkStream stream, ComunicadorMessage msg, CancellationToken ct)
     {
         if (!TokenValido(msg.Token))
@@ -522,6 +578,24 @@ public sealed class EmbeddedReceptorServer : IDisposable
                 ProtocolConstants.ErrorCode.ContentBlocked,
                 "Este painel bloqueou mensagens com botões de link.", msg.Id), ct).ConfigureAwait(false);
             return;
+        }
+
+        if (MediaCacheStore.HasReferences(msg))
+        {
+            if (!_mediaCache.TryResolve(msg))
+            {
+                await EnviarAsync(stream, ComunicadorMessage.Error(
+                    ProtocolConstants.ErrorCode.ContentBlocked,
+                    "MEDIA_NOT_READY: mídia ainda não foi carregada por completo.", msg.Id), ct).ConfigureAwait(false);
+                return;
+            }
+            var resolvedValidation = MessageValidator.Validate(msg);
+            if (!resolvedValidation.IsValid)
+            {
+                await EnviarAsync(stream, ComunicadorMessage.Error(
+                    resolvedValidation.Code!, resolvedValidation.Message!, msg.Id), ct).ConfigureAwait(false);
+                return;
+            }
         }
 
         if (msg.DisplayMode == ProtocolConstants.DisplayMode.Carousel)

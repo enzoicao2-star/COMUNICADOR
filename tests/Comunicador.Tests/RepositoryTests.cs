@@ -247,6 +247,7 @@ public sealed class RepositoryTests
             Assert.Equal(0, repository.Mesclar([
                 new LogEntry { Id = "middle", TimestampUtc = now.AddHours(-1) },
             ]));
+            repository.FlushPendingAsync().GetAwaiter().GetResult();
         });
     }
 

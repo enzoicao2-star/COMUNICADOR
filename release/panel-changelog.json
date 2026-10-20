@@ -584,5 +584,14 @@
       "Grava o histórico de logs e a lista de computadores fora da thread da interface.",
       "Consolida atualizações locais consecutivas e mantém a mais recente."
     ]
+  },
+  {
+    "version": "2.5.55.0",
+    "summary": "Corrige o teste de envio de imagem e o pré-carregamento de mídia entre painéis.",
+    "changes": [
+      "O receptor embutido no painel agora recebe e confirma transferências de teste sem exibir a mídia.",
+      "Imagens, GIFs, vídeos e áudios pré-carregados passam a ser guardados e validados antes da exibição.",
+      "Uma mídia ausente ou incompleta retorna MEDIA_NOT_READY sem abrir uma exibição quebrada."
+    ]
   }
 ]
