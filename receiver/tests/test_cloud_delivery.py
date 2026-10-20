@@ -100,6 +100,17 @@ def test_owner_target_rejects_cloud_delivery_without_showing_it():
         "owner-target", "Entrega recusada: o OWNER está protegido e não recebe envios.")]
 
 
+def test_internal_preview_result_is_consumed_without_becoming_a_reminder():
+    worker = _worker()
+    worker._mostrar_entrega({
+        "id": "preview-result", "sender_device_id": "receiver-2",
+        "payload": {"kind": "wallpaper_preview_result", "image_base64": "thumbnail"},
+    })
+
+    assert worker.updated == [("preview-result", None)]
+    assert not hasattr(worker.ui, "args")
+
+
 def test_receiver_detects_owner_target_for_local_delivery():
     config = object.__new__(receptor.Config)
     config.data = {"computer_id": "owner-id"}
@@ -374,6 +385,33 @@ def test_normal_response_still_shows_notification_and_is_acknowledged():
 
     assert confirmed == ["message-reply"]
     assert worker.ui.args[1:3] == ("Resposta: Aviso", "Recebido")
+
+
+def test_wallpaper_preview_ack_never_opens_a_notification_even_with_legacy_payload():
+    worker = _worker()
+    confirmed = []
+    worker._confirmar_resposta = confirmed.append
+
+    worker._mostrar_resposta({
+        "id": "preview-ack", "payload": {"title": "mensagem"},
+        "response_text": "Miniatura recebida.",
+    })
+
+    assert confirmed == ["preview-ack"]
+    assert not hasattr(worker.ui, "args")
+
+
+def test_non_notification_response_is_acknowledged_without_a_toast():
+    worker = _worker()
+    confirmed = []
+    worker._confirmar_resposta = confirmed.append
+    worker._mostrar_resposta({
+        "id": "internal-ack", "payload": {"kind": "persistent_image_control"},
+        "response_text": "Posição alterada.",
+    })
+
+    assert confirmed == ["internal-ack"]
+    assert not hasattr(worker.ui, "args")
 
 
 def test_wallpaper_preview_request_sends_local_thumbnail_to_owner(monkeypatch):

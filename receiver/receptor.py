@@ -49,7 +49,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.30"
+RECEIVER_VERSION = "2.5.31"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -1779,6 +1779,12 @@ class CloudDeliveryWorker(threading.Thread):
             self._atualizar_entrega(delivery_id, result)
             return
 
+        if payload.get("kind") not in (None, "notification"):
+            # Internal requests/results are never user reminders. A stale or
+            # unmatched wallpaper preview must not become a visible toast.
+            self._atualizar_entrega(delivery_id, None)
+            return
+
         if payload.get("kind") == "notification":
             image = payload.get("image")
             screen_images = payload.get("screen_images") or []
@@ -1955,7 +1961,9 @@ class CloudDeliveryWorker(threading.Thread):
         if payload.get("kind") == "admin_command":
             return
         self._confirmar_resposta(delivery["id"])
-        if payload.get("kind") in ("wallpaper_preview_request", "wallpaper_preview_result"):
+        if (payload.get("kind") not in (None, "notification")
+                or delivery.get("response_text") in (
+                    "Miniatura recebida.", "Solicitação de miniatura processada.")):
             return
         texto = delivery.get("response_text") or "O usuário confirmou o recebimento."
         self.ui.mostrar(

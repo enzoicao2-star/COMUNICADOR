@@ -192,7 +192,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     {
         if (resposta.Payload.ValueKind == JsonValueKind.Object
             && resposta.Payload.TryGetProperty("kind", out var responseKind)
-            && responseKind.GetString() is "wallpaper_preview_request" or "wallpaper_preview_result") return;
+            && responseKind.ValueKind == JsonValueKind.String
+            && responseKind.GetString() is not (null or "notification")) return;
+        if (resposta.ResponseText is "Miniatura recebida." or "Solicitação de miniatura processada.") return;
         var adminCommand = GetAdminCommand(resposta.Payload);
         // Respostas de CMD aparecem no campo de resultado da tela do computador.
         // Instalações remotas também rodam em segundo plano e não devem gerar toast.
@@ -333,6 +335,14 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             && kindNode.GetString() == "notification")
         {
             await HandleCloudNotificationAsync(delivery, payload).ConfigureAwait(true);
+            return;
+        }
+        if (payload.ValueKind == JsonValueKind.Object
+            && payload.TryGetProperty("kind", out kindNode)
+            && kindNode.ValueKind == JsonValueKind.String)
+        {
+            await _cloudSync.RespondToDeliveryAsync(delivery.Id, "Entrega interna ignorada.")
+                .ConfigureAwait(true);
             return;
         }
         var sender = payload.TryGetProperty("sender", out var senderNode)

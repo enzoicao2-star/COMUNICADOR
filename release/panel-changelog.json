@@ -630,5 +630,14 @@
       "As miniaturas recebidas permanecem no cache local e os dados de imagem são retirados da fila após a entrega.",
       "A prévia do monitor conserva os limites da imagem e o ajuste de tamanho sem travamentos."
     ]
+  },
+  {
+    "version": "2.5.61.0",
+    "summary": "Impede que respostas internas e miniaturas apareçam como lembretes e avisos.",
+    "changes": [
+      "Respostas de miniatura deixam de abrir avisos no painel e no receptor.",
+      "Entregas internas sem mensagem são descartadas silenciosamente.",
+      "Confirmações técnicas continuam registradas sem gerar notificações visíveis."
+    ]
   }
 ]
