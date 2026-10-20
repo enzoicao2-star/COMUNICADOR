@@ -621,5 +621,14 @@
       "O painel aguarda o receptor remoto suportar miniaturas antes de solicitar o papel de parede.",
       "Após o receptor atualizar, a miniatura é solicitada automaticamente e guardada no computador local."
     ]
+  },
+  {
+    "version": "2.5.60.0",
+    "summary": "Garante que o painel OWNER receba as miniaturas solicitadas sem disputa com o receptor em segundo plano.",
+    "changes": [
+      "O receptor no computador OWNER deixa as respostas de miniatura para o painel processar.",
+      "As miniaturas recebidas permanecem no cache local e os dados de imagem são retirados da fila após a entrega.",
+      "A prévia do monitor conserva os limites da imagem e o ajuste de tamanho sem travamentos."
+    ]
   }
 ]

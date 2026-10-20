@@ -49,7 +49,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.29"
+RECEIVER_VERSION = "2.5.30"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -1603,6 +1603,11 @@ class CloudDeliveryWorker(threading.Thread):
         self._autorizado(f"/rest/v1/deliveries?id=eq.{filtro}", "PATCH", body)
 
     def _buscar_entregas(self):
+        # No computador OWNER o painel é quem consome as entregas. Se este
+        # receptor as reivindicar primeiro, a resposta com miniatura pode ser
+        # recusada como envio ao OWNER antes de chegar ao painel.
+        if getattr(self.config, "has_panel", False) and self.is_current_owner(self.config.computer_id):
+            return []
         return self._autorizado(
             "/rest/v1/rpc/claim_due_deliveries", "POST", {}) or []
 

@@ -352,6 +352,15 @@ def test_response_search_excludes_admin_commands_but_keeps_messages():
     assert query["sender_device_id"] == ["eq.panel-1"]
 
 
+def test_owner_receiver_leaves_deliveries_for_panel():
+    worker = _worker()
+    worker.config.has_panel = True
+    worker.is_current_owner = lambda panel_id: panel_id == "receiver-id"
+    worker._autorizado = lambda *_args: (_ for _ in ()).throw(AssertionError("owner must not claim"))
+
+    assert worker._buscar_entregas() == []
+
+
 def test_normal_response_still_shows_notification_and_is_acknowledged():
     worker = _worker()
     confirmed = []
