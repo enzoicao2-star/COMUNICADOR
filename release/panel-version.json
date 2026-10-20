@@ -1,11 +1,11 @@
 {
-    "version":  "2.5.54.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/fce651875b2c206bd8a282c8fce287133aac21a0/release/Comunicador.exe",
-    "sha256":  "0E10384C8AEBD7D1F0571F7F554F3021C9DE0A0ABC4DCB679446CAAE06CC743A",
-    "summary":  "Evita travamentos espontâneos durante a sincronização e reduz gravações repetidas de arquivos locais.",
+    "version":  "2.5.55.0",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/d413ad5/release/Comunicador.exe",
+    "sha256":  "E419BBD29B97883BF0468F7398794CBA2C84B111499526AD39FCAA9F97FB5B11",
+    "summary":  "Corrige o teste de envio de imagem e o pré-carregamento de mídia entre painéis.",
     "changes":  [
-                    "Deixa de tratar a resposta de cada sinal de vida do canal rápido como uma nova conexão.",
-                    "Grava o histórico de logs e a lista de computadores fora da thread da interface.",
-                    "Consolida atualizações locais consecutivas e mantém a mais recente."
+                    "O receptor embutido no painel agora recebe e confirma transferências de teste sem exibir a mídia.",
+                    "Imagens, GIFs, vídeos e áudios pré-carregados passam a ser guardados e validados antes da exibição.",
+                    "Uma mídia ausente ou incompleta retorna MEDIA_NOT_READY sem abrir uma exibição quebrada."
                 ]
 }
