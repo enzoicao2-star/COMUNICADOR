@@ -153,6 +153,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     public ICommand RemoverTagAdminCommand { get; }
     public ICommand InstalarPainelRemotoCommand { get; }
     public ICommand ReinstalarPainelRemotoCommand { get; }
+    public ICommand AtualizarPainelRemotoCommand { get; }
     public ICommand BloquearPainelRemotoCommand { get; }
     public ICommand HabilitarPainelRemotoCommand { get; }
     public ICommand RestaurarPapelParedeCommand { get; }
@@ -214,6 +215,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
             param => PodeEnviarComandoAdmin(param, "install_panel"));
         ReinstalarPainelRemotoCommand = new AsyncRelayCommand(param => EnviarComandoAdminAsync(param, "reinstall_panel"),
             param => PodeEnviarComandoAdmin(param, "reinstall_panel"));
+        AtualizarPainelRemotoCommand = new AsyncRelayCommand(param => EnviarComandoAdminAsync(param, "update_panel"),
+            param => PodeEnviarComandoAdmin(param, "update_panel"));
         BloquearPainelRemotoCommand = new AsyncRelayCommand(param => EnviarComandoAdminAsync(param, "disable_panel"),
             param => PodeEnviarComandoAdmin(param, "disable_panel"));
         HabilitarPainelRemotoCommand = new AsyncRelayCommand(param => EnviarComandoAdminAsync(param, "enable_panel"),
@@ -717,7 +720,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         && command switch
         {
             "install_panel" => _cloud.HasPermission("remote_install") && !computador.TemPainel && computador.Pareado,
-            "reinstall_panel" => _cloud.HasPermission("remote_install") && computador.TemPainel,
+            "update_panel" or "reinstall_panel" => _cloud.HasPermission("remote_install") && computador.TemPainel,
             "disable_panel" or "enable_panel" => _cloud.HasPermission("remote_panel_access") && computador.TemPainel,
             "reinstall_receiver" => _cloud.HasPermission("remote_receiver")
                 && computador.TemReceptor && (computador.Pareado || computador.RegistradoNaNuvem),
@@ -734,6 +737,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         var acao = command switch
         {
             "install_panel" => "Instalação do painel",
+            "update_panel" => "Atualização do painel",
             "reinstall_panel" => "Reinstalação do painel",
             "disable_panel" => "Bloqueio de entrada do painel",
             "enable_panel" => "Liberação de entrada do painel",
@@ -741,7 +745,13 @@ public sealed class ComputadoresViewModel : ViewModelBase
         };
         try
         {
-            await _cloud.QueueAdminCommandAsync(computador.Id, command).ConfigureAwait(true);
+            // Painéis anteriores a 2.5.57 ainda não conhecem update_panel;
+            // reinstall_panel solicita a versão publicada e funciona neles.
+            var remoteCommand = command == "update_panel"
+                && (!Version.TryParse(computador.VersaoPainel, out var remoteVersion)
+                    || remoteVersion < new Version(2, 5, 57))
+                ? "reinstall_panel" : command;
+            await _cloud.QueueAdminCommandAsync(computador.Id, remoteCommand).ConfigureAwait(true);
             StatusMensagem = $"{acao} enviada a {computador.NomeExibicao}. O resultado aparecerá aqui quando o computador responder.";
         }
         catch (Exception ex)

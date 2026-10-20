@@ -423,7 +423,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var requiredPermission = command switch
         {
             "run_cmd" or "cancel_cmd" => "remote_command",
-            "install_panel" or "reinstall_panel" => "remote_install",
+            "install_panel" or "update_panel" or "reinstall_panel" => "remote_install",
             "disable_panel" or "enable_panel" => "remote_panel_access",
             "reinstall_receiver" => "remote_receiver",
             _ => string.Empty,
@@ -474,17 +474,26 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
                         ? "A entrada de conexões locais do painel foi habilitada."
                         : "A entrada foi habilitada nesta sessão; o arquivo local está ocupado.";
                     break;
+                case "update_panel":
                 case "reinstall_panel":
                     try
                     {
                         var info = await _panelUpdate.CheckAsync().ConfigureAwait(true);
-                        await _panelUpdate.StartUpdateAsync(info, forceReinstall: true).ConfigureAwait(true);
-                        result = $"Reinstalação do painel {info.LatestVersion} iniciada. O Comunicador será reaberto ao terminar.";
+                        if (command == "update_panel" && !info.IsAvailable)
+                        {
+                            result = $"O painel já está atualizado na versão {info.LatestVersion}.";
+                        }
+                        else
+                        {
+                            await _panelUpdate.StartUpdateAsync(info,
+                                forceReinstall: command == "reinstall_panel").ConfigureAwait(true);
+                            result = $"Atualização do painel {info.LatestVersion} iniciada. O Comunicador será reaberto ao terminar.";
+                        }
                     }
                     catch (Exception ex)
                     {
-                        Logger.Error("Não foi possível reinstalar o painel remotamente.", "atualizacao", ex.Message);
-                        result = $"Não foi possível iniciar a reinstalação do painel: {ex.Message}";
+                        Logger.Error("Não foi possível atualizar o painel remotamente.", "atualizacao", ex.Message);
+                        result = $"Não foi possível iniciar a atualização do painel: {ex.Message}";
                     }
                     break;
                 case "reinstall_receiver":

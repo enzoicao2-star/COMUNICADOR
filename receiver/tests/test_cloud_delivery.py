@@ -151,6 +151,25 @@ def test_cloud_media_block_keeps_text_but_removes_media_for_non_owner():
     assert worker.ui.kwargs["display_mode"] == "toast"
 
 
+def test_cloud_media_block_allows_image_from_owner():
+    worker = _worker(media_blocked=True, is_owner=True)
+    image = {"mime_type": "image/gif", "data_base64": "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="}
+    payload = {
+        "kind": "notification",
+        "sender": "OWNER",
+        "title": "",
+        "message": "",
+        "allow_reply": False,
+        "display_mode": protocolo.DISPLAY_MODE_CENTER_IMAGE,
+        "image": image,
+    }
+
+    worker._mostrar_entrega({"id": "owner-image", "sender_device_id": "owner-id", "payload": payload})
+
+    assert worker.ui.kwargs["image"] == image
+    assert worker.ui.kwargs["display_mode"] == protocolo.DISPLAY_MODE_CENTER_IMAGE
+
+
 def test_cloud_wallpaper_permission_reports_success(monkeypatch):
     worker = _worker(media_blocked=True, is_owner=True)
     applied = []

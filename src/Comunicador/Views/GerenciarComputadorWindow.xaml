@@ -163,6 +163,8 @@
                                     Command="{Binding RestaurarPapelParedeCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
                             <Button Content="Instalar painel" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,8"
                                     Command="{Binding InstalarPainelRemotoCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
+                            <Button Content="Atualizar painel" Style="{StaticResource BotaoPrimario}" Margin="0,0,8,8"
+                                    Command="{Binding AtualizarPainelRemotoCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
                             <Button Content="Reinstalar painel" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,8"
                                     Command="{Binding ReinstalarPainelRemotoCommand}" CommandParameter="{Binding ComputadorGerenciado}" />
                             <Button Content="Atualizar receptor" Style="{StaticResource BotaoSecundario}" Margin="0,0,8,8"

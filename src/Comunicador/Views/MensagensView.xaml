@@ -548,7 +548,7 @@
                                 <Button HorizontalAlignment="Right" VerticalAlignment="Center" Content="Definir monitor"
                                         Style="{StaticResource BotaoPrimario}" Click="SelecionarMonitor_Click" />
                             </Grid>
-                        </StackPanel>>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

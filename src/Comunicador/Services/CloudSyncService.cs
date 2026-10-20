@@ -356,7 +356,7 @@ public sealed class CloudSyncService : IDisposable
     {
         var permission = command switch
         {
-            "install_panel" or "reinstall_panel" => "remote_install",
+            "install_panel" or "update_panel" or "reinstall_panel" => "remote_install",
             "disable_panel" or "enable_panel" => "remote_panel_access",
             "reinstall_receiver" => "remote_receiver",
             _ => throw new ArgumentOutOfRangeException(nameof(command)),

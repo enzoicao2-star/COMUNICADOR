@@ -593,5 +593,15 @@
       "Imagens, GIFs, vídeos e áudios pré-carregados passam a ser guardados e validados antes da exibição.",
       "Uma mídia ausente ou incompleta retorna MEDIA_NOT_READY sem abrir uma exibição quebrada."
     ]
+  },
+  {
+    "version": "2.5.57.0",
+    "summary": "Corrige a tela Mensagens e permite atualizar o painel de cada computador.",
+    "changes": [
+      "A tela Mensagens abre sem a exceção de XAML ao selecionar o envio de imagem.",
+      "O gerenciamento de cada computador tem um botão para atualizar seu painel remoto.",
+      "O OWNER continua autorizado a enviar mídia para computadores que bloqueiam outros remetentes.",
+      "O receptor 2.5.28 recupera corretamente a sessão local quando o arquivo principal está ocupado."
+    ]
   }
 ]

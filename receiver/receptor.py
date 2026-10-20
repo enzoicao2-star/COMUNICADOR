@@ -49,7 +49,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.27"
+RECEIVER_VERSION = "2.5.28"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -1431,9 +1431,10 @@ class CloudDeliveryWorker(threading.Thread):
 
         def data_modificacao(path):
             try:
-                return path.stat().st_mtime_ns
+                info = path.stat()
+                return (info.st_mtime_ns, info.st_ctime_ns, path == recuperacao)
             except OSError:
-                return -1
+                return (-1, -1, False)
 
         arquivos.sort(key=data_modificacao, reverse=True)
         for arquivo in arquivos:

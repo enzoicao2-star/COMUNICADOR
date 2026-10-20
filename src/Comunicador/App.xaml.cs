@@ -85,7 +85,7 @@ public partial class App : Application
                     try
                     {
                         smokeWindow.UpdateLayout();
-                        smokeWindow.NavegarPara(new System.Windows.Controls.Grid());
+                        smokeWindow.NavegarPara(new MensagensView());
                         smokeWindow.UpdateLayout();
                         var onlyOneWindow = Current.Windows.OfType<Window>().Count() == 1;
                         var openedInsideMainWindow = smokeWindow.TelaAninhadaAtiva;
