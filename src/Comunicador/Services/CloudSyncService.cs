@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net.Http;
 using System.Text.Json;
+using System.Collections.Concurrent;
 using Comunicador.Models;
 using Comunicador.Protocol;
 using Comunicador.Storage;
@@ -17,6 +18,7 @@ public sealed class CloudSyncService : IDisposable
     private readonly SemaphoreSlim _profileWriteGate = new(1, 1);
     private readonly SemaphoreSlim _deliveryWake = new(0, 1);
     private readonly HashSet<string> _responsesSeen = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, (string DeviceId, int MonitorIndex, DateTimeOffset SentAt)> _wallpaperRequests = new();
     private Task? _loop;
     private Task? _deliveryLoop;
     private Task? _realtimeLoop;
@@ -28,6 +30,7 @@ public sealed class CloudSyncService : IDisposable
     public event Action? StateChanged;
     public event Action<CloudDelivery>? ResponseReceived;
     public event Action<CloudDelivery>? DeliveryReceived;
+    public event Action<string, int, byte[]>? WallpaperPreviewReceived;
     public event Action<IReadOnlyList<CloudDevice>>? DevicesReceived;
     public event Action<ConfiguracaoGlobalPrograma>? GlobalConfigReceived;
     public bool IsAdmin { get; private set; }
@@ -370,6 +373,71 @@ public sealed class CloudSyncService : IDisposable
             new { kind = "admin_command", command, sender = _settings.NomePainel }, ct).ConfigureAwait(false);
     }
 
+    public async Task QueueWallpaperPreviewRequestAsync(string targetDeviceId, int monitorIndex,
+        CancellationToken ct = default)
+    {
+        if (string.Equals(targetDeviceId, _settings.PainelId, StringComparison.OrdinalIgnoreCase)) return;
+        if (monitorIndex is < 0 or >= ProtocolConstants.MaxMonitors) return;
+        await RegisterCurrentDeviceAsync(ct, forUserDelivery: true).ConfigureAwait(false);
+        EnsureTargetIsNotOwner(targetDeviceId);
+        var now = DateTimeOffset.UtcNow;
+        foreach (var expired in _wallpaperRequests.Where(item => now - item.Value.SentAt > TimeSpan.FromMinutes(5)))
+            _wallpaperRequests.TryRemove(expired.Key, out _);
+        if (_wallpaperRequests.Values.Any(item => item.DeviceId == targetDeviceId
+            && item.MonitorIndex == monitorIndex && now - item.SentAt < TimeSpan.FromMinutes(1))) return;
+        var requestId = Guid.NewGuid().ToString("N");
+        _wallpaperRequests[requestId] = (targetDeviceId, monitorIndex, now);
+        try
+        {
+            await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, now,
+                new { kind = "wallpaper_preview_request", request_id = requestId,
+                    monitor_index = monitorIndex, expires_at = now.AddMinutes(2).ToString("O") }, ct)
+                .ConfigureAwait(false);
+        }
+        catch { _wallpaperRequests.TryRemove(requestId, out _); throw; }
+    }
+
+    public async Task QueueWallpaperPreviewResultAsync(string targetDeviceId, string requestId,
+        int monitorIndex, byte[] bytes, CancellationToken ct = default)
+    {
+        if (!Guid.TryParse(requestId, out _) || bytes.Length is 0 or > 512 * 1024
+            || !ConteudoImagem.AssinaturaCorresponde("image/jpeg", bytes)) return;
+        await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
+            new { kind = "wallpaper_preview_result", request_id = requestId,
+                monitor_index = monitorIndex, image_base64 = Convert.ToBase64String(bytes) }, ct)
+            .ConfigureAwait(false);
+    }
+
+    public bool TryHandleWallpaperPreviewResult(CloudDelivery delivery)
+    {
+        var payload = delivery.Payload;
+        if (payload.ValueKind != JsonValueKind.Object
+            || !payload.TryGetProperty("kind", out var kind)
+            || kind.ValueKind != JsonValueKind.String
+            || kind.GetString() != "wallpaper_preview_result") return false;
+        if (!payload.TryGetProperty("request_id", out var requestNode)
+            || requestNode.ValueKind != JsonValueKind.String
+            || !_wallpaperRequests.TryRemove(requestNode.GetString() ?? string.Empty, out var request)
+            || !string.Equals(delivery.SenderDeviceId, request.DeviceId, StringComparison.OrdinalIgnoreCase)
+            || DateTimeOffset.UtcNow - request.SentAt > TimeSpan.FromMinutes(5)
+            || !payload.TryGetProperty("monitor_index", out var monitorNode)
+            || monitorNode.ValueKind != JsonValueKind.Number
+            || !monitorNode.TryGetInt32(out var index) || index != request.MonitorIndex
+            || !payload.TryGetProperty("image_base64", out var imageNode)
+            || imageNode.ValueKind != JsonValueKind.String) return true;
+        var encoded = imageNode.GetString();
+        if (encoded is null || encoded.Length > 700_000) return true;
+        try
+        {
+            var bytes = Convert.FromBase64String(encoded);
+            if (bytes.Length is > 0 and <= 512 * 1024
+                && ConteudoImagem.AssinaturaCorresponde("image/jpeg", bytes))
+                WallpaperPreviewReceived?.Invoke(request.DeviceId, index, bytes);
+        }
+        catch (FormatException) { }
+        return true;
+    }
+
     public async Task QueueRemoteCommandAsync(
         string targetDeviceId, string command, string requestId, CancellationToken ct = default)
     {
@@ -408,6 +476,9 @@ public sealed class CloudSyncService : IDisposable
 
     public Task RespondToDeliveryAsync(string deliveryId, string response, CancellationToken ct = default) =>
         _client.RespondToDeliveryAsync(deliveryId, response, ct);
+
+    public Task ClearWallpaperPreviewPayloadAsync(string deliveryId, CancellationToken ct = default) =>
+        _client.ClearWallpaperPreviewPayloadAsync(deliveryId, ct);
 
     public async Task SynchronizeOnceAsync(CancellationToken ct = default,
         CloudAdminState? registeredState = null)

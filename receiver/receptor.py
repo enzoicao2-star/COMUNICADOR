@@ -49,7 +49,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.28"
+RECEIVER_VERSION = "2.5.29"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -846,7 +846,15 @@ def obter_miniatura_papel_parede(config: Optional["Config"] = None) -> Optional[
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Desktop") as key:
             caminho, _ = winreg.QueryValueEx(key, "WallPaper")
         if not caminho or not Path(caminho).is_file():
-            return None
+            temas = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Themes"
+            transcoded = temas / "TranscodedWallpaper"
+            cached = temas / "CachedFiles"
+            caminho = transcoded if transcoded.is_file() else (
+                max((item for item in cached.iterdir() if item.is_file()),
+                    key=lambda item: item.stat().st_mtime_ns, default=None)
+                if cached.is_dir() else None)
+            if caminho is None:
+                return None
         with Image.open(caminho) as original:
             original.thumbnail((480, 270), Image.Resampling.LANCZOS)
             if original.mode not in ("RGB", "L"):
@@ -1723,6 +1731,35 @@ class CloudDeliveryWorker(threading.Thread):
                 delivery_id, "Entrega recusada: o OWNER está protegido e não recebe envios.")
             return
 
+        if payload.get("kind") == "wallpaper_preview_request":
+            sender_id = delivery.get("sender_device_id", "")
+            request_id = payload.get("request_id", "")
+            monitor_index = payload.get("monitor_index", -1)
+            try:
+                import uuid
+                valid_request = (self.is_current_owner(sender_id)
+                                 and uuid.UUID(str(request_id)).hex == str(request_id).replace("-", "").lower()
+                                 and isinstance(monitor_index, int) and 0 <= monitor_index < 16)
+                expires_at = datetime.fromisoformat(
+                    str(payload.get("expires_at", "")).replace("Z", "+00:00"))
+                valid_request = valid_request and expires_at >= datetime.now(timezone.utc)
+                if valid_request:
+                    image = obter_miniatura_papel_parede(self.config)
+                    if image:
+                        self._autorizado("/rest/v1/deliveries", "POST", {
+                            "sender_device_id": self.config.computer_id,
+                            "target_device_id": sender_id,
+                            "deliver_at": datetime.now(timezone.utc).isoformat(),
+                            "payload": {"kind": "wallpaper_preview_result",
+                                        "request_id": request_id,
+                                        "monitor_index": monitor_index,
+                                        "image_base64": image["data_base64"]},
+                        })
+            except (OSError, ValueError, TypeError, urllib.error.URLError) as exc:
+                logging.warning("Não foi possível responder à solicitação de miniatura: %s", exc)
+            self._atualizar_entrega(delivery_id, None)
+            return
+
         if payload.get("kind") == "admin_command":
             threading.Thread(target=self._executar_comando_admin,
                              args=(delivery,), daemon=True,
@@ -1913,6 +1950,8 @@ class CloudDeliveryWorker(threading.Thread):
         if payload.get("kind") == "admin_command":
             return
         self._confirmar_resposta(delivery["id"])
+        if payload.get("kind") in ("wallpaper_preview_request", "wallpaper_preview_result"):
+            return
         texto = delivery.get("response_text") or "O usuário confirmou o recebimento."
         self.ui.mostrar(
             "Comunicador", f"Resposta: {payload.get('title', 'mensagem')}", texto,

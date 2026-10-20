@@ -123,6 +123,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
         Computadores = new ComputadoresViewModel(
             computadoresStore, _discovery, client, enviador, atualizador, Settings, perfis, _cloudSync);
+        _cloudSync.WallpaperPreviewReceived += Computadores.SalvarMiniaturaPapelParede;
         _sync = new SyncCoordinatorService(
             Computadores.Snapshot, client, _conexoesReversas, _historicoRepositorio, _logsRepositorio, perfis);
         Historico = new HistoricoViewModel(_historicoRepositorio, reenvios, Computadores, enviador);
@@ -189,6 +190,9 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     private void OnCloudResponseReceived(CloudDelivery resposta) => UiDispatcher.Invoke(() =>
     {
+        if (resposta.Payload.ValueKind == JsonValueKind.Object
+            && resposta.Payload.TryGetProperty("kind", out var responseKind)
+            && responseKind.GetString() is "wallpaper_preview_request" or "wallpaper_preview_result") return;
         var adminCommand = GetAdminCommand(resposta.Payload);
         // Respostas de CMD aparecem no campo de resultado da tela do computador.
         // Instalações remotas também rodam em segundo plano e não devem gerar toast.
@@ -266,6 +270,16 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     private async Task HandleCloudDeliveryAsync(CloudDelivery delivery)
     {
+        if (_cloudSync.TryHandleWallpaperPreviewResult(delivery))
+        {
+            try { await _cloudSync.ClearWallpaperPreviewPayloadAsync(delivery.Id).ConfigureAwait(true); }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
+            {
+                Logger.Warning($"Não foi possível limpar a miniatura da entrega remota: {ex.Message}");
+            }
+            await _cloudSync.RespondToDeliveryAsync(delivery.Id, "Miniatura recebida.").ConfigureAwait(true);
+            return;
+        }
         if (_cloudSync.IsAdmin || Settings.EstePainelEhOwner)
         {
             try
@@ -283,6 +297,30 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         }
 
         var payload = delivery.Payload;
+        if (payload.ValueKind == JsonValueKind.Object
+            && payload.TryGetProperty("kind", out var previewKind)
+            && previewKind.GetString() == "wallpaper_preview_request")
+        {
+            var requestId = payload.TryGetProperty("request_id", out var requestNode)
+                ? requestNode.GetString() : null;
+            var expiresAt = payload.TryGetProperty("expires_at", out var expiryNode)
+                ? expiryNode.GetString() : null;
+            var monitorIndex = payload.TryGetProperty("monitor_index", out var indexNode)
+                && indexNode.TryGetInt32(out var parsedIndex) ? parsedIndex : -1;
+            if (_cloudSync.HasPermissionForDevice(delivery.SenderDeviceId, "send_media")
+                && Guid.TryParse(requestId, out _)
+                && DateTimeOffset.TryParse(expiresAt, out var expiry)
+                && expiry >= DateTimeOffset.UtcNow && monitorIndex is >= 0 and < ProtocolConstants.MaxMonitors)
+            {
+                var preview = WallpaperService.GetPreview();
+                if (preview?.RawData is { Length: > 0 } bytes)
+                    await _cloudSync.QueueWallpaperPreviewResultAsync(delivery.SenderDeviceId,
+                        requestId!, monitorIndex, bytes).ConfigureAwait(true);
+            }
+            await _cloudSync.RespondToDeliveryAsync(delivery.Id, "Solicitação de miniatura processada.")
+                .ConfigureAwait(true);
+            return;
+        }
         if (payload.ValueKind == JsonValueKind.Object
             && payload.TryGetProperty("kind", out var kindNode)
             && kindNode.GetString() == "admin_command")
@@ -674,6 +712,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         _backgroundUpdatesCts.Cancel();
         Computadores.PingMedioAtualizado -= AtualizarPingMedio;
         _cloudSync.ResponseReceived -= OnCloudResponseReceived;
+        _cloudSync.WallpaperPreviewReceived -= Computadores.SalvarMiniaturaPapelParede;
         _cloudSync.DeliveryReceived -= OnCloudDeliveryReceived;
         _discovery.Dispose();
         _statusMonitor.Dispose();

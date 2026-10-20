@@ -57,6 +57,15 @@ public static class WallpaperService
         {
             using var key = Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop", writable: false);
             var path = key?.GetValue("WallPaper") as string;
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                var themes = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "Microsoft", "Windows", "Themes");
+                var transcoded = Path.Combine(themes, "TranscodedWallpaper");
+                path = File.Exists(transcoded) ? transcoded : Directory.Exists(Path.Combine(themes, "CachedFiles"))
+                    ? Directory.EnumerateFiles(Path.Combine(themes, "CachedFiles"))
+                        .OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault() : null;
+            }
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
 
             using var stream = File.OpenRead(path);

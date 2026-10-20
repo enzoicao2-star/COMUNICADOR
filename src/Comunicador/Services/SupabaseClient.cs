@@ -213,6 +213,17 @@ public sealed class SupabaseClient
         await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
     }
 
+    public async Task ClearWallpaperPreviewPayloadAsync(string deliveryId, CancellationToken ct = default)
+    {
+        var id = Uri.EscapeDataString(deliveryId);
+        using var request = await CreateRequestAsync(HttpMethod.Patch,
+            $"/rest/v1/deliveries?id=eq.{id}",
+            "{\"payload\":{\"kind\":\"wallpaper_preview_result\"}}", ct).ConfigureAwait(false);
+        request.Headers.TryAddWithoutValidation("Prefer", "return=minimal");
+        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
+    }
+
     public async Task AcknowledgeResponseAsync(string deliveryId, CancellationToken ct = default)
     {
         var body = JsonSerializer.Serialize(new { p_delivery_id = deliveryId }, JsonOptions);

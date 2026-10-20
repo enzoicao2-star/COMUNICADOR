@@ -55,6 +55,7 @@ public sealed class RepositoryPerformanceTests(ITestOutputHelper output)
                 Id = $"remote-log-{index}", TimestampUtc = now.AddSeconds(index + 1),
             }).ToArray();
             var logMergeTime = Time(() => Assert.Equal(RemoteEntries, logs.Mesclar(logRemote)));
+            logs.FlushPendingAsync().GetAwaiter().GetResult();
 
             output.WriteLine($"Historico Snapshot ({Snapshots} x {ExistingEntries:N0}): {historySnapshotTime:F2} ms");
             output.WriteLine($"Logs Snapshot ({Snapshots} x {ExistingEntries:N0}): {logSnapshotTime:F2} ms");

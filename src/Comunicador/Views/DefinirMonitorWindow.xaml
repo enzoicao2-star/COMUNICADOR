@@ -49,12 +49,31 @@
                             <TextBlock Text="Arraste a imagem ou ajuste X e Y ao lado."
                                        Style="{StaticResource Subtitulo}" Margin="0,3,0,0" />
                         </StackPanel>
-                        <Border Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        <Viewbox Grid.Row="1" Stretch="Uniform" StretchDirection="DownOnly"
+                                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                        <Border HorizontalAlignment="Center" VerticalAlignment="Center"
                                 Padding="8" CornerRadius="12" Background="#10151E"
                                 BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1">
                             <Grid>
                                 <Image x:Name="PapelParedePreview" Source="{Binding WallpaperPreview}"
+                                       Width="{Binding ElementName=MonitorCanvas, Path=Width}"
+                                       Height="{Binding ElementName=MonitorCanvas, Path=Height}"
                                        Stretch="UniformToFill" IsHitTestVisible="False" />
+                                <TextBlock Text="{Binding WallpaperPreviewState}" TextAlignment="Center"
+                                           Foreground="White" Opacity="0.7" FontSize="15"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           IsHitTestVisible="False">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding WallpaperPreview}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <Canvas x:Name="MonitorCanvas" Background="Transparent" AllowDrop="True"
                                         PreviewDragOver="Monitor_DragOver" Drop="Monitor_Drop"
                                         ClipToBounds="True" MouseLeftButtonDown="Preview_MouseDown"
@@ -74,6 +93,7 @@
                                 </Canvas>
                             </Grid>
                         </Border>
+                        </Viewbox>
                         <DockPanel Grid.Row="2" Margin="0,11,0,0">
                             <TextBlock Text="A imagem permanece dentro dos limites do monitor."
                                        Style="{StaticResource Subtitulo}" FontSize="11" VerticalAlignment="Center" />

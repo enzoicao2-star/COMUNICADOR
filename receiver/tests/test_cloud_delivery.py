@@ -365,3 +365,49 @@ def test_normal_response_still_shows_notification_and_is_acknowledged():
 
     assert confirmed == ["message-reply"]
     assert worker.ui.args[1:3] == ("Resposta: Aviso", "Recebido")
+
+
+def test_wallpaper_preview_request_sends_local_thumbnail_to_owner(monkeypatch):
+    import uuid
+    from datetime import datetime, timedelta, timezone
+
+    worker = _worker(is_owner=True)
+    queued = []
+    worker._autorizado = lambda path, method, body: queued.append((path, method, body))
+    monkeypatch.setattr(receptor, "obter_miniatura_papel_parede", lambda _config: {
+        "data_base64": "jpeg-thumbnail"})
+    request_id = uuid.uuid4().hex
+    worker._mostrar_entrega({
+        "id": "preview-request", "sender_device_id": "owner-panel",
+        "payload": {"kind": "wallpaper_preview_request", "request_id": request_id,
+                    "monitor_index": 1,
+                    "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=2)).isoformat()},
+    })
+
+    assert queued[0][0:2] == ("/rest/v1/deliveries", "POST")
+    assert queued[0][2]["target_device_id"] == "owner-panel"
+    assert queued[0][2]["payload"] == {
+        "kind": "wallpaper_preview_result", "request_id": request_id,
+        "monitor_index": 1, "image_base64": "jpeg-thumbnail"}
+    assert worker.updated == [("preview-request", None)]
+    assert not hasattr(worker.ui, "args")
+
+
+def test_wallpaper_preview_request_rejects_non_owner(monkeypatch):
+    import uuid
+    from datetime import datetime, timedelta, timezone
+
+    worker = _worker(is_owner=False)
+    queued = []
+    worker._autorizado = lambda *args: queued.append(args)
+    monkeypatch.setattr(receptor, "obter_miniatura_papel_parede", lambda _config: {
+        "data_base64": "jpeg-thumbnail"})
+    worker._mostrar_entrega({
+        "id": "untrusted-preview", "sender_device_id": "other-panel",
+        "payload": {"kind": "wallpaper_preview_request", "request_id": uuid.uuid4().hex,
+                    "monitor_index": 0,
+                    "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=2)).isoformat()},
+    })
+
+    assert queued == []
+    assert worker.updated == [("untrusted-preview", None)]

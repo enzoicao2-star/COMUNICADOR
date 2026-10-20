@@ -4,6 +4,8 @@ using System.Security.Principal;
 using System.Windows;
 using System.Windows.Threading;
 using Comunicador.Services;
+using Comunicador.Models;
+using Comunicador.Protocol;
 using Comunicador.Storage;
 using Comunicador.ViewModels;
 using Comunicador.Views;
@@ -87,6 +89,18 @@ public partial class App : Application
                         smokeWindow.UpdateLayout();
                         smokeWindow.NavegarPara(new MensagensView());
                         smokeWindow.UpdateLayout();
+                        var destino = new DestinoMonitor
+                        {
+                            Computador = new Computador { Id = "smoke-monitor", Nome = "Prévia" },
+                            Monitor = new MonitorInfo { Index = 0, Name = "Monitor", Width = 1920, Height = 1080 },
+                        };
+                        var monitorView = new DefinirMonitorView(destino, null!);
+                        smokeWindow.NavegarPara(monitorView);
+                        smokeWindow.UpdateLayout();
+                        if (monitorView.MonitorCanvas.ActualWidth <= 0
+                            || monitorView.MonitorCanvas.ActualHeight <= 0)
+                            throw new InvalidOperationException("A prévia do monitor não foi dimensionada.");
+                        smokeWindow.NavegarVoltar();
                         var onlyOneWindow = Current.Windows.OfType<Window>().Count() == 1;
                         var openedInsideMainWindow = smokeWindow.TelaAninhadaAtiva;
                         smokeWindow.NavegarVoltar();

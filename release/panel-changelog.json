@@ -603,5 +603,14 @@
       "O OWNER continua autorizado a enviar mídia para computadores que bloqueiam outros remetentes.",
       "O receptor 2.5.28 recupera corretamente a sessão local quando o arquivo principal está ocupado."
     ]
+  },
+  {
+    "version": "2.5.58.0",
+    "summary": "Corrige a prévia do monitor e carrega o papel de parede de computadores sem pareamento local.",
+    "changes": [
+      "A imagem e a alça de ajuste permanecem dentro da representação do monitor, sem erro de NaN ao redimensionar.",
+      "O papel de parede é solicitado ao computador selecionado e a miniatura recebida fica no cache local.",
+      "Computadores encontrados pela nuvem também respondem à solicitação de miniatura, mesmo sem pareamento local."
+    ]
   }
 ]

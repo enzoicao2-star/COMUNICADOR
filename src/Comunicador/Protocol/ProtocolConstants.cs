@@ -7,8 +7,8 @@ public static class ProtocolConstants
     public const string CurrentReceiverVersion = "2.5.16.3";
     public const string CurrentPanelVersion = "2.5.27.2";
 #else
-    public const string CurrentReceiverVersion = "2.5.28";
-    public const string CurrentPanelVersion = "2.5.57";
+    public const string CurrentReceiverVersion = "2.5.29";
+    public const string CurrentPanelVersion = "2.5.58";
 #endif
     public const string MinimumManagedReceiverVersion = "2.1.0";
 

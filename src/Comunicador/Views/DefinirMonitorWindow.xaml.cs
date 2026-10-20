@@ -43,6 +43,7 @@ public partial class DefinirMonitorView : UserControl
     {
         var primeira = Imagens.FirstOrDefault();
         ImagemPreview.Visibility = primeira is null ? Visibility.Collapsed : Visibility.Visible;
+        AlcaRedimensionar.Visibility = primeira is null ? Visibility.Collapsed : Visibility.Visible;
         if (primeira is null)
         {
             StatusImagem.Text = "Solte uma imagem ou GIF nesta prévia, ou carregue um arquivo.";
@@ -103,6 +104,8 @@ public partial class DefinirMonitorView : UserControl
 
     private void AtualizarPreview()
     {
+        if (!double.IsFinite(MonitorCanvas.Width) || !double.IsFinite(MonitorCanvas.Height)
+            || MonitorCanvas.Width <= 0 || MonitorCanvas.Height <= 0) return;
         TextoX.Text = $"{SliderX.Value:0}%";
         TextoY.Text = $"{SliderY.Value:0}%";
         TextoTamanho.Text = $"{SliderTamanho.Value:0}%";
@@ -169,7 +172,10 @@ public partial class DefinirMonitorView : UserControl
 
     private void Redimensionar_DragDelta(object sender, DragDeltaEventArgs e)
     {
-        if (MonitorCanvas.Width <= 0 || ImagemPreview.Width <= 0) return;
+        if (!double.IsFinite(MonitorCanvas.Width) || MonitorCanvas.Width <= 0
+            || !double.IsFinite(ImagemPreview.Width) || ImagemPreview.Width <= 0
+            || !double.IsFinite(ImagemPreview.Height) || ImagemPreview.Height <= 0
+            || !double.IsFinite(e.HorizontalChange) || !double.IsFinite(e.VerticalChange)) return;
         var proporcao = ImagemPreview.Width / Math.Max(1, ImagemPreview.Height);
         var deltaHorizontal = e.HorizontalChange;
         var deltaVerticalComoLargura = e.VerticalChange * proporcao;

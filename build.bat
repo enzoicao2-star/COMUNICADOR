@@ -6,7 +6,7 @@ set "COMUNICADOR_BUILD_ROOT=%~dp0"
 cd /d "%ROOT%"
 
 echo ===============================================
-echo   Comunicador 2.5.57 - build completo
+echo   Comunicador 2.5.58 - build completo
 echo ===============================================
 
 echo.
@@ -48,7 +48,7 @@ dotnet test tests\Comunicador.Tests\Comunicador.Tests.csproj -c Release --no-res
 if errorlevel 1 goto :erro
 
 echo.
-echo [6/8] Compilando o painel 2.5.57 em Release...
+echo [6/8] Compilando o painel 2.5.58 em Release...
 dotnet build src\Comunicador\Comunicador.csproj -c Release --no-restore
 if errorlevel 1 goto :erro
 
@@ -57,7 +57,7 @@ echo [7/8] Publicando self-contained, single-file e win-x64...
 rem Fecha somente uma copia que esteja rodando diretamente desta pasta dist.
 rem Isso evita arquivo bloqueado ao substituir o executavel durante um upgrade.
 powershell -NoProfile -Command "$exe=[IO.Path]::GetFullPath((Join-Path $env:COMUNICADOR_BUILD_ROOT 'dist\Comunicador.exe')); Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'Comunicador.exe' -and $_.ExecutablePath -eq $exe } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
-set "PUBLISH_TEMP=%TEMP%\Comunicador-publish-2.5.57-%RANDOM%%RANDOM%"
+set "PUBLISH_TEMP=%TEMP%\Comunicador-publish-2.5.58-%RANDOM%%RANDOM%"
 if exist "!PUBLISH_TEMP!" (
     echo ERRO: a pasta temporaria de publicacao ja existe: !PUBLISH_TEMP!
     goto :erro
@@ -79,8 +79,8 @@ if not exist "dist\Comunicador.exe" (
     goto :erro
 )
 for /f "delims=" %%V in ('powershell -NoProfile -Command "(Get-Item -LiteralPath 'dist\Comunicador.exe').VersionInfo.FileVersion"') do set "VERSAO_GERADA=%%V"
-if not "!VERSAO_GERADA!"=="2.5.57.0" (
-    echo ERRO: versao gerada !VERSAO_GERADA!, esperada 2.5.57.0.
+if not "!VERSAO_GERADA!"=="2.5.58.0" (
+    echo ERRO: versao gerada !VERSAO_GERADA!, esperada 2.5.58.0.
     goto :erro
 )
 

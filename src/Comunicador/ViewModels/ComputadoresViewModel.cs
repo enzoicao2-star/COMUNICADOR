@@ -50,6 +50,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private DispatcherTimer? _avisoTopoTimer;
     private readonly DispatcherTimer _wallpaperPreviewTimer = new() { Interval = TimeSpan.FromHours(5) };
     private readonly SemaphoreSlim _wallpaperPreviewRefreshGate = new(1, 1);
+    private bool _initialWallpaperRefreshStarted;
     private string? _avisoTopo;
 
     public ObservableCollection<Computador> Computadores { get; } = new();
@@ -1075,6 +1076,11 @@ public sealed class ComputadoresViewModel : ViewModelBase
         {
             Persist();
         }
+        if (!_initialWallpaperRefreshStarted && devices.Count > 0)
+        {
+            _initialWallpaperRefreshStarted = true;
+            _ = AtualizarMiniaturasPapelParedeAsync();
+        }
         CommandManager.InvalidateRequerySuggested();
     });
 
@@ -1207,18 +1213,22 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
     public void SalvarMiniaturaPapelParede(string computerId, int monitorIndex, byte[] bytes)
     {
-        WallpaperPreviewStore.Save(computerId, monitorIndex, bytes);
+        try { WallpaperPreviewStore.Save(computerId, monitorIndex, bytes); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Logger.Warning($"Não foi possível guardar a miniatura localmente: {ex.Message}");
+        }
         Services.UiDispatcher.Invoke(() => WallpaperPreviewUpdated?.Invoke(computerId, monitorIndex, bytes));
     }
 
     public async Task AtualizarMiniaturasPapelParedeAsync(string? computerId = null, bool force = false)
     {
-        if (!await _wallpaperPreviewRefreshGate.WaitAsync(0).ConfigureAwait(false)) return;
+        await _wallpaperPreviewRefreshGate.WaitAsync().ConfigureAwait(false);
         try
         {
             List<Computador> computadores = [];
             Services.UiDispatcher.Invoke(() => computadores = Computadores
-                .Where(item => item.Pareado && !item.EhOwner && !item.PainelDesinstalado
+                .Where(item => (item.Pareado || item.RegistradoNaNuvem) && !item.EhOwner && !item.PainelDesinstalado
                     && (computerId is null || string.Equals(item.Id, computerId, StringComparison.OrdinalIgnoreCase)))
                 .ToList());
 
@@ -1238,6 +1248,12 @@ public sealed class ComputadoresViewModel : ViewModelBase
                     {
                         bytes = await _client.GetWallpaperPreviewAsync(computador.EnderecoIp,
                             computador.PortaTcp, computador.Token, index).ConfigureAwait(false);
+                    }
+                    if (bytes is null && computador.RegistradoNaNuvem)
+                    {
+                        await _cloud.QueueWallpaperPreviewRequestAsync(computador.Id, index)
+                            .ConfigureAwait(false);
+                        continue;
                     }
                     if (bytes is null) continue;
                     WallpaperPreviewStore.Save(computador.Id, index, bytes);
