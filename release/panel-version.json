@@ -1,11 +1,11 @@
 {
-    "version":  "2.5.60.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/33a3d5c0554eaec5168669a41e3af5e12072738d/release/Comunicador.exe",
-    "sha256":  "90106351CAE8DF2189206027ACD9B55AF543152E1080C9D030430A2CCDDB5E74",
-    "summary":  "Garante que o painel OWNER receba as miniaturas solicitadas sem disputa com o receptor em segundo plano.",
-    "changes":  [
-                    "O receptor no computador OWNER deixa as respostas de miniatura para o painel processar.",
-                    "As miniaturas recebidas permanecem no cache local e os dados de imagem são retirados da fila após a entrega.",
-                    "A prévia do monitor conserva os limites da imagem e o ajuste de tamanho sem travamentos."
-                ]
+  "version": "2.5.61.0",
+  "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/9ed32b50c8dd793790151abd711420493d57e8d4/release/Comunicador.exe",
+  "sha256": "014C5FB6867A203F4FF3A0D5FB7DCD1163C4958767C7469998DB9886A58E9B23",
+  "summary": "Impede que respostas internas e miniaturas apareçam como lembretes e avisos.",
+  "changes": [
+    "Respostas de miniatura deixam de abrir avisos no painel e no receptor.",
+    "Entregas internas sem mensagem são descartadas silenciosamente.",
+    "Confirmações técnicas continuam registradas sem gerar notificações visíveis."
+  ]
 }
