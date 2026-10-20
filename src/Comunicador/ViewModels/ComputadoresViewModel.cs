@@ -917,6 +917,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private void OnCloudDevicesReceived(IReadOnlyList<CloudDevice> devices) => UiDispatcher.Invoke(() =>
     {
         var changed = false;
+        var previewReady = new List<string>();
         var uniqueMachineNames = devices
             .Where(d => !string.IsNullOrWhiteSpace(d.MachineName))
             .GroupBy(d => d.MachineName.Trim(), StringComparer.OrdinalIgnoreCase)
@@ -1060,12 +1061,14 @@ public sealed class ComputadoresViewModel : ViewModelBase
             {
                 computador.VersaoPainel = device.PanelVersion;
                 changed = true;
+                if (SupportsCloudWallpaperPreview(computador)) previewReady.Add(computador.Id);
             }
             if (!string.IsNullOrWhiteSpace(device.ReceiverVersion)
                 && computador.VersaoReceptor != device.ReceiverVersion)
             {
                 computador.VersaoReceptor = device.ReceiverVersion;
                 changed = true;
+                if (SupportsCloudWallpaperPreview(computador)) previewReady.Add(computador.Id);
             }
             computador.EsteComputador = EhComputadorLocal(computador);
             if (aliasesByPanelId.TryGetValue(device.DeviceId, out var nicknameAliases))
@@ -1081,8 +1084,17 @@ public sealed class ComputadoresViewModel : ViewModelBase
             _initialWallpaperRefreshStarted = true;
             _ = AtualizarMiniaturasPapelParedeAsync();
         }
+        foreach (var id in previewReady.Distinct(StringComparer.OrdinalIgnoreCase))
+            _ = AtualizarMiniaturasPapelParedeAsync(id, force: true);
         CommandManager.InvalidateRequerySuggested();
     });
+
+    private static bool SupportsCloudWallpaperPreview(Computador computador) =>
+        Version.TryParse(computador.VersaoReceptor, out var receiverVersion)
+        && receiverVersion >= new Version(2, 5, 29)
+        && (!computador.TemPainel
+            || Version.TryParse(computador.VersaoPainel, out var panelVersion)
+                && panelVersion >= new Version(2, 5, 58));
 
     private static Dictionary<string, string[]> FindMigratedReceiverAliases(
         IReadOnlyList<CloudDevice> devices)
@@ -1249,7 +1261,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
                         bytes = await _client.GetWallpaperPreviewAsync(computador.EnderecoIp,
                             computador.PortaTcp, computador.Token, index).ConfigureAwait(false);
                     }
-                    if (bytes is null && computador.RegistradoNaNuvem)
+                    if (bytes is null && computador.RegistradoNaNuvem
+                        && SupportsCloudWallpaperPreview(computador))
                     {
                         await _cloud.QueueWallpaperPreviewRequestAsync(computador.Id, index)
                             .ConfigureAwait(false);

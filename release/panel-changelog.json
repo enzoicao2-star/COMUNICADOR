@@ -612,5 +612,14 @@
       "O papel de parede é solicitado ao computador selecionado e a miniatura recebida fica no cache local.",
       "Computadores encontrados pela nuvem também respondem à solicitação de miniatura, mesmo sem pareamento local."
     ]
+  },
+  {
+    "version": "2.5.59.0",
+    "summary": "Confirma a compatibilidade antes de solicitar miniaturas do papel de parede.",
+    "changes": [
+      "A prévia do monitor mantém a imagem dentro dos limites e permite ajustar sem travar.",
+      "O painel aguarda o receptor remoto suportar miniaturas antes de solicitar o papel de parede.",
+      "Após o receptor atualizar, a miniatura é solicitada automaticamente e guardada no computador local."
+    ]
   }
 ]
