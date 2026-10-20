@@ -1,11 +1,12 @@
 {
-    "version":  "2.5.55.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/d413ad5/release/Comunicador.exe",
-    "sha256":  "E419BBD29B97883BF0468F7398794CBA2C84B111499526AD39FCAA9F97FB5B11",
-    "summary":  "Corrige o teste de envio de imagem e o pré-carregamento de mídia entre painéis.",
+    "version":  "2.5.57.0",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/65b3317a4130b6a2bd6fb692bcb425eaa0f8eef9/release/Comunicador.exe",
+    "sha256":  "0665808CBABFA8BA52478FDB5D4AA7712D332841168E209AB678630D556E8CA1",
+    "summary":  "Corrige a tela Mensagens e permite atualizar o painel de cada computador.",
     "changes":  [
-                    "O receptor embutido no painel agora recebe e confirma transferências de teste sem exibir a mídia.",
-                    "Imagens, GIFs, vídeos e áudios pré-carregados passam a ser guardados e validados antes da exibição.",
-                    "Uma mídia ausente ou incompleta retorna MEDIA_NOT_READY sem abrir uma exibição quebrada."
+                    "A tela Mensagens abre sem a exceção de XAML ao selecionar o envio de imagem.",
+                    "O gerenciamento de cada computador tem um botão para atualizar seu painel remoto.",
+                    "O OWNER continua autorizado a enviar mídia para computadores que bloqueiam outros remetentes.",
+                    "O receptor 2.5.28 recupera corretamente a sessão local quando o arquivo principal está ocupado."
                 ]
 }
