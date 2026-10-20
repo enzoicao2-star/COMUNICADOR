@@ -1,11 +1,11 @@
 {
-    "version":  "2.5.59.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/5aeb3412ca56b9111b2ab976dd34c2a78626f002/release/Comunicador.exe",
-    "sha256":  "2CBBAE7F623372427E0079E1372B796A9159E1E4FA1F778940387D5F6C79B62A",
-    "summary":  "Confirma a compatibilidade antes de solicitar miniaturas do papel de parede.",
+    "version":  "2.5.60.0",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/33a3d5c0554eaec5168669a41e3af5e12072738d/release/Comunicador.exe",
+    "sha256":  "90106351CAE8DF2189206027ACD9B55AF543152E1080C9D030430A2CCDDB5E74",
+    "summary":  "Garante que o painel OWNER receba as miniaturas solicitadas sem disputa com o receptor em segundo plano.",
     "changes":  [
-                    "A prévia do monitor mantém a imagem dentro dos limites e permite ajustar sem travar.",
-                    "O painel aguarda o receptor remoto suportar miniaturas antes de solicitar o papel de parede.",
-                    "Após o receptor atualizar, a miniatura é solicitada automaticamente e guardada no computador local."
+                    "O receptor no computador OWNER deixa as respostas de miniatura para o painel processar.",
+                    "As miniaturas recebidas permanecem no cache local e os dados de imagem são retirados da fila após a entrega.",
+                    "A prévia do monitor conserva os limites da imagem e o ajuste de tamanho sem travamentos."
                 ]
 }
