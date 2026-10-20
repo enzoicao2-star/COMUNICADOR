@@ -1,12 +1,11 @@
 {
-    "version":  "2.5.57.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/65b3317a4130b6a2bd6fb692bcb425eaa0f8eef9/release/Comunicador.exe",
-    "sha256":  "0665808CBABFA8BA52478FDB5D4AA7712D332841168E209AB678630D556E8CA1",
-    "summary":  "Corrige a tela Mensagens e permite atualizar o painel de cada computador.",
+    "version":  "2.5.58.0",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/2525ab6e96ae0ea510c2f6fd795f2d8e20da6734/release/Comunicador.exe",
+    "sha256":  "CC10727E1C8E713B507338BF390CE17F27D97B9CB2B9ED97DE22B66A34F7DCFE",
+    "summary":  "Corrige a prévia do monitor e carrega o papel de parede de computadores sem pareamento local.",
     "changes":  [
-                    "A tela Mensagens abre sem a exceção de XAML ao selecionar o envio de imagem.",
-                    "O gerenciamento de cada computador tem um botão para atualizar seu painel remoto.",
-                    "O OWNER continua autorizado a enviar mídia para computadores que bloqueiam outros remetentes.",
-                    "O receptor 2.5.28 recupera corretamente a sessão local quando o arquivo principal está ocupado."
+                    "A imagem e a alça de ajuste permanecem dentro da representação do monitor, sem erro de NaN ao redimensionar.",
+                    "O papel de parede é solicitado ao computador selecionado e a miniatura recebida fica no cache local.",
+                    "Computadores encontrados pela nuvem também respondem à solicitação de miniatura, mesmo sem pareamento local."
                 ]
 }
