@@ -53,7 +53,11 @@ public partial class SelecionarMonitorView : UserControl
         _viewModel.PrepararMonitorParaEdicao(destino);
         var editor = new DefinirMonitorView(destino, _viewModel);
         editor.VoltarSolicitado += (_, _) => VoltarSolicitado?.Invoke(this, EventArgs.Empty);
-        editor.DefinicaoConcluida += (_, _) => StatusSelecao.Text = $"Configuração salva para {destino.Titulo}.";
+        editor.DefinicaoConcluida += (_, _) =>
+        {
+            StatusSelecao.Text = $"Configuração salva para {destino.Titulo}.";
+            _viewModel.NotificarConfiguracaoDeMonitorAlterada();
+        };
         _editorAtual = editor;
         EditorMonitorHost.Content = editor;
     }
@@ -64,5 +68,9 @@ public partial class SelecionarMonitorView : UserControl
         VoltarSolicitado?.Invoke(this, EventArgs.Empty);
     }
 
-    public void SalvarConfiguracaoAtual() => _editorAtual?.SalvarConfiguracao();
+    public void SalvarConfiguracaoAtual()
+    {
+        _editorAtual?.SalvarConfiguracao();
+        _viewModel.NotificarConfiguracaoDeMonitorAlterada();
+    }
 }

@@ -19,6 +19,7 @@ public sealed class CloudSyncService : IDisposable
     private readonly SemaphoreSlim _deliveryWake = new(0, 1);
     private readonly HashSet<string> _responsesSeen = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, (string DeviceId, int MonitorIndex, DateTimeOffset SentAt)> _wallpaperRequests = new();
+    private readonly ConcurrentDictionary<string, (string DeviceId, DateTimeOffset SentAt)> _activeMediaRequests = new();
     private Task? _loop;
     private Task? _deliveryLoop;
     private Task? _realtimeLoop;
@@ -31,6 +32,7 @@ public sealed class CloudSyncService : IDisposable
     public event Action<CloudDelivery>? ResponseReceived;
     public event Action<CloudDelivery>? DeliveryReceived;
     public event Action<string, int, byte[]>? WallpaperPreviewReceived;
+    public event Action<string, JsonElement>? ActiveMediaSnapshotReceived;
     public event Action<IReadOnlyList<CloudDevice>>? DevicesReceived;
     public event Action<ConfiguracaoGlobalPrograma>? GlobalConfigReceived;
     public bool IsAdmin { get; private set; }
@@ -311,11 +313,13 @@ public sealed class CloudSyncService : IDisposable
 
     public async Task QueuePersistentImageControlAsync(
         string targetDeviceId, string imageId, string action,
-        double xPercent, double yPercent, int widthPercent, CancellationToken ct = default)
+        double xPercent, double yPercent, int widthPercent, int? durationSeconds = null,
+        CancellationToken ct = default)
     {
         if (!HasPermission("send_media"))
             throw new UnauthorizedAccessException("Este painel não tem permissão para controlar imagens.");
-        if (string.IsNullOrWhiteSpace(imageId) || action is not ("move" or "resize" or "remove"))
+        if (string.IsNullOrWhiteSpace(imageId) || action is not ("move" or "resize" or "remove" or "set_timeout")
+            || (action == "set_timeout" && durationSeconds is not (>= 1 and <= 86400)))
             throw new ArgumentException("Controle de imagem inválido.");
         await RegisterCurrentDeviceAsync(ct, forUserDelivery: true).ConfigureAwait(false);
         EnsureTargetIsNotOwner(targetDeviceId);
@@ -328,7 +332,91 @@ public sealed class CloudSyncService : IDisposable
                 image_control_x_percent = Math.Clamp(xPercent, 0, 100),
                 image_control_y_percent = Math.Clamp(yPercent, 0, 100),
                 image_control_width_percent = Math.Clamp(widthPercent, 10, 100),
+                image_control_duration_seconds = durationSeconds,
             }, ct).ConfigureAwait(false);
+    }
+
+    public async Task QueueActiveMediaSnapshotRequestAsync(string targetDeviceId,
+        CancellationToken ct = default)
+    {
+        if (!HasPermission("send_media"))
+            throw new UnauthorizedAccessException("Este painel não tem permissão para consultar mídias na tela.");
+        await RegisterCurrentDeviceAsync(ct, forUserDelivery: true).ConfigureAwait(false);
+        EnsureTargetIsNotOwner(targetDeviceId);
+        var now = DateTimeOffset.UtcNow;
+        foreach (var expired in _activeMediaRequests.Where(x => now - x.Value.SentAt > TimeSpan.FromMinutes(5)))
+            _activeMediaRequests.TryRemove(expired.Key, out _);
+        var requestId = Guid.NewGuid().ToString("N");
+        _activeMediaRequests[requestId] = (targetDeviceId, now);
+        try
+        {
+            await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, now,
+                new { kind = "active_media_snapshot_request", request_id = requestId,
+                    expires_at = now.AddMinutes(2).ToString("O") }, ct).ConfigureAwait(false);
+            _ = Task.Run(() => WatchLocalActiveMediaResponseAsync(requestId, ct), CancellationToken.None);
+        }
+        catch { _activeMediaRequests.TryRemove(requestId, out _); throw; }
+    }
+
+    private async Task WatchLocalActiveMediaResponseAsync(string requestId, CancellationToken ct)
+    {
+        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Comunicador", "Receptor", "active-media-responses", $"{Guid.Parse(requestId)}.json");
+        for (var attempt = 0; attempt < 60 && !_cts.IsCancellationRequested && !ct.IsCancellationRequested; attempt++)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    using var document = JsonDocument.Parse(await File.ReadAllTextAsync(path, ct).ConfigureAwait(false));
+                    var root = document.RootElement;
+                    var sender = root.GetProperty("sender_device_id").GetString() ?? "";
+                    var payload = root.GetProperty("payload");
+                    TryApplyActiveMediaSnapshotResult(sender, payload);
+                    File.Delete(path);
+                    return;
+                }
+                await Task.Delay(500, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+            {
+                Logger.Warning($"Não foi possível ler a resposta local das mídias: {ex.Message}");
+                await Task.Delay(500, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { return; }
+        }
+        _activeMediaRequests.TryRemove(requestId, out _);
+    }
+
+    public async Task QueueActiveMediaSnapshotResultAsync(string targetDeviceId,
+        string requestId, JsonElement items, CancellationToken ct = default)
+    {
+        if (!Guid.TryParse(requestId, out _) || items.ValueKind != JsonValueKind.Array) return;
+        await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
+            new { kind = "active_media_snapshot_result", request_id = requestId, items }, ct)
+            .ConfigureAwait(false);
+    }
+
+    public bool TryHandleActiveMediaSnapshotResult(CloudDelivery delivery)
+    {
+        var payload = delivery.Payload;
+        if (payload.ValueKind != JsonValueKind.Object
+            || !payload.TryGetProperty("kind", out var kind)
+            || kind.GetString() != "active_media_snapshot_result") return false;
+        TryApplyActiveMediaSnapshotResult(delivery.SenderDeviceId, payload);
+        return true;
+    }
+
+    private void TryApplyActiveMediaSnapshotResult(string senderDeviceId, JsonElement payload)
+    {
+        if (!payload.TryGetProperty("request_id", out var idNode)
+            || idNode.ValueKind != JsonValueKind.String
+            || !_activeMediaRequests.TryRemove(idNode.GetString() ?? "", out var request)
+            || !string.Equals(request.DeviceId, senderDeviceId, StringComparison.OrdinalIgnoreCase)
+            || DateTimeOffset.UtcNow - request.SentAt > TimeSpan.FromMinutes(5)
+            || !payload.TryGetProperty("items", out var items)
+            || items.ValueKind != JsonValueKind.Array || items.GetArrayLength() > 16) return;
+        ActiveMediaSnapshotReceived?.Invoke(request.DeviceId, items.Clone());
     }
 
     public async Task QueuePanelUpdateNoticeAsync(
@@ -480,6 +568,9 @@ public sealed class CloudSyncService : IDisposable
 
     public Task ClearWallpaperPreviewPayloadAsync(string deliveryId, CancellationToken ct = default) =>
         _client.ClearWallpaperPreviewPayloadAsync(deliveryId, ct);
+
+    public Task ClearActiveMediaSnapshotPayloadAsync(string deliveryId, CancellationToken ct = default) =>
+        _client.ClearActiveMediaSnapshotPayloadAsync(deliveryId, ct);
 
     public async Task SynchronizeOnceAsync(CancellationToken ct = default,
         CloudAdminState? registeredState = null)

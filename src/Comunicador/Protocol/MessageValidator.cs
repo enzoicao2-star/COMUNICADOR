@@ -578,7 +578,7 @@ public static class MessageValidator
                 "Controle de imagem não aceita arquivos de mídia.");
         if (string.IsNullOrWhiteSpace(msg.ImageControlId) || msg.ImageControlId.Length > 64)
             return ValidationResult.Fail(ErrorCode.MissingField, "Controle de imagem precisa de um identificador.");
-        if (msg.ImageControlAction is not ("move" or "resize" or "remove"))
+        if (msg.ImageControlAction is not ("move" or "resize" or "remove" or "set_timeout"))
             return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Ação de controle de imagem inválida.");
         if (msg.ImageControlAction == "move"
             && (msg.ImageControlXPercent is not { } x || !double.IsFinite(x) || x is < 0 or > 100
@@ -587,6 +587,9 @@ public static class MessageValidator
         if (msg.ImageControlAction == "resize"
             && msg.ImageControlWidthPercent is not (>= MinImageWidthPercent and <= MaxImageWidthPercent))
             return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Tamanho da imagem inválido.");
+        if (msg.ImageControlAction == "set_timeout"
+            && msg.ImageControlDurationSeconds is not (>= 1 and <= 86400))
+            return ValidationResult.Fail(ErrorCode.InvalidFieldType, "Tempo da imagem inválido.");
         return null;
     }
 

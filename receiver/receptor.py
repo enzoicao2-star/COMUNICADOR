@@ -49,7 +49,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.32"
+RECEIVER_VERSION = "2.5.33"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -1743,7 +1743,6 @@ class CloudDeliveryWorker(threading.Thread):
             request_id = payload.get("request_id", "")
             monitor_index = payload.get("monitor_index", -1)
             try:
-                import uuid
                 valid_request = (self.is_current_owner(sender_id)
                                  and uuid.UUID(str(request_id)).hex == str(request_id).replace("-", "").lower()
                                  and isinstance(monitor_index, int) and 0 <= monitor_index < 16)
@@ -1767,6 +1766,33 @@ class CloudDeliveryWorker(threading.Thread):
             self._atualizar_entrega(delivery_id, None)
             return
 
+        if payload.get("kind") == "active_media_snapshot_request":
+            sender_id = delivery.get("sender_device_id", "")
+            request_id = payload.get("request_id", "")
+            try:
+                expires_at = datetime.fromisoformat(
+                    str(payload.get("expires_at", "")).replace("Z", "+00:00"))
+                valid = (isinstance(sender_id, str) and uuid.UUID(str(request_id))
+                         and expires_at.tzinfo is not None
+                         and datetime.now(timezone.utc) <= expires_at
+                         and self.has_panel_permission(sender_id, "send_media"))
+                if valid:
+                    path = self.ui._active_media_path
+                    items = json.loads(path.read_text(encoding="utf-8")) if path and path.exists() else []
+                    if not isinstance(items, list):
+                        items = []
+                    self._autorizado("/rest/v1/deliveries", "POST", {
+                        "sender_device_id": self.config.computer_id,
+                        "target_device_id": sender_id,
+                        "deliver_at": datetime.now(timezone.utc).isoformat(),
+                        "payload": {"kind": "active_media_snapshot_result",
+                                    "request_id": request_id, "items": items[:16]},
+                    })
+            except (OSError, ValueError, TypeError, urllib.error.URLError) as exc:
+                logging.warning("Não foi possível responder sobre as mídias ativas: %s", exc)
+            self._atualizar_entrega(delivery_id, None)
+            return
+
         if payload.get("kind") == "admin_command":
             threading.Thread(target=self._executar_comando_admin,
                              args=(delivery,), daemon=True,
@@ -1777,8 +1803,34 @@ class CloudDeliveryWorker(threading.Thread):
             result = self.ui.controlar_imagem(
                 payload.get("image_control_id"), payload.get("image_control_action"),
                 payload.get("image_control_x_percent"), payload.get("image_control_y_percent"),
-                payload.get("image_control_width_percent"))
+                payload.get("image_control_width_percent"),
+                payload.get("image_control_duration_seconds"))
             self._atualizar_entrega(delivery_id, result)
+            return
+
+        if payload.get("kind") == "active_media_snapshot_result":
+            try:
+                request_id = str(uuid.UUID(str(payload.get("request_id"))))
+                folder = self.config.directory / "active-media-responses"
+                folder.mkdir(parents=True, exist_ok=True)
+                for stale in folder.glob("*.json"):
+                    try:
+                        if time.time() - stale.stat().st_mtime > 600:
+                            stale.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+                path = folder / f"{request_id}.json"
+                temporary = path.with_suffix(".tmp")
+                temporary.write_text(json.dumps({
+                    "sender_device_id": delivery.get("sender_device_id"),
+                    "payload": payload,
+                }), encoding="utf-8")
+                os.replace(temporary, path)
+                self._autorizado(f"/rest/v1/deliveries?id=eq.{urllib.parse.quote(delivery_id, safe='-')}",
+                                 "PATCH", {"payload": {"kind": "active_media_snapshot_result"}})
+            except (OSError, ValueError, TypeError, urllib.error.URLError) as exc:
+                logging.warning("Falha ao entregar estado das mídias ao painel local: %s", exc)
+            self._atualizar_entrega(delivery_id, None)
             return
 
         if payload.get("kind") not in (None, "notification"):
@@ -2064,6 +2116,17 @@ class CloudDeliveryWorker(threading.Thread):
                          name="supabase-realtime-entregas").start()
         while not self._stop_event.is_set():
             try:
+                heartbeat = self.config.directory / "receiver-heartbeat"
+                heartbeat.touch()
+                local_inbox = self.config.directory / "panel-forwarded-deliveries"
+                if local_inbox.exists():
+                    for local_file in list(local_inbox.glob("*.json"))[:8]:
+                        try:
+                            forwarded = json.loads(local_file.read_text(encoding="utf-8"))
+                            self._mostrar_entrega(forwarded)
+                            local_file.unlink(missing_ok=True)
+                        except (OSError, ValueError, TypeError, KeyError) as exc:
+                            logging.warning("Entrega local será tentada novamente: %s", exc)
                 if time.monotonic() >= self._next_device_registration:
                     self._registrar()
                     self._next_device_registration = time.monotonic() + 20
@@ -2090,6 +2153,9 @@ class NotificationUi:
         self._active_pinned_images: dict[str, dict] = {}
         self._root = None
         self._pinned_image_path = config_dir / "pinned-image.json" if config_dir else None
+        self._active_media_path = config_dir / "active-media.json" if config_dir else None
+        self._active_media_controls_path = config_dir / "active-media-controls" if config_dir else None
+        self._write_active_media_snapshot()
         if not test_mode:
             import tkinter as tk
             self._tk = tk
@@ -2135,10 +2201,11 @@ class NotificationUi:
             appearance or {}, video, screen_videos or [], video_loop, audio, audio_loop,
             confirmation_required))
 
-    def controlar_imagem(self, image_id, action, x_percent=None, y_percent=None, width_percent=None):
+    def controlar_imagem(self, image_id, action, x_percent=None, y_percent=None,
+                         width_percent=None, duration_seconds=None):
         if not isinstance(image_id, str) or not image_id.strip() or len(image_id) > 64:
             return "Identificador da imagem inválido."
-        if action not in {"move", "resize", "remove"}:
+        if action not in {"move", "resize", "remove", "set_timeout"}:
             return "Ação de controle de imagem inválida."
 
         def percentual_valido(valor, minimo, maximo):
@@ -2151,16 +2218,36 @@ class NotificationUi:
         if action == "resize" and not percentual_valido(
                 width_percent, protocolo.MIN_IMAGE_WIDTH_PERCENT, protocolo.MAX_IMAGE_WIDTH_PERCENT):
             return "Tamanho da imagem inválido."
+        if action == "set_timeout" and (not isinstance(duration_seconds, int)
+                or isinstance(duration_seconds, bool) or not 1 <= duration_seconds <= 86400):
+            return "Informe de 1 a 86400 segundos para remover a imagem."
         if self.test_mode or self._root is None:
             return "Receptor sem uma imagem ativa para controlar."
         resposta = queue.Queue(maxsize=1)
-        self._pending_image_controls.put((image_id, action, x_percent, y_percent, width_percent, resposta))
+        self._pending_image_controls.put((image_id, action, x_percent, y_percent,
+                                          width_percent, duration_seconds, resposta))
         try:
             return resposta.get(timeout=10)
         except queue.Empty:
             return "O Receptor demorou para aplicar o controle da imagem."
 
     def _poll(self):
+        if self._active_media_controls_path is not None:
+            try:
+                for command_file in list(self._active_media_controls_path.glob("*.json"))[:16]:
+                    try:
+                        command = json.loads(command_file.read_text(encoding="utf-8"))
+                        self._controlar_imagem_na_ui(
+                            command.get("image_control_id"), command.get("image_control_action"),
+                            command.get("image_control_x_percent"), command.get("image_control_y_percent"),
+                            command.get("image_control_width_percent"),
+                            command.get("image_control_duration_seconds"))
+                    except (OSError, ValueError, TypeError):
+                        logging.exception("Falha ao aplicar controle local de mídia.")
+                    finally:
+                        command_file.unlink(missing_ok=True)
+            except OSError:
+                logging.exception("Falha ao consultar controles locais de mídia.")
         try:
             while True:
                 item = self._pending.get_nowait()
@@ -2176,11 +2263,11 @@ class NotificationUi:
             pass
         try:
             while True:
-                image_id, action, x_percent, y_percent, width_percent, resposta = \
+                image_id, action, x_percent, y_percent, width_percent, duration_seconds, resposta = \
                     self._pending_image_controls.get_nowait()
                 try:
                     resposta.put_nowait(self._controlar_imagem_na_ui(
-                        image_id, action, x_percent, y_percent, width_percent))
+                        image_id, action, x_percent, y_percent, width_percent, duration_seconds))
                 except Exception as exc:
                     logging.exception("Falha ao controlar imagem fixada.")
                     resposta.put_nowait(f"Não foi possível controlar a imagem: {exc}")
@@ -2215,7 +2302,62 @@ class NotificationUi:
         except (OSError, ValueError, TypeError):
             logging.exception("Não foi possível salvar o controle da imagem fixada.")
 
-    def _controlar_imagem_na_ui(self, image_id, action, x_percent, y_percent, width_percent):
+    def _write_active_media_snapshot(self):
+        """Keep the receiver's actual visible windows in a local, replaceable file."""
+        if self._active_media_path is None:
+            return
+        try:
+            items = []
+            for image_id, active in self._active_pinned_images.items():
+                window, monitor = active["window"], active["monitor"]
+                if not window.winfo_exists():
+                    continue
+                item = active["item"]
+                placement = next((entry for entry in active.get("janelas", [])
+                                  if entry[0] is window), None)
+                if placement is None:
+                    width, height = window.winfo_width(), window.winfo_height()
+                    x, y = window.winfo_x(), window.winfo_y()
+                else:
+                    _, _, x, y, width, height = placement
+                items.append({
+                    "id": image_id, "name": item["image"].get("name", "Imagem"),
+                    "monitor_index": monitor["index"],
+                    "x_percent": item.get("x_percent", 50),
+                    "y_percent": item.get("y_percent", 50),
+                    "width_percent": item.get("width_percent", 70),
+                    "left_percent": max(0, 100 * (x - monitor["x"]) / monitor["width"]),
+                    "top_percent": max(0, 100 * (y - monitor["y"]) / monitor["height"]),
+                    "display_width_percent": min(100, 100 * width / monitor["width"]),
+                    "display_height_percent": min(100, 100 * height / monitor["height"]),
+                    "thumbnail_base64": active.get("thumbnail_base64", ""),
+                    "expires_at": active.get("expires_at"),
+                    "keep_until_removed": bool(item.get("keep_until_removed")),
+                })
+            self._active_media_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = self._active_media_path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(items, ensure_ascii=False), encoding="utf-8")
+            os.replace(temporary, self._active_media_path)
+        except (OSError, ValueError, TypeError):
+            logging.exception("Não foi possível salvar a lista local das mídias na tela.")
+
+    @staticmethod
+    def _miniatura_imagem(image):
+        try:
+            from PIL import Image
+            raw = base64.b64decode(image["data_base64"], validate=True)
+            with Image.open(io.BytesIO(raw)) as source:
+                source.thumbnail((320, 180))
+                thumbnail = source.convert("RGB")
+                output = io.BytesIO()
+                thumbnail.save(output, "JPEG", quality=65, optimize=True)
+                return base64.b64encode(output.getvalue()).decode("ascii")
+        except (KeyError, ValueError, OSError, TypeError):
+            logging.warning("Não foi possível criar a miniatura da mídia ativa.")
+            return ""
+
+    def _controlar_imagem_na_ui(self, image_id, action, x_percent, y_percent,
+                               width_percent, duration_seconds=None):
         ativo = self._active_pinned_images.get(image_id)
         if ativo is None:
             return "A imagem não está mais na tela."
@@ -2224,6 +2366,11 @@ class NotificationUi:
         monitor = ativo["monitor"]
 
         if action == "remove":
+            if ativo.get("timeout_after_id"):
+                try:
+                    janela.after_cancel(ativo["timeout_after_id"])
+                except self._tk.TclError:
+                    pass
             try:
                 janela.destroy()
             except self._tk.TclError:
@@ -2233,7 +2380,25 @@ class NotificationUi:
                 janelas[:] = [entrada for entrada in janelas if entrada[0] is not janela]
             self._active_pinned_images.pop(image_id, None)
             self._salvar_controle_imagem_fixada(image_id, remover=True)
+            self._write_active_media_snapshot()
+            if janelas is not None and not janelas and ativo.get("on_empty"):
+                ativo["on_empty"]()
             return "Imagem removida."
+
+        if action == "set_timeout":
+            if ativo.get("timeout_after_id"):
+                try:
+                    janela.after_cancel(ativo["timeout_after_id"])
+                except self._tk.TclError:
+                    pass
+            ativo["expires_at"] = (datetime.now(timezone.utc)
+                                   + timedelta(seconds=duration_seconds)).isoformat()
+            ativo["timeout_after_id"] = janela.after(
+                duration_seconds * 1000,
+                lambda: self._controlar_imagem_na_ui(image_id, "remove", None, None, None))
+            self._salvar_controle_imagem_fixada(image_id, remover=True)
+            self._write_active_media_snapshot()
+            return f"Imagem será removida em {duration_seconds} segundo(s)."
 
         if action == "move":
             item["x_percent"] = x_percent
@@ -2273,6 +2438,7 @@ class NotificationUi:
                     ativo["janelas"][indice] = (janela, monitor, x, y, largura, altura)
                     break
         self._salvar_controle_imagem_fixada(image_id, remover=False, item=item)
+        self._write_active_media_snapshot()
         return "Imagem atualizada."
 
     @staticmethod
@@ -2669,6 +2835,7 @@ class NotificationUi:
                 for image_id, ativo in list(self._active_pinned_images.items()):
                     if any(ativo.get("window") is janela for janela, *_ in janelas):
                         self._active_pinned_images.pop(image_id, None)
+                self._write_active_media_snapshot()
                 if finalizado.get("pinned") and self._pinned_image_path is not None:
                     try:
                         self._pinned_image_path.unlink(missing_ok=True)
@@ -2777,17 +2944,20 @@ class NotificationUi:
                 win.lift()
                 janelas.append((win, monitor, x, y, largura, altura))
                 persistent_id = item.get("persistent_id")
-                if item.get("keep_until_removed") and isinstance(persistent_id, str) and persistent_id:
-                    anterior = self._active_pinned_images.get(persistent_id)
-                    if anterior is not None:
-                        try:
-                            anterior["window"].destroy()
-                        except tk.TclError:
-                            pass
-                    self._active_pinned_images[persistent_id] = {
-                        "window": win, "label": label, "monitor": monitor, "item": item,
-                        "frame_state": estado_animacao, "janelas": janelas,
-                    }
+                if not isinstance(persistent_id, str) or not persistent_id or len(persistent_id) > 64:
+                    persistent_id = uuid.uuid4().hex
+                anterior = self._active_pinned_images.get(persistent_id)
+                if anterior is not None:
+                    try:
+                        anterior["window"].destroy()
+                    except tk.TclError:
+                        pass
+                self._active_pinned_images[persistent_id] = {
+                    "window": win, "label": label, "monitor": monitor, "item": item,
+                    "frame_state": estado_animacao, "janelas": janelas,
+                    "thumbnail_base64": self._miniatura_imagem(item["image"]),
+                    "on_empty": lambda: finish(None),
+                }
                 self._animar_janela_transicao(
                     win, monitor, x, y, largura, altura,
                     transicao["entrance_effect"], transicao["entrance_speed_percent"],
@@ -2798,8 +2968,18 @@ class NotificationUi:
         if not janelas:
             on_result(None)
             return
-        if duration is not None and not permanente:
-            self._root.after(max(3, int(duration)) * 1000, lambda: finish(None))
+        if duration is not None:
+            actual_duration = max(3, int(duration))
+            expiry = (datetime.now(timezone.utc) + timedelta(seconds=actual_duration)).isoformat()
+            for image_id, active in self._active_pinned_images.items():
+                if active["window"] in [entry[0] for entry in janelas] \
+                        and not active["item"].get("keep_until_removed"):
+                    active["expires_at"] = expiry
+                    active["timeout_after_id"] = active["window"].after(
+                        actual_duration * 1000,
+                        lambda target_id=image_id: self._controlar_imagem_na_ui(
+                            target_id, "remove", None, None, None))
+        self._write_active_media_snapshot()
         if visual["play_sound"]:
             self._tocar_som(visual["sound_type"])
 
@@ -3113,7 +3293,8 @@ class ReceptorTcpHandler(socketserver.BaseRequestHandler):
             status = server.ui.controlar_imagem(
                 msg["image_control_id"], msg["image_control_action"],
                 msg.get("image_control_x_percent"), msg.get("image_control_y_percent"),
-                msg.get("image_control_width_percent"))
+                msg.get("image_control_width_percent"),
+                msg.get("image_control_duration_seconds"))
             if not status.startswith("Imagem "):
                 raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, status)
             ack = protocolo.base_message(MessageType.ACK)

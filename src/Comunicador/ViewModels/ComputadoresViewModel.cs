@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Text.Json;
 using System.Net.Http;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -1667,7 +1668,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         var ativas = computador.ImagensPersistentesAtivas.ToList();
         foreach (var imagem in imagens)
         {
-            if (string.IsNullOrWhiteSpace(imagem.PersistentId)) continue;
+            if (string.IsNullOrWhiteSpace(imagem.PersistentId) || !imagem.KeepUntilRemoved) continue;
             ativas.RemoveAll(item => string.Equals(item.Id, imagem.PersistentId, StringComparison.Ordinal));
             ativas.Add(new ImagemPersistenteAtiva
             {
@@ -1685,6 +1686,39 @@ public sealed class ComputadoresViewModel : ViewModelBase
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Logger.Warning($"Imagem persistente exibida em {computador.NomeExibicao}, mas o controle local não pôde ser salvo: {ex.Message}");
+        }
+    }
+
+    public void AplicarSnapshotMidiasAtivas(string computerId, JsonElement items)
+    {
+        UiDispatcher.Invoke(() => AplicarSnapshotMidiasAtivasNaUi(computerId, items));
+    }
+
+    private void AplicarSnapshotMidiasAtivasNaUi(string computerId, JsonElement items)
+    {
+        var computer = Computadores.FirstOrDefault(item =>
+            string.Equals(item.Id, computerId, StringComparison.OrdinalIgnoreCase));
+        if (computer is null || items.ValueKind != JsonValueKind.Array) return;
+        computer.ImagensPersistentesAtivas = items.EnumerateArray()
+            .Take(16).Select(item => ImagemPersistenteAtiva.FromSnapshot(computerId, item))
+            .OfType<ImagemPersistenteAtiva>().ToList();
+        StatusMensagem = computer.ImagensPersistentesAtivas.Count == 0
+            ? $"Nenhuma mídia em exibição em {computer.NomeExibicao}."
+            : $"Mídias na tela de {computer.NomeExibicao} atualizadas.";
+    }
+
+    public async Task ConsultarMidiasAtivasAsync(Computador computer)
+    {
+        try
+        {
+            StatusMensagem = $"Consultando mídias na tela de {computer.NomeExibicao}…";
+            computer.ImagensPersistentesAtivas = new List<ImagemPersistenteAtiva>();
+            await _cloud.QueueActiveMediaSnapshotRequestAsync(computer.Id).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException
+            or UnauthorizedAccessException or InvalidOperationException)
+        {
+            StatusMensagem = $"Não foi possível consultar as mídias: {ex.Message}";
         }
     }
 
@@ -1717,7 +1751,12 @@ public sealed class ComputadoresViewModel : ViewModelBase
             case "larger": imagem.WidthPercent = Math.Clamp(imagem.WidthPercent + 5,
                 ProtocolConstants.MinImageWidthPercent, ProtocolConstants.MaxImageWidthPercent); acao = "resize"; break;
         }
-        if (acao is not ("move" or "resize" or "remove")) return;
+        if (acao is not ("move" or "resize" or "remove" or "set_timeout")) return;
+        if (acao == "set_timeout" && imagem.TempoSegundos is < 1 or > 86400)
+        {
+            StatusMensagem = "Escolha um tempo entre 1 e 86400 segundos.";
+            return;
+        }
 
         try
         {
@@ -1730,12 +1769,15 @@ public sealed class ComputadoresViewModel : ViewModelBase
                     modoExibicao: ProtocolConstants.DisplayMode.ImageControl,
                     imageControlId: imagem.Id, imageControlAction: acao,
                     imageControlXPercent: imagem.XPercent, imageControlYPercent: imagem.YPercent,
-                    imageControlWidthPercent: imagem.WidthPercent).ConfigureAwait(true);
+                    imageControlWidthPercent: imagem.WidthPercent,
+                    imageControlDurationSeconds: acao == "set_timeout" ? imagem.TempoSegundos : null)
+                    .ConfigureAwait(true);
                 enviou = resultado.Delivered;
                 if (!enviou && computador.RegistradoNaNuvem)
                 {
                     await _cloud.QueuePersistentImageControlAsync(computador.Id, imagem.Id, acao,
-                        imagem.XPercent, imagem.YPercent, imagem.WidthPercent).ConfigureAwait(true);
+                        imagem.XPercent, imagem.YPercent, imagem.WidthPercent,
+                        acao == "set_timeout" ? imagem.TempoSegundos : null).ConfigureAwait(true);
                     enviou = true;
                 }
                 else if (!enviou)
@@ -1746,7 +1788,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
             else if (computador.RegistradoNaNuvem)
             {
                 await _cloud.QueuePersistentImageControlAsync(computador.Id, imagem.Id, acao,
-                    imagem.XPercent, imagem.YPercent, imagem.WidthPercent).ConfigureAwait(true);
+                    imagem.XPercent, imagem.YPercent, imagem.WidthPercent,
+                    acao == "set_timeout" ? imagem.TempoSegundos : null).ConfigureAwait(true);
                 enviou = true;
             }
 
@@ -1767,9 +1810,13 @@ public sealed class ComputadoresViewModel : ViewModelBase
             }
             else
             {
-                StatusMensagem = acao == "move"
-                    ? $"Posição da imagem atualizada em {computador.NomeExibicao}."
-                    : $"Tamanho da imagem atualizado em {computador.NomeExibicao}.";
+                if (acao == "set_timeout") imagem.DefinirPrazo(imagem.TempoSegundos);
+                StatusMensagem = acao switch
+                {
+                    "move" => $"Posição da imagem atualizada em {computador.NomeExibicao}.",
+                    "set_timeout" => $"Imagem será removida em {imagem.TempoSegundos} segundos.",
+                    _ => $"Tamanho da imagem atualizado em {computador.NomeExibicao}."
+                };
             }
             try { Persist(); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

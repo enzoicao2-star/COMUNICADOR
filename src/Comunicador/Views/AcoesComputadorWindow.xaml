@@ -80,6 +80,25 @@
 
                 <Button Width="252" Height="90" Margin="0,0,10,10" Padding="12"
                         HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
+                        Style="{StaticResource BotaoSecundario}" Click="MostrarMidias_Click"
+                        Visibility="{Binding PodeEnviarMidias, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Border Width="34" Height="34" CornerRadius="10" Background="{DynamicResource SurfaceAltBrush}"
+                                VerticalAlignment="Top">
+                            <TextBlock Text="&#xE91B;" FontFamily="Segoe MDL2 Assets" FontSize="17"
+                                       Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Mídias na tela" FontSize="15" FontWeight="SemiBold" />
+                            <TextBlock Text="Ver, mover, ajustar tempo ou remover" FontSize="11"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,5,0,0" />
+                        </StackPanel>
+                    </Grid>
+                </Button>
+
+                <Button Width="252" Height="90" Margin="0,0,10,10" Padding="12"
+                        HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
                         Style="{StaticResource BotaoSecundario}" Click="EnviarMensagem_Click"
                         Visibility="{Binding PodeEnviarMidias, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Grid>
@@ -135,6 +154,69 @@
                 </Button>
             </WrapPanel>
 
+            <Border x:Name="MediaPanel" Style="{StaticResource CardBorder}" Padding="18" Margin="0,0,0,12"
+                    Visibility="Collapsed">
+                <StackPanel>
+                    <Grid Margin="0,0,0,10">
+                        <TextBlock Text="Mídias na tela" Style="{StaticResource TituloCard}" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Content="Atualizar" Style="{StaticResource BotaoSecundario}"
+                                    Padding="10,4" Margin="0,0,8,0" Click="AtualizarMidias_Click" />
+                            <Button Content="Fechar" Style="{StaticResource BotaoSecundario}"
+                                    Padding="10,4" Click="OcultarMidias_Click" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="A miniatura mostra a posição atual da imagem neste monitor. Arraste a imagem para movê-la."
+                               Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="0,0,0,10" />
+                    <ItemsControl x:Name="MidiasNaTelaLista" ItemsSource="{Binding ImagensPersistentesAtivas}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Nome}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,2,0,8">
+                                            <TextBlock Text="{Binding MonitorTexto}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                            <TextBlock Text="  ·  " Foreground="{DynamicResource TextSecondaryBrush}" />
+                                            <TextBlock Text="{Binding PrazoTexto}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        </StackPanel>
+                                        <Canvas Width="320" Height="180" Background="#10141C" HorizontalAlignment="Left"
+                                                ClipToBounds="True" MouseMove="MidiaPreview_MouseMove"
+                                                MouseLeftButtonUp="MidiaPreview_MouseLeftButtonUp">
+                                            <Border Width="{Binding PreviewWidth}" Height="{Binding PreviewHeight}"
+                                                    Canvas.Left="{Binding PreviewLeft}" Canvas.Top="{Binding PreviewTop}"
+                                                    BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2"
+                                                    MouseLeftButtonDown="MidiaPreview_MouseLeftButtonDown"
+                                                    ToolTip="Arraste para mover a imagem">
+                                                <Image Source="{Binding Miniatura}" Stretch="Fill" />
+                                            </Border>
+                                        </Canvas>
+                                        <WrapPanel Margin="0,10,0,0">
+                                            <Button Content="←" Tag="left" Click="ControlarMidia_Click" Style="{StaticResource BotaoSecundario}" Margin="0,0,4,4" />
+                                            <Button Content="↑" Tag="up" Click="ControlarMidia_Click" Style="{StaticResource BotaoSecundario}" Margin="0,0,4,4" />
+                                            <Button Content="↓" Tag="down" Click="ControlarMidia_Click" Style="{StaticResource BotaoSecundario}" Margin="0,0,4,4" />
+                                            <Button Content="→" Tag="right" Click="ControlarMidia_Click" Style="{StaticResource BotaoSecundario}" Margin="0,0,12,4" />
+                                            <Button Content="Menor" Tag="smaller" Click="ControlarMidia_Click" Style="{StaticResource BotaoSecundario}" Margin="0,0,4,4" />
+                                            <Button Content="Maior" Tag="larger" Click="ControlarMidia_Click" Style="{StaticResource BotaoSecundario}" Margin="0,0,12,4" />
+                                            <TextBlock Text="Remover em" VerticalAlignment="Center" Margin="0,0,5,4" />
+                                            <TextBox Width="65" Text="{Binding TempoSegundos, UpdateSourceTrigger=PropertyChanged}"
+                                                     VerticalAlignment="Center" Margin="0,0,5,4" />
+                                            <TextBlock Text="s" VerticalAlignment="Center" Margin="0,0,6,4" />
+                                            <Button Content="Aplicar tempo" Tag="set_timeout" Click="ControlarMidia_Click"
+                                                    Style="{StaticResource BotaoSecundario}" Margin="0,0,6,4" />
+                                            <Button Content="Remover agora" Tag="remove" Click="ControlarMidia_Click"
+                                                    Style="{StaticResource BotaoSecundario}" Margin="0,0,0,4" />
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="Se não aparecer nenhuma mídia, clique em Atualizar para consultar o receptor."
+                               Style="{StaticResource Subtitulo}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
             <Border x:Name="CmdPanel" Style="{StaticResource CardBorder}" Padding="18" Margin="0,0,0,12"
                     Visibility="Collapsed">
                 <StackPanel>
@@ -163,7 +245,8 @@
                 </StackPanel>
             </Border>
 
-            <TextBlock x:Name="StatusAcoes" Style="{StaticResource Subtitulo}" TextWrapping="Wrap" Margin="2,8,0,0" />
+            <TextBlock x:Name="StatusAcoes" Text="{Binding StatusMensagem}" Style="{StaticResource Subtitulo}"
+                       TextWrapping="Wrap" Margin="2,8,0,0" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

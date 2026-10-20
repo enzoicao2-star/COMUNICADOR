@@ -27,6 +27,7 @@ def test_valid_notification_passes():
     ("move", {"image_control_x_percent": 0, "image_control_y_percent": 100}),
     ("resize", {"image_control_width_percent": 80}),
     ("remove", {}),
+    ("set_timeout", {"image_control_duration_seconds": 30}),
 ])
 def test_persistent_image_control_accepts_valid_actions(action, fields):
     msg = make_valid_notification()

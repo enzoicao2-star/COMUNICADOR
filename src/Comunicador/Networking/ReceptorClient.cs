@@ -163,7 +163,8 @@ public sealed class ReceptorClient
         string? imageControlAction = null,
         double? imageControlXPercent = null,
         double? imageControlYPercent = null,
-        int? imageControlWidthPercent = null)
+        int? imageControlWidthPercent = null,
+        int? imageControlDurationSeconds = null)
     {
         try
         {
@@ -194,6 +195,7 @@ public sealed class ReceptorClient
             notification.ImageControlXPercent = imageControlXPercent;
             notification.ImageControlYPercent = imageControlYPercent;
             notification.ImageControlWidthPercent = imageControlWidthPercent;
+            notification.ImageControlDurationSeconds = imageControlDurationSeconds;
             notification.Appearance = aparencia;
             notification.Carousel = carousel;
             var validacao = MessageValidator.Validate(notification);

@@ -394,7 +394,7 @@ def _validar_conteudo_visual(msg: dict) -> None:
         if not image_id.strip():
             raise ProtocolError(ErrorCode.MISSING_FIELD, "Controle de imagem precisa de um identificador.")
         action = _require_str(msg, "image_control_action", 16)
-        if action not in {"move", "resize", "remove"}:
+        if action not in {"move", "resize", "remove", "set_timeout"}:
             raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Ação de controle de imagem inválida.")
 
         def validar_percentual(name, minimo, maximo):
@@ -409,6 +409,10 @@ def _validar_conteudo_visual(msg: dict) -> None:
             validar_percentual("image_control_y_percent", 0, 100)
         if action == "resize":
             validar_percentual("image_control_width_percent", MIN_IMAGE_WIDTH_PERCENT, MAX_IMAGE_WIDTH_PERCENT)
+        if action == "set_timeout":
+            seconds = msg.get("image_control_duration_seconds")
+            if not isinstance(seconds, int) or isinstance(seconds, bool) or not 1 <= seconds <= 86400:
+                raise ProtocolError(ErrorCode.INVALID_FIELD_TYPE, "Tempo da imagem inválido.")
         return
 
     imagem = msg.get("image")

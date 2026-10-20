@@ -463,6 +463,8 @@
                                         <TextBlock Text="segundos" VerticalAlignment="Center" Margin="8,0,0,0"
                                                    Style="{StaticResource Subtitulo}" />
                                     </DockPanel>
+                                    <CheckBox IsChecked="{Binding ManterImagemAteRemover}" Margin="0,8,0,0"
+                                              Content="Sem limite de tempo — eu decido quando remover" />
                                 </StackPanel>
                                 <StackPanel Margin="0,8,0,0">
                                     <StackPanel.Style>

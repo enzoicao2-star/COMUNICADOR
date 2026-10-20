@@ -100,6 +100,29 @@ def test_owner_target_rejects_cloud_delivery_without_showing_it():
         "owner-target", "Entrega recusada: o OWNER está protegido e não recebe envios.")]
 
 
+def test_active_media_request_returns_local_snapshot_without_visible_notification(tmp_path):
+    worker = _worker()
+    worker.ui._active_media_path = tmp_path / "active-media.json"
+    worker.ui._active_media_path.write_text(
+        '[{"id":"image-1","thumbnail_base64":"jpeg"}]', encoding="utf-8")
+    worker.has_panel_permission = lambda panel_id, permission: (
+        panel_id == "panel-2" and permission == "send_media")
+    queued = []
+    worker._autorizado = lambda path, method="GET", body=None: queued.append((path, method, body))
+    request_id = "f275242e-841b-4c36-95cd-ff2c8d833263"
+
+    worker._mostrar_entrega({
+        "id": "request-1", "sender_device_id": "panel-2",
+        "payload": {"kind": "active_media_snapshot_request", "request_id": request_id,
+                    "expires_at": "2099-01-01T00:00:00Z"},
+    })
+
+    assert len(queued) == 1
+    assert queued[0][2]["payload"]["items"][0]["id"] == "image-1"
+    assert worker.updated == [("request-1", None)]
+    assert not hasattr(worker.ui, "args")
+
+
 def test_internal_preview_result_is_consumed_without_becoming_a_reminder():
     worker = _worker()
     worker._mostrar_entrega({

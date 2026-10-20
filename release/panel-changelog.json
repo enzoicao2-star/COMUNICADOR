@@ -648,5 +648,15 @@
       "A prévia local posiciona a imagem nas coordenadas escolhidas no monitor.",
       "Permissão individual e tag ADMIN autorizam o CMD remoto no painel e no receptor."
     ]
+  },
+  {
+    "version": "2.5.63.0",
+    "summary": "Mostra e controla mídias ativas na tela a partir de qualquer painel autorizado.",
+    "changes": [
+      "Novo card Mídias na tela mostra miniatura e posição real de cada imagem exibida.",
+      "Permite mover, alterar tamanho, programar a remoção ou remover agora.",
+      "A opção Sem limite de tempo mantém a imagem até a remoção manual.",
+      "Miniaturas e estado ativo ficam em arquivos locais; consultas pela nuvem são temporárias."
+    ]
   }
 ]

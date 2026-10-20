@@ -257,70 +257,7 @@
                                                Visibility="{Binding MidiasBloqueadas, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                 </StackPanel>
 
-                                <ItemsControl Grid.Row="5" ItemsSource="{Binding ImagensPersistentesAtivas}"
-                                              Margin="0,7,0,0">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Padding="8" Margin="0,4,0,0" CornerRadius="9"
-                                                    Background="{DynamicResource SurfaceAltBrush}"
-                                                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
-                                                <StackPanel>
-                                                    <Grid>
-                                                        <StackPanel Margin="0,0,34,0">
-                                                            <TextBlock Text="Imagem na tela" FontSize="10"
-                                                                       FontWeight="SemiBold"
-                                                                       Foreground="{DynamicResource AccentBrush}" />
-                                                            <TextBlock Text="{Binding Nome}" FontSize="11"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       ToolTip="{Binding Nome}" />
-                                                            <TextBlock Text="{Binding MonitorTexto}" FontSize="10"
-                                                                       Foreground="{DynamicResource TextSecondaryBrush}" />
-                                                        </StackPanel>
-                                                        <Button HorizontalAlignment="Right" VerticalAlignment="Top"
-                                                                Content="Remover" Padding="5,2"
-                                                                Style="{StaticResource BotaoSecundario}"
-                                                                Click="ImagemPersistenteRemover_Click" />
-                                                    </Grid>
-                                                    <UniformGrid Columns="4" Margin="0,6,0,0">
-                                                        <Button Content="←" Tag="left" Margin="1" Padding="2"
-                                                                MinHeight="29" Style="{StaticResource BotaoSecundario}"
-                                                                ToolTip="Mover 5% para a esquerda"
-                                                                Click="ImagemPersistenteMover_Click" />
-                                                        <Button Content="↑" Tag="up" Margin="1" Padding="2"
-                                                                MinHeight="29" Style="{StaticResource BotaoSecundario}"
-                                                                ToolTip="Mover 5% para cima"
-                                                                Click="ImagemPersistenteMover_Click" />
-                                                        <Button Content="↓" Tag="down" Margin="1" Padding="2"
-                                                                MinHeight="29" Style="{StaticResource BotaoSecundario}"
-                                                                ToolTip="Mover 5% para baixo"
-                                                                Click="ImagemPersistenteMover_Click" />
-                                                        <Button Content="→" Tag="right" Margin="1" Padding="2"
-                                                                MinHeight="29" Style="{StaticResource BotaoSecundario}"
-                                                                ToolTip="Mover 5% para a direita"
-                                                                Click="ImagemPersistenteMover_Click" />
-                                                    </UniformGrid>
-                                                    <DockPanel Margin="0,5,0,0">
-                                                        <TextBlock Text="Tamanho" FontSize="10" VerticalAlignment="Center"
-                                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
-                                                        <Button DockPanel.Dock="Right" Content="+" Tag="larger"
-                                                                Width="28" MinHeight="26" Margin="4,0,0,0"
-                                                                Style="{StaticResource BotaoSecundario}"
-                                                                ToolTip="Aumentar 5%"
-                                                                Click="ImagemPersistenteMover_Click" />
-                                                        <Button DockPanel.Dock="Right" Content="−" Tag="smaller"
-                                                                Width="28" MinHeight="26"
-                                                                Style="{StaticResource BotaoSecundario}"
-                                                                ToolTip="Diminuir 5%"
-                                                                Click="ImagemPersistenteMover_Click" />
-                                                        <TextBlock Text="{Binding TamanhoTexto}" FontSize="10"
-                                                                   VerticalAlignment="Center" Margin="0,0,7,0"
-                                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
-                                                    </DockPanel>
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+
                             </Grid>
                         </controls:SpotlightCard>
                     </DataTemplate>

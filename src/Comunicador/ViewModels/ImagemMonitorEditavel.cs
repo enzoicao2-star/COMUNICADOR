@@ -192,7 +192,7 @@ public sealed class MidiaMonitorEditavel : ViewModelBase
 
     public ImagemMonitor ParaProtocolo(int monitorIndex) => new()
     {
-        PersistentId = ManterAteRemover ? $"{PersistentId}-{monitorIndex}" : null,
+        PersistentId = $"{PersistentId}-{monitorIndex}",
         MonitorIndex = monitorIndex,
         WidthPercent = (int)TamanhoPercentual,
         XPercent = XPercent,

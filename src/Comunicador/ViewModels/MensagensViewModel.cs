@@ -583,6 +583,19 @@ public sealed class MensagensViewModel : ViewModelBase
             value, ProtocolConstants.MinImageDurationSeconds, 300), 1));
     }
 
+    public bool ManterImagemAteRemover
+    {
+        get => MonitoresDestino.SelectMany(m => m.Midias).Any(i => i.EhImagem && i.ManterAteRemover);
+        set
+        {
+            foreach (var image in MonitoresDestino.SelectMany(m => m.Midias).Where(i => i.EhImagem))
+                image.ManterAteRemover = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public void NotificarConfiguracaoDeMonitorAlterada() => OnPropertyChanged(nameof(ManterImagemAteRemover));
+
     public int AtrasoEnvioImagemSegundos
     {
         get => _atrasoEnvioImagemSegundos;

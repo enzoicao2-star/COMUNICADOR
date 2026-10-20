@@ -176,6 +176,10 @@ public sealed class ComunicadorMessage
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? ImageControlWidthPercent { get; set; }
 
+    [JsonPropertyName("image_control_duration_seconds")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? ImageControlDurationSeconds { get; set; }
+
     [JsonPropertyName("appearance")]
     public AparenciaNotificacao? Appearance { get; set; }
 

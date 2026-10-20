@@ -124,6 +124,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         Computadores = new ComputadoresViewModel(
             computadoresStore, _discovery, client, enviador, atualizador, Settings, perfis, _cloudSync);
         _cloudSync.WallpaperPreviewReceived += Computadores.SalvarMiniaturaPapelParede;
+        _cloudSync.ActiveMediaSnapshotReceived += Computadores.AplicarSnapshotMidiasAtivas;
         _sync = new SyncCoordinatorService(
             Computadores.Snapshot, client, _conexoesReversas, _historicoRepositorio, _logsRepositorio, perfis);
         Historico = new HistoricoViewModel(_historicoRepositorio, reenvios, Computadores, enviador);
@@ -272,6 +273,16 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     private async Task HandleCloudDeliveryAsync(CloudDelivery delivery)
     {
+        if (_cloudSync.TryHandleActiveMediaSnapshotResult(delivery))
+        {
+            try { await _cloudSync.ClearActiveMediaSnapshotPayloadAsync(delivery.Id).ConfigureAwait(true); }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
+            {
+                Logger.Warning($"Não foi possível limpar a miniatura da mídia remota: {ex.Message}");
+            }
+            await _cloudSync.RespondToDeliveryAsync(delivery.Id, "Estado das mídias recebido.").ConfigureAwait(true);
+            return;
+        }
         if (_cloudSync.TryHandleWallpaperPreviewResult(delivery))
         {
             try { await _cloudSync.ClearWallpaperPreviewPayloadAsync(delivery.Id).ConfigureAwait(true); }
@@ -321,6 +332,79 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             }
             await _cloudSync.RespondToDeliveryAsync(delivery.Id, "Solicitação de miniatura processada.")
                 .ConfigureAwait(true);
+            return;
+        }
+        if (payload.ValueKind == JsonValueKind.Object
+            && payload.TryGetProperty("kind", out var activeKind)
+            && activeKind.GetString() == "active_media_snapshot_request")
+        {
+            var requestId = payload.TryGetProperty("request_id", out var requestNode)
+                ? requestNode.GetString() : null;
+            var expires = payload.TryGetProperty("expires_at", out var expiryNode)
+                ? expiryNode.GetString() : null;
+            if (_cloudSync.HasPermissionForDevice(delivery.SenderDeviceId, "send_media")
+                && Guid.TryParse(requestId, out _)
+                && DateTimeOffset.TryParse(expires, out var expiry)
+                && expiry >= DateTimeOffset.UtcNow)
+            {
+                try
+                {
+                    var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "Comunicador", "Receptor", "active-media.json");
+                    using var document = JsonDocument.Parse(File.Exists(path) ? File.ReadAllText(path) : "[]");
+                    await _cloudSync.QueueActiveMediaSnapshotResultAsync(delivery.SenderDeviceId,
+                        requestId!, document.RootElement).ConfigureAwait(true);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+                {
+                    Logger.Warning($"Não foi possível ler as mídias do receptor local: {ex.Message}");
+                }
+            }
+            await _cloudSync.RespondToDeliveryAsync(delivery.Id, "Consulta das mídias processada.")
+                .ConfigureAwait(true);
+            return;
+        }
+        if (payload.ValueKind == JsonValueKind.Object
+            && payload.TryGetProperty("kind", out var controlKind)
+            && controlKind.GetString() == "persistent_image_control")
+        {
+            var allowed = _cloudSync.HasPermissionForDevice(delivery.SenderDeviceId, "send_media");
+            var id = payload.TryGetProperty("image_control_id", out var idNode)
+                && idNode.ValueKind == JsonValueKind.String ? idNode.GetString() : null;
+            var action = payload.TryGetProperty("image_control_action", out var actionNode)
+                && actionNode.ValueKind == JsonValueKind.String ? actionNode.GetString() : null;
+            allowed &= !string.IsNullOrWhiteSpace(id) && id.Length <= 64
+                && action is "move" or "resize" or "remove" or "set_timeout";
+            if (allowed && action == "move")
+                allowed = payload.TryGetProperty("image_control_x_percent", out var x)
+                    && x.ValueKind == JsonValueKind.Number && x.TryGetDouble(out var xv) && xv is >= 0 and <= 100
+                    && payload.TryGetProperty("image_control_y_percent", out var y)
+                    && y.ValueKind == JsonValueKind.Number && y.TryGetDouble(out var yv) && yv is >= 0 and <= 100;
+            if (allowed && action == "resize")
+                allowed = payload.TryGetProperty("image_control_width_percent", out var width)
+                    && width.ValueKind == JsonValueKind.Number && width.TryGetInt32(out var w) && w is >= 10 and <= 100;
+            if (allowed && action == "set_timeout")
+                allowed = payload.TryGetProperty("image_control_duration_seconds", out var seconds)
+                    && seconds.ValueKind == JsonValueKind.Number && seconds.TryGetInt32(out var s)
+                    && s is >= 1 and <= 86400;
+            if (allowed)
+            {
+                try
+                {
+                    var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "Comunicador", "Receptor", "active-media-controls");
+                    Directory.CreateDirectory(folder);
+                    var path = Path.Combine(folder, $"{Guid.NewGuid():N}.json");
+                    await File.WriteAllTextAsync(path, payload.GetRawText()).ConfigureAwait(true);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Logger.Warning($"Não foi possível repassar o controle da mídia ao receptor local: {ex.Message}");
+                    allowed = false;
+                }
+            }
+            await _cloudSync.RespondToDeliveryAsync(delivery.Id,
+                allowed ? "Controle de mídia recebido." : "Controle de mídia recusado.").ConfigureAwait(true);
             return;
         }
         if (payload.ValueKind == JsonValueKind.Object
@@ -437,6 +521,37 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
                 notification.Mensagem = string.IsNullOrWhiteSpace(notification.Mensagem)
                     ? "Este computador bloqueou a mídia enviada."
                     : notification.Mensagem;
+            }
+
+            if (notification.ModoExibicao == ProtocolConstants.DisplayMode.CenterImage
+                && (notification.ImagensPorMonitor.Count > 0 || notification.Imagem is not null)
+                && Guid.TryParse(delivery.Id, out var deliveryGuid))
+            {
+                var receiverDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Comunicador", "Receptor");
+                var heartbeat = Path.Combine(receiverDir, "receiver-heartbeat");
+                if (File.Exists(heartbeat)
+                    && DateTime.UtcNow - File.GetLastWriteTimeUtc(heartbeat) < TimeSpan.FromSeconds(12))
+                {
+                    try
+                    {
+                        var folder = Path.Combine(receiverDir, "panel-forwarded-deliveries");
+                        Directory.CreateDirectory(folder);
+                        var path = Path.Combine(folder, $"{deliveryGuid:N}.json");
+                        var temporary = path + ".tmp";
+                        await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(new
+                        {
+                            id = delivery.Id, sender_device_id = delivery.SenderDeviceId,
+                            payload = delivery.Payload,
+                        })).ConfigureAwait(true);
+                        File.Move(temporary, path, true);
+                        return;
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        Logger.Warning($"Não foi possível encaminhar a imagem ao receptor local: {ex.Message}");
+                    }
+                }
             }
 
             response = await Views.NotificacaoRecebidaWindow.MostrarAsync(
@@ -723,6 +838,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         Computadores.PingMedioAtualizado -= AtualizarPingMedio;
         _cloudSync.ResponseReceived -= OnCloudResponseReceived;
         _cloudSync.WallpaperPreviewReceived -= Computadores.SalvarMiniaturaPapelParede;
+        _cloudSync.ActiveMediaSnapshotReceived -= Computadores.AplicarSnapshotMidiasAtivas;
         _cloudSync.DeliveryReceived -= OnCloudDeliveryReceived;
         _discovery.Dispose();
         _statusMonitor.Dispose();
