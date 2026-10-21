@@ -667,5 +667,14 @@
       "Mover, remover e definir tempo para uma imagem ativa não tentam salvar a miniatura visual no arquivo de computadores.",
       "A busca deixa de criar um card provisório quando o computador já está identificado pelo mesmo IP."
     ]
+  },
+  {
+    "version": "2.5.65.0",
+    "summary": "Mantém a sincronização e a presença dos computadores mesmo após erros isolados.",
+    "changes": [
+      "Falhas ao salvar dados locais não encerram a sincronização dos computadores.",
+      "A verificação de presença continua após um erro isolado, evitando estados offline incorretos.",
+      "Falhas ao registrar um evento não travam o painel."
+    ]
   }
 ]

@@ -45,10 +45,22 @@ public sealed class StatusMonitorService : IDisposable
     {
         while (!ct.IsCancellationRequested)
         {
-            var pareados = _getComputadores()
-                .Where(c => !EhComputadorLocal(c)
-                    && (c.Pareado || !string.IsNullOrWhiteSpace(c.EnderecoIp)))
-                .ToList();
+            IReadOnlyList<Computador> pareados;
+            try
+            {
+                pareados = _getComputadores()
+                    .Where(c => !EhComputadorLocal(c)
+                        && (c.Pareado || !string.IsNullOrWhiteSpace(c.EnderecoIp)))
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"A lista de computadores será consultada novamente: {ex.Message}",
+                    "status", ex.ToString());
+                try { await Task.Delay(TimeSpan.FromSeconds(_settings.IntervaloPingSegundos), ct).ConfigureAwait(false); }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+                continue;
+            }
             using var limite = new SemaphoreSlim(MaxVerificacoesSimultaneas);
             var checks = pareados.Select(async computador =>
             {
@@ -58,6 +70,11 @@ public sealed class StatusMonitorService : IDisposable
             });
             try { await Task.WhenAll(checks).ConfigureAwait(false); }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+            catch (Exception ex)
+            {
+                Logger.Warning($"A verificação de presença será repetida: {ex.Message}",
+                    "status", ex.ToString());
+            }
 
             try
             {

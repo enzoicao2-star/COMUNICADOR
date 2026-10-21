@@ -80,7 +80,7 @@ public static class Logger
                 Detalhes = details,
             });
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception)
         {
             // logging nunca deve derrubar o app.
         }

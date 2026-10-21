@@ -1660,9 +1660,10 @@ public sealed class ComputadoresViewModel : ViewModelBase
             _storeWriter.Queue(Computadores);
             _computerStoreFailureReported = false;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+            or JsonException or NotSupportedException or InvalidOperationException)
         {
-            StatusMensagem = "Os dados continuam disponíveis nesta sessão, mas a cópia local está temporariamente bloqueada.";
+            StatusMensagem = "Os dados continuam disponíveis nesta sessão, mas não foi possível salvar a cópia local.";
             if (_computerStoreFailureReported) return;
             _computerStoreFailureReported = true;
             Logger.Warning("A lista de computadores não pôde ser salva localmente; será tentada novamente na próxima alteração.",

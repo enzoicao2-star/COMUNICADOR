@@ -753,10 +753,14 @@ public sealed class CloudSyncService : IDisposable
             {
                 return;
             }
-            catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException
-                or UnauthorizedAccessException or JsonException)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                Logger.Warning($"Busca de entregas pela nuvem será repetida: {ex.Message}");
+                return;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"Busca de entregas pela nuvem será repetida: {ex.Message}",
+                    "sincronizacao", ex.ToString());
             }
 
             try { await _deliveryWake.WaitAsync(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false); }
@@ -817,14 +821,21 @@ public sealed class CloudSyncService : IDisposable
                 }
                 if (profileChanged || pendingRejected) await SynchronizeOnceAsync(ct).ConfigureAwait(false);
             }
-            catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException
-                or UnauthorizedAccessException or JsonException)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
             {
                 Status = $"Supabase indisponível: {ex.Message}";
-                var summary = ex is IOException or UnauthorizedAccessException ? ex.ToString() : ex.Message;
-                Logger.Error($"Falha na sincronização com o Supabase: {summary}",
+                Logger.Error($"Falha na sincronização com o Supabase: {ex.Message}",
                     "sincronizacao", ex.ToString());
-                StateChanged?.Invoke();
+                try { StateChanged?.Invoke(); }
+                catch (Exception notificationError)
+                {
+                    Logger.Warning($"Falha ao atualizar o estado da sincronização: {notificationError.Message}",
+                        "sincronizacao", notificationError.ToString());
+                }
             }
 
             try { await Task.Delay(TimeSpan.FromSeconds(15), ct).ConfigureAwait(false); }
