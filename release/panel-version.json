@@ -1,12 +1,11 @@
 {
-    "version":  "2.5.63.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/a12a601799258db2f041cf7dfe913f661464f314/release/Comunicador.exe",
-    "sha256":  "F146D102E8254B15840F1415D1F0055E8D8968BEEE91F7C5F126D1FAFA1C7943",
-    "summary":  "Mostra e controla mídias ativas na tela a partir de qualquer painel autorizado.",
+    "version":  "2.5.64.0",
+    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/b2717659631fd809f99ba3c4802517b8da74343b/release/Comunicador.exe",
+    "sha256":  "7CC0A2BA192DF3402C6653AA995633C432AA1EDDBDDCE99A26E3D7AC403DA84B",
+    "summary":  "Corrige o envio de GIF e os controles de mídias ativas.",
     "changes":  [
-                    "Novo card Mídias na tela mostra miniatura e posição real de cada imagem exibida.",
-                    "Permite mover, alterar tamanho, programar a remoção ou remover agora.",
-                    "A opção Sem limite de tempo mantém a imagem até a remoção manual.",
-                    "Miniaturas e estado ativo ficam em arquivos locais; consultas pela nuvem são temporárias."
+                    "GIFs e outras mídias grandes passam por arquivo temporário protegido e são guardados localmente no receptor.",
+                    "Mover, remover e definir tempo para uma imagem ativa não causam mais erro ao salvar a miniatura.",
+                    "A busca evita o card duplicado de um computador já conhecido pelo mesmo IP."
                 ]
 }
