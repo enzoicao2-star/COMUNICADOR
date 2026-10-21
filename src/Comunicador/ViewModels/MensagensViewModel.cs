@@ -1538,6 +1538,7 @@ public sealed class MensagensViewModel : ViewModelBase
         foreach (var item in original.ImagensPorMonitor)
             imagens.Add(new ImagemMonitor
             {
+                PersistentId = item.PersistentId,
                 MonitorIndex = item.MonitorIndex, WidthPercent = item.WidthPercent,
                 XPercent = item.XPercent, YPercent = item.YPercent,
                 KeepUntilRemoved = item.KeepUntilRemoved, RestoreAfterRestart = item.RestoreAfterRestart,
@@ -2227,7 +2228,8 @@ public sealed class MensagensViewModel : ViewModelBase
                     {
                         Logger.Warning($"Mídia será transportada pela fila segura para {computador.NomeExibicao}: {ex.Message}", "envio");
                     }
-                    await _cloud.QueueNotificationAsync(computador.Id, envioNuvem).ConfigureAwait(true);
+                    await _cloud.QueueNotificationAsync(computador.Id, envioNuvem,
+                        computador.VersaoReceptor).ConfigureAwait(true);
                     resultado = new NotificationResult(true, false, false, null, null);
                 }
                 else

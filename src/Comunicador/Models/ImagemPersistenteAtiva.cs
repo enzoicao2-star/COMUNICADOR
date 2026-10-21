@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Windows.Media.Imaging;
 
 namespace Comunicador.Models;
@@ -45,14 +46,20 @@ public sealed class ImagemPersistenteAtiva : ObservableModel
         }
     }
 
-    public string MonitorTexto => $"Monitor {MonitorIndex + 1}";
-    public string TamanhoTexto => $"{WidthPercent}%";
+    [JsonIgnore] public string MonitorTexto => $"Monitor {MonitorIndex + 1}";
+    [JsonIgnore] public string TamanhoTexto => $"{WidthPercent}%";
     public int TempoSegundos { get => _tempoSegundos; set => SetField(ref _tempoSegundos, value); }
+    [JsonIgnore]
     public BitmapSource? Miniatura { get => _miniatura; private set => SetField(ref _miniatura, value); }
+    [JsonIgnore]
     public double PreviewLeft { get => _previewLeft; private set => SetField(ref _previewLeft, value); }
+    [JsonIgnore]
     public double PreviewTop { get => _previewTop; private set => SetField(ref _previewTop, value); }
+    [JsonIgnore]
     public double PreviewWidth { get => _previewWidth; private set => SetField(ref _previewWidth, value); }
+    [JsonIgnore]
     public double PreviewHeight { get => _previewHeight; private set => SetField(ref _previewHeight, value); }
+    [JsonIgnore]
     public string PrazoTexto { get => _prazoTexto; private set => SetField(ref _prazoTexto, value); }
 
     public void DefinirPrazo(int seconds) => PrazoTexto =

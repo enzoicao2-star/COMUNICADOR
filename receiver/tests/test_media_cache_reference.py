@@ -77,3 +77,43 @@ def test_receiver_materializes_hash_verified_audio_from_local_cache(tmp_path: Pa
     audio = message["audio"]
     assert base64.b64decode(audio["data_base64"]) == data
     assert "media_cache_id" not in audio
+
+
+def test_cloud_gif_downloads_to_local_cache_then_removes_temporary_object(tmp_path: Path):
+    data = b"GIF89a" + b"animated-gif-bytes"
+    digest = hashlib.sha256(data).hexdigest()
+    target = "12345678-1234-1234-1234-123456789abc"
+    path = f"{target}/{'a' * 32}"
+    message = {"screen_images": [{"image": {
+        "name": "animation.gif", "mime_type": "image/gif", "data_base64": "",
+        "media_storage_path": path, "media_storage_sha256": digest,
+    }}]}
+    downloaded, deleted = [], []
+
+    def download(storage_path):
+        downloaded.append(storage_path)
+        return data
+
+    receptor._resolver_midias_cache(
+        message, SimpleNamespace(directory=tmp_path, computer_id=target),
+        download, deleted.append)
+
+    image = message["screen_images"][0]["image"]
+    assert downloaded == [path]
+    assert deleted == [path]
+    assert (tmp_path / "media-cache" / digest).read_bytes() == data
+    assert base64.b64decode(image["data_base64"]) == data
+    assert "media_storage_path" not in image
+
+
+def test_cloud_media_rejects_wrong_target_without_download(tmp_path: Path):
+    message = {"image": {
+        "name": "animation.gif", "mime_type": "image/gif", "data_base64": "",
+        "media_storage_path": f"{'0' * 36}/{'a' * 32}",
+        "media_storage_sha256": "b" * 64,
+    }}
+    with pytest.raises(protocolo.ProtocolError, match="Referência"):
+        receptor._resolver_midias_cache(
+            message, SimpleNamespace(directory=tmp_path,
+                                     computer_id="12345678-1234-1234-1234-123456789abc"),
+            lambda path: pytest.fail("download não deve ocorrer"))

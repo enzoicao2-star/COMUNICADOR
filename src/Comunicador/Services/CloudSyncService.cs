@@ -1,5 +1,6 @@
 using System.IO;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Collections.Concurrent;
 using Comunicador.Models;
@@ -283,10 +284,27 @@ public sealed class CloudSyncService : IDisposable
     }
 
     public async Task QueueNotificationAsync(
-        string targetDeviceId, EnvioPendente notification, CancellationToken ct = default)
+        string targetDeviceId, EnvioPendente notification, string? receiverVersion = null,
+        CancellationToken ct = default)
     {
         await RegisterCurrentDeviceAsync(ct, forUserDelivery: true).ConfigureAwait(false);
         EnsureTargetIsNotOwner(targetDeviceId);
+        static bool NeedsStorage(string mime, string data, string? cacheId) =>
+            cacheId is null && (mime == "image/gif" || data.Length > 64 * 1024 * 4 / 3);
+        var usesStorage = notification.Imagem is { } image
+                && NeedsStorage(image.MimeType, image.DataBase64, image.MediaCacheId)
+            || notification.ImagensPorMonitor.Any(item => NeedsStorage(
+                item.Image.MimeType, item.Image.DataBase64, item.Image.MediaCacheId))
+            || notification.Video is { } video
+                && NeedsStorage(video.MimeType, video.DataBase64, video.MediaCacheId)
+            || notification.VideosPorMonitor.Any(item => NeedsStorage(
+                item.Video.MimeType, item.Video.DataBase64, item.Video.MediaCacheId))
+            || notification.Audio is { } audio
+                && NeedsStorage(audio.MimeType, audio.DataBase64, audio.MediaCacheId);
+        if (usesStorage && (!Version.TryParse(receiverVersion, out var installed)
+            || installed < new Version(2, 5, 34)))
+            throw new IOException("Este computador precisa atualizar o Receptor para a versão 2.5.34 antes de receber mídias grandes pela nuvem.");
+        notification = await PrepareCloudMediaAsync(targetDeviceId, notification, ct).ConfigureAwait(false);
         await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
             new
             {
@@ -309,6 +327,84 @@ public sealed class CloudSyncService : IDisposable
                 audio = notification.Audio,
                 audio_loop = notification.RepetirAudio,
             }, ct).ConfigureAwait(false);
+    }
+
+    private async Task<EnvioPendente> PrepareCloudMediaAsync(
+        string targetDeviceId, EnvioPendente original, CancellationToken ct)
+    {
+        const int inlineLimit = 64 * 1024;
+
+        async Task<(string Data, string? Path, string? Digest)> StoreAsync(
+            string dataBase64, byte[]? rawData, string mimeType)
+        {
+            var bytes = rawData ?? Convert.FromBase64String(dataBase64);
+            if (bytes.Length <= inlineLimit && mimeType != "image/gif")
+                return (dataBase64, null, null);
+            var digest = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+            var path = await _client.UploadDeliveryMediaAsync(targetDeviceId, bytes, mimeType, ct)
+                .ConfigureAwait(false);
+            return (string.Empty, path, digest);
+        }
+
+        async Task<ConteudoImagem?> ImageAsync(ConteudoImagem? content)
+        {
+            if (content is null || content.MediaCacheId is not null) return content;
+            var stored = await StoreAsync(content.DataBase64, content.RawData, content.MimeType)
+                .ConfigureAwait(false);
+            return new ConteudoImagem { Name = content.Name, MimeType = content.MimeType,
+                DataBase64 = stored.Data, MediaStoragePath = stored.Path,
+                MediaStorageSha256 = stored.Digest };
+        }
+
+        async Task<ConteudoVideo?> VideoAsync(ConteudoVideo? content)
+        {
+            if (content is null || content.MediaCacheId is not null) return content;
+            var stored = await StoreAsync(content.DataBase64, content.RawData, content.MimeType)
+                .ConfigureAwait(false);
+            return new ConteudoVideo { Name = content.Name, MimeType = content.MimeType,
+                DataBase64 = stored.Data, MediaStoragePath = stored.Path,
+                MediaStorageSha256 = stored.Digest };
+        }
+
+        async Task<ConteudoAudio?> AudioAsync(ConteudoAudio? content)
+        {
+            if (content is null || content.MediaCacheId is not null) return content;
+            var stored = await StoreAsync(content.DataBase64, content.RawData, content.MimeType)
+                .ConfigureAwait(false);
+            return new ConteudoAudio { Name = content.Name, MimeType = content.MimeType,
+                DataBase64 = stored.Data, MediaStoragePath = stored.Path,
+                MediaStorageSha256 = stored.Digest };
+        }
+
+        var images = new List<ImagemMonitor>(original.ImagensPorMonitor.Count);
+        foreach (var item in original.ImagensPorMonitor)
+            images.Add(new ImagemMonitor { PersistentId = item.PersistentId,
+                MonitorIndex = item.MonitorIndex, WidthPercent = item.WidthPercent,
+                XPercent = item.XPercent, YPercent = item.YPercent,
+                KeepUntilRemoved = item.KeepUntilRemoved,
+                RestoreAfterRestart = item.RestoreAfterRestart,
+                Image = (await ImageAsync(item.Image).ConfigureAwait(false))! });
+        var videos = new List<VideoMonitor>(original.VideosPorMonitor.Count);
+        foreach (var item in original.VideosPorMonitor)
+            videos.Add(new VideoMonitor { MonitorIndex = item.MonitorIndex,
+                WidthPercent = item.WidthPercent,
+                Video = (await VideoAsync(item.Video).ConfigureAwait(false))! });
+        return new EnvioPendente
+        {
+            Titulo = original.Titulo, Mensagem = original.Mensagem,
+            PermitirResposta = original.PermitirResposta,
+            ConfirmacaoObrigatoria = original.ConfirmacaoObrigatoria,
+            Botoes = original.Botoes, ModoExibicao = original.ModoExibicao,
+            Imagem = await ImageAsync(original.Imagem).ConfigureAwait(false),
+            ImagensPorMonitor = images,
+            Video = await VideoAsync(original.Video).ConfigureAwait(false),
+            VideosPorMonitor = videos,
+            Audio = await AudioAsync(original.Audio).ConfigureAwait(false),
+            DuracaoSegundos = original.DuracaoSegundos,
+            PermitirFecharManualmente = original.PermitirFecharManualmente,
+            RepetirVideo = original.RepetirVideo, RepetirAudio = original.RepetirAudio,
+            Aparencia = original.Aparencia,
+        };
     }
 
     public async Task QueuePersistentImageControlAsync(

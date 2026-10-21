@@ -23,6 +23,14 @@ public sealed class ConteudoImagem
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? MediaCacheId { get; set; }
 
+    [JsonPropertyName("media_storage_path")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MediaStoragePath { get; set; }
+
+    [JsonPropertyName("media_storage_sha256")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MediaStorageSha256 { get; set; }
+
     public static bool MimePermitido(string? mimeType) => mimeType is
         "image/png" or "image/jpeg" or "image/gif" or "image/bmp";
 

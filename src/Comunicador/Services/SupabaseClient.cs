@@ -35,6 +35,10 @@ public sealed class SupabaseClient
     {
         Timeout = TimeSpan.FromMinutes(3),
     };
+    private static readonly HttpClient MediaUploadHttpClient = new(SharedHandler, disposeHandler: false)
+    {
+        Timeout = TimeSpan.FromMinutes(5),
+    };
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
@@ -177,6 +181,22 @@ public sealed class SupabaseClient
         request.Headers.TryAddWithoutValidation("Prefer", "return=minimal");
         using var response = await client.SendAsync(request, ct).ConfigureAwait(false);
         await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
+    }
+
+    public async Task<string> UploadDeliveryMediaAsync(
+        string targetDeviceId, byte[] data, string mimeType, CancellationToken ct = default)
+    {
+        if (!Guid.TryParse(targetDeviceId, out var target))
+            throw new ArgumentException("Identificador do computador inválido.", nameof(targetDeviceId));
+        var path = $"{target:D}/{Guid.NewGuid():N}";
+        using var request = await CreateRequestAsync(HttpMethod.Post,
+            $"/storage/v1/object/delivery-media/{path}", null, ct, MediaUploadHttpClient)
+            .ConfigureAwait(false);
+        request.Content = new ByteArrayContent(data);
+        request.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(mimeType);
+        using var response = await MediaUploadHttpClient.SendAsync(request, ct).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
+        return path;
     }
 
     public async Task<IReadOnlyList<CloudDelivery>> GetResponsesAsync(

@@ -28,6 +28,22 @@ public class ImagemPosicionamentoTests
         Assert.Equal(36, image.PreviewHeight);
     }
 
+    [Fact]
+    public void MiniaturaVisualNaoEntraNoArquivoDeComputadores()
+    {
+        const string tinyPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/RkwAAAAASUVORK5CYII=";
+        using var document = JsonDocument.Parse($$"""
+            {"id":"image-1","name":"cartaz.png","thumbnail_base64":"{{tinyPng}}"}
+            """);
+        var image = ImagemPersistenteAtiva.FromSnapshot("computer-1", document.RootElement);
+
+        Assert.NotNull(image);
+        Assert.NotNull(image.Miniatura);
+        var json = JsonSerializer.Serialize(image);
+        Assert.DoesNotContain("Miniatura", json);
+        Assert.Contains("image-1", json);
+    }
+
     [Theory]
     [InlineData(0, 0, 0, 0)]
     [InlineData(50, 50, 864, 486)]

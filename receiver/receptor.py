@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import re
 import hashlib
 import ctypes
 import io
@@ -49,7 +50,7 @@ import protocolo
 from protocolo import ErrorCode, MessageType, ProtocolError
 
 APP_NAME = "Comunicador Receptor"
-RECEIVER_VERSION = "2.5.33"
+RECEIVER_VERSION = "2.5.34"
 REPLY_WAIT_SECONDS = 300
 PANEL_RESCAN_SECONDS = 30
 NO_REPLY_AUTO_CLOSE_SECONDS = 20
@@ -686,7 +687,8 @@ def mensagem_tem_midia(msg: dict) -> bool:
                 or msg.get("video") or msg.get("screen_videos") or msg.get("audio"))
 
 
-def _resolver_midias_cache(msg: dict, config: "Config") -> None:
+def _resolver_midias_cache(msg: dict, config: "Config", download_storage=None,
+                          delete_storage=None) -> None:
     """Só libera a notificação para a interface depois de validar o arquivo inteiro."""
     conteudos = []
     if isinstance(msg.get("image"), dict):
@@ -701,6 +703,33 @@ def _resolver_midias_cache(msg: dict, config: "Config") -> None:
         conteudos.append((msg["audio"], "audio"))
 
     for conteudo, tipo in conteudos:
+        storage_path = conteudo.get("media_storage_path")
+        if storage_path is not None:
+            digest_storage = conteudo.get("media_storage_sha256", "").lower()
+            if (download_storage is None or not isinstance(storage_path, str)
+                    or not re.fullmatch(r"[0-9a-fA-F-]{36}/[0-9a-f]{32}", storage_path)
+                    or not re.fullmatch(r"[0-9a-f]{64}", digest_storage)
+                    or storage_path.split("/", 1)[0].lower() != config.computer_id.lower()):
+                raise ProtocolError(ErrorCode.CONTENT_BLOCKED, "Referência da mídia remota inválida.")
+            cache_path = config.directory / "media-cache" / digest_storage
+            try:
+                cache_valid = hashlib.sha256(cache_path.read_bytes()).hexdigest() == digest_storage
+            except OSError:
+                cache_valid = False
+            if not cache_valid:
+                dados_storage = download_storage(storage_path)
+                if hashlib.sha256(dados_storage).hexdigest() != digest_storage:
+                    raise ProtocolError(ErrorCode.CONTENT_BLOCKED, "A mídia remota chegou incompleta.")
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                temporary = cache_path.with_name(f"{digest_storage}.{uuid.uuid4().hex}.tmp")
+                try:
+                    temporary.write_bytes(dados_storage)
+                    os.replace(temporary, cache_path)
+                finally:
+                    temporary.unlink(missing_ok=True)
+            conteudo["media_cache_id"] = digest_storage
+            conteudo.pop("media_storage_path", None)
+            conteudo.pop("media_storage_sha256", None)
         digest = conteudo.get("media_cache_id")
         if digest is None:
             continue
@@ -739,6 +768,11 @@ def _resolver_midias_cache(msg: dict, config: "Config") -> None:
                                 "MEDIA_NOT_READY: mídia em cache incompleta ou inválida.")
         conteudo["data_base64"] = base64.b64encode(dados).decode("ascii")
         conteudo.pop("media_cache_id", None)
+        if storage_path is not None and delete_storage is not None:
+            try:
+                delete_storage(storage_path)
+            except (OSError, urllib.error.URLError, ValueError) as exc:
+                logging.warning("Mídia recebida; a limpeza do arquivo temporário será repetida: %s", exc)
 
 
 def processar_upload_midia_cache(msg: dict, config: "Config") -> dict:
@@ -1380,6 +1414,31 @@ class CloudDeliveryWorker(threading.Thread):
             conteudo = response.read()
             return json.loads(conteudo.decode("utf-8")) if conteudo else None
 
+    def _download_delivery_media(self, path: str) -> bytes:
+        session = self._obter_sessao()
+        request = urllib.request.Request(
+            f"{SUPABASE_URL}/storage/v1/object/authenticated/delivery-media/{path}",
+            headers={"apikey": SUPABASE_KEY,
+                     "Authorization": f"Bearer {session['access_token']}"})
+        with urllib.request.urlopen(request, timeout=90) as response:
+            data = response.read(max(protocolo.MAX_VIDEO_BYTES,
+                                     protocolo.MAX_GIF_BYTES) + 1)
+        if len(data) > max(protocolo.MAX_VIDEO_BYTES, protocolo.MAX_GIF_BYTES):
+            raise ProtocolError(ErrorCode.CONTENT_BLOCKED, "Mídia remota acima do limite permitido.")
+        return data
+
+    def _delete_delivery_media(self, path: str) -> None:
+        session = self._obter_sessao()
+        body = json.dumps({"prefixes": [path]}).encode("utf-8")
+        request = urllib.request.Request(
+            f"{SUPABASE_URL}/storage/v1/object/delivery-media",
+            data=body, method="DELETE",
+            headers={"apikey": SUPABASE_KEY,
+                     "Authorization": f"Bearer {session['access_token']}",
+                     "Content-Type": "application/json"})
+        with urllib.request.urlopen(request, timeout=15):
+            pass
+
     def _salvar_sessao(self, session):
         temporario = self._session_path.with_name(
             f"{self._session_path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
@@ -1603,6 +1662,13 @@ class CloudDeliveryWorker(threading.Thread):
             body["responded_at"] = datetime.now(timezone.utc).isoformat()
         filtro = urllib.parse.quote(delivery_id, safe="-")
         self._autorizado(f"/rest/v1/deliveries?id=eq.{filtro}", "PATCH", body)
+
+    def _adiar_entrega(self, delivery_id):
+        filtro = urllib.parse.quote(delivery_id, safe="-")
+        self._autorizado(f"/rest/v1/deliveries?id=eq.{filtro}", "PATCH", {
+            "status": "pending", "delivered_at": None,
+            "deliver_at": (datetime.now(timezone.utc) + timedelta(seconds=30)).isoformat(),
+        })
 
     def _buscar_entregas(self):
         # No computador OWNER o painel é quem consome as entregas. Se este
@@ -1880,10 +1946,16 @@ class CloudDeliveryWorker(threading.Thread):
                     self._atualizar_entrega(delivery_id, result)
                     return
                 try:
-                    _resolver_midias_cache(payload, self.config)
+                    _resolver_midias_cache(payload, self.config,
+                                           self._download_delivery_media,
+                                           self._delete_delivery_media)
                 except ProtocolError as exc:
                     logging.warning("Entrega cloud %s recusada: %s", delivery_id, exc)
                     self._atualizar_entrega(delivery_id, "A imagem não está completa no cache local; a entrega não foi exibida.")
+                    return
+                except (OSError, urllib.error.URLError) as exc:
+                    logging.warning("Download da mídia %s será repetido: %s", delivery_id, exc)
+                    self._adiar_entrega(delivery_id)
                     return
                 if not image:
                     self._atualizar_entrega(delivery_id, "Ação recusada: a imagem não foi recebida.")
@@ -1913,7 +1985,9 @@ class CloudDeliveryWorker(threading.Thread):
                     payload["message"] = "Este computador bloqueou a mídia enviada."
             elif has_media:
                 try:
-                    _resolver_midias_cache(payload, self.config)
+                    _resolver_midias_cache(payload, self.config,
+                                           self._download_delivery_media,
+                                           self._delete_delivery_media)
                     image = payload.get("image")
                     screen_images = payload.get("screen_images") or []
                     video = payload.get("video")
@@ -1922,6 +1996,10 @@ class CloudDeliveryWorker(threading.Thread):
                 except ProtocolError as exc:
                     logging.warning("Entrega cloud %s recusada: %s", delivery_id, exc)
                     self._atualizar_entrega(delivery_id, "A mídia não está completa no cache local; a entrega não foi exibida.")
+                    return
+                except (OSError, urllib.error.URLError) as exc:
+                    logging.warning("Download da mídia %s será repetido: %s", delivery_id, exc)
+                    self._adiar_entrega(delivery_id)
                     return
 
         def concluir(resposta):

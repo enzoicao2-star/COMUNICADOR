@@ -209,6 +209,16 @@ public sealed class ComputadoresViewModel : ViewModelBase
             computador.EsteComputador = EhComputadorLocal(computador);
             Computadores.Add(computador);
         }
+        var stalePlaceholders = Computadores.Where(candidate =>
+            !candidate.Pareado && !candidate.RegistradoNaNuvem
+            && !string.IsNullOrWhiteSpace(candidate.EnderecoIp)
+            && string.Equals(candidate.Nome, candidate.EnderecoIp, StringComparison.OrdinalIgnoreCase)
+            && Computadores.Any(known => !ReferenceEquals(known, candidate)
+                && (known.Pareado || known.RegistradoNaNuvem)
+                && string.Equals(known.EnderecoIp, candidate.EnderecoIp,
+                    StringComparison.OrdinalIgnoreCase))).ToArray();
+        foreach (var placeholder in stalePlaceholders) Computadores.Remove(placeholder);
+        if (stalePlaceholders.Length > 0) Persist();
 
         _perfis.Alterado += AplicarPerfis;
         _cloud.StateChanged += AplicarAutoridadeCloud;
@@ -1326,7 +1336,10 @@ public sealed class ComputadoresViewModel : ViewModelBase
         var duplicados = Computadores.Where(c => !ReferenceEquals(c, principal)
             && !string.Equals(c.Id, principal.Id, StringComparison.OrdinalIgnoreCase)
             && string.Equals(c.EnderecoIp, principal.EnderecoIp, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(c.Nome, principal.Nome, StringComparison.OrdinalIgnoreCase)).ToList();
+            && (string.Equals(c.Nome, principal.Nome, StringComparison.OrdinalIgnoreCase)
+                || ((principal.Pareado || principal.RegistradoNaNuvem)
+                    && !c.Pareado && !c.RegistradoNaNuvem
+                    && string.Equals(c.Nome, c.EnderecoIp, StringComparison.OrdinalIgnoreCase)))).ToList();
         foreach (var duplicado in duplicados)
         {
             if (string.IsNullOrWhiteSpace(principal.Token) && !string.IsNullOrWhiteSpace(duplicado.Token))
@@ -1409,7 +1422,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
             var novos = 0;
             foreach (var ip in encontrados)
             {
-                if (Computadores.Any(c => c.EnderecoIp == ip && c.PortaTcp == _settings.PortaTcp))
+                if (Computadores.Any(c => c.EnderecoIp == ip
+                    && (c.PortaTcp == _settings.PortaTcp || c.Pareado || c.RegistradoNaNuvem)))
                 {
                     continue;
                 }

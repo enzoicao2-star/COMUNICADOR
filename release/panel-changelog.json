@@ -658,5 +658,14 @@
       "A opção Sem limite de tempo mantém a imagem até a remoção manual.",
       "Miniaturas e estado ativo ficam em arquivos locais; consultas pela nuvem são temporárias."
     ]
+  },
+  {
+    "version": "2.5.64.0",
+    "summary": "Corrige o envio de GIF e os controles de mídias ativas.",
+    "changes": [
+      "GIFs e outras mídias grandes passam por arquivo temporário protegido e são guardados localmente no receptor, sem sobrecarregar a fila do banco.",
+      "Mover, remover e definir tempo para uma imagem ativa não tentam salvar a miniatura visual no arquivo de computadores.",
+      "A busca deixa de criar um card provisório quando o computador já está identificado pelo mesmo IP."
+    ]
   }
 ]
