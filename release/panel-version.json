@@ -1,11 +1,11 @@
 {
-    "version":  "2.5.65.0",
-    "download_url":  "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/759f577/release/Comunicador.exe",
-    "sha256":  "9AFC72F717AF95BB701F53D07F26A14E1BB4151100FE0EDDDEAF82713D8DB375",
-    "summary":  "Mantém a sincronização e a presença dos computadores mesmo após erros isolados.",
-    "changes":  [
-                    "Falhas ao salvar dados locais não encerram a sincronização dos computadores.",
-                    "A verificação de presença continua após um erro isolado, evitando estados offline incorretos.",
-                    "Falhas ao registrar um evento não travam o painel."
-                ]
+  "version": "2.5.66.0",
+  "download_url": "https://raw.githubusercontent.com/enzoicao2-star/COMUNICADOR/3862bbcad16c0acf389285aede63f2b33bcd36c0/release/Comunicador.exe",
+  "sha256": "989E7F435173FA341ED292255F46CE6E085676DF9346B37A7B44BEA8A21C717D",
+  "summary": "Mostra o andamento dos envios e explica melhor o estado de cada computador.",
+  "changes": [
+    "O card mostra o último envio deste painel, incluindo fila, recebimento, exibição, remoção e erros.",
+    "O diagnóstico distingue sinal da nuvem, resposta direta do receptor e sincronização atrasada.",
+    "Entregas pela nuvem são acompanhadas sem afirmar que uma mídia apareceu antes de haver confirmação."
+  ]
 }
