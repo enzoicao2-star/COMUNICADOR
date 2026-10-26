@@ -2105,6 +2105,7 @@ public sealed class MensagensViewModel : ViewModelBase
         StatusOperacao = $"Enviando para {selecionados.Count} computador(es)...";
 
         var enviados = 0;
+        var naFila = 0;
         var erros = new List<string>();
         var enviosPendentes = new List<Task>();
 
@@ -2170,6 +2171,9 @@ public sealed class MensagensViewModel : ViewModelBase
                 Titulo = tituloHistorico,
                 Mensagem = mensagemHistorico,
                 Status = StatusEnvio.Enviando,
+                PersistentImageIds = imagensPorMonitor.Where(item => item.KeepUntilRemoved
+                    && !string.IsNullOrWhiteSpace(item.PersistentId))
+                    .Select(item => item.PersistentId!).ToList(),
             };
             _historico.Adicionar(entry);
 
@@ -2228,8 +2232,14 @@ public sealed class MensagensViewModel : ViewModelBase
                     {
                         Logger.Warning($"Mídia será transportada pela fila segura para {computador.NomeExibicao}: {ex.Message}", "envio");
                     }
-                    await _cloud.QueueNotificationAsync(computador.Id, envioNuvem,
+                    var deliveryId = await _cloud.QueueNotificationAsync(computador.Id, envioNuvem,
                         computador.VersaoReceptor).ConfigureAwait(true);
+                    _historico.AtualizarExistente(entry.Id, item =>
+                    {
+                        item.CloudDeliveryId = deliveryId;
+                        item.Status = StatusEnvio.NaFila;
+                    });
+                    _cloud.TrackDelivery(deliveryId);
                     resultado = new NotificationResult(true, false, false, null, null);
                 }
                 else
@@ -2250,9 +2260,10 @@ public sealed class MensagensViewModel : ViewModelBase
             {
                 resultado = new NotificationResult(false, false, false, null, ex.Message);
             }
-            _historico.AtualizarExistente(
-                entry.Id, item => EnvioPendente.AtualizarHistorico(item, resultado,
-                    permitirResposta || envio.ConfirmacaoObrigatoria));
+            if (string.IsNullOrWhiteSpace(entry.CloudDeliveryId))
+                _historico.AtualizarExistente(
+                    entry.Id, item => EnvioPendente.AtualizarHistorico(item, resultado,
+                        permitirResposta || envio.ConfirmacaoObrigatoria));
             if (resultado.GotReply)
             {
                 _ = Views.NotificacaoRecebidaWindow.MostrarAsync(
@@ -2261,6 +2272,11 @@ public sealed class MensagensViewModel : ViewModelBase
             }
             if (resultado.Delivered)
             {
+                if (!string.IsNullOrWhiteSpace(entry.CloudDeliveryId))
+                {
+                    naFila++;
+                    return;
+                }
                 if (modoExibicao == ProtocolConstants.DisplayMode.CenterImage)
                     _computadores.RegistrarImagensPersistentes(computador,
                         envio.ImagensPorMonitor.Where(item => item.KeepUntilRemoved && item.PersistentId is not null));
@@ -2284,11 +2300,12 @@ public sealed class MensagensViewModel : ViewModelBase
         var nomeConteudo = DefinirComoPapelDeParede ? "Papel de parede"
             : DefinirComoTelaDeBloqueio ? "Tela de bloqueio"
             : ExibirImagemCentral ? TipoMidiaTexto : "Mensagem";
-        StatusOperacao = erros.Count == 0
+        StatusOperacao = erros.Count == 0 && naFila == 0
             ? AlterarImagemSistema
                 ? $"{nomeConteudo} aplicada em {enviados} computador(es), sem abrir a imagem na tela."
                 : $"{nomeConteudo} exibida em {enviados} computador(es)."
-            : $"Concluído em {enviados}; falhou em {erros.Count}. {string.Join(" | ", erros)}";
+            : $"Confirmado em {enviados}; na fila em {naFila}; falhou em {erros.Count}."
+                + (erros.Count > 0 ? $" {string.Join(" | ", erros)}" : string.Empty);
         Titulo = string.Empty;
         Mensagem = string.Empty;
     }

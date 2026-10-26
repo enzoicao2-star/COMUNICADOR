@@ -8,6 +8,10 @@ public enum StatusEnvio
     Respondido,
     Erro,
     SemResposta,
+    NaFila,
+    SemConfirmacao,
+    Removido,
+    RecebidoPeloReceptor,
 }
 
 public enum DirecaoHistorico
@@ -28,6 +32,8 @@ public sealed class HistoricoEntry : ObservableModel
     private StatusEnvio _status = StatusEnvio.Enviando;
     private string? _respostaTexto;
     private string? _erroDetalhe;
+    private string? _cloudDeliveryId;
+    private List<string> _persistentImageIds = [];
 
     public string Id { get => _id; set => SetField(ref _id, value); }
     public DateTime Timestamp { get => _timestamp; set => SetField(ref _timestamp, value); }
@@ -39,4 +45,6 @@ public sealed class HistoricoEntry : ObservableModel
     public StatusEnvio Status { get => _status; set => SetField(ref _status, value); }
     public string? RespostaTexto { get => _respostaTexto; set => SetField(ref _respostaTexto, value); }
     public string? ErroDetalhe { get => _erroDetalhe; set => SetField(ref _erroDetalhe, value); }
+    public string? CloudDeliveryId { get => _cloudDeliveryId; set => SetField(ref _cloudDeliveryId, value); }
+    public List<string> PersistentImageIds { get => _persistentImageIds; set => SetField(ref _persistentImageIds, value ?? []); }
 }

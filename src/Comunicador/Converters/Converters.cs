@@ -45,6 +45,10 @@ public sealed class StatusEnvioToTextoConverter : IValueConverter
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
     {
         StatusEnvio.Enviando => "Enviando…",
+        StatusEnvio.NaFila => "Na fila",
+        StatusEnvio.SemConfirmacao => "Sem confirmação",
+        StatusEnvio.Removido => "Removido",
+        StatusEnvio.RecebidoPeloReceptor => "Receptor recebeu",
         StatusEnvio.Entregue => "Entregue",
         StatusEnvio.Exibido => "Exibido",
         StatusEnvio.Respondido => "Respondido",
@@ -62,9 +66,12 @@ public sealed class StatusEnvioToBrushConverter : IValueConverter
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
     {
         StatusEnvio.Respondido => new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)),
-        StatusEnvio.Entregue or StatusEnvio.Exibido => new SolidColorBrush(Color.FromRgb(0x3A, 0x7A, 0xFE)),
+        StatusEnvio.Entregue or StatusEnvio.Exibido or StatusEnvio.Removido
+            or StatusEnvio.RecebidoPeloReceptor
+            => new SolidColorBrush(Color.FromRgb(0x3A, 0x7A, 0xFE)),
         StatusEnvio.Erro => new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)),
-        StatusEnvio.SemResposta => new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)),
+        StatusEnvio.SemResposta or StatusEnvio.NaFila or StatusEnvio.SemConfirmacao
+            => new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)),
         _ => new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF)),
     };
 

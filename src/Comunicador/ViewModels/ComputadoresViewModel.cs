@@ -18,6 +18,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
 {
     public event Action<double?>? PingMedioAtualizado;
     public event Action<string, int, byte[]>? WallpaperPreviewUpdated;
+    public event Action<string, string>? ImagemRemovidaConfirmada;
     private readonly JsonStore<Computador> _store;
     private readonly AsyncJsonStoreWriter<Computador> _storeWriter;
     private readonly DiscoveryService _discovery;
@@ -33,6 +34,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
     private readonly Dictionary<string, DateTimeOffset> _cloudReceiverUpdatesPending =
         new(StringComparer.OrdinalIgnoreCase);
     private bool _computerStoreFailureReported;
+    private DateTime _ultimaSincronizacaoNuvemUtc = DateTime.MinValue;
     private string? _statusMensagem;
     private string _testeComunicacaoStatus = "O teste envia mídia de amostra e mede a transferência sem exibi-la.";
     private string _tipoMidiaTeste = "image";
@@ -927,6 +929,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
 
     private void OnCloudDevicesReceived(IReadOnlyList<CloudDevice> devices) => UiDispatcher.Invoke(() =>
     {
+        _ultimaSincronizacaoNuvemUtc = DateTime.UtcNow;
         var changed = false;
         var previewReady = new List<string>();
         var uniqueMachineNames = devices
@@ -1027,6 +1030,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
                 }
             }
             var cloudLastSeen = device.LastSeenAt.UtcDateTime;
+            computador.UltimoSinalNuvemUtc = cloudLastSeen;
             if (cloudLastSeen > computador.UltimaVezVisto)
             {
                 computador.UltimaVezVisto = cloudLastSeen;
@@ -1097,6 +1101,8 @@ public sealed class ComputadoresViewModel : ViewModelBase
         }
         foreach (var id in previewReady.Distinct(StringComparer.OrdinalIgnoreCase))
             _ = AtualizarMiniaturasPapelParedeAsync(id, force: true);
+        foreach (var computador in Computadores)
+            computador.AtualizarDiagnostico(DateTime.UtcNow, _ultimaSincronizacaoNuvemUtc);
         CommandManager.InvalidateRequerySuggested();
     });
 
@@ -1310,10 +1316,76 @@ public sealed class ComputadoresViewModel : ViewModelBase
                     computador.PingMs = measuredPing;
                 if (status == StatusComputador.Online)
                     computador.UltimaVezVisto = DateTime.UtcNow;
+                computador.AtualizarDiagnostico(DateTime.UtcNow, _ultimaSincronizacaoNuvemUtc);
             }
 
             PublicarPingMedio();
         });
+    }
+
+    public void RegistrarVerificacaoDireta(string computadorId, bool respondeu) => UiDispatcher.Invoke(() =>
+    {
+        var computador = Computadores.FirstOrDefault(c => c.Id == computadorId);
+        if (computador is null) return;
+        computador.UltimaVerificacaoDiretaUtc = DateTime.UtcNow;
+        computador.ConexaoDiretaOk = respondeu;
+        computador.AtualizarDiagnostico(DateTime.UtcNow, _ultimaSincronizacaoNuvemUtc);
+    });
+
+    public void AtualizarUltimosEnvios(IReadOnlyList<HistoricoEntry> historico) => UiDispatcher.Invoke(() =>
+    {
+        var ultimos = historico.Where(item => item.Direcao == DirecaoHistorico.Enviada)
+            .GroupBy(item => item.ComputadorId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.OrderByDescending(item => item.Timestamp).First(),
+                StringComparer.OrdinalIgnoreCase);
+        foreach (var computador in Computadores)
+        {
+            if (!ultimos.TryGetValue(computador.Id, out var envio))
+            {
+                computador.UltimoEnvioResumo = string.Empty;
+                computador.UltimoEnvioDetalhe = string.Empty;
+                computador.UltimoEnvioErro = string.Empty;
+                continue;
+            }
+            var estado = envio.Status switch
+            {
+                StatusEnvio.Enviando => "Preparando envio",
+                StatusEnvio.NaFila => "Na fila",
+                StatusEnvio.SemConfirmacao => "Sem confirmação após 24 h",
+                StatusEnvio.Removido => "Removido",
+                StatusEnvio.RecebidoPeloReceptor => "Receptor recebeu",
+                StatusEnvio.Entregue => "Entregue",
+                StatusEnvio.Exibido => "Exibido",
+                StatusEnvio.Respondido => "Respondido",
+                StatusEnvio.SemResposta => "Sem resposta",
+                StatusEnvio.Erro => "Falhou",
+                _ => "Estado desconhecido",
+            };
+            computador.UltimoEnvioResumo = $"Meu último envio: {estado} · {envio.Timestamp:dd/MM HH:mm}";
+            computador.UltimoEnvioDetalhe = envio.Status == StatusEnvio.Erro
+                ? envio.ErroDetalhe ?? "Não foi informado o motivo da falha."
+                : envio.Status == StatusEnvio.RecebidoPeloReceptor
+                    ? "O receptor retirou a entrega da fila. A exibição na tela ainda não foi confirmada."
+                : $"{envio.Titulo} · {envio.Mensagem}".Trim(' ', '·');
+            computador.UltimoEnvioErro = envio.Status == StatusEnvio.Erro
+                ? ExplicarFalhaEnvio(envio.ErroDetalhe) : string.Empty;
+        }
+    });
+
+    internal static string ExplicarFalhaEnvio(string? detalhe)
+    {
+        if (string.IsNullOrWhiteSpace(detalhe)) return "Falha sem motivo informado.";
+        if (detalhe.Contains("57014", StringComparison.OrdinalIgnoreCase)
+            || detalhe.Contains("timeout", StringComparison.OrdinalIgnoreCase)
+            || detalhe.Contains("timed out", StringComparison.OrdinalIgnoreCase))
+            return "A entrega demorou mais que o esperado.";
+        if (detalhe.Contains("token", StringComparison.OrdinalIgnoreCase))
+            return "O vínculo com o receptor precisa ser verificado.";
+        if (detalhe.Contains("offline", StringComparison.OrdinalIgnoreCase)
+            || detalhe.Contains("connection", StringComparison.OrdinalIgnoreCase)
+            || detalhe.Contains("conexão", StringComparison.OrdinalIgnoreCase))
+            return "O receptor não respondeu à conexão.";
+        return detalhe.Length > 100 ? detalhe[..100] + "…" : detalhe;
     }
 
     private void PublicarPingMedio()
@@ -1776,6 +1848,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
         try
         {
             var enviou = false;
+            var confirmadoDiretamente = false;
             if (computador.Pareado && !string.IsNullOrWhiteSpace(computador.Token))
             {
                 var resultado = await _client.SendNotificationAsync(
@@ -1788,6 +1861,7 @@ public sealed class ComputadoresViewModel : ViewModelBase
                     imageControlDurationSeconds: acao == "set_timeout" ? imagem.TempoSegundos : null)
                     .ConfigureAwait(true);
                 enviou = resultado.Delivered;
+                confirmadoDiretamente = resultado.Delivered;
                 if (!enviou && computador.RegistradoNaNuvem)
                 {
                     await _cloud.QueuePersistentImageControlAsync(computador.Id, imagem.Id, acao,
@@ -1821,7 +1895,11 @@ public sealed class ComputadoresViewModel : ViewModelBase
             {
                 computador.ImagensPersistentesAtivas.Remove(imagem);
                 computador.ImagensPersistentesAtivas = computador.ImagensPersistentesAtivas.ToList();
-                StatusMensagem = $"Imagem removida de {computador.NomeExibicao}.";
+                StatusMensagem = confirmadoDiretamente
+                    ? $"Imagem removida de {computador.NomeExibicao}."
+                    : $"Pedido de remoção entrou na fila para {computador.NomeExibicao}.";
+                if (confirmadoDiretamente)
+                    ImagemRemovidaConfirmada?.Invoke(computador.Id, imagem.Id);
             }
             else
             {

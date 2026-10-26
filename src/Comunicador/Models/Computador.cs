@@ -54,6 +54,13 @@ public sealed class Computador : ObservableModel
     private List<string> _permissoesIndividuais = [];
     private bool _esteComputador;
     private List<ImagemPersistenteAtiva> _imagensPersistentesAtivas = [];
+    private DateTime _ultimoSinalNuvemUtc = DateTime.MinValue;
+    private DateTime _ultimaVerificacaoDiretaUtc = DateTime.MinValue;
+    private bool _conexaoDiretaOk;
+    private string _diagnosticoConexao = "Aguardando sinais do computador.";
+    private string _ultimoEnvioResumo = string.Empty;
+    private string _ultimoEnvioDetalhe = string.Empty;
+    private string _ultimoEnvioErro = string.Empty;
 
     public string Id { get => _id; set => SetField(ref _id, value); }
 
@@ -463,4 +470,34 @@ public sealed class Computador : ObservableModel
         }
     }
     public DateTime UltimaVezVisto { get => _ultimaVezVisto; set => SetField(ref _ultimaVezVisto, value); }
+
+    [JsonIgnore] public DateTime UltimoSinalNuvemUtc
+    { get => _ultimoSinalNuvemUtc; set => SetField(ref _ultimoSinalNuvemUtc, value); }
+    [JsonIgnore] public DateTime UltimaVerificacaoDiretaUtc
+    { get => _ultimaVerificacaoDiretaUtc; set => SetField(ref _ultimaVerificacaoDiretaUtc, value); }
+    [JsonIgnore] public bool ConexaoDiretaOk
+    { get => _conexaoDiretaOk; set => SetField(ref _conexaoDiretaOk, value); }
+    [JsonIgnore] public string DiagnosticoConexao
+    { get => _diagnosticoConexao; private set => SetField(ref _diagnosticoConexao, value); }
+    [JsonIgnore] public string UltimoEnvioResumo
+    { get => _ultimoEnvioResumo; set => SetField(ref _ultimoEnvioResumo, value); }
+    [JsonIgnore] public string UltimoEnvioDetalhe
+    { get => _ultimoEnvioDetalhe; set => SetField(ref _ultimoEnvioDetalhe, value); }
+    [JsonIgnore] public string UltimoEnvioErro
+    { get => _ultimoEnvioErro; set => SetField(ref _ultimoEnvioErro, value); }
+
+    public void AtualizarDiagnostico(DateTime agoraUtc, DateTime ultimaSincronizacaoNuvemUtc)
+    {
+        var sinal = UltimaVezVisto == DateTime.MinValue ? "sem sinal registrado"
+            : $"último sinal {UltimaVezVisto.ToLocalTime():dd/MM HH:mm}";
+        DiagnosticoConexao = ultimaSincronizacaoNuvemUtc == DateTime.MinValue
+            ? $"Aguardando sincronização · {sinal}"
+            : agoraUtc - ultimaSincronizacaoNuvemUtc > TimeSpan.FromSeconds(45)
+                ? $"Sincronização atrasada · {sinal}"
+                : UltimaVerificacaoDiretaUtc > agoraUtc.AddSeconds(-45) && ConexaoDiretaOk
+                    ? $"Receptor respondeu diretamente · {sinal}"
+                    : UltimoSinalNuvemUtc > agoraUtc.AddMinutes(-1)
+                        ? $"Ativo na nuvem · receptor sem confirmação direta · {sinal}"
+                        : $"Sem sinal recente · {sinal}";
+    }
 }

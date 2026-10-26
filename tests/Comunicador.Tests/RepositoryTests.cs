@@ -251,6 +251,37 @@ public sealed class RepositoryTests
         });
     }
 
+    [Fact]
+    public void EntregaCloudSoMudaQuandoOReceptorRetiraDaFila()
+    {
+        WithTemporaryStore(directory =>
+        {
+            var store = new JsonStore<HistoricoEntry>(Path.Combine(directory, "history.json"));
+            var repository = new HistoricoRepository(store);
+            var entry = new HistoricoEntry
+            {
+                Id = "envio", CloudDeliveryId = Guid.NewGuid().ToString("D"), Status = StatusEnvio.NaFila,
+            };
+            repository.Adicionar(entry);
+
+            repository.AtualizarEstadoEntregaCloud(entry.CloudDeliveryId!, "pending");
+            Assert.Equal(StatusEnvio.NaFila, entry.Status);
+
+            repository.AtualizarEstadoEntregaCloud(entry.CloudDeliveryId!, "delivered");
+            Assert.Equal(StatusEnvio.RecebidoPeloReceptor, entry.Status);
+            Assert.Equal(StatusEnvio.RecebidoPeloReceptor, Assert.Single(store.Load()).Status);
+
+            var failed = new HistoricoEntry
+            {
+                Id = "falha", CloudDeliveryId = Guid.NewGuid().ToString("D"), Status = StatusEnvio.NaFila,
+            };
+            repository.Adicionar(failed);
+            repository.AtualizarEstadoEntregaCloud(failed.CloudDeliveryId!, "failed");
+            Assert.Equal(StatusEnvio.Erro, failed.Status);
+            Assert.Equal("A entrega pela nuvem falhou.", failed.ErroDetalhe);
+        });
+    }
+
     private static void WithTemporaryStore(Action<string> assertion)
     {
         var directory = Path.Combine(Path.GetTempPath(), "Comunicador-tests", Guid.NewGuid().ToString("N"));

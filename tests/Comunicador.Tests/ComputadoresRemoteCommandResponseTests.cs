@@ -10,6 +10,15 @@ namespace Comunicador.Tests;
 public sealed class ComputadoresRemoteCommandResponseTests
 {
     [Fact]
+    public void FalhaTecnicaDeTempoETraduzidaParaOCardSemPerderDetalheNoHistorico()
+    {
+        var resumo = ComputadoresViewModel.ExplicarFalhaEnvio(
+            "Supabase respondeu 500: code 57014 canceling statement due to statement timeout");
+
+        Assert.Equal("A entrega demorou mais que o esperado.", resumo);
+    }
+
+    [Fact]
     public void Cmd_remoto_sem_token_local_usa_fila_em_nuvem()
     {
         var computador = new Computador

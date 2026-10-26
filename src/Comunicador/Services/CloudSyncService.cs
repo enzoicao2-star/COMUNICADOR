@@ -21,6 +21,8 @@ public sealed class CloudSyncService : IDisposable
     private readonly HashSet<string> _responsesSeen = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, (string DeviceId, int MonitorIndex, DateTimeOffset SentAt)> _wallpaperRequests = new();
     private readonly ConcurrentDictionary<string, (string DeviceId, DateTimeOffset SentAt)> _activeMediaRequests = new();
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _trackedDeliveries = new(StringComparer.OrdinalIgnoreCase);
+    private DateTimeOffset _lastDeliveryStatePoll = DateTimeOffset.MinValue;
     private Task? _loop;
     private Task? _deliveryLoop;
     private Task? _realtimeLoop;
@@ -32,6 +34,7 @@ public sealed class CloudSyncService : IDisposable
     public event Action? StateChanged;
     public event Action<CloudDelivery>? ResponseReceived;
     public event Action<CloudDelivery>? DeliveryReceived;
+    public event Action<CloudDeliveryState>? DeliveryStateReceived;
     public event Action<string, int, byte[]>? WallpaperPreviewReceived;
     public event Action<string, JsonElement>? ActiveMediaSnapshotReceived;
     public event Action<IReadOnlyList<CloudDevice>>? DevicesReceived;
@@ -283,7 +286,7 @@ public sealed class CloudSyncService : IDisposable
             }, ct).ConfigureAwait(false);
     }
 
-    public async Task QueueNotificationAsync(
+    public async Task<string> QueueNotificationAsync(
         string targetDeviceId, EnvioPendente notification, string? receiverVersion = null,
         CancellationToken ct = default)
     {
@@ -305,7 +308,7 @@ public sealed class CloudSyncService : IDisposable
             || installed < new Version(2, 5, 34)))
             throw new IOException("Este computador precisa atualizar o Receptor para a versão 2.5.34 antes de receber mídias grandes pela nuvem.");
         notification = await PrepareCloudMediaAsync(targetDeviceId, notification, ct).ConfigureAwait(false);
-        await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
+        var deliveryId = await _client.QueueDeliveryAsync(_settings.PainelId, targetDeviceId, DateTimeOffset.UtcNow,
             new
             {
                 kind = "notification",
@@ -327,6 +330,13 @@ public sealed class CloudSyncService : IDisposable
                 audio = notification.Audio,
                 audio_loop = notification.RepetirAudio,
             }, ct).ConfigureAwait(false);
+        return deliveryId;
+    }
+
+    public void TrackDelivery(string deliveryId, DateTimeOffset? createdAt = null)
+    {
+        if (Guid.TryParse(deliveryId, out var id))
+            _trackedDeliveries.TryAdd(id.ToString("D"), createdAt ?? DateTimeOffset.UtcNow);
     }
 
     private async Task<EnvioPendente> PrepareCloudMediaAsync(
@@ -747,6 +757,27 @@ public sealed class CloudSyncService : IDisposable
                     if (!_responsesSeen.Add(response.Id)) continue;
                     await _client.AcknowledgeResponseAsync(response.Id, ct).ConfigureAwait(false);
                     ResponseReceived?.Invoke(response);
+                }
+
+                if (_trackedDeliveries.Count > 0
+                    && DateTimeOffset.UtcNow - _lastDeliveryStatePoll >= TimeSpan.FromSeconds(15))
+                {
+                    _lastDeliveryStatePoll = DateTimeOffset.UtcNow;
+                    var ids = _trackedDeliveries.OrderByDescending(item => item.Value)
+                        .Take(50).Select(item => item.Key).ToArray();
+                    foreach (var state in await _client.GetDeliveryStatesAsync(ids, ct).ConfigureAwait(false))
+                    {
+                        if (state.Status is not ("delivered" or "responded" or "failed")) continue;
+                        _trackedDeliveries.TryRemove(state.Id, out _);
+                        DeliveryStateReceived?.Invoke(state);
+                    }
+                    foreach (var stale in _trackedDeliveries.Where(item =>
+                        DateTimeOffset.UtcNow - item.Value > TimeSpan.FromHours(24)))
+                    {
+                        if (_trackedDeliveries.TryRemove(stale.Key, out _))
+                            DeliveryStateReceived?.Invoke(new CloudDeliveryState
+                                { Id = stale.Key, Status = "unconfirmed" });
+                    }
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)

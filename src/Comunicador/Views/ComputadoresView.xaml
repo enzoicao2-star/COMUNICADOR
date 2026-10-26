@@ -252,11 +252,22 @@
                                 <StackPanel Grid.Row="4" Margin="0,5,0,0">
                                     <TextBlock Text="{Binding StatusVersoes}" FontSize="11" TextTrimming="CharacterEllipsis"
                                                ToolTip="{Binding StatusVersoes}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <TextBlock Text="{Binding DiagnosticoConexao}" FontSize="10" Margin="0,3,0,0"
+                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding DiagnosticoConexao}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
                                     <TextBlock Text="{Binding StatusRecebimentoMidias}" FontSize="10"
                                                Foreground="#A15C00" Margin="0,2,0,0"
                                                Visibility="{Binding MidiasBloqueadas, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                 </StackPanel>
-
+                                <StackPanel Grid.Row="5" Margin="0,5,0,0"
+                                            Visibility="{Binding UltimoEnvioResumo, Converter={StaticResource TextoParaVisibilidadeConverter}}">
+                                    <TextBlock Text="{Binding UltimoEnvioResumo}" FontSize="10"
+                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding UltimoEnvioDetalhe}"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <TextBlock Text="{Binding UltimoEnvioErro}" FontSize="10" TextWrapping="Wrap"
+                                               ToolTip="{Binding UltimoEnvioDetalhe}" Foreground="#B44545"
+                                               Visibility="{Binding UltimoEnvioErro, Converter={StaticResource TextoParaVisibilidadeConverter}}" />
+                                </StackPanel>
 
                             </Grid>
                         </controls:SpotlightCard>

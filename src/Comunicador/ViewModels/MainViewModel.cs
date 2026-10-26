@@ -123,6 +123,21 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
         Computadores = new ComputadoresViewModel(
             computadoresStore, _discovery, client, enviador, atualizador, Settings, perfis, _cloudSync);
+        _historicoRepositorio.Changed += () => Computadores.AtualizarUltimosEnvios(
+            _historicoRepositorio.Snapshot());
+        Computadores.AtualizarUltimosEnvios(_historicoRepositorio.Snapshot());
+        Computadores.ImagemRemovidaConfirmada += (computadorId, imagemId) =>
+        {
+            var entry = _historicoRepositorio.Itens.FirstOrDefault(item =>
+                item.ComputadorId == computadorId && item.PersistentImageIds.Contains(imagemId));
+            if (entry is not null)
+                _historicoRepositorio.AtualizarExistente(entry.Id, item => item.Status = StatusEnvio.Removido);
+        };
+        foreach (var pending in _historicoRepositorio.Itens.Where(item =>
+            item.Status == StatusEnvio.NaFila && !string.IsNullOrWhiteSpace(item.CloudDeliveryId)))
+            _cloudSync.TrackDelivery(pending.CloudDeliveryId!, pending.Timestamp);
+        _cloudSync.DeliveryStateReceived += state =>
+            _historicoRepositorio.AtualizarEstadoEntregaCloud(state.Id, state.Status);
         _cloudSync.WallpaperPreviewReceived += Computadores.SalvarMiniaturaPapelParede;
         _cloudSync.ActiveMediaSnapshotReceived += Computadores.AplicarSnapshotMidiasAtivas;
         _sync = new SyncCoordinatorService(
@@ -133,6 +148,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
         _statusMonitor = new StatusMonitorService(Computadores.Snapshot, enviador, Settings);
         _statusMonitor.StatusAtualizado += Computadores.AtualizarStatus;
+        _statusMonitor.VerificacaoDiretaConcluida += Computadores.RegistrarVerificacaoDireta;
         Computadores.PingMedioAtualizado += AtualizarPingMedio;
 
         _scheduler = new LembreteSchedulerService(

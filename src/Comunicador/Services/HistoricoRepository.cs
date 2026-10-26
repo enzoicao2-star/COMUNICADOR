@@ -51,6 +51,29 @@ public sealed class HistoricoRepository
         });
     }
 
+    public void AtualizarEstadoEntregaCloud(string deliveryId, string status)
+    {
+        UiDispatcher.Invoke(() =>
+        {
+            var entry = _porId.Values.FirstOrDefault(item => item.Status == StatusEnvio.NaFila
+                && string.Equals(item.CloudDeliveryId, deliveryId, StringComparison.OrdinalIgnoreCase));
+            if (entry is null) return;
+            entry.Status = status switch
+            {
+                "responded" => StatusEnvio.Respondido,
+                "delivered" => StatusEnvio.RecebidoPeloReceptor,
+                "failed" => StatusEnvio.Erro,
+                "unconfirmed" => StatusEnvio.SemConfirmacao,
+                _ => StatusEnvio.NaFila,
+            };
+            if (entry.Status == StatusEnvio.NaFila) return;
+            if (entry.Status == StatusEnvio.Erro)
+                entry.ErroDetalhe = "A entrega pela nuvem falhou.";
+            Persist();
+            Changed?.Invoke();
+        });
+    }
+
     public void Limpar()
     {
         UiDispatcher.Invoke(() =>
@@ -162,6 +185,10 @@ public sealed class HistoricoRepository
     private static int Prioridade(StatusEnvio status) => status switch
     {
         StatusEnvio.Enviando => 0,
+        StatusEnvio.NaFila => 0,
+        StatusEnvio.SemConfirmacao => 1,
+        StatusEnvio.Removido => 5,
+        StatusEnvio.RecebidoPeloReceptor => 1,
         StatusEnvio.Entregue => 1,
         StatusEnvio.Exibido => 2,
         StatusEnvio.SemResposta => 3,

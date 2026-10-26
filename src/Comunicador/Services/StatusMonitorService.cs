@@ -15,6 +15,7 @@ public sealed class StatusMonitorService : IDisposable
     private const int MaxVerificacoesSimultaneas = 8;
 
     public event Action<string, StatusComputador, double?>? StatusAtualizado;
+    public event Action<string, bool>? VerificacaoDiretaConcluida;
 
     public StatusMonitorService(
         Func<IReadOnlyList<Computador>> getComputadores, EnviadorNotificacoes enviador, AppSettings settings)
@@ -95,6 +96,7 @@ public sealed class StatusMonitorService : IDisposable
             if (resultado.Online)
             {
                 StatusAtualizado?.Invoke(computador.Id, StatusComputador.Online, resultado.PingMs);
+                VerificacaoDiretaConcluida?.Invoke(computador.Id, true);
                 return;
             }
         }
@@ -103,6 +105,8 @@ public sealed class StatusMonitorService : IDisposable
         {
             Logger.Warning($"Falha ao verificar presença de {computador.NomeExibicao}: {ex.Message}");
         }
+
+        VerificacaoDiretaConcluida?.Invoke(computador.Id, false);
 
         // A brief packet loss must not make the card flicker offline. Cloud
         // heartbeats and reverse connections refresh UltimaVezVisto as well.

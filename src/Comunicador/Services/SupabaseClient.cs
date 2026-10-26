@@ -162,12 +162,14 @@ public sealed class SupabaseClient
         await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
     }
 
-    public async Task QueueDeliveryAsync(
+    public async Task<string> QueueDeliveryAsync(
         string senderDeviceId, string targetDeviceId, DateTimeOffset deliverAt,
         object payload, CancellationToken ct = default)
     {
+        var deliveryId = Guid.NewGuid().ToString("D");
         var body = JsonSerializer.Serialize(new
         {
+            id = deliveryId,
             sender_device_id = senderDeviceId,
             target_device_id = targetDeviceId,
             deliver_at = deliverAt.ToUniversalTime(),
@@ -181,6 +183,21 @@ public sealed class SupabaseClient
         request.Headers.TryAddWithoutValidation("Prefer", "return=minimal");
         using var response = await client.SendAsync(request, ct).ConfigureAwait(false);
         await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
+        return deliveryId;
+    }
+
+    public async Task<IReadOnlyList<CloudDeliveryState>> GetDeliveryStatesAsync(
+        IReadOnlyList<string> ids, CancellationToken ct = default)
+    {
+        var validIds = ids.Where(id => Guid.TryParse(id, out _)).Take(50).ToArray();
+        if (validIds.Length == 0) return [];
+        var filter = string.Join(',', validIds.Select(Guid.Parse).Select(id => id.ToString("D")));
+        using var request = await CreateRequestAsync(HttpMethod.Get,
+            $"/rest/v1/deliveries?select=id,status,delivered_at,responded_at&id=in.({filter})", null, ct)
+            .ConfigureAwait(false);
+        using var response = await _http.SendAsync(request, ct).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, ct).ConfigureAwait(false);
+        return await DeserializeAsync<List<CloudDeliveryState>>(response, ct).ConfigureAwait(false) ?? [];
     }
 
     public async Task<string> UploadDeliveryMediaAsync(
@@ -442,4 +459,12 @@ public sealed class CloudDelivery
     public string? ResponseText { get; set; }
     public DateTimeOffset? RespondedAt { get; set; }
     public string Status { get; set; } = string.Empty;
+}
+
+public sealed class CloudDeliveryState
+{
+    public string Id { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTimeOffset? DeliveredAt { get; set; }
+    public DateTimeOffset? RespondedAt { get; set; }
 }

@@ -51,6 +51,16 @@
                         </Grid>
                         <TextBlock Text="Ações do computador" Style="{StaticResource Subtitulo}" FontSize="11"
                                    Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding ComputadorGerenciado.DiagnosticoConexao}" FontSize="11"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"
+                                   Margin="0,5,0,0" />
+                        <TextBlock Text="{Binding ComputadorGerenciado.UltimoEnvioResumo}" FontSize="11"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"
+                                   ToolTip="{Binding ComputadorGerenciado.UltimoEnvioDetalhe}" />
+                        <TextBlock Text="{Binding ComputadorGerenciado.UltimoEnvioErro}" FontSize="11"
+                                   Foreground="#B44545" TextWrapping="Wrap"
+                                   ToolTip="{Binding ComputadorGerenciado.UltimoEnvioDetalhe}"
+                                   Visibility="{Binding ComputadorGerenciado.UltimoEnvioErro, Converter={StaticResource TextoParaVisibilidadeConverter}}" />
                     </StackPanel>
                 </Grid>
             </Border>

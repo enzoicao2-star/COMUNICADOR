@@ -676,5 +676,14 @@
       "A verificação de presença continua após um erro isolado, evitando estados offline incorretos.",
       "Falhas ao registrar um evento não travam o painel."
     ]
+  },
+  {
+    "version": "2.5.66.0",
+    "summary": "Mostra o andamento dos envios e explica melhor o estado de cada computador.",
+    "changes": [
+      "O card mostra o último envio deste painel, incluindo fila, recebimento, exibição, remoção e erros.",
+      "O diagnóstico distingue sinal da nuvem, resposta direta do receptor e sincronização atrasada.",
+      "Entregas pela nuvem são acompanhadas sem afirmar que uma mídia apareceu antes de haver confirmação."
+    ]
   }
 ]
