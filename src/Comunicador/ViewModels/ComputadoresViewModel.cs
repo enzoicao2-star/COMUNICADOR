@@ -1100,7 +1100,14 @@ public sealed class ComputadoresViewModel : ViewModelBase
             _ = AtualizarMiniaturasPapelParedeAsync();
         }
         foreach (var id in previewReady.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var atualizado = Computadores.FirstOrDefault(c => string.Equals(c.Id, id, StringComparison.OrdinalIgnoreCase));
+            if (atualizado is not null)
+                foreach (var index in atualizado.Monitores.Count == 0
+                    ? [0] : atualizado.Monitores.Select(m => m.Index))
+                    WallpaperPreviewStore.InvalidateRequest(id, index);
             _ = AtualizarMiniaturasPapelParedeAsync(id, force: true);
+        }
         foreach (var computador in Computadores)
             computador.AtualizarDiagnostico(DateTime.UtcNow, _ultimaSincronizacaoNuvemUtc);
         CommandManager.InvalidateRequerySuggested();
@@ -1279,10 +1286,12 @@ public sealed class ComputadoresViewModel : ViewModelBase
                             computador.PortaTcp, computador.Token, index).ConfigureAwait(false);
                     }
                     if (bytes is null && computador.RegistradoNaNuvem
-                        && SupportsCloudWallpaperPreview(computador))
+                        && SupportsCloudWallpaperPreview(computador)
+                        && WallpaperPreviewStore.CanRequest(computador.Id, index, TimeSpan.FromHours(5)))
                     {
                         await _cloud.QueueWallpaperPreviewRequestAsync(computador.Id, index)
                             .ConfigureAwait(false);
+                        WallpaperPreviewStore.MarkRequested(computador.Id, index);
                         continue;
                     }
                     if (bytes is null) continue;
@@ -1794,18 +1803,19 @@ public sealed class ComputadoresViewModel : ViewModelBase
             : $"Mídias na tela de {computer.NomeExibicao} atualizadas.";
     }
 
-    public async Task ConsultarMidiasAtivasAsync(Computador computer)
+    public async Task<bool> ConsultarMidiasAtivasAsync(Computador computer)
     {
         try
         {
             StatusMensagem = $"Consultando mídias na tela de {computer.NomeExibicao}…";
-            computer.ImagensPersistentesAtivas = new List<ImagemPersistenteAtiva>();
             await _cloud.QueueActiveMediaSnapshotRequestAsync(computer.Id).ConfigureAwait(true);
+            return true;
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException
             or UnauthorizedAccessException or InvalidOperationException)
         {
             StatusMensagem = $"Não foi possível consultar as mídias: {ex.Message}";
+            return false;
         }
     }
 
@@ -1893,8 +1903,11 @@ public sealed class ComputadoresViewModel : ViewModelBase
             }
             if (acao == "remove")
             {
-                computador.ImagensPersistentesAtivas.Remove(imagem);
-                computador.ImagensPersistentesAtivas = computador.ImagensPersistentesAtivas.ToList();
+                if (confirmadoDiretamente)
+                {
+                    computador.ImagensPersistentesAtivas.Remove(imagem);
+                    computador.ImagensPersistentesAtivas = computador.ImagensPersistentesAtivas.ToList();
+                }
                 StatusMensagem = confirmadoDiretamente
                     ? $"Imagem removida de {computador.NomeExibicao}."
                     : $"Pedido de remoção entrou na fila para {computador.NomeExibicao}.";
@@ -1903,13 +1916,23 @@ public sealed class ComputadoresViewModel : ViewModelBase
             }
             else
             {
-                if (acao == "set_timeout") imagem.DefinirPrazo(imagem.TempoSegundos);
-                StatusMensagem = acao switch
+                if (!confirmadoDiretamente)
                 {
-                    "move" => $"Posição da imagem atualizada em {computador.NomeExibicao}.",
-                    "set_timeout" => $"Imagem será removida em {imagem.TempoSegundos} segundos.",
-                    _ => $"Tamanho da imagem atualizado em {computador.NomeExibicao}."
-                };
+                    imagem.XPercent = xAntigo;
+                    imagem.YPercent = yAntigo;
+                    imagem.WidthPercent = tamanhoAntigo;
+                    StatusMensagem = $"Pedido de alteração entrou na fila para {computador.NomeExibicao}. Atualize após a resposta do receptor.";
+                }
+                else
+                {
+                    if (acao == "set_timeout") imagem.DefinirPrazo(imagem.TempoSegundos);
+                    StatusMensagem = acao switch
+                    {
+                        "move" => $"Posição da imagem atualizada em {computador.NomeExibicao}.",
+                        "set_timeout" => $"Imagem será removida em {imagem.TempoSegundos} segundos.",
+                        _ => $"Tamanho da imagem atualizado em {computador.NomeExibicao}."
+                    };
+                }
             }
             try { Persist(); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

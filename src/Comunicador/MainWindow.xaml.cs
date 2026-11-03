@@ -24,9 +24,6 @@ public partial class MainWindow : Window
     private void OnBackgroundMouseLeave(object sender, MouseEventArgs e)
         => AnimatedBackdrop.ClearPointer();
 
-    private void OnBackgroundMouseDown(object sender, MouseButtonEventArgs e)
-        => AnimatedBackdrop.DropNebulaSparkle(e.GetPosition(AnimatedBackdrop));
-
     private sealed record NavigationFrame(object? Content, Action? OnExit, bool Locked, bool BackAllowed);
     internal bool TelaAninhadaAtiva => _navigationStack.Count > 0;
 
@@ -432,13 +429,6 @@ public partial class MainWindow : Window
         TopNavigation.IsEnabled = !_navigationLocked;
     }
 
-    private void DesbloquearNavegacao()
-    {
-        _navigationLocked = false;
-        _currentBackAllowed = true;
-        AtualizarNavegacaoAninhada();
-    }
-
     private void OnNavigationBackClick(object sender, RoutedEventArgs e) => NavegarVoltar();
 
     private void OnMainWindowPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -484,6 +474,7 @@ public partial class MainWindow : Window
         FrameworkElement view = viewModel switch
         {
             ComputadoresViewModel => new ComputadoresView(),
+            MidiasAtivasViewModel => new MidiasAtivasView(),
             MensagensViewModel => new MensagensView(),
             LembretesViewModel => new LembretesView(),
             HistoricoViewModel => new HistoricoView(),
@@ -532,6 +523,7 @@ public partial class MainWindow : Window
         var sections = new (object ViewModel, string Name)[]
         {
             (_viewModel.Computadores, "Computadores"),
+            (_viewModel.MidiasAtivas, "Mídias na tela"),
             (_viewModel.Mensagens, "Mensagens"),
             (_viewModel.Lembretes, "Lembretes"),
             (_viewModel.Historico, "Histórico"),

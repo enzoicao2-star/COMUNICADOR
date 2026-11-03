@@ -35,6 +35,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public MensagensViewModel Mensagens { get; }
     public LembretesViewModel Lembretes { get; }
     public HistoricoViewModel Historico { get; }
+    public MidiasAtivasViewModel MidiasAtivas { get; }
     public LogsViewModel Logs { get; }
     public ConfiguracoesViewModel Configuracoes { get; }
 
@@ -62,11 +63,12 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public int IndiceSecaoAtiva => SecaoAtiva switch
     {
         "computadores" => 0,
-        "mensagens" => 1,
-        "lembretes" => 2,
-        "historico" => 3,
-        "logs" => 4,
-        "configuracoes" => 5,
+        "midias" => 1,
+        "mensagens" => 2,
+        "lembretes" => 3,
+        "historico" => 4,
+        "logs" => 5,
+        "configuracoes" => 6,
         _ => 0,
     };
 
@@ -123,6 +125,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
         Computadores = new ComputadoresViewModel(
             computadoresStore, _discovery, client, enviador, atualizador, Settings, perfis, _cloudSync);
+        MidiasAtivas = new MidiasAtivasViewModel(Computadores);
         _historicoRepositorio.Changed += () => Computadores.AtualizarUltimosEnvios(
             _historicoRepositorio.Snapshot());
         Computadores.AtualizarUltimosEnvios(_historicoRepositorio.Snapshot());
@@ -137,7 +140,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             item.Status == StatusEnvio.NaFila && !string.IsNullOrWhiteSpace(item.CloudDeliveryId)))
             _cloudSync.TrackDelivery(pending.CloudDeliveryId!, pending.Timestamp);
         _cloudSync.DeliveryStateReceived += state =>
-            _historicoRepositorio.AtualizarEstadoEntregaCloud(state.Id, state.Status);
+            _historicoRepositorio.AtualizarEstadoEntregaCloud(state.Id, state.Status,
+                state.Status == "responded" ? state.RespondedAt : state.DeliveredAt);
         _cloudSync.WallpaperPreviewReceived += Computadores.SalvarMiniaturaPapelParede;
         _cloudSync.ActiveMediaSnapshotReceived += Computadores.AplicarSnapshotMidiasAtivas;
         _sync = new SyncCoordinatorService(
@@ -174,6 +178,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             SecaoAtual = param switch
             {
                 "computadores" => Computadores,
+                "midias" => MidiasAtivas,
                 "mensagens" => Mensagens,
                 "lembretes" => Lembretes,
                 "historico" => Historico,
@@ -851,6 +856,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         _backgroundUpdatesCts.Cancel();
+        MidiasAtivas.Dispose();
         Computadores.PingMedioAtualizado -= AtualizarPingMedio;
         _cloudSync.ResponseReceived -= OnCloudResponseReceived;
         _cloudSync.WallpaperPreviewReceived -= Computadores.SalvarMiniaturaPapelParede;

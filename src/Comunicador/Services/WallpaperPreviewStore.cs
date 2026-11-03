@@ -43,6 +43,33 @@ public static class WallpaperPreviewStore
         }
     }
 
+    // Uma miniatura ausente não deve criar uma entrega nova a cada sincronização.
+    // O marcador é local a este painel e permite nova tentativa após uma falha.
+    public static bool CanRequest(string computerId, int monitorIndex, TimeSpan retryAfter)
+    {
+        try
+        {
+            var path = GetPath(computerId, monitorIndex) + ".requested";
+            return !File.Exists(path) || DateTime.UtcNow - File.GetLastWriteTimeUtc(path) >= retryAfter;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return true;
+        }
+    }
+
+    public static void MarkRequested(string computerId, int monitorIndex)
+    {
+        var path = GetPath(computerId, monitorIndex) + ".requested";
+        AtomicFileStore.WriteAllBytes(path, [1]);
+    }
+
+    public static void InvalidateRequest(string computerId, int monitorIndex)
+    {
+        try { File.Delete(GetPath(computerId, monitorIndex) + ".requested"); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { }
+    }
+
     public static void Save(string computerId, int monitorIndex, byte[] bytes)
     {
         if (string.IsNullOrWhiteSpace(computerId) || monitorIndex is < 0 or >= ProtocolConstants.MaxMonitors

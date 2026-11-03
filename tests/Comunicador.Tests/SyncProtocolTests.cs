@@ -1,10 +1,26 @@
 using Comunicador.Protocol;
+using Comunicador.Models;
+using Comunicador.Services;
 using Xunit;
 
 namespace Comunicador.Tests;
 
 public sealed class SyncProtocolTests
 {
+    [Fact]
+    public void HistoricoPreservaHorarioDoEstadoEntrePaineis()
+    {
+        var momento = new DateTime(2026, 11, 3, 14, 30, 0, DateTimeKind.Utc);
+        var original = new HistoricoEntry
+        {
+            Id = Guid.NewGuid().ToString(), Status = StatusEnvio.RecebidoPeloReceptor,
+            StatusAtualizadoEm = momento,
+        };
+        var restaurado = original.ToSync().ToModel();
+        Assert.Equal(StatusEnvio.RecebidoPeloReceptor, restaurado.Status);
+        Assert.Equal(momento, restaurado.StatusAtualizadoEm?.ToUniversalTime());
+    }
+
     [Fact]
     public void SyncRequest_ComHistoricoELogValidos_EAceito()
     {

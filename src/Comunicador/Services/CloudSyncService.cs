@@ -784,10 +784,6 @@ public sealed class CloudSyncService : IDisposable
             {
                 return;
             }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                return;
-            }
             catch (Exception ex)
             {
                 Logger.Warning($"Busca de entregas pela nuvem será repetida: {ex.Message}",

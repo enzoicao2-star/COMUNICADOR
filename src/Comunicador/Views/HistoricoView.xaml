@@ -41,35 +41,25 @@
             </Button>
         </Grid>
 
-        <ScrollViewer DockPanel.Dock="Top" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
-                      Margin="0,0,0,14">
-            <StackPanel Orientation="Horizontal">
-                <Button Content="Todos" Style="{StaticResource BotaoSecundario}" Margin="0,0,7,0"
-                        Command="{Binding SelecionarComputadorCommand}" CommandParameter="{x:Null}" />
-                <ItemsControl ItemsSource="{Binding Computadores}">
-                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Computadores}" Margin="0,0,0,14">
+                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Button Content="{Binding Rotulo}" Style="{StaticResource BotaoSecundario}" Margin="0,0,7,0"
+                            <Button Content="{Binding Rotulo}" Style="{StaticResource BotaoSecundario}" Margin="0,0,7,7"
                                     Command="{Binding DataContext.SelecionarComputadorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     CommandParameter="{Binding Id}" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
-        </ScrollViewer>
+        </ItemsControl>
 
-        <ScrollViewer DockPanel.Dock="Top" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
-                      Margin="0,0,0,12">
-            <ItemsControl ItemsSource="{Binding StatusFiltros}">
-                <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding StatusFiltros}" Margin="0,0,0,12">
+                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate><DataTemplate>
-                    <Button Content="{Binding Rotulo}" Style="{StaticResource BotaoSecundario}" Margin="0,0,7,0"
+                    <Button Content="{Binding Rotulo}" Style="{StaticResource BotaoSecundario}" Margin="0,0,7,7"
                             Command="{Binding DataContext.SelecionarStatusCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             CommandParameter="{Binding Chave}" />
                 </DataTemplate></ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
+        </ItemsControl>
         <TextBlock DockPanel.Dock="Top" Text="{Binding StatusOperacao}" Style="{StaticResource Subtitulo}"
                    TextWrapping="Wrap" Margin="0,0,0,8" />
 
@@ -125,6 +115,21 @@
                                         <Run Text="{Binding ComputadorNome, Mode=OneWay}" FontWeight="SemiBold" />
                                         <Run Text="  ·  " Foreground="{DynamicResource TextSecondaryBrush}" />
                                         <Run Text="{Binding Timestamp, StringFormat={}{0:dd/MM/yyyy HH:mm}, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding DetalheEntrega}" FontSize="12" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,5,0,0" />
+                                    <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                                               Text="{Binding StatusAtualizadoEm, StringFormat='Estado atualizado em {0:dd/MM/yyyy HH:mm}', Mode=OneWay}"
+                                               Margin="0,3,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding StatusAtualizadoEm}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
                                     </TextBlock>
                                     <TextBlock Text="{Binding Mensagem}" TextWrapping="Wrap" Margin="0,8,0,0" FontSize="13" />
                                     <TextBlock Text="{Binding ErroDetalhe}" TextWrapping="Wrap" Margin="0,5,0,0"

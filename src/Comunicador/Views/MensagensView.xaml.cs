@@ -144,40 +144,6 @@ public partial class MensagensView : UserControl
         e.Handled = true;
     }
 
-    private void MonitorCard_DragOver(object sender, DragEventArgs e)
-    {
-        var arquivos = ObterArquivosArrastados(e);
-        var somenteImagens = arquivos.Length > 0 && arquivos.All(EhImagem);
-        var umVideo = arquivos.Length == 1 && EhVideo(arquivos[0]);
-        e.Effects = somenteImagens || umVideo ? DragDropEffects.Copy : DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    private void MonitorCard_DragEnter(object sender, DragEventArgs e)
-    {
-        var arquivos = ObterArquivosArrastados(e);
-        var somenteImagens = arquivos.Length > 0 && arquivos.All(EhImagem);
-        var umVideo = arquivos.Length == 1 && EhVideo(arquivos[0]);
-        DestacarAreaDeSoltar(sender, somenteImagens || umVideo, "CardGlassBorderBrush");
-    }
-
-    private void MonitorCard_DragLeave(object sender, DragEventArgs e) =>
-        DestacarAreaDeSoltar(sender, false, "CardGlassBorderBrush");
-
-    private void MonitorCard_Drop(object sender, DragEventArgs e)
-    {
-        DestacarAreaDeSoltar(sender, false, "CardGlassBorderBrush");
-        if (sender is Border { DataContext: DestinoMonitor destino }
-            && DataContext is MensagensViewModel viewModel)
-        {
-            foreach (var caminho in ObterArquivosArrastados(e))
-            {
-                viewModel.CarregarArquivoNoMonitor(destino, caminho);
-            }
-        }
-        e.Handled = true;
-    }
-
     private static string[] ObterArquivosArrastados(DragEventArgs e) =>
         e.Data.GetDataPresent(DataFormats.FileDrop)
             ? e.Data.GetData(DataFormats.FileDrop) as string[] ?? Array.Empty<string>()

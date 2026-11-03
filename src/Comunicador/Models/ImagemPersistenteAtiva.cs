@@ -19,6 +19,7 @@ public sealed class ImagemPersistenteAtiva : ObservableModel
     private BitmapSource? _miniatura;
     private double _previewLeft, _previewTop, _previewWidth, _previewHeight;
     private string _prazoTexto = "Até eu remover";
+    private DateTimeOffset? _expiraEm;
 
     public string Id { get => _id; set => SetField(ref _id, value); }
     public string ComputerId { get => _computerId; set => SetField(ref _computerId, value); }
@@ -61,9 +62,34 @@ public sealed class ImagemPersistenteAtiva : ObservableModel
     public double PreviewHeight { get => _previewHeight; private set => SetField(ref _previewHeight, value); }
     [JsonIgnore]
     public string PrazoTexto { get => _prazoTexto; private set => SetField(ref _prazoTexto, value); }
+    public DateTimeOffset? ExpiraEm
+    {
+        get => _expiraEm;
+        set
+        {
+            if (SetField(ref _expiraEm, value)) OnPropertyChanged(nameof(TempoRestanteTexto));
+        }
+    }
+    [JsonIgnore]
+    public string TempoRestanteTexto
+    {
+        get
+        {
+            if (ExpiraEm is null) return "Sem limite de tempo";
+            var restante = ExpiraEm.Value - DateTimeOffset.Now;
+            if (restante <= TimeSpan.Zero) return "Prazo encerrado; aguardando confirmação";
+            if (restante.TotalHours >= 1) return $"Restam {(int)restante.TotalHours} h {restante.Minutes} min";
+            return $"Restam {(int)restante.TotalMinutes} min {restante.Seconds} s";
+        }
+    }
 
-    public void DefinirPrazo(int seconds) => PrazoTexto =
-        $"Até {DateTimeOffset.Now.AddSeconds(seconds):HH:mm:ss}";
+    public void DefinirPrazo(int seconds)
+    {
+        ExpiraEm = DateTimeOffset.Now.AddSeconds(seconds);
+        PrazoTexto = $"Até {ExpiraEm:HH:mm:ss}";
+    }
+
+    public void AtualizarTempoRestante() => OnPropertyChanged(nameof(TempoRestanteTexto));
 
     private void UpdatePreviewPosition()
     {
@@ -96,7 +122,10 @@ public sealed class ImagemPersistenteAtiva : ObservableModel
         item.PreviewWidth = Math.Clamp(ReadNumber("display_width_percent", 25), 1, 100) * 3.2;
         item.PreviewHeight = Math.Clamp(ReadNumber("display_height_percent", 25), 1, 100) * 1.8;
         if (DateTimeOffset.TryParse(ReadString("expires_at"), out var expiry))
+        {
+            item.ExpiraEm = expiry;
             item.PrazoTexto = $"Até {expiry.ToLocalTime():HH:mm:ss}";
+        }
         var encoded = ReadString("thumbnail_base64");
         if (!string.IsNullOrWhiteSpace(encoded) && encoded.Length <= 100_000)
         {

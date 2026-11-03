@@ -685,5 +685,15 @@
       "O diagnóstico distingue sinal da nuvem, resposta direta do receptor e sincronização atrasada.",
       "Entregas pela nuvem são acompanhadas sem afirmar que uma mídia apareceu antes de haver confirmação."
     ]
+  },
+  {
+    "version": "2.5.67.0",
+    "summary": "Prepara mídias antes do envio e reúne o controle das imagens ativas.",
+    "changes": [
+      "A tela de envio mostra a preparação da mídia e libera Enviar agora quando a carga direta termina.",
+      "A nova central de mídias mostra prévia, posição, tamanho e tempo restante das imagens em exibição.",
+      "O histórico explica a diferença entre fila, recebimento pelo receptor e exibição, com horário e motivo.",
+      "A nebulosa fica estática e as miniaturas de papel de parede evitam pedidos repetidos ao banco."
+    ]
   }
 ]

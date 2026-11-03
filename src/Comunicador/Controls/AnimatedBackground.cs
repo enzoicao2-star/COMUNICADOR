@@ -6,8 +6,8 @@ using Comunicador.Services;
 
 namespace Comunicador.Controls;
 
-/// <summary>Fundos vetoriais responsivos. Todos os modos, exceto "Sem fundo",
-/// usam o relógio de renderização e acompanham o tamanho atual da janela.</summary>
+/// <summary>Fundos vetoriais responsivos. A nebulosa é estática para evitar
+/// redesenhar a janela inteira em cada quadro.</summary>
 public sealed class AnimatedBackground : FrameworkElement
 {
     private readonly Stopwatch _animationClock = Stopwatch.StartNew();
@@ -40,8 +40,6 @@ public sealed class AnimatedBackground : FrameworkElement
     private double _lastWaveFrame = -1;
     private double _elapsedBeforePause;
     private double _activeSegmentStartedAt;
-    private double? _nebulaClickTime;
-    private Point _nebulaClickPosition;
     private readonly List<NebulaStar> _nebulaStars = new();
     private WriteableBitmap? _nebulaBitmap;
     private byte[]? _nebulaPixels;
@@ -80,7 +78,7 @@ public sealed class AnimatedBackground : FrameworkElement
 
     public void SetPointer(Point position)
     {
-        if ((Mode != "Ondas interativas" && Mode != "Nebulosa halftone") || ReduceMotion) return;
+        if (Mode != "Ondas interativas" || ReduceMotion) return;
         if (!_pointerActive)
             _pointerSmoothed = _pointerAtLastFrame = position;
         _pointerTarget = position;
@@ -88,14 +86,6 @@ public sealed class AnimatedBackground : FrameworkElement
     }
 
     public void ClearPointer() => _pointerActive = false;
-
-    public void DropNebulaSparkle(Point position)
-    {
-        if (Mode != "Nebulosa halftone" || ReduceMotion) return;
-        _nebulaClickPosition = position;
-        _nebulaClickTime = GetAnimationTime();
-        InvalidateVisual();
-    }
 
     public AnimatedBackground()
     {
@@ -137,7 +127,8 @@ public sealed class AnimatedBackground : FrameworkElement
     }
 
     private void UpdateRenderingSubscription() =>
-        SetRenderingSubscribed(IsLoaded && IsVisible && !PauseAnimation && Mode != "Sem fundo");
+        SetRenderingSubscribed(IsLoaded && IsVisible && !PauseAnimation
+            && Mode is not ("Sem fundo" or "Nebulosa halftone"));
 
     private void SetRenderingSubscribed(bool subscribe)
     {
@@ -153,6 +144,7 @@ public sealed class AnimatedBackground : FrameworkElement
     {
         if (d is AnimatedBackground background && e.NewValue is string mode)
         {
+            background.ClearPointer();
             background.EnsureModeData(mode);
             background.UpdateRenderingSubscription();
         }
@@ -196,7 +188,7 @@ public sealed class AnimatedBackground : FrameworkElement
             case "Partículas fluidas": DrawFluidParticles(dc, time, opacity); break;
             case "Onda de partículas": DrawParticleWave(dc, time); break;
             case "Ondas interativas": DrawInteractiveWaves(dc, time, opacity); break;
-            case "Nebulosa halftone": DrawHalftoneNebula(dc, time, opacity); break;
+            case "Nebulosa halftone": DrawHalftoneNebula(dc, 0, opacity); break;
         }
     }
 
@@ -228,18 +220,9 @@ public sealed class AnimatedBackground : FrameworkElement
         var background = ThemeColor("BackgroundBrush", Colors.Black);
         var accent = ThemeColor("AccentBrush", Colors.CornflowerBlue);
         var foreground = ThemeColor("TextPrimaryBrush", Colors.White);
-        var pointer = _pointerActive && !ReduceMotion;
-        if (pointer)
-        {
-            _pointerSmoothed.X += (_pointerTarget.X - _pointerSmoothed.X) * .14;
-            _pointerSmoothed.Y += (_pointerTarget.Y - _pointerSmoothed.Y) * .14;
-        }
-
-        var parallaxX = pointer ? (_pointerSmoothed.X / Math.Max(1, ActualWidth) - .5) * 18 : 0;
-        var parallaxY = pointer ? (_pointerSmoothed.Y / Math.Max(1, ActualHeight) - .5) * 12 : 0;
         var planetRadius = Math.Min(108, Math.Min(width, height) * .12);
-        var planetCenterX = width * .74 + parallaxX * .35;
-        var planetCenterY = height * .23 + parallaxY * .35;
+        var planetCenterX = width * .74;
+        var planetCenterY = height * .23;
         for (var row = 0; row < rows; row++)
         {
             var y0 = row * cellSize;
@@ -261,14 +244,6 @@ public sealed class AnimatedBackground : FrameworkElement
                 var bandDistance = Math.Abs(ny - .50 - (nx - .5) * .32);
                 var band = 1 - SmoothStep(.035, .38, bandDistance);
                 var density = Math.Clamp((gas * .53 + band * .55 - .43) * 1.9, 0, 1);
-
-                if (pointer)
-                {
-                    var pointerDx = pixelX - _pointerSmoothed.X;
-                    var pointerDy = pixelY - _pointerSmoothed.Y;
-                    var lens = Math.Exp(-(pointerDx * pointerDx + pointerDy * pointerDy) / (2 * 158d * 158d));
-                    density = Math.Clamp(density + lens * .36, 0, 1);
-                }
 
                 var planetX = (pixelX - planetCenterX) / Math.Max(1, planetRadius);
                 var planetY = (pixelY - planetCenterY) / Math.Max(1, planetRadius);
@@ -321,7 +296,7 @@ public sealed class AnimatedBackground : FrameworkElement
 
         _nebulaBitmap.WritePixels(new Int32Rect(0, 0, width, height), _nebulaPixels, width * 4, 0);
         dc.DrawImage(_nebulaBitmap, new Rect(0, 0, ActualWidth, ActualHeight));
-        DrawNebulaStars(dc, time, opacity, parallaxX, parallaxY);
+        DrawNebulaStars(dc, opacity);
     }
 
     private void EnsureNebulaBitmap(int width, int height)
@@ -336,7 +311,7 @@ public sealed class AnimatedBackground : FrameworkElement
         _nebulaPixels = new byte[width * height * 4];
     }
 
-    private void DrawNebulaStars(DrawingContext dc, double time, double opacity, double parallaxX, double parallaxY)
+    private void DrawNebulaStars(DrawingContext dc, double opacity)
     {
         var starBrush = ThemeBrush("TextPrimaryBrush", 1);
         var accentBrush = ThemeBrush("AccentBrush", 1);
@@ -345,9 +320,9 @@ public sealed class AnimatedBackground : FrameworkElement
 
         foreach (var star in _nebulaStars)
         {
-            var twinkle = .34 + .66 * (1 + Math.Sin(time * (1.2 + star.Depth) + star.Phase)) * .5;
-            var x = star.X * ActualWidth + parallaxX * star.Depth;
-            var y = star.Y * ActualHeight + parallaxY * star.Depth;
+            var twinkle = .34 + .66 * (1 + Math.Sin(star.Phase)) * .5;
+            var x = star.X * ActualWidth;
+            var y = star.Y * ActualHeight;
             dc.PushOpacity(Math.Clamp(opacity * star.Depth * twinkle * .68, 0, 1));
             dc.DrawRectangle(star.Depth > .72 ? starBrush : accentBrush, null,
                 new Rect(Math.Round(x), Math.Round(y), star.Size, star.Size));
@@ -359,30 +334,6 @@ public sealed class AnimatedBackground : FrameworkElement
             dc.Pop();
         }
 
-        if (_nebulaClickTime is not double clickTime) return;
-        var age = time - clickTime;
-        if (age < 0 || age > 1.15)
-        {
-            if (age > 1.15) _nebulaClickTime = null;
-            return;
-        }
-
-        var progress = age / 1.15;
-        var ripplePen = new Pen(ThemeBrush("AccentBrush", (1 - progress) * opacity * .70), 1.25);
-        ripplePen.Freeze();
-        var rippleRadius = 7 + progress * 76;
-        dc.DrawEllipse(null, ripplePen, _nebulaClickPosition, rippleRadius, rippleRadius);
-        if (progress < .7)
-        {
-            var sparkleOpacity = (1 - progress / .7) * opacity;
-            var sparklePen = new Pen(ThemeBrush("TextPrimaryBrush", sparkleOpacity), 1.1);
-            sparklePen.Freeze();
-            var sparkleSize = 5 + Math.Sin(progress * Math.PI) * 6;
-            dc.DrawLine(sparklePen, new Point(_nebulaClickPosition.X - sparkleSize, _nebulaClickPosition.Y),
-                new Point(_nebulaClickPosition.X + sparkleSize, _nebulaClickPosition.Y));
-            dc.DrawLine(sparklePen, new Point(_nebulaClickPosition.X, _nebulaClickPosition.Y - sparkleSize),
-                new Point(_nebulaClickPosition.X, _nebulaClickPosition.Y + sparkleSize));
-        }
     }
 
     private static double Noise01(double x, double y, double z) => (PerlinNoise(x, y, z) + 1) * .5;

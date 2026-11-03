@@ -6,7 +6,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Comunicador" Height="820" Width="1260" MinHeight="600" MinWidth="760"
         Loaded="OnWindowLoaded" StateChanged="OnWindowStateChanged" PreviewKeyDown="OnMainWindowPreviewKeyDown"
-        PreviewMouseMove="OnBackgroundMouseMove" PreviewMouseLeftButtonDown="OnBackgroundMouseDown"
+        PreviewMouseMove="OnBackgroundMouseMove"
         MouseLeave="OnBackgroundMouseLeave"
         WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="CanResize"
         Background="{DynamicResource BackgroundBrush}" Icon="Assets/Comunicador.ico">
@@ -220,20 +220,23 @@
                     </StackPanel>
                 </Grid>
 
-                <Grid x:Name="TopNavigation" Grid.Row="0" MaxWidth="744" Margin="24,0" Height="76"
+                <Grid x:Name="TopNavigation" Grid.Row="0" MaxWidth="840" Margin="24,0" Height="76"
                       HorizontalAlignment="Stretch" VerticalAlignment="Bottom" Panel.ZIndex="3"
                       shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                    <controls:AnimatedNavBackground Margin="12,0" ItemCount="6"
+                    <controls:AnimatedNavBackground Margin="12,0" ItemCount="7"
                                                     ActiveIndex="{Binding IndiceSecaoAtiva}"
                                                     ReduceMotion="{Binding Configuracoes.ReduzirMovimento}">
                         <controls:AnimatedNavBackground.Effect>
                             <DropShadowEffect BlurRadius="20" ShadowDepth="5" Opacity="0.25" Color="#000000" />
                         </controls:AnimatedNavBackground.Effect>
                     </controls:AnimatedNavBackground>
-                    <UniformGrid Columns="6" Margin="12,0">
+                    <UniformGrid Columns="7" Margin="12,0">
                         <controls:HoverNavButton Icon="&#xE977;" Label="Computadores" Command="{Binding NavegarCommand}"
                             automation:AutomationProperties.Name="Computadores" CommandParameter="computadores"
                             Tag="{Binding SecaoAtiva, ConverterParameter=computadores, Converter={StaticResource SecaoAtivaConverter}}" />
+                        <controls:HoverNavButton Icon="&#xE91B;" Label="Mídias na tela" Command="{Binding NavegarCommand}"
+                            automation:AutomationProperties.Name="Mídias na tela" CommandParameter="midias"
+                            Tag="{Binding SecaoAtiva, ConverterParameter=midias, Converter={StaticResource SecaoAtivaConverter}}" />
                         <controls:HoverNavButton Icon="&#xE715;" Label="Mensagens" Command="{Binding NavegarCommand}"
                             automation:AutomationProperties.Name="Mensagens" CommandParameter="mensagens"
                             Tag="{Binding SecaoAtiva, ConverterParameter=mensagens, Converter={StaticResource SecaoAtivaConverter}}" />

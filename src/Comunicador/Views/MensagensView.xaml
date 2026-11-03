@@ -86,10 +86,18 @@
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="Pronto para enviar" FontWeight="SemiBold" FontSize="13" />
+                    <TextBlock Text="Preparar e enviar" FontWeight="SemiBold" FontSize="13" />
                     <TextBlock Text="{Binding StatusOperacao}" Style="{StaticResource Subtitulo}" FontSize="12" />
+                    <TextBlock Text="{Binding PreparoMidiaTexto}" Style="{StaticResource Subtitulo}"
+                               FontSize="12" TextWrapping="Wrap"
+                               Visibility="{Binding PreparoMidiaTexto, Converter={StaticResource TextoParaVisibilidadeConverter}}" />
+                    <ProgressBar Height="3" Margin="0,5,0,0" IsIndeterminate="True"
+                                 Visibility="{Binding PreparoMidiaEmAndamento, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Content="Tentar carga novamente" Style="{StaticResource BotaoSecundario}"
+                            Command="{Binding RepetirPreparoCommand}" Height="40" Margin="0,0,8,0"
+                            Visibility="{Binding PreparoMidiaFalhou, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     <Button Style="{StaticResource BotaoSecundario}" Command="{Binding PrevisualizarCommand}"
                             Content="Testar no meu PC" Height="40" Margin="0,0,8,0"
                             ToolTipService.ShowOnDisabled="True"

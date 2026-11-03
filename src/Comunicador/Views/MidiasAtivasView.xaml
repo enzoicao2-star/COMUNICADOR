@@ -1,0 +1,108 @@
+<UserControl x:Class="Comunicador.Views.MidiasAtivasView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <DockPanel LastChildFill="True">
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,14">
+            <StackPanel>
+                <TextBlock Text="Mídias na tela" Style="{StaticResource TituloSecao}" />
+                <TextBlock Text="Imagens mantidas nos computadores, com posição, tamanho e prazo conhecidos pelo painel."
+                           Style="{StaticResource Subtitulo}" TextWrapping="Wrap" />
+            </StackPanel>
+            <Button Content="Atualizar todas" Style="{StaticResource BotaoSecundario}"
+                    HorizontalAlignment="Right" VerticalAlignment="Center"
+                    Command="{Binding AtualizarCommand}" />
+        </Grid>
+
+        <TextBlock DockPanel.Dock="Top" Text="{Binding StatusOperacao}" Style="{StaticResource Subtitulo}"
+                   TextWrapping="Wrap" Margin="0,0,0,12" />
+
+        <TextBlock DockPanel.Dock="Top" Margin="0,28,0,0" HorizontalAlignment="Center"
+                   Text="Nenhuma mídia ativa conhecida. Clique em Atualizar todas para consultar os receptores."
+                   TextWrapping="Wrap">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock" BasedOn="{StaticResource Subtitulo}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding TemMidias}" Value="False">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding Itens}">
+                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Width="370" Margin="0,0,12,12" Padding="14" CornerRadius="12"
+                                Background="{DynamicResource SurfaceBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Computador.NomeExibicao}" FontSize="15" FontWeight="SemiBold" />
+                                <StackPanel DataContext="{Binding Imagem}">
+                                    <TextBlock Text="{Binding Nome}" TextTrimming="CharacterEllipsis"
+                                               Margin="0,4,0,0" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,10">
+                                        <TextBlock Text="{Binding MonitorTexto}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text=" · " Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text="{Binding TamanhoTexto}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text=" · " Foreground="{DynamicResource TextSecondaryBrush}" />
+                                        <TextBlock Text="{Binding PrazoTexto}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding TempoRestanteTexto}" Foreground="{DynamicResource AccentBrush}"
+                                               FontSize="12" Margin="0,0,0,8" />
+                                    <Canvas Width="320" Height="180" Background="#10141C" HorizontalAlignment="Left"
+                                            ClipToBounds="True" MouseMove="MidiaPreview_MouseMove"
+                                            MouseLeftButtonUp="MidiaPreview_MouseLeftButtonUp">
+                                        <TextBlock Text="Prévia disponível após consultar o receptor" Foreground="#CCD4E2"
+                                                   FontSize="11" Canvas.Left="15" Canvas.Top="82" IsHitTestVisible="False">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Miniatura}" Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <Border Width="{Binding PreviewWidth}" Height="{Binding PreviewHeight}"
+                                                Canvas.Left="{Binding PreviewLeft}" Canvas.Top="{Binding PreviewTop}"
+                                                BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2"
+                                                MouseLeftButtonDown="MidiaPreview_MouseLeftButtonDown"
+                                                ToolTip="Arraste para mover a imagem">
+                                            <Image Source="{Binding Miniatura}" Stretch="Fill" />
+                                        </Border>
+                                    </Canvas>
+                                    <TextBlock Text="Arraste na prévia ou use as setas para mover." Style="{StaticResource Subtitulo}"
+                                               Margin="0,8,0,6" />
+                                    <WrapPanel>
+                                        <Button Content="←" Tag="left" Click="ControlarMidia_Click" Style="{StaticResource BotaoSecundario}" Margin="0,0,4,4" />
+                                        <Button Content="↑" Tag="up" Click="ControlarMidia_Click" Style="{StaticResource BotaoSecundario}" Margin="0,0,4,4" />
+                                        <Button Content="↓" Tag="down" Click="ControlarMidia_Click" Style="{StaticResource BotaoSecundario}" Margin="0,0,4,4" />
+                                        <Button Content="→" Tag="right" Click="ControlarMidia_Click" Style="{StaticResource BotaoSecundario}" Margin="0,0,12,4" />
+                                        <Button Content="Menor" Tag="smaller" Click="ControlarMidia_Click" Style="{StaticResource BotaoSecundario}" Margin="0,0,4,4" />
+                                        <Button Content="Maior" Tag="larger" Click="ControlarMidia_Click" Style="{StaticResource BotaoSecundario}" Margin="0,0,4,4" />
+                                    </WrapPanel>
+                                    <WrapPanel Margin="0,8,0,0">
+                                        <TextBlock Text="Remover em" VerticalAlignment="Center" Margin="0,0,5,4" />
+                                        <TextBox Width="65" Text="{Binding TempoSegundos, UpdateSourceTrigger=PropertyChanged}"
+                                                 VerticalAlignment="Center" Margin="0,0,5,4" />
+                                        <TextBlock Text="s" VerticalAlignment="Center" Margin="0,0,6,4" />
+                                        <Button Content="Aplicar tempo" Tag="set_timeout" Click="ControlarMidia_Click"
+                                                Style="{StaticResource BotaoSecundario}" Margin="0,0,6,4" />
+                                        <Button Content="Remover agora" Tag="remove" Click="ControlarMidia_Click"
+                                                Style="{StaticResource BotaoSecundario}" Margin="0,0,0,4" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

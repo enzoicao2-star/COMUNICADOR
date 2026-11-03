@@ -15,6 +15,7 @@ public static class SyncMapper
         Title = item.Titulo,
         Message = item.Mensagem,
         Status = item.Status.ToString().ToLowerInvariant(),
+        StatusUpdatedAt = item.StatusAtualizadoEm?.ToUniversalTime().ToString("o"),
         ReplyText = item.RespostaTexto,
         ErrorDetail = item.ErroDetalhe,
     };
@@ -34,6 +35,9 @@ public static class SyncMapper
             Titulo = item.Title,
             Mensagem = item.Message,
             Status = status,
+            StatusAtualizadoEm = DateTime.TryParse(item.StatusUpdatedAt, null,
+                System.Globalization.DateTimeStyles.RoundtripKind, out var atualizacao)
+                ? atualizacao.ToLocalTime() : null,
             RespostaTexto = item.ReplyText,
             ErroDetalhe = item.ErrorDetail,
         };

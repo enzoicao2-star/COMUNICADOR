@@ -44,14 +44,17 @@ public sealed class HistoricoRepository
         {
             if (_porId.TryGetValue(id, out var item))
             {
+                var statusAnterior = item.Status;
                 aplicar(item);
+                if (item.Status != statusAnterior) item.StatusAtualizadoEm = DateTime.Now;
                 Persist();
                 Changed?.Invoke();
             }
         });
     }
 
-    public void AtualizarEstadoEntregaCloud(string deliveryId, string status)
+    public void AtualizarEstadoEntregaCloud(string deliveryId, string status,
+        DateTimeOffset? ocorridoEm = null)
     {
         UiDispatcher.Invoke(() =>
         {
@@ -69,6 +72,7 @@ public sealed class HistoricoRepository
             if (entry.Status == StatusEnvio.NaFila) return;
             if (entry.Status == StatusEnvio.Erro)
                 entry.ErroDetalhe = "A entrega pela nuvem falhou.";
+            entry.StatusAtualizadoEm = ocorridoEm?.LocalDateTime ?? DateTime.Now;
             Persist();
             Changed?.Invoke();
         });
@@ -101,14 +105,25 @@ public sealed class HistoricoRepository
                     continue;
                 }
 
-                if (Prioridade(remoto.Status) >= Prioridade(local.Status))
+                var prioridadeRemota = Prioridade(remoto.Status);
+                var prioridadeLocal = Prioridade(local.Status);
+                if (prioridadeRemota > prioridadeLocal
+                    || prioridadeRemota == prioridadeLocal && remoto.Status == local.Status
+                        && (remoto.StatusAtualizadoEm > local.StatusAtualizadoEm
+                            || string.IsNullOrWhiteSpace(local.RespostaTexto)
+                                && !string.IsNullOrWhiteSpace(remoto.RespostaTexto)
+                            || string.IsNullOrWhiteSpace(local.ErroDetalhe)
+                                && !string.IsNullOrWhiteSpace(remoto.ErroDetalhe)))
                 {
                     var mudou = local.Status != remoto.Status
                         || local.RespostaTexto != remoto.RespostaTexto
-                        || local.ErroDetalhe != remoto.ErroDetalhe;
+                        || local.ErroDetalhe != remoto.ErroDetalhe
+                        || local.StatusAtualizadoEm != remoto.StatusAtualizadoEm;
                     local.Status = remoto.Status;
                     local.RespostaTexto = remoto.RespostaTexto;
                     local.ErroDetalhe = remoto.ErroDetalhe;
+                    if (remoto.StatusAtualizadoEm.HasValue)
+                        local.StatusAtualizadoEm = remoto.StatusAtualizadoEm;
                     if (mudou) alterados++;
                 }
             }
@@ -187,13 +202,13 @@ public sealed class HistoricoRepository
         StatusEnvio.Enviando => 0,
         StatusEnvio.NaFila => 0,
         StatusEnvio.SemConfirmacao => 1,
-        StatusEnvio.Removido => 5,
-        StatusEnvio.RecebidoPeloReceptor => 1,
-        StatusEnvio.Entregue => 1,
-        StatusEnvio.Exibido => 2,
-        StatusEnvio.SemResposta => 3,
-        StatusEnvio.Respondido => 4,
-        StatusEnvio.Erro => 4,
+        StatusEnvio.RecebidoPeloReceptor => 2,
+        StatusEnvio.Entregue => 2,
+        StatusEnvio.Exibido => 3,
+        StatusEnvio.SemResposta => 4,
+        StatusEnvio.Respondido => 5,
+        StatusEnvio.Erro => 5,
+        StatusEnvio.Removido => 6,
         _ => 0,
     };
 

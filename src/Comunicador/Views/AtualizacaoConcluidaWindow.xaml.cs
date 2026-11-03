@@ -12,6 +12,4 @@ public partial class AtualizacaoConcluidaWindow : UserControl
     }
 
     private void Copiar_OnClick(object sender, RoutedEventArgs e) => Clipboard.SetText(Detalhes.Text);
-    private void Fechar_OnClick(object sender, RoutedEventArgs e) =>
-        (Window.GetWindow(this) as MainWindow)?.NavegarVoltar();
 }

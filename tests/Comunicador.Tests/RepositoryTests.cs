@@ -1,4 +1,6 @@
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using Comunicador.Models;
 using Comunicador.Services;
 using Comunicador.Storage;
@@ -8,6 +10,27 @@ namespace Comunicador.Tests;
 
 public sealed class RepositoryTests
 {
+    [Fact]
+    public void PedidoDeMiniaturaFicaLimitadoPorCincoHorasNoDiscoLocal()
+    {
+        var computerId = Guid.NewGuid().ToString("N");
+        var hash = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes($"{computerId}:0"))).ToLowerInvariant();
+        var marker = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Comunicador", "WallpaperPreviews", hash + ".jpg.requested");
+        try
+        {
+            Assert.True(WallpaperPreviewStore.CanRequest(computerId, 0, TimeSpan.FromHours(5)));
+            WallpaperPreviewStore.MarkRequested(computerId, 0);
+            Assert.False(WallpaperPreviewStore.CanRequest(computerId, 0, TimeSpan.FromHours(5)));
+            File.SetLastWriteTimeUtc(marker, DateTime.UtcNow.AddHours(-6));
+            Assert.True(WallpaperPreviewStore.CanRequest(computerId, 0, TimeSpan.FromHours(5)));
+            WallpaperPreviewStore.InvalidateRequest(computerId, 0);
+            Assert.True(WallpaperPreviewStore.CanRequest(computerId, 0, TimeSpan.FromHours(5)));
+        }
+        finally { File.Delete(marker); }
+    }
+
     [Fact]
     public void JsonStore_LeArquivoLegadoIndentadoESubstituiSemArquivoTemporario()
     {
@@ -279,6 +302,29 @@ public sealed class RepositoryTests
             repository.AtualizarEstadoEntregaCloud(failed.CloudDeliveryId!, "failed");
             Assert.Equal(StatusEnvio.Erro, failed.Status);
             Assert.Equal("A entrega pela nuvem falhou.", failed.ErroDetalhe);
+        });
+    }
+
+    [Fact]
+    public void HistoricoNaoVoltaParaEstadoAntigoAoSincronizar()
+    {
+        WithTemporaryStore(directory =>
+        {
+            var repository = new HistoricoRepository(new JsonStore<HistoricoEntry>(
+                Path.Combine(directory, "history.json")));
+            var atual = new HistoricoEntry
+            {
+                Id = "envio", Status = StatusEnvio.RecebidoPeloReceptor,
+                StatusAtualizadoEm = DateTime.Now,
+            };
+            repository.Adicionar(atual);
+
+            repository.Mesclar([new HistoricoEntry { Id = "envio", Status = StatusEnvio.NaFila }]);
+            Assert.Equal(StatusEnvio.RecebidoPeloReceptor, atual.Status);
+            repository.Mesclar([new HistoricoEntry { Id = "envio", Status = StatusEnvio.Entregue }]);
+            Assert.Equal(StatusEnvio.RecebidoPeloReceptor, atual.Status);
+            repository.Mesclar([new HistoricoEntry { Id = "envio", Status = StatusEnvio.Exibido }]);
+            Assert.Equal(StatusEnvio.Exibido, atual.Status);
         });
     }
 

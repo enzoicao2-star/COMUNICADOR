@@ -12,6 +12,7 @@ public sealed class HistoricoSincronizado
     [JsonPropertyName("title")] public string Title { get; set; } = string.Empty;
     [JsonPropertyName("message")] public string Message { get; set; } = string.Empty;
     [JsonPropertyName("status")] public string Status { get; set; } = string.Empty;
+    [JsonPropertyName("status_updated_at")] public string? StatusUpdatedAt { get; set; }
     [JsonPropertyName("reply_text")] public string? ReplyText { get; set; }
     [JsonPropertyName("error_detail")] public string? ErrorDetail { get; set; }
 }

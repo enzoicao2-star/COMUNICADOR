@@ -28,9 +28,14 @@ public sealed class MensagensViewModel : ViewModelBase
     private readonly object _preloadSync = new();
     private readonly Dictionary<string, Task<MediaTransferResult>> _preloads = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConditionalWeakTable<byte[], Lazy<Task<string>>> _preloadHashes = new();
+    private readonly ConditionalWeakTable<byte[], Lazy<Task<MediaTransferResult>>> _base64Preparado = new();
     private readonly SemaphoreSlim _preloadGate = new(3, 3);
     private bool _envioEmAndamento;
     private bool _descartarMidiaAoConcluirEnvio;
+    private int _preparoGeracao;
+    private bool _preparoMidiaEmAndamento;
+    private bool _preparoMidiaFalhou;
+    private string _preparoMidiaTexto = string.Empty;
 
     private string _titulo = string.Empty;
     private string _mensagem = string.Empty;
@@ -93,6 +98,13 @@ public sealed class MensagensViewModel : ViewModelBase
     public ObservableCollection<DestinoMonitor> MonitoresDestino { get; } = new();
     public ObservableCollection<GrupoComputadoresGlobal> GruposComputadores { get; } = new();
     public ObservableCollection<ModeloMensagemGlobal> ModelosMensagem { get; } = new();
+    public bool PreparoMidiaEmAndamento
+    { get => _preparoMidiaEmAndamento; private set => SetField(ref _preparoMidiaEmAndamento, value); }
+    public bool PreparoMidiaFalhou
+    { get => _preparoMidiaFalhou; private set => SetField(ref _preparoMidiaFalhou, value); }
+    public string PreparoMidiaTexto
+    { get => _preparoMidiaTexto; private set => SetField(ref _preparoMidiaTexto, value); }
+    public ICommand RepetirPreparoCommand { get; }
 
     public bool PodeAbrirBiblioteca => _cloud.IsAdmin;
     public bool PodeSelecionarGrupo => PodeAbrirBiblioteca || GruposComputadores.Count > 0;
@@ -778,6 +790,8 @@ public sealed class MensagensViewModel : ViewModelBase
         });
 
         EnviarCommand = new AsyncRelayCommand(EnviarAsync, PodeEnviar);
+        RepetirPreparoCommand = new RelayCommand(_ => IniciarPrecarregamentoEmSegundoPlano(),
+            _ => PreparoMidiaFalhou && !PreparoMidiaEmAndamento);
         PrevisualizarCommand = new AsyncRelayCommand(PrevisualizarAsync,
             () => PodeEnviar() && !AlterarImagemSistema);
         AplicarGrupoCommand = new RelayCommand(_ => AplicarGrupo(), _ => GrupoSelecionado is not null);
@@ -1167,6 +1181,7 @@ public sealed class MensagensViewModel : ViewModelBase
 
     private bool PodeEnviar()
     {
+        if (PreparoMidiaEmAndamento) return false;
         if (AlterarImagemSistema
             ? !PodeAlterarPapelParede
             : !_cloud.HasPermission("send_media")) return false;
@@ -1502,26 +1517,88 @@ public sealed class MensagensViewModel : ViewModelBase
 
     private void IniciarPrecarregamentoEmSegundoPlano()
     {
-        if (AlterarImagemSistema || DefinirComoPapelDeParede || DefinirComoTelaDeBloqueio) return;
-        foreach (var destino in MonitoresDestino.Select(m => m.Computador).DistinctBy(c => c.Id))
+        var geracao = ++_preparoGeracao;
+        var tarefas = new HashSet<Task<MediaTransferResult>>();
+        var selecionados = Destinatarios.Where(d => d.Selecionado)
+            .Select(d => d.Computador.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var destinos = MonitoresDestino.Select(m => m.Computador)
+            .Where(c => selecionados.Contains(c.Id)).DistinctBy(c => c.Id).ToList();
+        var somenteNuvem = 0;
+        foreach (var destino in destinos)
         {
-            if (!destino.Pareado || string.IsNullOrWhiteSpace(destino.Token) || destino.EhOwner) continue;
             var monitores = MonitoresDestino.Where(m => m.Computador.Id == destino.Id).ToList();
+            var arquivos = monitores.SelectMany(m => m.Midias).Select(m => m.Dados)
+                .Concat(new[] { _dadosImagem, _dadosVideo, _dadosAudio }.OfType<byte[]>())
+                .Where(bytes => bytes.Length > 0).ToList();
+            foreach (var arquivo in arquivos)
+                tarefas.Add(_base64Preparado.GetValue(arquivo, static bytes =>
+                    new Lazy<Task<MediaTransferResult>>(() => Task.Run(() =>
+                    {
+                        MidiaMonitorEditavel.CodificarBase64(bytes);
+                        return new MediaTransferResult(true, string.Empty, 0, 0, null);
+                    }))).Value);
+            if (!destino.Pareado || string.IsNullOrWhiteSpace(destino.Token) || destino.EhOwner)
+            {
+                if (arquivos.Any()) somenteNuvem++;
+                continue;
+            }
+            if (AlterarImagemSistema) continue;
             if (!monitores.Any(m => m.Midias.Any(item => item.EhImagem))
                 && _dadosImagem is { Length: > 0 } && _mimeImagem is not null)
-                _ = IniciarPreload(destino, _mimeImagem == "image/gif" ? "gif" : "image", _mimeImagem, _dadosImagem);
+                tarefas.Add(IniciarPreload(destino, _mimeImagem == "image/gif" ? "gif" : "image", _mimeImagem, _dadosImagem));
             if (!monitores.Any(m => m.Midias.Any(item => item.EhVideo))
                 && _dadosVideo is { Length: > 0 } && _mimeVideo is not null)
-                _ = IniciarPreload(destino, "video", _mimeVideo, _dadosVideo);
+                tarefas.Add(IniciarPreload(destino, "video", _mimeVideo, _dadosVideo));
             if (!monitores.Any(m => m.Midias.Any(item => item.MimeType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase)))
                 && _dadosAudio is { Length: > 0 } && _mimeAudio is not null)
-                _ = IniciarPreload(destino, "audio", _mimeAudio, _dadosAudio);
+                tarefas.Add(IniciarPreload(destino, "audio", _mimeAudio, _dadosAudio));
             foreach (var item in monitores.SelectMany(m => m.Midias))
             {
                 var tipo = item.EhVideo ? "video" : item.MimeType == "image/gif" ? "gif" : "image";
-                _ = IniciarPreload(destino, tipo, item.MimeType, item.Dados);
+                tarefas.Add(IniciarPreload(destino, tipo, item.MimeType, item.Dados));
             }
         }
+        PreparoMidiaFalhou = false;
+        PreparoMidiaEmAndamento = tarefas.Count > 0;
+        PreparoMidiaTexto = tarefas.Count == 0
+            ? somenteNuvem > 0 ? "Mídia pela nuvem: o envio dependerá da conexão do receptor." : string.Empty
+            : $"Preparando mídia: 0 de {tarefas.Count} etapa(s) concluída(s)…";
+        CommandManager.InvalidateRequerySuggested();
+        if (tarefas.Count > 0) _ = AcompanharPreparoAsync(tarefas, geracao, somenteNuvem);
+    }
+
+    private async Task AcompanharPreparoAsync(HashSet<Task<MediaTransferResult>> tarefas, int geracao,
+        int somenteNuvem)
+    {
+        var total = tarefas.Count;
+        var concluidos = 0;
+        var falhas = 0;
+        while (tarefas.Count > 0)
+        {
+            var concluida = await Task.WhenAny(tarefas).ConfigureAwait(false);
+            tarefas.Remove(concluida);
+            try { if ((await concluida.ConfigureAwait(false)).Success) concluidos++; else falhas++; }
+            catch (Exception) { falhas++; }
+            UiDispatcher.Invoke(() =>
+            {
+                if (geracao != _preparoGeracao) return;
+                PreparoMidiaTexto = falhas == 0
+                    ? $"Preparando mídia: {concluidos} de {total} etapa(s) concluída(s)…"
+                    : $"Carregamento: {concluidos} pronto(s), {falhas} falha(s), {tarefas.Count} pendente(s).";
+            });
+        }
+        UiDispatcher.Invoke(() =>
+        {
+            if (geracao != _preparoGeracao) return;
+            PreparoMidiaEmAndamento = false;
+            PreparoMidiaFalhou = falhas > 0;
+            PreparoMidiaTexto = falhas == 0
+                ? somenteNuvem > 0
+                    ? $"Mídia preparada aqui. {somenteNuvem} computador(es) ainda receberão pela nuvem ao enviar."
+                    : "Mídia carregada. Clique em Enviar agora para exibir."
+                : $"{falhas} carga(s) falharam. Tente novamente; o envio pela nuvem pode demorar.";
+            CommandManager.InvalidateRequerySuggested();
+        });
     }
 
     private async Task<EnvioPendente> CriarEnvioComCacheAsync(Computador computador, EnvioPendente original)

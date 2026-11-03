@@ -103,6 +103,7 @@ public sealed class HistoricoViewModel : ViewModelBase
     {
         var atual = ComputadorSelecionadoId;
         Computadores.Clear();
+        Computadores.Add(new HistoricoComputadorFiltro(string.Empty, "Todos", Itens.Count));
         foreach (var grupo in Itens.Where(i => !string.IsNullOrWhiteSpace(i.ComputadorId))
                      .GroupBy(i => i.ComputadorId)
                      .OrderBy(g => g.First().ComputadorNome))
@@ -110,7 +111,7 @@ public sealed class HistoricoViewModel : ViewModelBase
             Computadores.Add(new HistoricoComputadorFiltro(
                 grupo.Key, grupo.First().ComputadorNome, grupo.Count()));
         }
-        if (atual is not null && Computadores.All(c => c.Id != atual)) ComputadorSelecionadoId = null;
+        if (!string.IsNullOrWhiteSpace(atual) && Computadores.All(c => c.Id != atual)) ComputadorSelecionadoId = null;
     }
 
     private void AtualizarResumo()
@@ -120,10 +121,25 @@ public sealed class HistoricoViewModel : ViewModelBase
         foreach (var status in Enum.GetValues<StatusEnvio>())
         {
             var count = Itens.Count(i => i.Status == status);
-            StatusFiltros.Add(new ResumoEntrega(status.ToString(), $"{status} ({count})"));
+            StatusFiltros.Add(new ResumoEntrega(status.ToString(), $"{NomeStatus(status)} ({count})"));
         }
         ItensFiltrados.Refresh();
     }
+
+    internal static string NomeStatus(StatusEnvio status) => status switch
+    {
+        StatusEnvio.Enviando => "Enviando",
+        StatusEnvio.NaFila => "Na fila",
+        StatusEnvio.RecebidoPeloReceptor => "Receptor recebeu",
+        StatusEnvio.Entregue => "Entregue",
+        StatusEnvio.Exibido => "Exibido",
+        StatusEnvio.Respondido => "Respondido",
+        StatusEnvio.Erro => "Falhou",
+        StatusEnvio.SemResposta => "Sem resposta",
+        StatusEnvio.SemConfirmacao => "Sem confirmação",
+        StatusEnvio.Removido => "Removido",
+        _ => status.ToString(),
+    };
 
     private async Task ReenviarAsync(Models.HistoricoEntry entry)
     {
